@@ -13,4 +13,8 @@ class Endpoints(members: List[ServiceMember]) extends Serializable {
 
 object Endpoints {
   val empty = new Endpoints(List())
+  
+  def list(members: ServiceMember*):Endpoints = {
+    new Endpoints(List[ServiceMember]() ++ members)
+  }
 }

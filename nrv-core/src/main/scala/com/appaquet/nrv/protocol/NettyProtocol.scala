@@ -3,7 +3,6 @@ package com.appaquet.nrv.protocol
 import com.appaquet.nrv.codec.Codec
 import com.appaquet.nrv.cluster.Cluster
 import java.util.concurrent.Executors
-import java.net.InetSocketAddress
 import org.jboss.netty.handler.codec.oneone.OneToOneEncoder
 import org.jboss.netty.channel._
 import com.appaquet.nrv.service.Action
@@ -12,6 +11,7 @@ import socket.nio.{NioClientSocketChannelFactory, NioServerSocketChannelFactory}
 import org.jboss.netty.buffer.{ChannelBuffers, ChannelBuffer}
 import org.jboss.netty.handler.codec.frame.{CorruptedFrameException, FrameDecoder}
 import com.appaquet.nrv.data.{InRequest, Message}
+import java.net.{InetAddress, InetSocketAddress}
 
 /**
  * Protocol that uses Netty (NIO sockets)
@@ -42,7 +42,7 @@ abstract class NettyProtocol(name: String, cluster: Cluster, codec: Codec) exten
   })
 
 
-  def getClientChannel(host: String, port: Int): Channel = {
+  def getClientChannel(host: InetAddress, port: Int): Channel = {
     val connectFuture = this.cltBootstrap.connect(new InetSocketAddress(host, port))
     connectFuture.awaitUninterruptibly.getChannel
   }
@@ -57,7 +57,10 @@ abstract class NettyProtocol(name: String, cluster: Cluster, codec: Codec) exten
   }
 
   def handleOutgoing(action: Action, message: Message) {
-    val channel = this.getClientChannel("127.0.0.1", 12346)
+    // TODO: make sure we really have at least 1 node
+    val node = message.destination(0).node
+
+    val channel = this.getClientChannel(node.host, node.ports(name))
     val future = channel.write(message)
     future.awaitUninterruptibly
 

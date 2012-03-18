@@ -3,11 +3,13 @@ package com.appaquet.nrv.protocol
 import org.scalatest.FunSuite
 import com.appaquet.nrv.cluster.{Node, Cluster}
 import com.appaquet.nrv.codec.JavaSerializeCodec
-import com.appaquet.nrv.service.Action
+import com.appaquet.nrv.service.{ServiceMember, Endpoints, Action}
 import com.appaquet.nrv.data.{Message, OutRequest}
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class TestNettyProtocol extends FunSuite {
-
   test("out-in") {
     val notifier = new Object()
     var received: Message = null
@@ -26,7 +28,9 @@ class TestNettyProtocol extends FunSuite {
 
     cluster.start()
 
-    protocol.handleOutgoing(null, new OutRequest(Map("test" -> "someval")))
+    val req = new OutRequest(Map("test" -> "someval"))
+    req.destination = Endpoints.list(new ServiceMember(0, cluster.localNode))
+    protocol.handleOutgoing(null, req)
 
     cluster.stop()
 

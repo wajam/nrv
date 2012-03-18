@@ -2,12 +2,14 @@
 ###################
 build
 target
+lib_managed
 
 # IDE generated files #
 ######################
 .project
 .classpath
 .idea*
+.history
 *.iml
 *.class
 

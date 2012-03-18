@@ -1,13 +1,20 @@
 package com.appaquet.nrv.codec
 
 import org.scalatest.FunSuite
+import com.appaquet.nrv.cluster.Node
+import com.appaquet.nrv.service.{ServiceMember, Endpoints}
 import com.appaquet.nrv.data.{Message, OutRequest}
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class TestJavaSerializeCodec extends FunSuite {
   test("serialize, unserialize") {
     val codec = new JavaSerializeCodec()
 
-    val bytes = codec.encode(new OutRequest(Map("test" -> "someval")))
+    val req = new OutRequest(Map("test" -> "someval"))
+    req.destination = Endpoints.list(new ServiceMember(0, new Node("127.0.0.1", Map("nrv" -> 12345))))
+    val bytes = codec.encode(req)
 
     assert(bytes.length > 0)
 

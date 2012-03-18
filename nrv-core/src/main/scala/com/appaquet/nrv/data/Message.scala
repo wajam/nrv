@@ -14,7 +14,7 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
 
   loadData(data)
 
-  def this(params:(String, Any)*) = this(params)
+  def this(params: (String, Any)*) = this(params)
 
   def loadData(data: Iterable[(String, Any)]) {
     this ++= data
