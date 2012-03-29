@@ -1,6 +1,7 @@
 package com.wajam.nrv.service
 
 import com.wajam.nrv.cluster.Node
+import java.io.Serializable
 
 /**
  * Node that is member of a service, at a specific position (token) in

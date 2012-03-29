@@ -32,7 +32,7 @@ class TestAction extends FunSuite {
       }
     }))
 
-    action.call(Map("test" -> "myvalue"))
+    action.call("test" -> "myvalue")()
 
     notifier.synchronized {
       notifier.wait(1)

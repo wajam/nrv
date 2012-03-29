@@ -19,7 +19,7 @@ class Action(onReceive: ((InRequest) => Unit)) extends ActionSupport {
     this.protocol.handleOutgoing(this, request)
   }
 
-  def call(data: Iterable[(String, Any)], onReceive: (InRequest => Unit) = null) {
+  def call(data:(String, Any)*)(onReceive: (InRequest => Unit) = null) {
     this.call(new OutRequest(data, onReceive))
   }
 
