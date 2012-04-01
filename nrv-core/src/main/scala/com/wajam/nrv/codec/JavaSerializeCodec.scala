@@ -8,18 +8,28 @@ import java.io._
  * Codec that uses Java object serialization to encode messages
  */
 class JavaSerializeCodec extends Codec {
-  def encode(message: Message): Array[Byte] = {
+  def encodeAny(obj:AnyRef): Array[Byte] = {
     val baos = new ByteArrayOutputStream();
     val serializer = new ObjectOutputStream(baos)
-    serializer.writeObject(message)
+    serializer.writeObject(obj)
     serializer.flush()
     baos.toByteArray
+  }
+
+  def encode(message: Message): Array[Byte] = {
+    this.encodeAny(message)
   }
 
   def decode(data: Array[Byte]): Message = {
     val bains = new ByteArrayInputStream(data)
     val deserialize = new ClassLoaderObjectInputStream(getClass.getClassLoader, bains)
     deserialize.readObject().asInstanceOf[Message]
+  }
+
+  def decodeAny(data: Array[Byte]): AnyRef = {
+    val bains = new ByteArrayInputStream(data)
+    val deserialize = new ClassLoaderObjectInputStream(getClass.getClassLoader, bains)
+    deserialize.readObject()
   }
 }
 
