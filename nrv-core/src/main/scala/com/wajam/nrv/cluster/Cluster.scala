@@ -3,13 +3,13 @@ package com.wajam.nrv.cluster
 import collection.mutable.HashMap
 import com.wajam.nrv.service._
 import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
-import com.wajam.nrv.service.{Action, ActionUrl, Service, Resolver}
+import com.wajam.nrv.service.{Action, ActionUrl, Service}
 
 /**
  * A cluster composed of services that are provided by nodes.
  */
-class Cluster(var localNode: Node, resolver: Option[Resolver] = None) extends ActionSupport {
-  applySupport(cluster = Some(this), resolver = resolver)
+class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends ActionSupport {
+  applySupport(cluster = Some(this))
 
   var services = HashMap[String, Service]()
   var protocols = HashMap[String, Protocol]()

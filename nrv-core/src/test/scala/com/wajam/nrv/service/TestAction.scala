@@ -5,11 +5,11 @@ import com.wajam.nrv.protocol.DummyProtocol
 import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
 import java.lang.String
-import com.wajam.nrv.cluster.{Node, Cluster}
+import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
 
 @RunWith(classOf[JUnitRunner])
 class TestAction extends FunSuite {
-  val cluster = new Cluster(localNode = new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)))
+  val cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
   cluster.registerProtocol(new DummyProtocol(cluster, "dummy"), default = true)
   val service = cluster.addService(new Service("test", resolver = Some(new Resolver(Some(1)))))
 

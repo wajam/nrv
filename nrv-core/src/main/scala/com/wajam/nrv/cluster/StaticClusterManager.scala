@@ -3,6 +3,6 @@ package com.wajam.nrv.cluster
 /**
  * Static cluster (fixed number of nodes, fixed address)
  */
-class StaticClusterManager {
+class StaticClusterManager extends ClusterManager {
 
 }

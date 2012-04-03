@@ -7,7 +7,7 @@ import com.wajam.nrv.service.{ActionUrl, Action, Service}
 
 @RunWith(classOf[JUnitRunner])
 class TestCluster extends FunSuite {
-  val cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)))
+  val cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
 
   val srv1 = cluster.addService(new Service("test1"))
   val srv2 = cluster.addService(new Service("test2"))

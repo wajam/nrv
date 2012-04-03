@@ -10,4 +10,10 @@ class Node(val host: InetAddress, val ports: Map[String, Int]) extends Serializa
     throw new UninitializedFieldError("Node must have a 'nrv' port defined")
 
   def this(host: String, ports: Map[String, Int]) = this(InetAddress.getByName(host), ports)
+
+  override def hashCode():Int = {
+    var sum = host.hashCode()
+    for ((s, p) <- ports) sum += (s.hashCode + p.hashCode())
+    sum
+  }
 }
