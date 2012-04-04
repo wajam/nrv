@@ -1,18 +1,17 @@
 package com.wajam.nrv.cluster
 
-import collection.mutable.HashMap
 import com.wajam.nrv.service._
 import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
-import com.wajam.nrv.service.{Action, ActionUrl, Service}
+import com.wajam.nrv.service.{Action, ActionPath, Service}
 
 /**
  * A cluster composed of services that are provided by nodes.
  */
 class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends ActionSupport {
-  applySupport(cluster = Some(this))
+  applySupport(cluster = Some(this), resolver = Some(new Resolver))
 
-  var services = HashMap[String, Service]()
-  var protocols = HashMap[String, Protocol]()
+  var services = Map[String, Service]()
+  var protocols = Map[String, Protocol]()
 
   // register default protocol, which is nrv
   this.registerProtocol(new NrvProtocol(this), true)
@@ -33,7 +32,7 @@ class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends A
     service
   }
 
-  def getAction(url: ActionUrl): Action = {
+  def getAction(url: ActionURL): Action = {
     val service = services.get(url.service)
     if (service == None)
       return null

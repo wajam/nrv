@@ -26,10 +26,15 @@ trait Ring[T] {
     this.tree -= new Node(token, None)
   }
 
+  def copyTo(that:Ring[T]) {
+    for (node <- tree) {
+      that.add(node.token, node.value.get)
+    }
+  }
+
   def size = this.tree.size
 
   class Node(var token: Long, var value: Option[T]) extends Comparable[Node] {
     def compareTo(o: Node) = (this.token - o.token).asInstanceOf[Int]
   }
-
 }

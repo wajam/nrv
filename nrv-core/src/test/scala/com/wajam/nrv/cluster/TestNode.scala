@@ -12,6 +12,10 @@ class TestNode extends FunSuite {
 
     assert(n1 != n1a)
     assert(n2 == n2a)
-  }
 
+    var m = Map[Node, Boolean]()
+    m += (n2 -> true)
+
+    assert(m(n2a) == true)
+  }
 }

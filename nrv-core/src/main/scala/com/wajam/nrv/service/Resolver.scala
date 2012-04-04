@@ -14,6 +14,7 @@ class Resolver(var replica: Option[Int] = Some(1)) extends MessageHandler {
   }
 
   def handleOutgoing(action: Action, message: Message) {
+    message.destination = this.resolve(action, message.path)
   }
 
   def hashData(data: String): Long = {
@@ -24,7 +25,7 @@ class Resolver(var replica: Option[Int] = Some(1)) extends MessageHandler {
 
   def resolve(action: Action, path: String): Endpoints = {
     // use hashed path to resolve the node that will handle the call
-    val results = action.service.resolve(this.hashData(path), replica.get)
+    val results = action.service.resolveMembers(this.hashData(path), replica.get)
 
     var endpointsList = List[ServiceMember]()
     for (result <- results)

@@ -11,10 +11,18 @@ import com.wajam.nrv.cluster.Node
  *
  * Members of the service are represented by a consistent hashing ring (@see Ring)
  */
-class Service(var name: String, protocol: Option[Protocol] = None, resolver: Option[Resolver] = None) extends ActionSupport with Ring[Node] {
+class Service(var name: String, protocol: Option[Protocol] = None, resolver: Option[Resolver] = None) extends ActionSupport {
+  var ring = new Object with Ring[Node]
   var actions = List[Action]()
 
   applySupport(service = Some(this), protocol = protocol, resolver = resolver)
+
+  def addMember(token: Long, node: Node) = this.ring.add(token, node)
+
+  def resolveMembers(token: Long, count: Int) = this.ring.resolve(token, count)
+
+  def membersCount = this.ring.size
+
 
   def bind(path: String, action: Action): Action = {
     action.supportedBy(this)
@@ -24,9 +32,7 @@ class Service(var name: String, protocol: Option[Protocol] = None, resolver: Opt
     action
   }
 
-  def findAction(path: String): Option[Action] = {
-    this.actions find {
-      _.matches(path)
-    }
+  def findAction(path: ActionPath): Option[Action] = {
+    this.actions find { _.matches(path) }
   }
 }

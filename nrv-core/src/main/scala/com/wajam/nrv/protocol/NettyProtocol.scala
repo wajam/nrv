@@ -57,7 +57,6 @@ abstract class NettyProtocol(name: String, cluster: Cluster, codec: Codec) exten
   }
 
   def handleOutgoing(action: Action, message: Message) {
-    // TODO: make sure we really have at least 1 node
     val node = message.destination(0).node
 
     val channel = this.getClientChannel(node.host, node.ports(name))

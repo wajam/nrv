@@ -16,17 +16,17 @@ class TestService extends FunSuite {
   }
 
   test("add member") {
-    service.add(5, new Node("localhost", Map("nrv" -> 12345)))
-    service.add(9, new Node("localhost", Map("nrv" -> 12346)))
-    assert(service.size == 2)
+    service.addMember(5, new Node("localhost", Map("nrv" -> 12345)))
+    service.addMember(9, new Node("localhost", Map("nrv" -> 12346)))
+    assert(service.membersCount == 2)
   }
 
   test("member resolve") {
-    var endpoints = service.resolve(8, 1)
+    var endpoints = service.resolveMembers(8, 1)
     assert(endpoints.size == 1)
     assert(endpoints(0).token == 9)
 
-    endpoints = service.resolve(10, 2)
+    endpoints = service.resolveMembers(10, 2)
     assert(endpoints.size == 2)
     assert(endpoints(0).token == 5)
     assert(endpoints(1).token == 9)

@@ -1,6 +1,6 @@
 package com.wajam.nrv.data
 
-import collection.mutable.HashMap
+import scala.collection.mutable.HashMap
 import com.wajam.nrv.service.Endpoints
 
 /**

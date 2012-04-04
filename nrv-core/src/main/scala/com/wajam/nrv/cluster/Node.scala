@@ -16,4 +16,9 @@ class Node(val host: InetAddress, val ports: Map[String, Int]) extends Serializa
     for ((s, p) <- ports) sum += (s.hashCode + p.hashCode())
     sum
   }
+
+  override def equals(that: Any) = that match {
+    case other: Node => this.hashCode == that.hashCode
+    case _ => false
+  }
 }
