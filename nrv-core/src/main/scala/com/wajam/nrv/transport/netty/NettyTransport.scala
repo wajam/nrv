@@ -9,6 +9,7 @@ import com.wajam.nrv.transport.{Transport}
 import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.channel._
 import com.wajam.nrv.data.Message
+import com.wajam.nrv.Logging
 
 /**
  * Transport implementation based on Netty.
@@ -24,6 +25,7 @@ class NettyTransport(host: InetAddress,
 
   val server = new NettyServer(host, port, factory)
   val client = new NettyClient(factory)
+  val allChannels = new DefaultChannelGroup
 
   def start() {
     server.start()
@@ -31,6 +33,8 @@ class NettyTransport(host: InetAddress,
   }
 
   def stop() {
+    allChannels.close().awaitUninterruptibly()
+    allChannels.clear()
     server.stop()
     client.stop()
   }
@@ -39,7 +43,7 @@ class NettyTransport(host: InetAddress,
     client.openConnection(host, port).write(message).addListener(ChannelFutureListener.CLOSE)
   }
 
-  class NettyServer(host: InetAddress, port: Int, factory: NettyTransportCodecFactory) extends Stoppable {
+  class NettyServer(host: InetAddress, port: Int, factory: NettyTransportCodecFactory) extends Logging {
 
     val serverBootstrap = new ServerBootstrap(
       new org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory(
@@ -48,14 +52,16 @@ class NettyTransport(host: InetAddress,
 
     serverBootstrap.setPipelineFactory(new DefaultPipelineFactory)
 
-    override def start() {
-      super.start()
+    def start() {
+      log.info("Starting server. host={} port={}", host, port)
       allChannels.add(serverBootstrap.bind(new java.net.InetSocketAddress(host, port)))
+      log.info("Server started.")
     }
 
-    override def stop() {
-      super.stop()
+    def stop() {
+      log.info("Stopping server. host={} port={}", host, port)
       serverBootstrap.releaseExternalResources()
+      log.info("Server stopped.")
     }
 
     class DefaultPipelineFactory extends ChannelPipelineFactory {
@@ -69,7 +75,7 @@ class NettyTransport(host: InetAddress,
     }
   }
 
-  class NettyClient(factory: NettyTransportCodecFactory) extends Stoppable {
+  class NettyClient(factory: NettyTransportCodecFactory) extends Logging {
 
     val clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(Executors.newCachedThreadPool, Executors.newCachedThreadPool))
 
@@ -81,17 +87,18 @@ class NettyTransport(host: InetAddress,
 
     clientBootstrap.setPipelineFactory(new DefaultPipelineFactory)
 
-    override def start() {
-      super.start()
+    def start() {
+      log.info("Starting client")
     }
 
-    override def stop() {
-      super.stop()
+    def stop() {
       clientBootstrap.releaseExternalResources()
+      log.info("Stopping client")
     }
 
     def openConnection(host: InetAddress, port: Int): Channel = {
       //todo pool connections
+      log.info("Opening connection to {}:{}", host, port)
       val connectFuture = clientBootstrap.connect(new InetSocketAddress(host, port))
       val channel = connectFuture.awaitUninterruptibly.getChannel
       allChannels.add(channel)
@@ -109,21 +116,23 @@ class NettyTransport(host: InetAddress,
     }
   }
 
-  val incomingMessageHandler = new SimpleChannelUpstreamHandler {
+  val incomingMessageHandler = new SimpleChannelUpstreamHandler with Logging {
+
+    override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
+      e.getChannel.close()
+      log.info("Connection closed because of an exception: ", e.getCause)
+    }
+
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
       protocol.handleIncoming(null, e.getMessage.asInstanceOf[Message])
     }
-  }
 
-  trait Stoppable {
-    val allChannels = new DefaultChannelGroup
-
-    def start() {
-      allChannels.clear()
+    override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+      allChannels.add(ctx.getChannel)
     }
 
-    def stop() {
-      allChannels.close().awaitUninterruptibly()
+    override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+      allChannels.remove(ctx.getChannel)
     }
   }
 
