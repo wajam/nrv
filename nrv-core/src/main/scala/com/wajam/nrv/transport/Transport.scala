@@ -17,6 +17,6 @@ abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) {
 
   def stop()
 
-  def sendMessage(host: InetAddress, port: Int, message: Message)
+  def sendMessage(host: InetAddress, port: Int, message: Any)
 
 }

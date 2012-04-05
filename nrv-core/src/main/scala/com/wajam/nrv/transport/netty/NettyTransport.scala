@@ -39,7 +39,7 @@ class NettyTransport(host: InetAddress,
     client.stop()
   }
 
-  def sendMessage(host: InetAddress, port: Int, message: Message) {
+  def sendMessage(host: InetAddress, port: Int, message: Any) {
     client.openConnection(host, port).write(message).addListener(ChannelFutureListener.CLOSE)
   }
 
