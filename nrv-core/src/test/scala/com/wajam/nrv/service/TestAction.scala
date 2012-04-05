@@ -13,13 +13,14 @@ class TestAction extends FunSuite {
   cluster.registerProtocol(new DummyProtocol(cluster, "dummy"), default = true)
   val service = cluster.addService(new Service("test", resolver = Some(new Resolver(Some(1)))))
   service.addMember(0, cluster.localNode)
+  cluster.router.start()
 
   test("call") {
     val notifier = new Object()
     var called = false
     var testValue: String = "NOTSET"
 
-    val action = service.bind("/test", new Action(req => {
+    val action = service.bind(new Action("/test", req => {
       called = true
 
       req.getOrElse("test", "") match {

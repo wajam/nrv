@@ -6,4 +6,5 @@ package com.wajam.nrv.service
  */
 class ActionURL(var service:String, var path:ActionPath = "/", var protocol:String = "nrv") {
 
+  override def toString = "%s://%s%s".format(protocol, service, path)
 }

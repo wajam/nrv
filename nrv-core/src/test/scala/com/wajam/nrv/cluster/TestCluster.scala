@@ -3,7 +3,7 @@ package com.wajam.nrv.cluster
 import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
-import com.wajam.nrv.service.{ActionURL, ActionPath, Action, Service}
+import com.wajam.nrv.service.{ActionURL, Action, Service}
 
 @RunWith(classOf[JUnitRunner])
 class TestCluster extends FunSuite {
@@ -19,9 +19,9 @@ class TestCluster extends FunSuite {
   test("add service") {
     assert(cluster.services.size == 2)
 
-    act1 = srv1.bind("/testabc", new Action(req => Unit))
-    act2 = srv1.bind("/testdef", new Action(req => Unit))
-    act3 = srv2.bind("/testabc", new Action(req => Unit))
+    act1 = srv1.bind(new Action("/testabc", req => Unit))
+    act2 = srv1.bind(new Action("/testdef", req => Unit))
+    act3 = srv2.bind(new Action("/testabc", req => Unit))
   }
 
   test("url resolving") {

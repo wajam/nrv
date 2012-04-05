@@ -2,7 +2,8 @@ package com.wajam.nrv.cluster
 
 import com.wajam.nrv.service._
 import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
-import com.wajam.nrv.service.{Action, ActionPath, Service}
+import com.wajam.nrv.service.{Action, Service}
+import com.wajam.nrv.data.Message
 
 /**
  * A cluster composed of services that are provided by nodes.
@@ -10,6 +11,7 @@ import com.wajam.nrv.service.{Action, ActionPath, Service}
 class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends ActionSupport {
   applySupport(cluster = Some(this), resolver = Some(new Resolver))
 
+  var router = new Router(this)
   var services = Map[String, Service]()
   var protocols = Map[String, Protocol]()
 
@@ -22,6 +24,10 @@ class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends A
     if (default) {
       this.applySupport(protocol = Some(protocol))
     }
+  }
+
+  def route(message: Message) {
+    this.router ! message
   }
 
   def getService(name: String): Service = this.services(name)
@@ -43,6 +49,7 @@ class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends A
   }
 
   def start() {
+    this.router.start()
     for ((name, protocol) <- this.protocols) {
       protocol.start()
     }

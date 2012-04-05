@@ -1,16 +1,17 @@
 package com.wajam.nrv.data
 
 import scala.collection.mutable.HashMap
-import com.wajam.nrv.service.Endpoints
+import com.wajam.nrv.service.{ActionURL, Endpoints}
 
 /**
  * Base message used for outbound and inbound requests.
  */
 abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, Any] with Serializable {
-  var protocolName: String = ""
-  var serviceName: String = ""
-  var path: String = ""
-  var destination: Endpoints = Endpoints.empty
+  var protocolName = ""
+  var serviceName = ""
+  var path = "/"
+  var rendezvous = 0
+  var destination = Endpoints.empty
 
   loadData(data)
 
@@ -19,6 +20,8 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
   def loadData(data: Iterable[(String, Any)]) {
     this ++= data
   }
+
+  lazy val actionURL = new ActionURL(serviceName, path, protocolName)
 
   def copyTo(other: Message) {
     other.loadData(this)

@@ -24,11 +24,10 @@ class Service(var name: String, protocol: Option[Protocol] = None, resolver: Opt
   def membersCount = this.ring.size
 
 
-  def bind(path: String, action: Action): Action = {
+  def bind(action: Action): Action = {
     action.supportedBy(this)
-    action.path = path
-    this.actions ::= action
 
+    this.actions ::= action
     action
   }
 

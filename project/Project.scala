@@ -15,7 +15,8 @@ object NrvBuild extends Build {
     "org.slf4j" % "slf4j-nop" % "1.5.8",
     "io.netty" % "netty" % "3.3.1.Final" withSources(),
     "org.scalatest" %% "scalatest" % "1.7.1" % "test,it",
-    "junit" % "junit" % "4.10" % "test,it"
+    "junit" % "junit" % "4.10" % "test,it",
+    "org.mockito" % "mockito-core" % "1.9.0" % "test,it"
   )
 
   var zookeeperDeps = Seq(

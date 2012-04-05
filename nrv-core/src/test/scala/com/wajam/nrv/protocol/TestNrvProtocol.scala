@@ -38,7 +38,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     protocol.handleOutgoing(null, req)
 
     notifier.synchronized {
-      notifier.wait(10)
+      notifier.wait(100)
     }
 
     assert(received != null)

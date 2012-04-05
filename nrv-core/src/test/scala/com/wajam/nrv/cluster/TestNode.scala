@@ -1,7 +1,10 @@
 package com.wajam.nrv.cluster
 
 import org.scalatest.FunSuite
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class TestNode extends FunSuite {
 
   test("node as map key") {

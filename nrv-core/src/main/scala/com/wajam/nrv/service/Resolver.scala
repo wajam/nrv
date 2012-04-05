@@ -8,8 +8,6 @@ import com.wajam.nrv.data.Message
  * Resolver always resolve all replica endpoints.
  */
 class Resolver(var replica: Option[Int] = Some(1)) extends MessageHandler {
-  private val crcGenerator = new CRC32()
-
   def handleIncoming(action: Action, message: Message) {
   }
 
@@ -17,20 +15,24 @@ class Resolver(var replica: Option[Int] = Some(1)) extends MessageHandler {
     message.destination = this.resolve(action, message.path)
   }
 
-  def hashData(data: String): Long = {
-    crcGenerator.reset()
-    crcGenerator.update(data.getBytes("UTF-8"))
-    crcGenerator.getValue
-  }
-
   def resolve(action: Action, path: String): Endpoints = {
     // use hashed path to resolve the node that will handle the call
-    val results = action.service.resolveMembers(this.hashData(path), replica.get)
+    val results = action.service.resolveMembers(Resolver.hashData(path), replica.get)
 
     var endpointsList = List[ServiceMember]()
     for (result <- results)
       endpointsList ::= new ServiceMember(result.token, result.value.get)
 
     new Endpoints(endpointsList)
+  }
+}
+
+object Resolver {
+  private val crcGenerator = new CRC32()
+
+  def hashData(data: String): Long = {
+    crcGenerator.reset()
+    crcGenerator.update(data.getBytes("UTF-8"))
+    crcGenerator.getValue
   }
 }
