@@ -12,7 +12,7 @@ class DummyProtocol(cluster: Cluster, name: String) extends Protocol(name, clust
   def handleOutgoing(action: Action, message: Message) {
     val newRequest = new InRequest()
     message.copyTo(newRequest)
-    action.handleIncomingRequest(newRequest)
+    cluster.route(newRequest)
   }
 
   def start() = null

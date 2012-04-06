@@ -2,8 +2,8 @@ package com.wajam.nrv.cluster
 
 import actors.Actor
 import collection.mutable.Map
-import com.wajam.nrv.data.{InRequest, OutRequest}
 import com.wajam.nrv.Logging
+import com.wajam.nrv.data.{Message, InRequest, OutRequest}
 
 /**
  * Handle incoming requests to different actions
@@ -30,11 +30,15 @@ class Router(cluster: Cluster) extends Actor with Logging {
         case inRequest: InRequest =>
           // check for rendez-vous
           var optReq:Option[OutRequest] = None
-          if (inRequest.rendezvous > 0) {
-            optReq = this.requests.remove(inRequest.rendezvous)
-            if (optReq == None) {
-                warn("Received a incoming request with a rendez-vous, but with no matching outgoing request: {}", inRequest)
-            }
+          inRequest.function match {
+            case Message.FUNCTION_RESPONSE =>
+              optReq = this.requests.remove(inRequest.rendezvous)
+              if (optReq == None) {
+                  warn("Received a incoming request with a rendez-vous, but with no matching outgoing request: {}", inRequest)
+              }
+
+            case Message.FUNCTION_CALL =>
+              // TODO: call specific processing here
           }
 
           val action = cluster.getAction(inRequest.actionURL)

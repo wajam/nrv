@@ -29,17 +29,25 @@ class TestAction extends FunSuite {
 
       }
 
+      req.reply("some_key" -> "some_value")
+    }))
+
+
+    var responded = false
+    action.call("test" -> "myvalue")(resp => {
+      responded = true
+
       notifier.synchronized {
         notifier.notify()
       }
-    }))
-
-    action.call("test" -> "myvalue")()
+    })
 
     notifier.synchronized {
-      notifier.wait(1)
-      assert(called, "didn't received called action")
+      notifier.wait(2000)
+      assert(called, "didn't receive called action")
       assert(testValue == "myvalue", "expected 'test', got '" + testValue + "'")
+
+      assert(responded, "didn't receive response")
     }
   }
 }
