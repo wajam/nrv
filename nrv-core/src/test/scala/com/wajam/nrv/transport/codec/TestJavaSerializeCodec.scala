@@ -1,4 +1,4 @@
-package com.wajam.nrv.codec
+package com.wajam.nrv.transport.codec
 
 import org.scalatest.FunSuite
 import com.wajam.nrv.cluster.Node
@@ -6,6 +6,7 @@ import com.wajam.nrv.service.{ServiceMember, Endpoints}
 import com.wajam.nrv.data.{Message, OutRequest}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+import com.wajam.nrv.codec.JavaSerializeCodec
 
 @RunWith(classOf[JUnitRunner])
 class TestJavaSerializeCodec extends FunSuite {

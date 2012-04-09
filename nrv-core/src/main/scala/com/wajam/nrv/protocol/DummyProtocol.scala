@@ -8,7 +8,7 @@ import com.wajam.nrv.cluster.Cluster
 /**
  * Loopback protocol that always send messages to local process
  */
-class DummyProtocol(cluster: Cluster, name: String) extends Protocol(name, cluster, new JavaSerializeCodec) {
+class DummyProtocol(cluster: Cluster, name: String) extends Protocol(name, cluster) {
   def handleOutgoing(action: Action, message: Message) {
     val newRequest = new InRequest()
     message.copyTo(newRequest)
@@ -18,4 +18,6 @@ class DummyProtocol(cluster: Cluster, name: String) extends Protocol(name, clust
   def start() = null
 
   def stop() = null
+
+  def handleIncoming(message: AnyRef) = null
 }

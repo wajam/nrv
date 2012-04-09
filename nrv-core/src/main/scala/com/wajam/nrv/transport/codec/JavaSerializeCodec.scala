@@ -16,11 +16,11 @@ class JavaSerializeCodec extends Codec {
     baos.toByteArray
   }
 
-  def encode(message: Message): Array[Byte] = {
+  override def encode(message: Message): Array[Byte] = {
     this.encodeAny(message)
   }
 
-  def decode(data: Array[Byte]): Message = {
+  override def decode(data: Array[Byte]): Message = {
     val bains = new ByteArrayInputStream(data)
     val deserialize = new ClassLoaderObjectInputStream(getClass.getClassLoader, bains)
     deserialize.readObject().asInstanceOf[Message]

@@ -21,8 +21,8 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     var received: Message = null
 
     val protocol = new NrvProtocol(cluster) {
-      override def handleIncoming(action: Action, message: Message) {
-        received = message
+      override def handleIncoming(message: AnyRef) {
+        received = message.asInstanceOf[Message]
 
         notifier.synchronized {
           notifier.notify()

@@ -39,7 +39,7 @@ class NettyTransport(host: InetAddress,
     client.stop()
   }
 
-  def sendMessage(host: InetAddress, port: Int, message: Any) {
+  def sendMessage(host: InetAddress, port: Int, message: AnyRef) {
     client.openConnection(host, port).write(message).addListener(ChannelFutureListener.CLOSE)
   }
 
@@ -124,7 +124,7 @@ class NettyTransport(host: InetAddress,
     }
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      protocol.handleIncoming(null, e.getMessage.asInstanceOf[Message])
+      protocol.handleIncoming(e.getMessage)
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {

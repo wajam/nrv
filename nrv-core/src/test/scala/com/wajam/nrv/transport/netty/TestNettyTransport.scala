@@ -44,13 +44,13 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
     }
   }
 
-  class MockProtocol extends Protocol("test", null, null) {
+  class MockProtocol extends Protocol("test", null) {
     var receivedMessage : String = null
 
     def handleOutgoing(action: Action, message: Message) {}
 
-    override def handleIncoming(action: Action, message: Message) {
-      receivedMessage = message.getOrElse("text", "").asInstanceOf[String]
+    override def handleIncoming(message: AnyRef) {
+      receivedMessage = message.asInstanceOf[Message].getOrElse("text", "").asInstanceOf[String]
       notifier.synchronized {
         notifier.notify()
       }
