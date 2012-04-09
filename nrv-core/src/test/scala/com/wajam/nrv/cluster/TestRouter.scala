@@ -5,9 +5,9 @@ import org.scalatest.mock.MockitoSugar
 import org.mockito.Matchers._
 import org.mockito.Mockito._
 import com.wajam.nrv.service.Action
-import com.wajam.nrv.data.{InRequest, OutRequest}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+import com.wajam.nrv.data.{Message, InRequest, OutRequest}
 
 @RunWith(classOf[JUnitRunner])
 class TestRouter extends FunSuite with MockitoSugar {
@@ -26,11 +26,11 @@ class TestRouter extends FunSuite with MockitoSugar {
     router !? outReq
 
     val inReq = new InRequest()
+    inReq.function = Message.FUNCTION_RESPONSE
     inReq.rendezvous = outReq.rendezvous
     router !? inReq
 
     verify(mockAction).handleIncomingRequest(inReq, Some(outReq))
-
   }
 
 }

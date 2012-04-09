@@ -34,7 +34,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     cluster.start()
 
     val req = new OutRequest(Map("test" -> "someval"))
-    req.destination = Endpoints.list(new ServiceMember(0, cluster.localNode))
+    req.destination = new Endpoints(Seq(new ServiceMember(0, cluster.localNode)))
     protocol.handleOutgoing(null, req)
 
     notifier.synchronized {

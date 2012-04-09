@@ -5,7 +5,7 @@ package com.wajam.nrv.service
  * but all backup nodes are considered endpoints too in order to handle the
  * high availability. Consensus manager handles replication to these endpoints.
  */
-class Endpoints(members: List[ServiceMember]) extends Serializable {
+class Endpoints(members: Seq[ServiceMember]) extends Serializable {
   def size = members.size
 
   def apply(pos: Int) = members(pos)
@@ -13,8 +13,4 @@ class Endpoints(members: List[ServiceMember]) extends Serializable {
 
 object Endpoints {
   val empty = new Endpoints(List())
-
-  def list(members: ServiceMember*): Endpoints = {
-    new Endpoints(List[ServiceMember]() ++ members)
-  }
 }

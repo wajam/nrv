@@ -14,7 +14,7 @@ class TestJavaSerializeCodec extends FunSuite {
     val codec = new JavaSerializeCodec()
 
     val req = new OutRequest(Map("test" -> "someval"))
-    req.destination = Endpoints.list(new ServiceMember(0, new Node("127.0.0.1", Map("nrv" -> 12345))))
+    req.destination = new Endpoints(Seq(new ServiceMember(0, new Node("127.0.0.1", Map("nrv" -> 12345)))))
     val bytes = codec.encode(req)
 
     assert(bytes.length > 0)
