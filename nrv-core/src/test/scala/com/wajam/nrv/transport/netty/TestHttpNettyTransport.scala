@@ -23,7 +23,7 @@ import org.jboss.netty.handler.codec.http._
 class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
 
   val host = InetAddress.getByName("0.0.0.0")
-  val port = 54321
+  val port = 54322
   val notifier = new Object()
 
   var nettyTransport :HttpNettyTransport = null
