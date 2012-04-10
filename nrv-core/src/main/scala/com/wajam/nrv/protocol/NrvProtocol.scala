@@ -25,10 +25,6 @@ class NrvProtocol(cluster: Cluster) extends Protocol("nrv", cluster) {
     transport.stop()
   }
 
-  override def handleIncoming(message: AnyRef) {
-    route(message.asInstanceOf[Message])
-  }
-
   override def handleOutgoing(action: Action, message: Message) {
     val node = message.destination(0).node
     transport.sendMessage(node.host, node.ports(name), message)

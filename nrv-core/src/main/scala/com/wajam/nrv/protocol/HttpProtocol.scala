@@ -32,6 +32,4 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
     //todo convert to netty HttpRequest
     transport.sendMessage(node.host, node.ports(name), message)
   }
-
-  def handleIncoming(message: AnyRef) {}
 }

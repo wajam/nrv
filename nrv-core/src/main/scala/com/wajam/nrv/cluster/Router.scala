@@ -45,7 +45,7 @@ class Router(cluster: Cluster) extends Actor with Logging {
           if (action != null) {
             action.handleIncomingRequest(inRequest, optReq)
           } else {
-            warn("Received a incoming for path {}, but couldn't find action", inRequest.actionURL)
+            warn("Received a incoming for path {}, but couldn't find action", inRequest.actionURL.toString)
           }
 
           sender ! true

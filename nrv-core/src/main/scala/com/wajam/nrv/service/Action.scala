@@ -13,7 +13,6 @@ class Action(var path: ActionPath, onReceive: ((InRequest) => Unit)) extends Act
   private def initOutRequest(request:OutRequest) {
     request.source = this.cluster.localNode
     request.serviceName = this.service.name
-    request.path = this.path.buildPath(request)
   }
 
   def call(request: OutRequest) {
@@ -21,6 +20,7 @@ class Action(var path: ActionPath, onReceive: ((InRequest) => Unit)) extends Act
 
     // initialize request
     this.initOutRequest(request)
+    request.path = this.path.buildPath(request)
     request.function = Message.FUNCTION_CALL
 
     // resolve endpoints
@@ -44,8 +44,8 @@ class Action(var path: ActionPath, onReceive: ((InRequest) => Unit)) extends Act
       case None =>
         inRequest.replyCallback = (respRequest => {
           this.initOutRequest(respRequest)
+          respRequest.path = inRequest.path
           respRequest.function = Message.FUNCTION_RESPONSE
-
           respRequest.rendezvous = inRequest.rendezvous
 
           // TODO: shouldn't be like that. Source may not be a member...

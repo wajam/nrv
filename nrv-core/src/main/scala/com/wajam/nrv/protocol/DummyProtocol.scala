@@ -18,6 +18,4 @@ class DummyProtocol(cluster: Cluster, name: String) extends Protocol(name, clust
   def start() = null
 
   def stop() = null
-
-  def handleIncoming(message: AnyRef) = null
 }

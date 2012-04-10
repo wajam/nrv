@@ -51,3 +51,6 @@ object Message {
   val FUNCTION_CALL = 0
   val FUNCTION_RESPONSE = 1
 }
+
+class SerializableMessage  extends Message {
+}

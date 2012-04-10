@@ -1,7 +1,7 @@
 package com.wajam.nrv.codec
 
-import com.wajam.nrv.data.Message
 import java.io._
+import com.wajam.nrv.data.{SerializableMessage, Message}
 
 
 /**
@@ -17,7 +17,11 @@ class JavaSerializeCodec extends Codec {
   }
 
   override def encode(message: Message): Array[Byte] = {
-    this.encodeAny(message)
+    // create a new message that won't have In/Out request specific fields
+    val serMessage = new SerializableMessage
+    message.copyTo(serMessage)
+
+    this.encodeAny(serMessage)
   }
 
   override def decode(data: Array[Byte]): Message = {

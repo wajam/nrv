@@ -5,8 +5,8 @@ import org.jboss.netty.handler.codec.oneone.OneToOneEncoder
 import org.jboss.netty.channel.{Channel, ChannelHandlerContext}
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.handler.codec.frame.{CorruptedFrameException, FrameDecoder}
-import com.wajam.nrv.data.{InRequest, Message}
 import com.wajam.nrv.codec.NrvCodec
+import com.wajam.nrv.data.{OutRequest, InRequest, Message}
 
 /**
  * This class...
@@ -80,10 +80,6 @@ class Decoder(codec: NrvCodec) extends FrameDecoder {
     buffer.readBytes(bytes)
 
     // Return the real thing
-    val inMsg = codec.decode(bytes)
-    val req = new InRequest()
-    req.loadData(inMsg)
-
-    req
+    codec.decode(bytes)
   }
 }
