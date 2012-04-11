@@ -34,7 +34,7 @@ class TestAction extends FunSuite {
 
 
     var responded = false
-    action.call("test" -> "myvalue")(resp => {
+    action.call(Map("test" -> "myvalue"), resp => {
       responded = true
 
       notifier.synchronized {

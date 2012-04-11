@@ -2,6 +2,7 @@ package com.wajam.nrv.service
 
 import com.wajam.nrv.UnavailableException
 import com.wajam.nrv.data.{Message, OutRequest, InRequest}
+import java.util.concurrent.{TimeUnit, Future}
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -35,8 +36,22 @@ class Action(var path: ActionPath, onReceive: ((InRequest) => Unit)) extends Act
     this.protocol.handleOutgoing(this, request)
   }
 
-  def call(data: (String, Any)*)(onReceive: (InRequest => Unit) = null) {
+  def call(data: Map[String, Any], onReceive: (InRequest => Unit) = null) {
     this.call(new OutRequest(data, onReceive))
+  }
+
+  def call(data: Map[String, Any]):Future[InRequest] = {
+    new Future[InRequest] {
+      def cancel(mayInterruptIfRunning: Boolean): Boolean = false
+
+      def isCancelled: Boolean = false
+
+      def isDone: Boolean = false
+
+      def get(): InRequest = null
+
+      def get(timeout: Long, unit: TimeUnit): InRequest = null
+    }
   }
 
   def handleIncomingRequest(inRequest: InRequest, outRequest: Option[OutRequest] = None) {
