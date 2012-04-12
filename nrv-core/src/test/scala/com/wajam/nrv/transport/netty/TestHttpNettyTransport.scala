@@ -34,7 +34,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
 
     def handleOutgoing(action: Action, message: Message) {}
 
-    override def handleIncoming(message: AnyRef) {
+    override def handleMessageFromTransport(message: AnyRef) {
       receivedMessage = message.asInstanceOf[HttpRequest].getUri()
       notifier.synchronized {
         notifier.notify()

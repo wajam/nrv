@@ -26,10 +26,14 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
     transport.stop()
   }
 
-
   def handleOutgoing(action: Action, message: Message) {
     val node = message.destination(0).node
     //todo convert to netty HttpRequest
     transport.sendMessage(node.host, node.ports(name), message)
+  }
+
+  def handleMessageFromTransport(message: AnyRef) {
+    //convert to Message then call
+    handleIncoming(null, null)
   }
 }

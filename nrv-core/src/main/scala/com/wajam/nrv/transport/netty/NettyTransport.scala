@@ -10,6 +10,7 @@ import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.channel._
 import com.wajam.nrv.data.Message
 import com.wajam.nrv.Logging
+import com.wajam.nrv.utils.CompletionCallback
 
 /**
  * Transport implementation based on Netty.
@@ -39,8 +40,25 @@ class NettyTransport(host: InetAddress,
     client.stop()
   }
 
-  def sendMessage(host: InetAddress, port: Int, message: AnyRef) {
-    client.openConnection(host, port).write(message).addListener(ChannelFutureListener.CLOSE)
+  override def sendMessage(host: InetAddress, port: Int, message: AnyRef,
+                           completionCallback: Option[CompletionCallback] = None) {
+    val future = client.openConnection(host, port).write(message)
+    completionCallback match {
+      case Some(callback) => {
+        future.addListener(new ChannelFutureListener {
+          override def operationComplete(p1: ChannelFuture) {
+            val t = p1.getCause()
+            if (t == null) {
+              callback.operationComplete(None)
+            } else {
+              callback.operationComplete(Some(t))
+            }
+          }
+        })
+      }
+      case None =>
+    }
+    future.addListener(ChannelFutureListener.CLOSE)
   }
 
   class NettyServer(host: InetAddress, port: Int, factory: NettyTransportCodecFactory) extends Logging {
@@ -73,6 +91,7 @@ class NettyTransport(host: InetAddress,
         newPipeline
       }
     }
+
   }
 
   class NettyClient(factory: NettyTransportCodecFactory) extends Logging {
@@ -81,7 +100,7 @@ class NettyTransport(host: InetAddress,
 
     val clientHandler = new SimpleChannelUpstreamHandler {
       override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-        protocol.handleIncoming(null, e.getMessage.asInstanceOf[Message])
+        protocol.handleMessageFromTransport(null, e.getMessage.asInstanceOf[Message])
       }
     }
 
@@ -114,6 +133,7 @@ class NettyTransport(host: InetAddress,
         newPipeline
       }
     }
+
   }
 
   val incomingMessageHandler = new SimpleChannelUpstreamHandler with Logging {
@@ -124,7 +144,7 @@ class NettyTransport(host: InetAddress,
     }
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      protocol.handleIncoming(e.getMessage)
+      protocol.handleMessageFromTransport(e.getMessage)
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {

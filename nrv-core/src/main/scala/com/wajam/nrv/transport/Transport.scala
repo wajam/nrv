@@ -2,7 +2,8 @@ package com.wajam.nrv.transport
 
 import java.net.InetAddress
 import com.wajam.nrv.protocol.Protocol
-import com.wajam.nrv.data.Message
+import scala.None
+import com.wajam.nrv.utils.CompletionCallback
 
 /**
  * This class...
@@ -17,6 +18,7 @@ abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) {
 
   def stop()
 
-  def sendMessage(host: InetAddress, port: Int, message: AnyRef)
+  def sendMessage(host: InetAddress, port: Int, message: AnyRef,
+                  completionCallback: Option[CompletionCallback] = None)
 
 }
