@@ -8,10 +8,10 @@ class Sync[T >:Null <:AnyRef](bubbleException:Boolean = true) {
   var err:Exception = null
 
   def error(ex:Exception) {
-    this.send(null, ex)
+    this.done(null, ex)
   }
 
-  def send(value:T = null, ex:Exception = null) {
+  def done(value:T = null, ex:Exception = null) {
     this.value = value
     this.err = ex
 
