@@ -86,7 +86,7 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
   test("send message to invalid destination") {
     var result: AnyRef = null
     nettyTransport.sendMessage(host, 8765, "hello", Some(new CompletionCallback {
-      def operationComplete(opResult: Option[Throwable]) {
+      def operationCompleted(opResult: Option[Throwable]) {
         {
           opResult match {
             case None => fail()

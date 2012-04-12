@@ -49,9 +49,9 @@ class NettyTransport(host: InetAddress,
           override def operationComplete(p1: ChannelFuture) {
             val t = p1.getCause()
             if (t == null) {
-              callback.operationComplete(None)
+              callback.operationCompleted(None)
             } else {
-              callback.operationComplete(Some(t))
+              callback.operationCompleted(Some(t))
             }
           }
         })

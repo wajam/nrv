@@ -29,7 +29,7 @@ class NrvProtocol(cluster: Cluster) extends Protocol("nrv", cluster) {
   override def handleOutgoing(action: Action, message: Message) {
     val node = message.destination(0).node
     transport.sendMessage(node.host, node.ports(name), message, Some(new CompletionCallback {
-      def operationComplete(result: Option[Throwable]) {
+      def operationCompleted(result: Option[Throwable]) {
         result match {
           //todo proper implementation
           case Some(throwable) => System.out.println(throwable)

@@ -9,6 +9,6 @@ package com.wajam.nrv.utils
 
 trait CompletionCallback {
 
-  def operationComplete(result: Option[Throwable])
+  def operationCompleted(result: Option[Throwable])
 
 }
