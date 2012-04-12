@@ -2,7 +2,6 @@ package com.wajam.nrv.transport
 
 import java.net.InetAddress
 import com.wajam.nrv.protocol.Protocol
-import scala.None
 
 /**
  * This class...
@@ -19,5 +18,4 @@ abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) {
 
   def sendMessage(host: InetAddress, port: Int, message: AnyRef,
                   completionCallback: Option[Throwable] => Unit = (_) => {})
-
 }

@@ -9,11 +9,12 @@ import com.wajam.nrv.cluster.Node
  */
 abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, Any] with Serializable {
 
-  import Message._
+  import MessageType._
+  import MessageMethod._
 
   var protocolName = ""
   var serviceName = ""
-  var methodName = ""
+  var method = NONE
   var path = "/"
   var rendezvous = 0
 
@@ -48,9 +49,15 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
   }
 }
 
-object Message {
+object MessageType {
   val FUNCTION_CALL = 0
   val FUNCTION_RESPONSE = 1
+}
+
+object MessageMethod {
+  val NONE = ""
+  val GET = "GET"
+  val POST = "POST"
 }
 
 class SerializableMessage  extends Message {

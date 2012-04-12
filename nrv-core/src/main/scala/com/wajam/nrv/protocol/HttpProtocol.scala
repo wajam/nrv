@@ -31,7 +31,7 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
   def handleOutgoing(action: Action, message: Message) {
     val node = message.destination(0).node
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1,
-      HttpMethod.valueOf(message.methodName),
+      HttpMethod.valueOf(message.method),
       message.serviceName+message.path)
     val sb = new StringBuilder()
     message.keys.foreach(k => (sb.append(k).append(":").append(message.get(k)).append('\n')))
@@ -43,7 +43,7 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
     val msg = new InRequest()
     message match {
       case req: HttpRequest => {
-        msg.methodName = req.getMethod.getName()
+        msg.method = req.getMethod.getName()
         msg.protocolName = "http"
         msg.path = req.getUri()
         //todo do more stuff
