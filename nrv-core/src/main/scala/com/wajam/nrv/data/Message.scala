@@ -13,6 +13,7 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
 
   var protocolName = ""
   var serviceName = ""
+  var methodName = ""
   var path = "/"
   var rendezvous = 0
 

@@ -9,7 +9,6 @@ import org.jboss.netty.handler.codec.string.{StringEncoder, StringDecoder}
 import com.wajam.nrv.service.Action
 import org.jboss.netty.channel._
 import com.wajam.nrv.data.{InRequest, Message}
-import com.wajam.nrv.utils.CompletionCallback
 
 
 /**
@@ -45,7 +44,7 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
       }
     }
 
-   val decoder = new StringDecoder() {
+    val decoder = new StringDecoder() {
       override def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
         val request = new InRequest()
         request.loadData(Map("text" -> super.decode(ctx, channel, msg)))
@@ -94,16 +93,12 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
 
   test("send message to invalid destination") {
     var result: AnyRef = null
-    nettyTransport.sendMessage(host, 8765, "hello", Some(new CompletionCallback {
-      def operationCompleted(opResult: Option[Throwable]) {
-        {
-          opResult match {
-            case None => fail()
-            case Some(t) => result = t
-          }
-        }
+    nettyTransport.sendMessage(host, 8765, "hello", (opResult: Option[Throwable]) => {
+      opResult match {
+        case None => fail()
+        case Some(t) => result = t
       }
-    }))
+    })
 
     assert(result.isInstanceOf[Throwable])
   }

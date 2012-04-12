@@ -2,8 +2,10 @@ package com.wajam.nrv.protocol
 
 import com.wajam.nrv.cluster.Cluster
 import com.wajam.nrv.service.Action
-import com.wajam.nrv.data.Message
 import com.wajam.nrv.transport.netty.HttpNettyTransport
+import org.jboss.netty.buffer.ChannelBuffers
+import org.jboss.netty.handler.codec.http._
+import com.wajam.nrv.data.{InRequest, Message}
 
 /**
  * This class...
@@ -28,12 +30,30 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
 
   def handleOutgoing(action: Action, message: Message) {
     val node = message.destination(0).node
-    //todo convert to netty HttpRequest
-    transport.sendMessage(node.host, node.ports(name), message)
+    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1,
+      HttpMethod.valueOf(message.methodName),
+      message.serviceName+message.path)
+    val sb = new StringBuilder()
+    message.keys.foreach(k => (sb.append(k).append(":").append(message.get(k)).append('\n')))
+    request.setContent(ChannelBuffers.copiedBuffer(sb.toString().getBytes))
+    transport.sendMessage(node.host, node.ports(name), request)
   }
 
   def handleMessageFromTransport(message: AnyRef) {
-    //convert to Message then call
-    handleIncoming(null, null)
+    val msg = new InRequest()
+    message match {
+      case req: HttpRequest => {
+        msg.methodName = req.getMethod.getName()
+        msg.protocolName = "http"
+        msg.path = req.getUri()
+        //todo do more stuff
+
+      }
+      case res: HttpResponse => {
+        msg.protocolName = "http"
+      }
+      case _ => throw new RuntimeException("Invalid type: " + message.getClass.getName)
+    }
+    handleIncoming(null, msg)
   }
 }

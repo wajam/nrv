@@ -10,7 +10,6 @@ import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.channel._
 import com.wajam.nrv.data.Message
 import com.wajam.nrv.Logging
-import com.wajam.nrv.utils.CompletionCallback
 
 /**
  * Transport implementation based on Netty.
@@ -41,22 +40,19 @@ class NettyTransport(host: InetAddress,
   }
 
   override def sendMessage(host: InetAddress, port: Int, message: AnyRef,
-                           completionCallback: Option[CompletionCallback] = None) {
+                           completionCallback: Option[Throwable] => Unit = (_) => {}) {
     val future = client.openConnection(host, port).write(message)
-    completionCallback match {
-      case Some(callback) => {
-        future.addListener(new ChannelFutureListener {
-          override def operationComplete(p1: ChannelFuture) {
-            val t = p1.getCause()
-            if (t == null) {
-              callback.operationCompleted(None)
-            } else {
-              callback.operationCompleted(Some(t))
-            }
+    if (completionCallback != None) {
+      future.addListener(new ChannelFutureListener {
+        override def operationComplete(p1: ChannelFuture) {
+          val t = p1.getCause()
+          if (t == null) {
+            completionCallback(None)
+          } else {
+            completionCallback(Some(t))
           }
-        })
-      }
-      case None =>
+        }
+      })
     }
     future.addListener(ChannelFutureListener.CLOSE)
   }
