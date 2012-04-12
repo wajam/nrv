@@ -85,8 +85,8 @@ class NettyTransport(host: InetAddress,
     class DefaultPipelineFactory extends ChannelPipelineFactory {
       override def getPipeline = {
         val newPipeline = Channels.pipeline()
-        newPipeline.addLast("decoder", factory.createDecoder())
-        newPipeline.addLast("encoder", factory.createEncoder())
+        newPipeline.addLast("decoder", factory.createRequestDecoder())
+        newPipeline.addLast("encoder", factory.createResponseEncoder())
         newPipeline.addLast("handler", incomingMessageHandler)
         newPipeline
       }
@@ -100,7 +100,7 @@ class NettyTransport(host: InetAddress,
 
     val clientHandler = new SimpleChannelUpstreamHandler {
       override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-        protocol.handleMessageFromTransport(null, e.getMessage.asInstanceOf[Message])
+        protocol.handleMessageFromTransport(e.getMessage)
       }
     }
 
@@ -127,8 +127,8 @@ class NettyTransport(host: InetAddress,
     class DefaultPipelineFactory extends ChannelPipelineFactory {
       override def getPipeline = {
         val newPipeline = Channels.pipeline()
-        newPipeline.addLast("decoder", factory.createDecoder())
-        newPipeline.addLast("encoder", factory.createEncoder())
+        newPipeline.addLast("decoder", factory.createResponseDecoder())
+        newPipeline.addLast("encoder", factory.createRequestEncoder())
         newPipeline.addLast("handler", incomingMessageHandler)
         newPipeline
       }

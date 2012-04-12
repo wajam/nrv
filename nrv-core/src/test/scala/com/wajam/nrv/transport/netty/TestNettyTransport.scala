@@ -30,13 +30,22 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
   var mockProtocol: MockProtocol = null
 
   object TestEncoderDecoderFactory extends NettyTransportCodecFactory {
-    override def createEncoder() = new StringEncoder() {
+
+    def createRequestEncoder() = encoder
+
+    def createResponseEncoder() = encoder
+
+    def createRequestDecoder() = decoder
+
+    def createResponseDecoder() = decoder
+
+    val encoder = new StringEncoder() {
       override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
         super.encode(ctx, channel, msg.toString)
       }
     }
 
-    override def createDecoder() = new StringDecoder() {
+   val decoder = new StringDecoder() {
       override def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
         val request = new InRequest()
         request.loadData(Map("text" -> super.decode(ctx, channel, msg)))

@@ -12,8 +12,12 @@ import org.jboss.netty.channel.{ChannelUpstreamHandler, ChannelDownstreamHandler
 
 trait NettyTransportCodecFactory {
 
-  def createEncoder(): ChannelDownstreamHandler
+  def createRequestEncoder(): ChannelDownstreamHandler
 
-  def createDecoder(): ChannelUpstreamHandler
+  def createResponseEncoder(): ChannelDownstreamHandler
+
+  def createRequestDecoder(): ChannelUpstreamHandler
+
+  def createResponseDecoder(): ChannelUpstreamHandler
 
 }

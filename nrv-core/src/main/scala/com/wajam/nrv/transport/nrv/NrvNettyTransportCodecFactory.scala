@@ -19,9 +19,14 @@ class NrvNettyTransportCodecFactory extends NettyTransportCodecFactory {
 
   val codec = new NrvCodec()
 
-  override def createEncoder() = new Encoder(codec)
 
-  override def createDecoder() = new Decoder(codec)
+  def createRequestEncoder() = new Encoder(codec)
+
+  def createResponseEncoder() = new Encoder(codec)
+
+  def createRequestDecoder() = new Decoder(codec)
+
+  def createResponseDecoder() = new Decoder(codec)
 }
 
 class Encoder(codec: NrvCodec) extends OneToOneEncoder {
