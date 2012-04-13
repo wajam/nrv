@@ -1,7 +1,8 @@
 package com.wajam.nrv.transport
 
 import org.jboss.netty.channel.Channel
-import java.util.concurrent.{ConcurrentLinkedQueue, ConcurrentLinkedDeque, ConcurrentHashMap}
+import java.util.concurrent.{ConcurrentLinkedDeque, ConcurrentHashMap}
+import scala.collection.JavaConversions._
 
 /**
  * This class...
@@ -39,14 +40,17 @@ class ConnectionPool(timeout: Long, maxSize: Int) {
 
   class ConnectionPoolEntry(channel: Channel, timestamp: Long) {
     def getChannel() = this.channel
+    def getTimestamp() = this.timestamp
   }
 
   private def clean() {
-//    connectionMap.keySet().foreach((k: String) => {k})
+    connectionMap.entrySet().foreach(e => cleanDeque(e.getValue()))
   }
-//
-//  private def cleanDeque(deque: ConcurrentLinkedDeque) {
-//    deque.foreach()
-//  }
+
+  private def cleanDeque(deque: ConcurrentLinkedDeque) {
+//    deque.foreach(connectionPoolEntry => {
+//      if ((System.currentTimeMillis() - connectionPoolEntry.getTimestamp()) > )
+//    })
+  }
 
 }
