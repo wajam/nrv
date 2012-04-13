@@ -43,7 +43,7 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
     val msg = new InRequest()
     message match {
       case req: HttpRequest => {
-        msg.method = req.getMethod.getName()
+        msg.method = req.getMethod().getName()
         msg.protocolName = "http"
         msg.path = req.getUri()
         //todo do more stuff

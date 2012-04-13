@@ -1,8 +1,8 @@
 package com.wajam.nrv.service
 
 import com.wajam.nrv.UnavailableException
-import com.wajam.nrv.data.{Message, OutRequest, InRequest}
 import java.util.concurrent.{TimeUnit, Future}
+import com.wajam.nrv.data.{MessageType, Message, OutRequest, InRequest}
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -22,7 +22,7 @@ class Action(var path: ActionPath, onReceive: ((InRequest) => Unit)) extends Act
     // initialize request
     this.initOutRequest(request)
     request.path = this.path.buildPath(request)
-    request.function = Message.FUNCTION_CALL
+    request.function = MessageType.FUNCTION_CALL
 
     // resolve endpoints
     this.resolver.handleOutgoing(this, request)
@@ -60,7 +60,7 @@ class Action(var path: ActionPath, onReceive: ((InRequest) => Unit)) extends Act
         inRequest.replyCallback = (respRequest => {
           this.initOutRequest(respRequest)
           respRequest.path = inRequest.path
-          respRequest.function = Message.FUNCTION_RESPONSE
+          respRequest.function = MessageType.FUNCTION_RESPONSE
           respRequest.rendezvous = inRequest.rendezvous
 
           // TODO: shouldn't be like that. Source may not be a member...

@@ -27,12 +27,12 @@ class NettyTransport(host: InetAddress,
   val client = new NettyClient(factory)
   val allChannels = new DefaultChannelGroup
 
-  def start() {
+  override def start() {
     server.start()
     client.start()
   }
 
-  def stop() {
+  override def stop() {
     allChannels.close().awaitUninterruptibly()
     allChannels.clear()
     server.stop()

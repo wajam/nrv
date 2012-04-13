@@ -14,8 +14,6 @@ abstract class Protocol(var name: String, var cluster: Cluster) extends MessageH
 
   def stop()
 
-  def handleOutgoing(action: Action, message: Message)
-
   def handleIncoming(action: Action, message: Message) {
     val inReq = new InRequest
     val serMessage = message.asInstanceOf[Message]
