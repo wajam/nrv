@@ -7,7 +7,7 @@ import org.mockito.Mockito._
 import com.wajam.nrv.service.Action
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.data.{MessageType, Message, InRequest, OutRequest}
+import com.wajam.nrv.data.{MessageType, InRequest, OutRequest}
 
 @RunWith(classOf[JUnitRunner])
 class TestRouter extends FunSuite with MockitoSugar {
