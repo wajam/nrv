@@ -6,6 +6,8 @@ import org.scalatest.junit.JUnitRunner
 import java.net.SocketAddress
 import org.jboss.netty.channel.Channel
 import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.mock.MockitoSugar
+import org.mockito.Mockito._
 
 /**
  * This class...
@@ -15,7 +17,7 @@ import org.scalatest.matchers.ShouldMatchers._
  */
 
 @RunWith(classOf[JUnitRunner])
-class TestConnectionPool extends FunSuite with BeforeAndAfter {
+class TestConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   val timeout = 5000
   var pool: NettyConnectionPool = _
@@ -65,6 +67,16 @@ class TestConnectionPool extends FunSuite with BeforeAndAfter {
     pool.poolConnection(uri, DummyChannel)
     currentTime += timeout
     pool.getPooledConnection(uri) should equal (None)
+  }
+
+  test("should close channel on expiration") {
+    val uri = "http://host:80"
+    val mockChannel = mock[Channel]
+    pool.poolConnection(uri, mockChannel)
+    currentTime += timeout
+    pool.getPooledConnection(uri)
+
+    verify(mockChannel).close()
   }
 
 

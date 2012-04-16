@@ -63,6 +63,7 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) {
   private def cleanDeque(deque: ConcurrentLinkedDeque[ConnectionPoolEntry]) {
     deque.foreach(connectionPoolEntry => {
       if ((getTime() - connectionPoolEntry.timestamp) >= timeout) {
+        connectionPoolEntry.channel.close()
         deque.remove(connectionPoolEntry)
       }
     })

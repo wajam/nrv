@@ -8,7 +8,6 @@ import java.net.{InetAddress, InetSocketAddress}
 import com.wajam.nrv.transport.{Transport}
 import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.channel._
-import com.wajam.nrv.data.Message
 import com.wajam.nrv.Logging
 
 /**
