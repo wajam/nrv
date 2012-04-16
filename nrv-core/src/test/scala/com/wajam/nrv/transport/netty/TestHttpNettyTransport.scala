@@ -4,11 +4,9 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import java.net.InetAddress
-import org.jboss.netty.channel.{Channel, ChannelHandlerContext}
-import org.jboss.netty.handler.codec.string.{StringDecoder, StringEncoder}
 import com.wajam.nrv.protocol.Protocol
 import com.wajam.nrv.service.Action
-import com.wajam.nrv.data.{Message, InRequest}
+import com.wajam.nrv.data.Message
 import org.jboss.netty.handler.codec.http._
 
 /**
