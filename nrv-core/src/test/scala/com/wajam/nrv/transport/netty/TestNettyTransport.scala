@@ -85,7 +85,7 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
     nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), "hello")
 
     notifier.synchronized {
-      notifier.wait(100)
+      notifier.wait(1000)
     }
 
     assert(mockProtocol.receivedMessage != null)

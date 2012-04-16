@@ -5,7 +5,6 @@ package com.wajam.nrv.data
  */
 class InRequest extends Message {
   var replyCallback:(OutRequest => Unit) = null
-  var transportReplyCallback:(OutRequest => Unit) = null
 
   def reply(data:(String,Any)*) {
     this.reply(new OutRequest(data))

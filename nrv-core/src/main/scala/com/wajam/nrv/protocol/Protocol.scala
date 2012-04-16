@@ -18,9 +18,7 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
 
   def handleIncoming(action: Action, message: Message) {
     val inReq = new InRequest
-    val serMessage = message.asInstanceOf[Message]
-    serMessage.copyTo(inReq)
-
+    message.copyTo(inReq)
     this.cluster.route(inReq)
   }
 

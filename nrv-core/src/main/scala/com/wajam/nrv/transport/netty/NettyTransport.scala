@@ -4,11 +4,11 @@ import java.util.concurrent.Executors
 import org.jboss.netty.channel.group.DefaultChannelGroup
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory
 import org.jboss.netty.bootstrap.{ClientBootstrap, ServerBootstrap}
-import com.wajam.nrv.transport.{Transport}
 import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.channel._
 import com.wajam.nrv.Logging
 import java.net.{URI, InetAddress, InetSocketAddress}
+import com.wajam.nrv.transport.{TransportMessage, Transport}
 
 /**
  * Transport implementation based on Netty.
