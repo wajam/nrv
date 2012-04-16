@@ -102,12 +102,6 @@ class NettyTransport(host: InetAddress,
 
     val clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(Executors.newCachedThreadPool, Executors.newCachedThreadPool))
 
-    val clientHandler = new SimpleChannelUpstreamHandler {
-      override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-        protocol.handleMessageFromTransport(e.getMessage)
-      }
-    }
-
     clientBootstrap.setPipelineFactory(new DefaultPipelineFactory)
 
     def start() {
@@ -148,7 +142,8 @@ class NettyTransport(host: InetAddress,
     }
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      protocol.handleMessageFromTransport(e.getMessage)
+      val message = protocol.parse(e.getMessage)
+      protocol.handleIncoming(null, message)
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {

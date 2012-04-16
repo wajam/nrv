@@ -30,15 +30,15 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
   class MockProtocol extends Protocol("test", null) {
     var receivedMessage : String = null
 
-    def handleOutgoing(action: Action, message: Message) {}
-
-    override def handleMessageFromTransport(message: AnyRef) {
+    override def parse(message: AnyRef): Message = {
       receivedMessage = message.asInstanceOf[HttpRequest].getUri()
       notifier.synchronized {
         notifier.notify()
       }
+      null
     }
 
+    override def generate(message: Message): AnyRef = null
     override def start() {}
     override def stop() {}
   }

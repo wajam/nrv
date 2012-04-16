@@ -29,18 +29,9 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
     transport.stop()
   }
 
-  def handleOutgoing(action: Action, message: Message) {
-    val node = message.destination(0).node
-    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1,
-      HttpMethod.valueOf(message.method),
-      message.serviceName+message.path)
-    val sb = new StringBuilder()
-    message.keys.foreach(k => (sb.append(k).append(":").append(message.get(k)).append('\n')))
-    request.setContent(ChannelBuffers.copiedBuffer(sb.toString().getBytes))
-    transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)), request)
-  }
+  override def getTransport() = transport
 
-  def handleMessageFromTransport(message: AnyRef) {
+  override def parse(message: AnyRef): Message = {
     val msg = new InRequest()
     message match {
       case req: HttpRequest => {
@@ -55,6 +46,16 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
       }
       case _ => throw new RuntimeException("Invalid type: " + message.getClass.getName)
     }
-    handleIncoming(null, msg)
+    msg
+  }
+
+  override def generate(message: Message): AnyRef = {
+    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1,
+      HttpMethod.valueOf(message.method),
+      message.serviceName+message.path)
+    val sb = new StringBuilder()
+    message.keys.foreach(k => (sb.append(k).append(":").append(message.get(k)).append('\n')))
+    request.setContent(ChannelBuffers.copiedBuffer(sb.toString().getBytes))
+    request
   }
 }

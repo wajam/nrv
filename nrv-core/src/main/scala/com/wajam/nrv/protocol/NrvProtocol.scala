@@ -18,6 +18,8 @@ class NrvProtocol(cluster: Cluster) extends Protocol("nrv", cluster) {
     this,
     new NrvNettyTransportCodecFactory)
 
+  override def getTransport() = transport
+
   def start() {
     transport.start()
   }
@@ -26,24 +28,11 @@ class NrvProtocol(cluster: Cluster) extends Protocol("nrv", cluster) {
     transport.stop()
   }
 
-  override def handleOutgoing(action: Action, message: Message) {
-    val node = message.destination(0).node
-
-    transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)), message, (result: Option[Throwable]) => {
-        result match {
-          case Some(throwable) => {
-            val response = new InRequest()
-            message.copyTo(response)
-            response.error = Some(new RuntimeException(throwable))
-            response.function = MessageType.FUNCTION_RESPONSE
-            handleIncoming(action, response)
-          }
-          case None =>
-        }
-      })
+  def parse(message: AnyRef): Message = {
+    message.asInstanceOf[Message]
   }
 
-  override def handleMessageFromTransport(message: AnyRef) {
-    handleIncoming(null, message.asInstanceOf[Message])
+  def generate(message: Message): AnyRef = {
+    message
   }
 }

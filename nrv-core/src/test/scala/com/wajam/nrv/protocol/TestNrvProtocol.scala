@@ -21,12 +21,14 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     var received: Message = null
 
     val protocol = new NrvProtocol(cluster) {
-      override def handleMessageFromTransport(message: AnyRef) {
+
+      override def parse(message: AnyRef) :Message = {
         received = message.asInstanceOf[Message]
 
         notifier.synchronized {
           notifier.notify()
         }
+        null
       }
     }
     cluster.registerProtocol(protocol)
