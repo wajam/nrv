@@ -36,14 +36,10 @@ class Action(var path: ActionPath, onReceive: ((InRequest) => Unit)) extends Act
     this.protocol.handleOutgoing(this, request)
   }
 
-  def call(data: Map[String, Any], onReceive: ((InRequest, Exception) => Unit)) {
-    this.call(new OutRequest(data, (req: InRequest) => {
-      onReceive(req, req.error)
+  def call(data: Map[String, Any], onReceive: ((InRequest, Option[Exception]) => Unit)) {
+    this.call(new OutRequest(data, (req: InRequest, error: Option[Exception]) => {
+      onReceive(req, error)
     }))
-  }
-
-  def call(data: Map[String, Any], onReceive: (InRequest => Unit)) {
-    this.call(new OutRequest(data, onReceive))
   }
 
   def call(data: Map[String, Any]): Sync[InRequest] = {
@@ -57,7 +53,6 @@ class Action(var path: ActionPath, onReceive: ((InRequest) => Unit)) extends Act
       // it's a reply to a request
       case Some(originalRequest) =>
         originalRequest.handleReply(inRequest)
-
 
       // no original message, means that this is a new message
       case None => {
@@ -78,11 +73,10 @@ class Action(var path: ActionPath, onReceive: ((InRequest) => Unit)) extends Act
         // handle the request, catch errors to throw them back to the caller
         try {
           this.onReceive(inRequest)
-
         } catch {
           case ex: Exception => {
             val errMessage = new OutRequest
-            errMessage.error = new RemoteException(ex.getMessage)
+            errMessage.error = Some(new RemoteException(ex.getMessage))
             inRequest.reply(errMessage)
           }
         }

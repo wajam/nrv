@@ -45,6 +45,30 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     assert(received.getOrElse("test", "") == "someval")
   }
 
+  test("test connection failure") {
+
+    val notifier = new Object()
+    var received: Message = null
+    val protocol = new NrvProtocol(cluster) {
+      override def handleIncoming(action: Action, message: Message) {
+        received = message
+
+        notifier.synchronized {
+          notifier.notify()
+        }
+      }
+    }
+    val req = new OutRequest(Map("test" -> "someval"))
+    req.destination = new Endpoints(Seq(new ServiceMember(0, cluster.localNode)))
+    protocol.handleOutgoing(null, req)
+
+    notifier.synchronized {
+      notifier.wait(100)
+    }
+
+    assert(received.error != None)
+  }
+
   after {
     cluster.stop()
   }

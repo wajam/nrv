@@ -34,7 +34,7 @@ class TestAction extends FunSuite {
     }))
 
 
-    action.call(Map("call_key" -> "call_value"), resp => {
+    action.call(Map("call_key" -> "call_value"), (resp, err) => {
       resp.getOrElse("response_key", "") match {
         case s: String =>
           syncResponse.done(s)
@@ -64,7 +64,7 @@ class TestAction extends FunSuite {
     val except = intercept[RemoteException] {
       syncResponse.thenWait(value => {
         fail("Shouldn't be call because an exception occured")
-      }, 100)
+      }, 1000)
     }
 
     assert(except.getMessage == "TEST ERROR")

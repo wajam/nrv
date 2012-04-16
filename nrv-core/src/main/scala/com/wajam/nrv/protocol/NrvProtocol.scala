@@ -1,11 +1,11 @@
 package com.wajam.nrv.protocol
 
 import com.wajam.nrv.cluster.Cluster
-import com.wajam.nrv.data.Message
 import com.wajam.nrv.service.Action
 import com.wajam.nrv.transport.netty.NettyTransport
 import com.wajam.nrv.transport.nrv.NrvNettyTransportCodecFactory
 import java.net.{InetSocketAddress, URI}
+import com.wajam.nrv.data.{MessageType, InRequest, Message}
 
 /**
  * Default protocol used by NRV. All nodes must have this protocol, since it's
@@ -31,8 +31,13 @@ class NrvProtocol(cluster: Cluster) extends Protocol("nrv", cluster) {
 
     transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)), message, (result: Option[Throwable]) => {
         result match {
-          //todo proper implementation
-          case Some(throwable) => System.out.println(throwable)
+          case Some(throwable) => {
+            val response = new InRequest()
+            message.copyTo(response)
+            response.error = Some(new RuntimeException(throwable))
+            response.function = MessageType.FUNCTION_RESPONSE
+            handleIncoming(action, response)
+          }
           case None =>
         }
       })

@@ -18,7 +18,7 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
   var path = "/"
   var rendezvous = 0
 
-  var error:RemoteException = null
+  var error:Option[Exception] = None
 
   /*
    * Messages that are passed between nodes are not just RPC calls, but can also
