@@ -4,11 +4,11 @@ import java.util.concurrent.Executors
 import org.jboss.netty.channel.group.DefaultChannelGroup
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory
 import org.jboss.netty.bootstrap.{ClientBootstrap, ServerBootstrap}
-import java.net.{InetAddress, InetSocketAddress}
 import com.wajam.nrv.transport.{Transport}
 import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.channel._
 import com.wajam.nrv.Logging
+import java.net.{URI, InetAddress, InetSocketAddress}
 
 /**
  * Transport implementation based on Netty.
@@ -23,6 +23,7 @@ class NettyTransport(host: InetAddress,
                      factory: NettyTransportCodecFactory) extends Transport(host, port, protocol) {
 
   val server = new NettyServer(host, port, factory)
+  val connectionPool = new NettyConnectionPool(10000, 100)
   val client = new NettyClient(factory)
   val allChannels = new DefaultChannelGroup
 
@@ -38,22 +39,30 @@ class NettyTransport(host: InetAddress,
     client.stop()
   }
 
-  override def sendMessage(host: InetAddress, port: Int, message: AnyRef,
+  override def sendMessage(destination: InetSocketAddress,
+                           message: AnyRef,
                            completionCallback: Option[Throwable] => Unit = (_) => {}) {
-    val future = client.openConnection(host, port).write(message)
-    if (completionCallback != None) {
-      future.addListener(new ChannelFutureListener {
-        override def operationComplete(p1: ChannelFuture) {
-          val t = p1.getCause()
-          if (t == null) {
-            completionCallback(None)
-          } else {
-            completionCallback(Some(t))
-          }
-        }
-      })
+    var writeChannel: Channel = null
+    val pooledConnection = connectionPool.getPooledConnection(destination)
+    pooledConnection match {
+      case Some(channel) => writeChannel = channel
+      case None => {
+        writeChannel = client.openConnection(destination)
+      }
     }
-    future.addListener(ChannelFutureListener.CLOSE)
+    val future = writeChannel.write(message)
+    future.addListener(new ChannelFutureListener {
+      override def operationComplete(p1: ChannelFuture) {
+        val t = p1.getCause()
+        if (t == null) {
+          completionCallback(None)
+          connectionPool.poolConnection(destination, writeChannel)
+        } else {
+          completionCallback(Some(t))
+          writeChannel.close()
+        }
+      }
+    })
   }
 
   class NettyServer(host: InetAddress, port: Int, factory: NettyTransportCodecFactory) extends Logging {
@@ -110,10 +119,10 @@ class NettyTransport(host: InetAddress,
       log.info("Stopping client")
     }
 
-    def openConnection(host: InetAddress, port: Int): Channel = {
+    def openConnection(destination: InetSocketAddress): Channel = {
       //todo pool connections
-      log.info("Opening connection to {}:{}", host, port)
-      val connectFuture = clientBootstrap.connect(new InetSocketAddress(host, port))
+      log.info("Opening connection to: ", destination)
+      val connectFuture = clientBootstrap.connect(destination)
       val channel = connectFuture.awaitUninterruptibly.getChannel
       allChannels.add(channel)
       channel

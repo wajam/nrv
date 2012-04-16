@@ -3,11 +3,11 @@ package com.wajam.nrv.transport.netty
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import java.net.SocketAddress
 import org.jboss.netty.channel.Channel
 import org.scalatest.matchers.ShouldMatchers._
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
+import java.net.{InetSocketAddress, SocketAddress}
 
 /**
  * This class...
@@ -19,6 +19,7 @@ import org.mockito.Mockito._
 @RunWith(classOf[JUnitRunner])
 class TestConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar {
 
+  val destination = new InetSocketAddress("127.0.0.1", 8008)
   val timeout = 5000
   var pool: NettyConnectionPool = _
   var currentTime = 0L
@@ -30,9 +31,8 @@ class TestConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar 
   }
 
   test("should pool connection") {
-    val uri = "http://host:80"
-    pool.poolConnection(uri, DummyChannel)
-    val channel = pool.getPooledConnection(uri).get
+    pool.poolConnection(destination, DummyChannel)
+    val channel = pool.getPooledConnection(destination).get
 
     channel should equal (DummyChannel)
   }
@@ -40,46 +40,58 @@ class TestConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar 
   test("should reject if max size is reached") {
     pool = new NettyConnectionPool(timeout, 1)
 
-    val uri = "http://host:80"
-    pool.poolConnection(uri, DummyChannel)
-    pool.poolConnection(uri, DummyChannel) should be (false)
+    pool.poolConnection(destination, DummyChannel)
+    pool.poolConnection(destination, DummyChannel) should be (false)
 
   }
 
   test("should allow is size less") {
     pool = new NettyConnectionPool(timeout, 1)
 
-    val uri = "http://host:80"
-    pool.poolConnection(uri, DummyChannel)
-    pool.poolConnection(uri, DummyChannel) should be (false)
+    pool.poolConnection(destination, DummyChannel)
+    pool.poolConnection(destination, DummyChannel) should be (false)
 
-    pool.getPooledConnection(uri)
+    pool.getPooledConnection(destination)
 
-    pool.poolConnection(uri, DummyChannel) should be (true)
+    pool.poolConnection(destination, DummyChannel) should be (true)
   }
 
   test("should return None if empty") {
-    pool.getPooledConnection("uri") should equal (None)
+    pool.getPooledConnection(destination) should equal (None)
   }
 
   test("should expire connection after timeout") {
-    val uri = "http://host:80"
-    pool.poolConnection(uri, DummyChannel)
+    pool.poolConnection(destination, DummyChannel)
     currentTime += timeout
-    pool.getPooledConnection(uri) should equal (None)
+    pool.getPooledConnection(destination) should equal (None)
   }
 
   test("should close channel on expiration") {
-    val uri = "http://host:80"
     val mockChannel = mock[Channel]
-    pool.poolConnection(uri, mockChannel)
+    when(mockChannel.isOpen).thenReturn(true)
+    pool.poolConnection(destination, mockChannel)
     currentTime += timeout
-    pool.getPooledConnection(uri)
+    pool.getPooledConnection(destination)
 
     verify(mockChannel).close()
   }
 
+  test("should not pool closed connection") {
+    val mockChannel = mock[Channel]
+    when(mockChannel.isOpen).thenReturn(false)
+    pool.poolConnection(destination, mockChannel) should be (false)
 
+    pool.getPooledConnection(destination) should equal (None)
+  }
+
+  test("should not reuse closed connection") {
+    val mockChannel = mock[Channel]
+    when(mockChannel.isOpen).thenReturn(true)
+    pool.poolConnection(destination, mockChannel) should be (true)
+
+    when(mockChannel.isOpen).thenReturn(false)
+    pool.getPooledConnection(destination) should equal (None)
+  }
 
   object DummyChannel extends Channel {
     def getId = null
@@ -92,7 +104,7 @@ class TestConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar 
 
     def getPipeline = null
 
-    def isOpen = false
+    def isOpen = true
 
     def isBound = false
 

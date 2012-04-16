@@ -3,12 +3,12 @@ package com.wajam.nrv.transport.netty
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import java.net.InetAddress
 import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.handler.codec.string.{StringEncoder, StringDecoder}
 import com.wajam.nrv.service.Action
 import org.jboss.netty.channel._
 import com.wajam.nrv.data.{InRequest, Message}
+import java.net.{InetSocketAddress, URI, InetAddress}
 
 
 /**
@@ -81,7 +81,7 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
   }
 
   test("send message to self") {
-    nettyTransport.sendMessage(host, port, "hello")
+    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), "hello")
 
     notifier.synchronized {
       notifier.wait(100)
@@ -93,7 +93,7 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
 
   test("send message to invalid destination") {
     var result: AnyRef = null
-    nettyTransport.sendMessage(host, 8765, "hello", (opResult: Option[Throwable]) => {
+    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1:", 12344), "hello", (opResult: Option[Throwable]) => {
       opResult match {
         case None => fail()
         case Some(t) => result = t

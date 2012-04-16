@@ -3,11 +3,11 @@ package com.wajam.nrv.transport.netty
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import java.net.InetAddress
 import com.wajam.nrv.protocol.Protocol
 import com.wajam.nrv.service.Action
 import com.wajam.nrv.data.Message
 import org.jboss.netty.handler.codec.http._
+import java.net.{InetSocketAddress, URI, InetAddress}
 
 /**
  * This class...
@@ -55,7 +55,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
 
   test ("send message to self") {
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "uri")
-    nettyTransport.sendMessage(host, port, request)
+    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), request)
 
     notifier.synchronized {
       notifier.wait(100)

@@ -6,6 +6,7 @@ import com.wajam.nrv.transport.netty.HttpNettyTransport
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
 import com.wajam.nrv.data.{InRequest, Message}
+import java.net.{InetSocketAddress, URI}
 
 /**
  * This class...
@@ -36,7 +37,7 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
     val sb = new StringBuilder()
     message.keys.foreach(k => (sb.append(k).append(":").append(message.get(k)).append('\n')))
     request.setContent(ChannelBuffers.copiedBuffer(sb.toString().getBytes))
-    transport.sendMessage(node.host, node.ports(name), request)
+    transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)), request)
   }
 
   def handleMessageFromTransport(message: AnyRef) {

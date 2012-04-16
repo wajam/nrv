@@ -1,7 +1,7 @@
 package com.wajam.nrv.transport
 
-import java.net.InetAddress
 import com.wajam.nrv.protocol.Protocol
+import java.net.{InetSocketAddress, URI, InetAddress}
 
 /**
  * This class...
@@ -16,6 +16,7 @@ abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) {
 
   def stop()
 
-  def sendMessage(host: InetAddress, port: Int, message: AnyRef,
+  def sendMessage(destination: InetSocketAddress, message: AnyRef,
                   completionCallback: Option[Throwable] => Unit = (_) => {})
+
 }
