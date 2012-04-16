@@ -24,7 +24,7 @@ class Service(var name: String, protocol: Option[Protocol] = None, resolver: Opt
   def membersCount = this.ring.size
 
 
-  def bind(action: Action): Action = {
+  def registerAction(action: Action): Action = {
     action.supportedBy(this)
 
     this.actions ::= action

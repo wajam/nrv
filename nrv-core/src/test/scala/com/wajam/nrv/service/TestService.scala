@@ -10,8 +10,8 @@ class TestService extends FunSuite {
   val service = new Service("test")
 
   test("add action") {
-    service.bind(new Action("/test1", (req) => Unit))
-    service.bind(new Action("/test2", (req) => Unit))
+    service.registerAction(new Action("/test1", (req) => Unit))
+    service.registerAction(new Action("/test2", (req) => Unit))
     assert(service.actions.size == 2)
   }
 

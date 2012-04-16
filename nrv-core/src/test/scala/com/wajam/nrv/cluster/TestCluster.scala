@@ -19,9 +19,9 @@ class TestCluster extends FunSuite {
   test("add service") {
     assert(cluster.services.size == 2)
 
-    act1 = srv1.bind(new Action("/testabc", req => Unit))
-    act2 = srv1.bind(new Action("/testdef", req => Unit))
-    act3 = srv2.bind(new Action("/testabc", req => Unit))
+    act1 = srv1.registerAction(new Action("/testabc", req => Unit))
+    act2 = srv1.registerAction(new Action("/testdef", req => Unit))
+    act3 = srv2.registerAction(new Action("/testabc", req => Unit))
   }
 
   test("url resolving") {
