@@ -4,7 +4,6 @@ import com.wajam.nrv.data.{MessageType, OutRequest, InRequest}
 import com.wajam.nrv.{RemoteException, UnavailableException}
 import com.wajam.nrv.utils.Sync
 
-
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
  * but uses path to locale functions instead of functions name.
