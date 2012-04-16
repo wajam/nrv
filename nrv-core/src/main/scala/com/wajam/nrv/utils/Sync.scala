@@ -4,8 +4,8 @@ package com.wajam.nrv.utils
  * Async call synchronisation tool
  */
 class Sync[T >:Null <:AnyRef](bubbleException:Boolean = true) {
-  var value:T = null
-  var err:Exception = null
+  private var value:T = null
+  private var err:Exception = null
 
   def error(ex:Exception) {
     this.done(null, ex)
@@ -25,13 +25,14 @@ class Sync[T >:Null <:AnyRef](bubbleException:Boolean = true) {
       this.wait(timeout)
     }
 
-    if (err != null)
+    if (err != null && bubbleException)
       throw err
 
     value
   }
 
-  def then(cb: T=> Unit, timeout:Long = 0) {
+
+  def thenWait(cb: T=> Unit, timeout:Long = 0) {
     cb(this.get(timeout))
   }
 }
