@@ -37,9 +37,7 @@ class Action(var path: ActionPath, onReceive: ((InRequest) => Unit)) extends Act
   }
 
   def call(data: Map[String, Any], onReceive: ((InRequest, Option[Exception]) => Unit)) {
-    this.call(new OutRequest(data, (req: InRequest, error: Option[Exception]) => {
-      onReceive(req, error)
-    }))
+    this.call(new OutRequest(data, onReceive))
   }
 
   def call(data: Map[String, Any]): Sync[InRequest] = {
