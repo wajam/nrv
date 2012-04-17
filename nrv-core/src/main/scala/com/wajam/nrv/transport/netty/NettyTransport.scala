@@ -7,8 +7,8 @@ import org.jboss.netty.bootstrap.{ClientBootstrap, ServerBootstrap}
 import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.channel._
 import com.wajam.nrv.Logging
-import java.net.{URI, InetAddress, InetSocketAddress}
-import com.wajam.nrv.transport.{TransportMessage, Transport}
+import java.net.{InetAddress, InetSocketAddress}
+import com.wajam.nrv.transport.Transport
 
 /**
  * Transport implementation based on Netty.
@@ -39,9 +39,7 @@ class NettyTransport(host: InetAddress,
     client.stop()
   }
 
-  override def sendMessage(destination: InetSocketAddress,
-                           message: AnyRef,
-                           completionCallback: Option[Throwable] => Unit = (_) => {}) {
+  override def sendMessage(destination: InetSocketAddress, message: AnyRef, completionCallback: Option[Throwable] => Unit = (_) => {}) {
     var writeChannel: Channel = null
     val pooledConnection = connectionPool.getPooledConnection(destination)
     pooledConnection match {
@@ -142,7 +140,7 @@ class NettyTransport(host: InetAddress,
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
       val message = protocol.parse(e.getMessage)
-      protocol.handleIncoming(null, message)
+      protocol.handleIncoming(null, message, Unit=>{})
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {

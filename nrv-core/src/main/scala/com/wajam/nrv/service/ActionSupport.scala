@@ -1,7 +1,7 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.cluster.Cluster
 import com.wajam.nrv.protocol.Protocol
+import com.wajam.nrv.cluster.Cluster
 
 /**
  * Action support trait handles protocol/resolver/... switching
@@ -17,6 +17,7 @@ trait ActionSupport {
   protected var _service: Service = null
   protected var _resolver: Resolver = null
   protected var _protocol: Protocol = null
+  protected var _switchboard: Switchboard = null
 
   def cluster: Cluster =
     if (_cluster != null)
@@ -42,12 +43,18 @@ trait ActionSupport {
     else
       this.supporter.protocol
 
+  def switchboard: Switchboard =
+    if (_switchboard != null)
+      this._switchboard
+    else
+      this.supporter.switchboard
+
   def checkSupported() {
-    if (this.cluster == null || this.service == null || this.protocol == null || this.resolver == null)
+    if (this.cluster == null || this.service == null || this.protocol == null || this.resolver == null || this.switchboard == null)
       throw new UninitializedError
   }
 
-  def applySupport(cluster: Option[Cluster] = None, service: Option[Service] = None, resolver: Option[Resolver] = None, protocol: Option[Protocol] = None) {
+  def applySupport(cluster: Option[Cluster] = None, service: Option[Service] = None, resolver: Option[Resolver] = None, protocol: Option[Protocol] = None, switchboard: Option[Switchboard] = None) {
     if (cluster != None)
       this._cluster = cluster.get
 
@@ -59,6 +66,9 @@ trait ActionSupport {
 
     if (protocol != None)
       this._protocol = protocol.get
+
+    if (switchboard != None)
+      this._switchboard = switchboard.get
   }
 
   def supportedBy(supporter: ActionSupport) {

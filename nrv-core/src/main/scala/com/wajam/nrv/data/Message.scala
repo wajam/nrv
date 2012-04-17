@@ -3,10 +3,9 @@ package com.wajam.nrv.data
 import scala.collection.mutable.HashMap
 import com.wajam.nrv.service.{ActionURL, Endpoints}
 import com.wajam.nrv.cluster.Node
-import com.wajam.nrv.RemoteException
 
 /**
- * Base message used for outbound and inbound requests.
+ * Base used for outbound and inbound messages.
  */
 abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, Any] with Serializable {
 
@@ -18,7 +17,7 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
   var path = "/"
   var rendezvous = 0
 
-  var error:Option[Exception] = None
+  var error: Option[Exception] = None
 
   /*
    * Messages that are passed between nodes are not just RPC calls, but can also
@@ -28,7 +27,6 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
 
   var source: Node = null
   var destination = Endpoints.empty // TODO: see @Action, should it be service members??
-
 
   loadData(data)
 
@@ -60,5 +58,5 @@ object MessageType {
   val FUNCTION_RESPONSE = 1
 }
 
-class SerializableMessage  extends Message {
+class SerializableMessage extends Message {
 }

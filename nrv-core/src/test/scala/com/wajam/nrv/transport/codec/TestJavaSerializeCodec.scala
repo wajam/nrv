@@ -3,7 +3,7 @@ package com.wajam.nrv.transport.codec
 import org.scalatest.FunSuite
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{ServiceMember, Endpoints}
-import com.wajam.nrv.data.{Message, OutRequest}
+import com.wajam.nrv.data.{Message, OutMessage}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.codec.JavaSerializeCodec
@@ -13,7 +13,7 @@ class TestJavaSerializeCodec extends FunSuite {
   test("serialize, unserialize") {
     val codec = new JavaSerializeCodec()
 
-    val req = new OutRequest(Map("test" -> "someval"))
+    val req = new OutMessage(Map("test" -> "someval"))
     req.destination = new Endpoints(Seq(new ServiceMember(0, new Node("127.0.0.1", Map("nrv" -> 12345)))))
     val bytes = codec.encode(req)
 

@@ -1,7 +1,7 @@
 package com.wajam.nrv.transport
 
 import com.wajam.nrv.protocol.Protocol
-import java.net.{InetSocketAddress, URI, InetAddress}
+import java.net.{InetSocketAddress, InetAddress}
 import com.wajam.nrv.data.Message
 
 /**

@@ -1,11 +1,11 @@
 package com.wajam.nrv.protocol
 
 import com.wajam.nrv.service.{ServiceMember, Endpoints, Action}
-import com.wajam.nrv.data.{Message, OutRequest}
+import com.wajam.nrv.data.{Message, OutMessage}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
-import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FunSuite}
+import org.scalatest.{BeforeAndAfter, FunSuite}
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtocol extends FunSuite with BeforeAndAfter {
@@ -22,7 +22,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
 
     val protocol = new NrvProtocol(cluster) {
 
-      override def parse(message: AnyRef) :Message = {
+      override def parse(message: AnyRef): Message = {
         received = message.asInstanceOf[Message]
 
         notifier.synchronized {
@@ -35,7 +35,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
 
     cluster.start()
 
-    val req = new OutRequest(Map("test" -> "someval"))
+    val req = new OutMessage(Map("test" -> "someval"))
     req.destination = new Endpoints(Seq(new ServiceMember(0, cluster.localNode)))
     protocol.handleOutgoing(null, req)
 
@@ -60,7 +60,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
         }
       }
     }
-    val req = new OutRequest(Map("test" -> "someval"))
+    val req = new OutMessage(Map("test" -> "someval"))
     req.destination = new Endpoints(Seq(new ServiceMember(0, cluster.localNode)))
     protocol.handleOutgoing(null, req)
 

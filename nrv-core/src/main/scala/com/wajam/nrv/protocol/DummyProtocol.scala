@@ -1,8 +1,7 @@
 package com.wajam.nrv.protocol
 
-import com.wajam.nrv.codec.JavaSerializeCodec
 import com.wajam.nrv.service.Action
-import com.wajam.nrv.data.{Message, InRequest}
+import com.wajam.nrv.data.{Message, InMessage}
 import com.wajam.nrv.cluster.Cluster
 
 /**
@@ -10,16 +9,16 @@ import com.wajam.nrv.cluster.Cluster
  */
 class DummyProtocol(cluster: Cluster, name: String) extends Protocol(name, cluster) {
   override def handleOutgoing(action: Action, message: Message) {
-    val newRequest = new InRequest()
-    message.copyTo(newRequest)
-    cluster.route(newRequest)
+    val newMessage = new InMessage()
+    message.copyTo(newMessage)
+    cluster.routeIncoming(newMessage)
   }
 
   def start() = null
 
   def stop() = null
 
-  def parse(message: AnyRef) : Message = null
+  def parse(message: AnyRef): Message = null
 
-  def generate(message: Message) : AnyRef = null
+  def generate(message: Message): AnyRef = null
 }

@@ -5,10 +5,9 @@ import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.handler.codec.string.{StringEncoder, StringDecoder}
-import com.wajam.nrv.service.Action
 import org.jboss.netty.channel._
-import com.wajam.nrv.data.{InRequest, Message}
-import java.net.{InetSocketAddress, URI, InetAddress}
+import com.wajam.nrv.data.{InMessage, Message}
+import java.net.{InetSocketAddress, InetAddress}
 
 
 /**
@@ -46,9 +45,9 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
 
     val decoder = new StringDecoder() {
       override def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
-        val request = new InRequest()
-        request.loadData(Map("text" -> super.decode(ctx, channel, msg)))
-        request
+        val message = new InMessage()
+        message.loadData(Map("text" -> super.decode(ctx, channel, msg)))
+        message
       }
     }
   }

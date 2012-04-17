@@ -4,10 +4,9 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.protocol.Protocol
-import com.wajam.nrv.service.Action
 import com.wajam.nrv.data.Message
 import org.jboss.netty.handler.codec.http._
-import java.net.{InetSocketAddress, URI, InetAddress}
+import java.net.{InetSocketAddress, InetAddress}
 
 /**
  * This class...

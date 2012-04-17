@@ -17,7 +17,7 @@ class JavaSerializeCodec extends Codec {
   }
 
   override def encode(message: Message): Array[Byte] = {
-    // create a new message that won't have In/Out request specific fields
+    // create a new message that won't have In/Out message specific fields
     val serMessage = new SerializableMessage
     message.copyTo(serMessage)
 

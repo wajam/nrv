@@ -3,15 +3,15 @@ package com.wajam.nrv.cluster
 import com.wajam.nrv.service._
 import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
 import com.wajam.nrv.service.{Action, Service}
-import com.wajam.nrv.data.Message
+import com.wajam.nrv.data.InMessage
+import com.wajam.nrv.Logging
 
 /**
  * A cluster composed of services that are provided by nodes.
  */
-class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends ActionSupport {
-  applySupport(cluster = Some(this), resolver = Some(new Resolver))
+class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends ActionSupport with Logging {
+  applySupport(cluster = Some(this), resolver = Some(new Resolver), switchboard = Some(new Switchboard))
 
-  var router = new Router(this)
   var services = Map[String, Service]()
   var protocols = Map[String, Protocol]()
 
@@ -26,8 +26,13 @@ class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends A
     }
   }
 
-  def route(message: Message) {
-    this.router ! message
+  def routeIncoming(inMessage: InMessage) {
+    val action = cluster.getAction(inMessage.actionURL)
+    if (action != null) {
+      action.callIncomingHandlers(inMessage)
+    } else {
+      warn("Received a incoming for path {}, but couldn't find action", inMessage.actionURL.toString)
+    }
   }
 
   def getService(name: String): Service = this.services(name)
@@ -49,9 +54,12 @@ class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends A
   }
 
   def start() {
-    this.router.start()
     for ((name, protocol) <- this.protocols) {
       protocol.start()
+    }
+
+    for ((name, service) <- this.services) {
+      service.start()
     }
   }
 
