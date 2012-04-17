@@ -114,7 +114,6 @@ class NettyTransport(host: InetAddress,
     }
 
     def openConnection(destination: InetSocketAddress): Channel = {
-      //todo pool connections
       log.info("Opening connection to: {}", destination)
       val connectFuture = clientBootstrap.connect(destination)
       val channel = connectFuture.awaitUninterruptibly.getChannel
