@@ -5,7 +5,7 @@ import java.net.{InetSocketAddress, InetAddress}
 import com.wajam.nrv.data.Message
 
 /**
- * Transport layer used to send and received message from the network.
+ * Transport layer used to send and received messages from the network.
  */
 
 abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) {
@@ -15,6 +15,9 @@ abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) {
   def stop()
 
   def sendMessage(destination: InetSocketAddress, message: AnyRef,
+                  completionCallback: Option[Throwable] => Unit = (_) => {})
+
+  def sendResponse(connection: AnyRef, message: AnyRef,
                   completionCallback: Option[Throwable] => Unit = (_) => {})
 
 }

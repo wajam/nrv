@@ -7,6 +7,7 @@ import com.wajam.nrv.protocol.Protocol
 import com.wajam.nrv.data.Message
 import org.jboss.netty.handler.codec.http._
 import java.net.{InetSocketAddress, InetAddress}
+import com.wajam.nrv.service.Action
 
 @RunWith(classOf[JUnitRunner])
 class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
@@ -19,14 +20,19 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
   var mockProtocol : MockProtocol = null
 
   class MockProtocol extends Protocol("test", null) {
-    var receivedMessage : String = null
+    var receivedURI : String = null
 
     override def parse(message: AnyRef): Message = {
-      receivedMessage = message.asInstanceOf[HttpRequest].getUri()
+      receivedURI = message.asInstanceOf[HttpRequest].getUri()
       notifier.synchronized {
         notifier.notify()
       }
       null
+    }
+
+
+    override def handleIncoming(action: Action, message: Message) {
+
     }
 
     override def generate(message: Message): AnyRef = null
@@ -52,8 +58,20 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
       notifier.wait(100)
     }
 
-    assert(mockProtocol.receivedMessage != null)
-    assert(mockProtocol.receivedMessage.equals("uri"))
+    assert(mockProtocol.receivedURI != null)
+    assert(mockProtocol.receivedURI.equals("uri"))
+  }
+
+  test ("send message to self and response") {
+    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "uri")
+    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), request)
+
+    notifier.synchronized {
+      notifier.wait(100)
+    }
+
+    assert(mockProtocol.receivedURI != null)
+    assert(mockProtocol.receivedURI.equals("uri"))
   }
 
 }

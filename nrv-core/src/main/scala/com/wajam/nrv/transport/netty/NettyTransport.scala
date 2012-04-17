@@ -39,6 +39,12 @@ class NettyTransport(host: InetAddress,
     client.stop()
   }
 
+  def sendResponse(connection: AnyRef, message: AnyRef,
+                  completionCallback: Option[Throwable] => Unit = (_) => {}) {
+    val channel = connection.asInstanceOf[Channel]
+    writeOnChannel(channel, message, None, completionCallback)
+  }
+
   override def sendMessage(destination: InetSocketAddress, message: AnyRef, completionCallback: Option[Throwable] => Unit = (_) => {}) {
     var writeChannel: Channel = null
     val pooledConnection = connectionPool.getPooledConnection(destination)
@@ -48,16 +54,27 @@ class NettyTransport(host: InetAddress,
         writeChannel = client.openConnection(destination)
       }
     }
-    val future = writeChannel.write(message)
+    writeOnChannel(writeChannel, message, Some(destination), completionCallback)
+  }
+
+  private def writeOnChannel(channel: Channel, message: AnyRef,
+                             destination: Option[InetSocketAddress],
+                             completionCallback: Option[Throwable] => Unit = (_) => {}) {
+    val future = channel.write(message)
     future.addListener(new ChannelFutureListener {
       override def operationComplete(p1: ChannelFuture) {
         val t = p1.getCause()
         if (t == null) {
           completionCallback(None)
-          connectionPool.poolConnection(destination, writeChannel)
+          destination match {
+            case Some(dest) => {
+              connectionPool.poolConnection(dest, channel)
+            }
+            case None =>
+          }
         } else {
           completionCallback(Some(t))
-          writeChannel.close()
+          channel.close()
         }
       }
     })

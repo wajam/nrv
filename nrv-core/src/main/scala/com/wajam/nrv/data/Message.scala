@@ -27,6 +27,7 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
 
   var source: Node = null
   var destination = Endpoints.empty // TODO: see @Action, should it be service members??
+  var connection: Option[AnyRef] = None
 
   loadData(data)
 
@@ -50,6 +51,7 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
     other.source = this.source
     other.method = this.method
     other.destination = this.destination // TODO: should be cloned
+    other.connection = this.connection
   }
 }
 

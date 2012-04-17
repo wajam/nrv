@@ -82,6 +82,7 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
             responseMessage.path = inMessage.path
             responseMessage.function = MessageType.FUNCTION_RESPONSE
             responseMessage.rendezvous = inMessage.rendezvous
+            responseMessage.connection = inMessage.connection
 
             // TODO: shouldn't be like that. Source may not be a member...
             responseMessage.destination = new Endpoints(Seq(new ServiceMember(0, inMessage.source)))

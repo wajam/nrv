@@ -24,11 +24,10 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
 
   def getTransport(): Transport = null
 
-
   override def handleOutgoing(action: Action, message: Message) {
     val node = message.destination(0).node
 
-    getTransport().sendMessage(new InetSocketAddress(node.host, node.ports(name)), generate(message), (result: Option[Throwable]) => {
+    def completionCallback = (result: Option[Throwable]) => {
       result match {
         case Some(throwable) => {
           val response = new InMessage()
@@ -40,7 +39,17 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
         }
         case None =>
       }
-    })
+    }
+
+    message.connection match {
+      case Some(channel) => {
+        getTransport().sendResponse(channel, generate(message), completionCallback)
+      }
+      case None => {
+        getTransport().sendMessage(new InetSocketAddress(node.host, node.ports(name)),
+          generate(message), completionCallback)
+      }
+    }
   }
 
   def parse(message: AnyRef): Message
