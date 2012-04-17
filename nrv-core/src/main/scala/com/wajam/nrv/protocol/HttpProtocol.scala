@@ -1,12 +1,10 @@
 package com.wajam.nrv.protocol
 
 import com.wajam.nrv.cluster.Cluster
-import com.wajam.nrv.service.Action
 import com.wajam.nrv.transport.netty.HttpNettyTransport
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
-import com.wajam.nrv.data.{InRequest, Message}
-import java.net.{InetSocketAddress, URI}
+import com.wajam.nrv.data.{InMessage, Message}
 
 /**
  * This class...
@@ -32,13 +30,13 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
   override def getTransport() = transport
 
   override def parse(message: AnyRef): Message = {
-    val msg = new InRequest()
+    val msg = new InMessage()
     message match {
       case req: HttpRequest => {
         msg.method = req.getMethod().getName()
         msg.protocolName = "http"
         msg.path = req.getUri()
-        //todo do more stuff
+        // TODO: do more stuff
 
       }
       case res: HttpResponse => {
@@ -52,7 +50,7 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
   override def generate(message: Message): AnyRef = {
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1,
       HttpMethod.valueOf(message.method),
-      message.serviceName+message.path)
+      message.serviceName + message.path)
     val sb = new StringBuilder()
     message.keys.foreach(k => (sb.append(k).append(":").append(message.get(k)).append('\n')))
     request.setContent(ChannelBuffers.copiedBuffer(sb.toString().getBytes))

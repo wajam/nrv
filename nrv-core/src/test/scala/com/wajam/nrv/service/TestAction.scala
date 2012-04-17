@@ -7,7 +7,7 @@ import org.junit.runner.RunWith
 import java.lang.String
 import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
 import com.wajam.nrv.utils.Sync
-import com.wajam.nrv.data.InRequest
+import com.wajam.nrv.data.InMessage
 import com.wajam.nrv.{RemoteException, InvalidParameter}
 
 @RunWith(classOf[JUnitRunner])
@@ -16,22 +16,22 @@ class TestAction extends FunSuite {
   cluster.registerProtocol(new DummyProtocol(cluster, "dummy"), default = true)
   val service = cluster.addService(new Service("test", resolver = Some(new Resolver(Some(1)))))
   service.addMember(0, cluster.localNode)
-  cluster.router.start()
 
   test("call") {
-    var syncRequest = new Sync[String]
+    var syncCall = new Sync[String]
     var syncResponse = new Sync[String]
 
     val action = service.registerAction(new Action("/test", req => {
       req.getOrElse("call_key", "") match {
         case s: String =>
-          syncRequest.done(s)
+          syncCall.done(s)
         case _ =>
-          syncRequest.error(new Exception("Expected paramter 'call_key'"))
+          syncCall.error(new Exception("Expected paramter 'call_key'"))
       }
 
       req.reply("response_key" -> "response_value")
     }))
+    action.start()
 
 
     action.call(Map("call_key" -> "call_value"), (resp, err) => {
@@ -43,7 +43,7 @@ class TestAction extends FunSuite {
       }
     })
 
-    syncRequest.thenWait(value => {
+    syncCall.thenWait(value => {
       assert(value == "call_value", "expected 'call_value', got '" + value + "'")
     }, 100)
 
@@ -53,7 +53,7 @@ class TestAction extends FunSuite {
   }
 
   test("call error") {
-    var syncResponse = new Sync[InRequest]
+    var syncResponse = new Sync[InMessage]
 
     val action = service.registerAction(new Action("/test_error", req => {
       throw new InvalidParameter("TEST ERROR")

@@ -1,11 +1,9 @@
 package com.wajam.nrv.protocol
 
 import com.wajam.nrv.cluster.Cluster
-import com.wajam.nrv.service.Action
 import com.wajam.nrv.transport.netty.NettyTransport
 import com.wajam.nrv.transport.nrv.NrvNettyTransportCodecFactory
-import java.net.{InetSocketAddress, URI}
-import com.wajam.nrv.data.{MessageType, InRequest, Message}
+import com.wajam.nrv.data.Message
 
 /**
  * Default protocol used by NRV. All nodes must have this protocol, since it's

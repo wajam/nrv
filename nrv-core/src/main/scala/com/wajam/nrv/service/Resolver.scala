@@ -7,7 +7,7 @@ import com.wajam.nrv.data.Message
  * Resolves endpoints that handle a specific action (from a path) within a service.
  * Resolver always resolve all replica endpoints.
  */
-class Resolver(var replica: Option[Int] = Some(1)) extends MessageHandler{
+class Resolver(var replica: Option[Int] = Some(1)) extends MessageHandler {
   def handleIncoming(action: Action, message: Message) {
   }
 
