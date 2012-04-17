@@ -141,7 +141,7 @@ class NettyTransport(host: InetAddress,
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
       val message = protocol.parse(e.getMessage)
-      protocol.handleIncoming(null, message)
+      protocol.handleIncoming(null, message, Unit=>{})
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {

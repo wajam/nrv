@@ -5,6 +5,7 @@ package com.wajam.nrv.data
  */
 class InMessage extends Message {
   protected[nrv] var replyCallback: (OutMessage => Unit) = null
+  protected[nrv] var matchingOutMessage:Option[OutMessage] = None
 
   def reply(data: (String, Any)*) {
     this.reply(new OutMessage(data))

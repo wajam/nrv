@@ -29,7 +29,7 @@ class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends A
   def routeIncoming(inMessage: InMessage) {
     val action = cluster.getAction(inMessage.actionURL)
     if (action != null) {
-      action.handleIncomingMessage(inMessage)
+      action.callIncomingHandlers(inMessage)
     } else {
       warn("Received a incoming for path {}, but couldn't find action", inMessage.actionURL.toString)
     }

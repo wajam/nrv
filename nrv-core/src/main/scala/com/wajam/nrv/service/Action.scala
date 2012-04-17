@@ -21,12 +21,13 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
   }
 
   def call(message: OutMessage) {
-    this.handleOutgoingMessage(message)
+    this.callOutgoingHandlers(message)
   }
 
   protected[nrv] def matches(path: ActionPath) = this.path.matchesPath(path)._1
 
   protected[nrv] def start() {
+    this.checkSupported()
     this.switchboard.start()
   }
 
@@ -35,12 +36,11 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
   }
 
   /**
-   * Handles messages that needs to be sent to a remote node.
+   * Handles messages that needs to be sent to a remote node by calling
+   * message handlers one by one
    * @param outMessage Sent message
    */
-  protected[nrv] def handleOutgoingMessage(outMessage: OutMessage) {
-    this.checkSupported()
-
+  protected[nrv] def callOutgoingHandlers(outMessage: OutMessage) {
     // initialize message
     outMessage.source = this.cluster.localNode
     outMessage.serviceName = this.service.name
@@ -48,23 +48,26 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
     outMessage.function = MessageType.FUNCTION_CALL
 
     // resolve endpoints
-    this.resolver.handleOutgoing(this, outMessage)
-    if (outMessage.destination.size == 0)
-      throw new UnavailableException
+    this.resolver.handleOutgoing(this, outMessage, _ => {
+      if (outMessage.destination.size == 0)
+        throw new UnavailableException
 
-    // add message to router (for response)
-    this.switchboard.keepOutgoing(outMessage)
-
-    this.protocol.handleOutgoing(this, outMessage)
+      this.switchboard.handleOutgoing(this, outMessage, _ => {
+        this.protocol.handleOutgoing(this, outMessage, _ => {
+        })
+      })
+    })
   }
 
   /**
-   * Handles messages received from a remote node.
+   * Handles messages received from a remote node, calls handlers
+   * one by one
    * @param inMessage Received messages
    */
-  protected[nrv] def handleIncomingMessage(inMessage: InMessage) {
-    this.switchboard.matchIncoming(inMessage, (outMessage) => {
-      outMessage match {
+  protected[nrv] def callIncomingHandlers(inMessage: InMessage) {
+    this.switchboard.handleIncoming(this, inMessage, Unit => {
+
+      inMessage.matchingOutMessage match {
         // it's a reply to a message
         case Some(originalMessage) =>
           originalMessage.handleReply(inMessage)
@@ -83,6 +86,7 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
             // TODO: shouldn't be like that. Source may not be a member...
             responseMessage.destination = new Endpoints(Seq(new ServiceMember(0, inMessage.source)))
 
+            // TODO: should call all handlers
             this.protocol.handleOutgoing(this, responseMessage)
           })
 
@@ -98,6 +102,7 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
           }
         }
       }
+
     })
   }
 }

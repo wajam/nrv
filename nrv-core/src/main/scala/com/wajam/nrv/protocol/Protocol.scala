@@ -16,13 +16,14 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
 
   def stop()
 
-  def handleIncoming(action: Action, message: Message) {
+  override def handleIncoming(action: Action, message: Message) {
     val inReq = new InMessage
     message.copyTo(inReq)
     this.cluster.routeIncoming(inReq)
   }
 
   def getTransport(): Transport = null
+
 
   override def handleOutgoing(action: Action, message: Message) {
     val node = message.destination(0).node
@@ -34,14 +35,15 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
           message.copyTo(response)
           response.error = Some(new RuntimeException(throwable))
           response.function = MessageType.FUNCTION_RESPONSE
-          handleIncoming(action, response)
+
+          handleIncoming(action, response, Unit=>{})
         }
         case None =>
       }
     })
   }
 
-  def parse(message: AnyRef) : Message
+  def parse(message: AnyRef): Message
 
-  def generate(message: Message) : AnyRef
+  def generate(message: Message): AnyRef
 }

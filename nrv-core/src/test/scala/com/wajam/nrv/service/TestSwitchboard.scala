@@ -11,23 +11,23 @@ import com.wajam.nrv.utils.Sync
 class TestSwitchboard extends FunSuite with MockitoSugar {
 
   test("routing") {
-    val sync = new Sync[Option[Boolean]]
+    val sync = new Sync[OutMessage]
 
     var switchboard = new Switchboard
     switchboard.start()
 
     val outMessage = new OutMessage()
     outMessage.path = "/test"
-    switchboard.keepOutgoing(outMessage)
-
-    val inMessage = new InMessage()
-    inMessage.function = MessageType.FUNCTION_RESPONSE
-    inMessage.rendezvous = outMessage.rendezvous
-    switchboard.matchIncoming(inMessage, (matchingMsg) => {
-      sync.done(Some(true))
+    switchboard.handleOutgoing(null, outMessage, _ => {
+      val inMessage = new InMessage()
+      inMessage.function = MessageType.FUNCTION_RESPONSE
+      inMessage.rendezvous = outMessage.rendezvous
+      switchboard.handleIncoming(null, inMessage, Unit => {
+        sync.done(inMessage.matchingOutMessage.get)
+      })
     })
 
-    assert(sync.get(100) == Some(true))
+    assert(sync.get(100) != null)
   }
 
 }
