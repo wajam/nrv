@@ -1,15 +1,21 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.data.{MessageType, OutMessage, InMessage}
 import com.wajam.nrv.{RemoteException, UnavailableException}
 import com.wajam.nrv.utils.Sync
 import com.yammer.metrics.scala.Instrumented
+import java.util.concurrent.TimeUnit
+import com.wajam.nrv.data.{Message, MessageType, OutMessage, InMessage}
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
  * but uses path to locale functions instead of functions name.
  */
 class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) extends ActionSupport with Instrumented {
+  private val msgInMeter = metrics.meter("message-in", "messages-in", this.path.replace(":","_"))
+  private val msgOutMeter = metrics.meter("message-out", "messages-out", this.path.replace(":","_"))
+  private val msgReplyTime = metrics.timer("reply-time", this.path.replace(":", "_"))
+  private val executeTime = metrics.timer("execute-time", this.path.replace(":", "_"))
+
   def call(data: Map[String, Any]): Sync[InMessage] = {
     val sync = new Sync[InMessage]
     this.call(data, sync.done(_, _))
@@ -21,10 +27,11 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
   }
 
   def call(message: OutMessage) {
+    message.function = MessageType.FUNCTION_CALL
     this.callOutgoingHandlers(message)
   }
 
-  protected[nrv] def matches(path: ActionPath) = this.path.matchesPath(path)._1
+  def matches(path: ActionPath) = this.path.matchesPath(path)._1
 
   protected[nrv] def start() {
     this.checkSupported()
@@ -32,7 +39,7 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
   }
 
   protected[nrv] def stop() {
-    // TODO: find a way to stop switchboard
+    this.switchboard.stop()
   }
 
   /**
@@ -41,11 +48,13 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
    * @param outMessage Sent message
    */
   protected[nrv] def callOutgoingHandlers(outMessage: OutMessage) {
+    this.msgOutMeter.mark()
+
     // initialize message
     outMessage.source = this.cluster.localNode
     outMessage.serviceName = this.service.name
     outMessage.path = this.path.buildPath(outMessage)
-    outMessage.function = MessageType.FUNCTION_CALL
+    outMessage.sentTime = System.currentTimeMillis()
 
     // resolve endpoints
     this.resolver.handleOutgoing(this, outMessage, _ => {
@@ -54,6 +63,7 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
 
       this.switchboard.handleOutgoing(this, outMessage, _ => {
         this.protocol.handleOutgoing(this, outMessage, _ => {
+          outMessage.sentTime = System.currentTimeMillis()
         })
       })
     })
@@ -62,48 +72,54 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
   /**
    * Handles messages received from a remote node, calls handlers
    * one by one
-   * @param inMessage Received messages
+   * @param fromMessage Received messages
    */
-  protected[nrv] def callIncomingHandlers(inMessage: InMessage) {
-    this.switchboard.handleIncoming(this, inMessage, Unit => {
+  protected[nrv] def callIncomingHandlers(fromMessage: InMessage) {
+    this.msgInMeter.mark()
 
-      inMessage.matchingOutMessage match {
+    this.switchboard.handleIncoming(this, fromMessage, Unit => {
+
+      fromMessage.matchingOutMessage match {
         // it's a reply to a message
         case Some(originalMessage) =>
-          originalMessage.handleReply(inMessage)
+          this.msgReplyTime.update(System.currentTimeMillis() - originalMessage.sentTime, TimeUnit.MILLISECONDS)
+          originalMessage.handleReply(fromMessage)
 
         // no original message, means that this is a new message
         case None => {
 
           // set the reply callback for this message
-          inMessage.replyCallback = (responseMessage => {
-            responseMessage.source = this.cluster.localNode
-            responseMessage.serviceName = this.service.name
-            responseMessage.path = inMessage.path
-            responseMessage.function = MessageType.FUNCTION_RESPONSE
-            responseMessage.rendezvous = inMessage.rendezvous
-            responseMessage.connection = inMessage.connection
-
-            // TODO: shouldn't be like that. Source may not be a member...
-            responseMessage.destination = new Endpoints(Seq(new ServiceMember(0, inMessage.source)))
-
-            // TODO: should call all handlers
-            this.protocol.handleOutgoing(this, responseMessage)
+          fromMessage.replyCallback = (intoMessage => {
+            this.generateResponseMessage(fromMessage, intoMessage)
+            this.callOutgoingHandlers(intoMessage)
           })
 
           // handle the message, catch errors to throw them back to the caller
           try {
-            this.implementation(inMessage)
+            this.executeTime.time {
+              this.implementation(fromMessage)
+            }
           } catch {
             case ex: Exception => {
               val errMessage = new OutMessage
               errMessage.error = Some(new RemoteException(ex.getMessage))
-              inMessage.reply(errMessage)
+              fromMessage.reply(errMessage)
             }
           }
         }
       }
-
     })
+  }
+
+  protected[nrv] def generateResponseMessage(fromMessage:Message, intoMessage:Message) {
+    intoMessage.source = this.cluster.localNode
+    intoMessage.serviceName = this.service.name
+    intoMessage.path = fromMessage.path
+    intoMessage.function = MessageType.FUNCTION_RESPONSE
+    intoMessage.rendezvous = fromMessage.rendezvous
+    intoMessage.connection = fromMessage.connection
+
+    // TODO: shouldn't be like that. Source may not be a member...
+    intoMessage.destination = new Endpoints(Seq(new ServiceMember(0, fromMessage.source)))
   }
 }

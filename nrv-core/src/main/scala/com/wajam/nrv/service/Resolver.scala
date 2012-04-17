@@ -1,7 +1,7 @@
 package com.wajam.nrv.service
 
 import java.util.zip.CRC32
-import com.wajam.nrv.data.Message
+import com.wajam.nrv.data.OutMessage
 
 /**
  * Resolves endpoints that handle a specific action (from a path) within a service.
@@ -9,8 +9,9 @@ import com.wajam.nrv.data.Message
  */
 class Resolver(var replica: Option[Int] = Some(1)) extends MessageHandler {
 
-  override def handleOutgoing(action: Action, message: Message) {
-    message.destination = this.resolve(action, message.path)
+  override def handleOutgoing(action: Action, message: OutMessage) {
+    if (message.destination.size == 0)
+      message.destination = this.resolve(action, message.path)
   }
 
   def resolve(action: Action, path: String): Endpoints = {

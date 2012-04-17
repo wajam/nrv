@@ -1,11 +1,11 @@
 package com.wajam.nrv.protocol
 
 import com.wajam.nrv.service.{ServiceMember, Endpoints, Action}
-import com.wajam.nrv.data.{Message, OutMessage}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
 import org.scalatest.{BeforeAndAfter, FunSuite}
+import com.wajam.nrv.data.{InMessage, Message, OutMessage}
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtocol extends FunSuite with BeforeAndAfter {
@@ -52,7 +52,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     val notifier = new Object()
     var received: Message = null
     val protocol = new NrvProtocol(cluster) {
-      override def handleIncoming(action: Action, message: Message) {
+      override def handleIncoming(action: Action, message: InMessage) {
         received = message
 
         notifier.synchronized {

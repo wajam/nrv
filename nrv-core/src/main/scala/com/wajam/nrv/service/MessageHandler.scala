@@ -1,6 +1,7 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.data.Message
+import com.wajam.nrv.data.{InMessage, OutMessage}
+
 
 /**
  * This class...
@@ -11,18 +12,18 @@ import com.wajam.nrv.data.Message
 
 trait MessageHandler {
 
-  def handleIncoming(action: Action, message: Message) {
+  def handleIncoming(action: Action, message: InMessage) {
   }
 
-  def handleIncoming(action: Action, message: Message, next: Unit => Unit) {
+  def handleIncoming(action: Action, message: InMessage, next: Unit => Unit) {
     this.handleIncoming(action, message)
     next()
   }
 
-  def handleOutgoing(action: Action, message: Message) {
+  def handleOutgoing(action: Action, message: OutMessage) {
   }
 
-  def handleOutgoing(action: Action, message: Message, next: Unit => Unit) {
+  def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
     this.handleOutgoing(action, message)
     next()
   }

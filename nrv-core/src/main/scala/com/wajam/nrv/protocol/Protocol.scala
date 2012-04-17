@@ -4,8 +4,8 @@ import com.wajam.nrv.cluster.Cluster
 import com.wajam.nrv.Logging
 import com.wajam.nrv.service.{MessageHandler, Action}
 import java.net.InetSocketAddress
-import com.wajam.nrv.data.{MessageType, InMessage, Message}
 import com.wajam.nrv.transport.Transport
+import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 
 /**
  * Protocol used to send and receive messages to remote nodes over a network
@@ -16,15 +16,13 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
 
   def stop()
 
-  override def handleIncoming(action: Action, message: Message) {
-    val inReq = new InMessage
-    message.copyTo(inReq)
-    this.cluster.routeIncoming(inReq)
+  override def handleIncoming(action: Action, message: InMessage) {
+    this.cluster.routeIncoming(message)
   }
 
   def getTransport(): Transport = null
 
-  override def handleOutgoing(action: Action, message: Message) {
+  override def handleOutgoing(action: Action, message: OutMessage) {
     val node = message.destination(0).node
 
     def completionCallback = (result: Option[Throwable]) => {
@@ -35,7 +33,7 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
           response.error = Some(new RuntimeException(throwable))
           response.function = MessageType.FUNCTION_RESPONSE
 
-          handleIncoming(action, response, Unit=>{})
+          handleIncoming(action, response, Unit => {})
         }
         case None =>
       }

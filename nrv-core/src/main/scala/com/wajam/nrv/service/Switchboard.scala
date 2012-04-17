@@ -2,49 +2,106 @@ package com.wajam.nrv.service
 
 import actors.Actor
 import collection.mutable.Map
-import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
-import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
+import com.wajam.nrv.data.{MessageType, InMessage, OutMessage}
+import java.util.{TimerTask, Timer}
+import com.wajam.nrv.{TimeoutException, Logging}
 
 /**
  * Handle incoming messages and find matching outgoing messages, having same
  * rendez-vous number.
  */
 class Switchboard extends Actor with MessageHandler with Logging with Instrumented {
-  private var messages = Map[Int, OutMessage]()
+  val TIMEOUT_CHECK = 10
+
+  private var rendezvous = Map[Int, RendezVous]()
   private var id = 0
+  private var timer = new Timer()
 
-  private val rdvGauge = metrics.gauge("pending-rendezvous") {
-    messages.size
+  private val received = metrics.meter("received", "received")
+  private val pending = metrics.gauge("pending") {
+    rendezvous.size
   }
 
-  // TODO: timeouts (w/cleanup)
+  private class RendezVous(var action: Action, var outMessage: OutMessage)
 
-  override def handleOutgoing(action: Action, outMessage: Message) {
-    this.handleOutgoing(action, outMessage, Unit=>{})
+  private object CheckTimeout
+
+  override def start(): Actor = {
+    val actor = super.start()
+
+    timer.scheduleAtFixedRate(new TimerTask {
+      def run() {
+        Switchboard.this ! CheckTimeout
+      }
+    }, 0, TIMEOUT_CHECK)
+
+    actor
   }
 
-  override def handleOutgoing(action: Action, outMessage: Message, next: Unit => Unit) {
-    this ! (outMessage, next)
+  def stop() {
+    this.timer.cancel()
   }
 
-  override def handleIncoming(action: Action, outMessage: Message) {
-    this.handleIncoming(action, outMessage, Unit=>{})
+  override def handleOutgoing(action: Action, outMessage: OutMessage) {
+    this.handleOutgoing(action, outMessage, Unit => {})
   }
 
-  override def handleIncoming(action: Action, inMessage: Message, next: Unit => Unit) {
-    this ! (inMessage, next)
+  override def handleOutgoing(action: Action, outMessage: OutMessage, next: Unit => Unit) {
+    outMessage.function match {
+      case MessageType.FUNCTION_CALL =>
+        this !(new RendezVous(action, outMessage), next)
+
+      case _ =>
+        next()
+    }
   }
 
+  override def handleIncoming(action: Action, inMessage: InMessage) {
+    this.handleIncoming(action, inMessage, Unit => {})
+  }
+
+  override def handleIncoming(action: Action, inMessage: InMessage, next: Unit => Unit) {
+    inMessage.matchingOutMessage match {
+      // no matching out message, we need to find matching message
+      case None =>
+        this !(inMessage, next)
+
+      case Some(outMessage) =>
+        next()
+    }
+  }
 
   def act() {
     while (true) {
       receive {
 
-        case (outMessage: OutMessage, next: (Unit => Unit)) =>
+        case CheckTimeout =>
+          var toRemove = List[Int]()
+
+          for ((id, rdv) <- this.rendezvous) {
+            val elaps = System.currentTimeMillis() - rdv.outMessage.sentTime
+            if (elaps >= rdv.outMessage.timeoutTime) {
+              var exceptionMessage = new InMessage
+              exceptionMessage.matchingOutMessage = Some(rdv.outMessage)
+              exceptionMessage.error = Some(new TimeoutException("Didn't receive a reply within time"))
+              rdv.action.generateResponseMessage(rdv.outMessage, exceptionMessage)
+              rdv.action.callIncomingHandlers(exceptionMessage)
+
+              toRemove :+= id
+            }
+          }
+
+          for (id <- toRemove) {
+            this.rendezvous -= id
+          }
+
+        case (rdv: RendezVous, next: (Unit => Unit)) =>
+          this.received.mark()
+
           this.id += 1
-          outMessage.rendezvous = this.id
-          this.messages += (this.id -> outMessage)
+          rdv.outMessage.rendezvous = this.id
+          this.rendezvous += (this.id -> rdv)
 
           if (this.id > Int.MaxValue)
             this.id = 0
@@ -52,14 +109,19 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
           next()
 
         case (inMessage: InMessage, next: (Unit => Unit)) =>
+          this.received.mark()
+
           // check for rendez-vous
           if (inMessage.function == MessageType.FUNCTION_RESPONSE) {
-            val outMessage = this.messages.remove(inMessage.rendezvous)
-            if (outMessage == None) {
-              warn("Received a incoming message with a rendez-vous, but with no matching outgoing message: {}", inMessage)
-            }
+            val optRdv = this.rendezvous.remove(inMessage.rendezvous)
+            optRdv match {
+              case Some(rdv) =>
+                inMessage.matchingOutMessage = Some(rdv.outMessage)
 
-            inMessage.matchingOutMessage = outMessage
+              case None =>
+                warn("Received a incoming message with a rendez-vous, but with no matching outgoing message: {}", inMessage)
+
+            }
           }
 
           next()
