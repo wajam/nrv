@@ -8,14 +8,6 @@ import com.wajam.nrv.data.Message
 import org.jboss.netty.handler.codec.http._
 import java.net.{InetSocketAddress, InetAddress}
 
-/**
- * This class...
- *
- * User: felix
- * Date: 09/04/12
- */
-
-
 @RunWith(classOf[JUnitRunner])
 class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
 

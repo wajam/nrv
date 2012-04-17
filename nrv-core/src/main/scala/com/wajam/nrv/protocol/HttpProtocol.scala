@@ -7,12 +7,8 @@ import org.jboss.netty.handler.codec.http._
 import com.wajam.nrv.data.{InMessage, Message}
 
 /**
- * This class...
- *
- * User: felix
- * Date: 09/04/12
+ * Implementation of HTTP protocol.
  */
-
 class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluster) {
 
   val transport = new HttpNettyTransport(cluster.localNode.host,

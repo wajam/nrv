@@ -5,10 +5,7 @@ import java.net.{InetSocketAddress, InetAddress}
 import com.wajam.nrv.data.Message
 
 /**
- * This class...
- *
- * User: felix
- * Date: 04/04/12
+ * Transport layer used to send and received message from the network.
  */
 
 abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) {

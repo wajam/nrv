@@ -9,13 +9,6 @@ import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
 import java.net.{InetSocketAddress, SocketAddress}
 
-/**
- * This class...
- *
- * User: felix
- * Date: 16/04/12
- */
-
 @RunWith(classOf[JUnitRunner])
 class TestConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar {
 

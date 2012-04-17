@@ -9,14 +9,6 @@ import org.jboss.netty.channel._
 import com.wajam.nrv.data.{InMessage, Message}
 import java.net.{InetSocketAddress, InetAddress}
 
-
-/**
- * This class...
- *
- * User: felix
- * Date: 05/04/12
- */
-
 @RunWith(classOf[JUnitRunner])
 class TestNettyTransport extends FunSuite with BeforeAndAfter {
 

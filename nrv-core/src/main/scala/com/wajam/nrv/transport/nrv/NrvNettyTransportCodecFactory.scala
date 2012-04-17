@@ -9,27 +9,24 @@ import com.wajam.nrv.codec.NrvCodec
 import com.wajam.nrv.data.Message
 
 /**
- * This class...
- *
- * User: felix
- * Date: 09/04/12
+ * Codec factory for NRV protocol. This class provides the channel handlers used by netty
+ * to convert bytes received from the network into structured objects, Message in this case.
  */
 
 class NrvNettyTransportCodecFactory extends NettyTransportCodecFactory {
 
   val codec = new NrvCodec()
 
+  def createRequestEncoder() = new NrvEncoder(codec)
 
-  def createRequestEncoder() = new Encoder(codec)
+  def createResponseEncoder() = new NrvEncoder(codec)
 
-  def createResponseEncoder() = new Encoder(codec)
+  def createRequestDecoder() = new NrvDecoder(codec)
 
-  def createRequestDecoder() = new Decoder(codec)
-
-  def createResponseDecoder() = new Decoder(codec)
+  def createResponseDecoder() = new NrvDecoder(codec)
 }
 
-class Encoder(codec: NrvCodec) extends OneToOneEncoder {
+class NrvEncoder(codec: NrvCodec) extends OneToOneEncoder {
   override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef): Object = {
     msg match {
       case m: Message =>
@@ -57,7 +54,7 @@ class Encoder(codec: NrvCodec) extends OneToOneEncoder {
   }
 }
 
-class Decoder(codec: NrvCodec) extends FrameDecoder {
+class NrvDecoder(codec: NrvCodec) extends FrameDecoder {
   override def decode(ctx: ChannelHandlerContext, channel: Channel, buffer: ChannelBuffer): Object = {
     // Wait until the length prefix is available.
     if (buffer.readableBytes < 5) {
