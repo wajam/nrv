@@ -7,8 +7,8 @@ import org.junit.runner.RunWith
 import java.lang.String
 import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
 import com.wajam.nrv.utils.Sync
-import com.wajam.nrv.data.InMessage
-import com.wajam.nrv.{RemoteException, InvalidParameter}
+import com.wajam.nrv.{TimeoutException, UnavailableException, RemoteException, InvalidParameter}
+import com.wajam.nrv.data.{OutMessage, InMessage}
 
 @RunWith(classOf[JUnitRunner])
 class TestAction extends FunSuite {
@@ -17,11 +17,11 @@ class TestAction extends FunSuite {
   val service = cluster.addService(new Service("test", resolver = Some(new Resolver(Some(1)))))
   service.addMember(0, cluster.localNode)
 
-  test("call") {
+  test("call, reply") {
     var syncCall = new Sync[String]
     var syncResponse = new Sync[String]
 
-    val action = service.registerAction(new Action("/test", req => {
+    val action = service.registerAction(new Action("/test/:param", req => {
       req.getOrElse("call_key", "") match {
         case s: String =>
           syncCall.done(s)
@@ -34,7 +34,7 @@ class TestAction extends FunSuite {
     action.start()
 
 
-    action.call(Map("call_key" -> "call_value"), (resp, err) => {
+    action.call(Map("call_key" -> "call_value", "param" -> "param_value"), (resp, err) => {
       resp.getOrElse("response_key", "") match {
         case s: String =>
           syncResponse.done(s)
@@ -68,6 +68,20 @@ class TestAction extends FunSuite {
     }
 
     assert(except.getMessage == "TEST ERROR")
+  }
 
+  test("call timeout") {
+    var syncResponse = new Sync[InMessage]
+
+    val action = service.registerAction(new Action("/test_timeout", req => {}))
+    val req = new OutMessage(Map("call_key" -> "call_value"), syncResponse.done(_, _))
+    req.timeoutTime = 100
+    action.call(req)
+
+    intercept[TimeoutException] {
+      syncResponse.thenWait(value => {
+        fail("Shouldn't be call because an exception occured")
+      }, 1000)
+    }
   }
 }

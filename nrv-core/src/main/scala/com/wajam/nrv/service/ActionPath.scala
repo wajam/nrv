@@ -12,6 +12,8 @@ class ActionPath(var path: String) {
 
   val pathFragments = path.split("/")
 
+  lazy val pathParams:Seq[String] = this.pathFragments.filter(_.startsWith(":"))
+
   def matchesPath(path: String): (Boolean, scala.collection.Map[String, String]) = {
     val thatPathFragments = path.split("/")
 

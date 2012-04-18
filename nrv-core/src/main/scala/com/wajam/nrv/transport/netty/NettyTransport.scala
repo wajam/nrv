@@ -9,6 +9,7 @@ import org.jboss.netty.channel._
 import com.wajam.nrv.Logging
 import java.net.{InetAddress, InetSocketAddress}
 import com.wajam.nrv.transport.Transport
+import com.wajam.nrv.data.InMessage
 
 /**
  * Transport implementation based on Netty.
@@ -157,7 +158,9 @@ class NettyTransport(host: InetAddress,
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
       val message = protocol.parse(e.getMessage)
-      protocol.handleIncoming(null, message, Unit=>{})
+      val inMessage = new InMessage
+      message.copyTo(inMessage)
+      protocol.handleIncoming(null, inMessage)
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
