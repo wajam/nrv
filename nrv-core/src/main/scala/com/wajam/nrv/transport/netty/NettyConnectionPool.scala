@@ -15,7 +15,7 @@ import java.net.InetSocketAddress
 
 class NettyConnectionPool(timeout: Long, maxSize: Int) {
 
-  private val connectionMap = new ConcurrentHashMap[InetSocketAddress, ConcurrentLinkedDeque[ConnectionPoolEntry]]()
+  private val connectionMap = new ConcurrentHashMap[InetSocketAddress, ConcurrentLinkedDeque[(Channel, Long)]]()
   private val atomicInteger = new AtomicInteger(0)
 
   def poolConnection(destination: InetSocketAddress, connection: Channel): Boolean = {
@@ -25,7 +25,7 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) {
     }
     var queue = connectionMap.get(destination)
     if (queue == null) {
-      val newQueue = new ConcurrentLinkedDeque[ConnectionPoolEntry]()
+      val newQueue = new ConcurrentLinkedDeque[(Channel, Long)]()
       queue = connectionMap.putIfAbsent(destination, newQueue)
       if (queue == null) {
         queue = newQueue
@@ -34,7 +34,7 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) {
 
     var added = false
     if (atomicInteger.incrementAndGet() <= maxSize) {
-      added = queue.add(new ConnectionPoolEntry(connection, getTime()))
+      added = queue.add((connection, getTime()))
     }
     if (!added) {
       atomicInteger.decrementAndGet()
@@ -48,27 +48,25 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) {
     if (queue == null) {
       return None
     }
-    val channelEntry = queue.poll()
+    val connectionPoolEntry = queue.poll()
     atomicInteger.decrementAndGet()
 
-    if (channelEntry != null) {
-      Some(channelEntry.channel)
+    if (connectionPoolEntry != null) {
+      Some(connectionPoolEntry._1)
     } else {
       None
     }
   }
 
-  class ConnectionPoolEntry(var channel: Channel, var timestamp: Long)
-
   private def clean() {
     connectionMap.entrySet().foreach(e => cleanDeque(e.getValue()))
   }
 
-  private def cleanDeque(deque: ConcurrentLinkedDeque[ConnectionPoolEntry]) {
+  private def cleanDeque(deque: ConcurrentLinkedDeque[(Channel, Long)]) {
     deque.foreach(connectionPoolEntry => {
-      if (!connectionPoolEntry.channel.isOpen() ||
-        (getTime() - connectionPoolEntry.timestamp) >= timeout) {
-        connectionPoolEntry.channel.close()
+      if (!connectionPoolEntry._1.isOpen() ||
+        (getTime() - connectionPoolEntry._2) >= timeout) {
+        connectionPoolEntry._1.close()
         deque.remove(connectionPoolEntry)
       }
     })

@@ -12,7 +12,7 @@ import com.wajam.nrv.data.{InMessage, Message}
 class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluster) {
 
   val transport = new HttpNettyTransport(cluster.localNode.host,
-    cluster.localNode.ports.get(name).get,
+    cluster.localNode.ports(name),
     this)
 
   def start() {
