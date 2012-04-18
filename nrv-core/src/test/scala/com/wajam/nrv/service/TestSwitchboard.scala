@@ -19,6 +19,7 @@ class TestSwitchboard extends FunSuite with MockitoSugar {
     val sync = new Sync[OutMessage]
 
     val outMessage = new OutMessage()
+    outMessage.sentTime = System.currentTimeMillis()
     outMessage.path = "/test"
     switchboard.handleOutgoing(null, outMessage, _ => {
       val inMessage = new InMessage()
