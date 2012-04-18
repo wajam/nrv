@@ -18,10 +18,16 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
   private var id = 0
   private var timer = new Timer()
 
+  // instrumentation
   private val received = metrics.meter("received", "received")
   private val pending = metrics.gauge("pending") {
     rendezvous.size
   }
+
+  /**
+   * Returns current time, overridden by unit tests
+   */
+  protected[nrv] var getTime:(()=>Long) = ()=>{ System.currentTimeMillis() }
 
   private class RendezVous(var action: Action, var outMessage: OutMessage)
 
@@ -32,11 +38,15 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
 
     timer.scheduleAtFixedRate(new TimerTask {
       def run() {
-        Switchboard.this ! CheckTimeout
+        checkTimeout()
       }
     }, 0, TIMEOUT_CHECK)
 
     actor
+  }
+
+  protected[nrv] def checkTimeout() {
+    Switchboard.this !? CheckTimeout
   }
 
   def stop() {
@@ -80,7 +90,7 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
           var toRemove = List[Int]()
 
           for ((id, rdv) <- this.rendezvous) {
-            val elaps = System.currentTimeMillis() - rdv.outMessage.sentTime
+            val elaps = this.getTime() - rdv.outMessage.sentTime
             if (elaps >= rdv.outMessage.timeoutTime) {
               var exceptionMessage = new InMessage
               exceptionMessage.matchingOutMessage = Some(rdv.outMessage)
@@ -95,6 +105,8 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
           for (id <- toRemove) {
             this.rendezvous -= id
           }
+
+          sender ! true
 
         case (rdv: RendezVous, next: (Unit => Unit)) =>
           this.received.mark()

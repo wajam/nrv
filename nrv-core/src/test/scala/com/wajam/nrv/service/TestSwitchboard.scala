@@ -37,11 +37,12 @@ class TestSwitchboard extends FunSuite with MockitoSugar {
     val mockAction = mock[Action]
 
     val outMessage = new OutMessage
-    outMessage.sentTime = System.currentTimeMillis()
+    outMessage.sentTime = 0
     outMessage.timeoutTime = 20
-    switchboard.handleOutgoing(mockAction, outMessage)
 
-    Thread.sleep(1000)
+    switchboard.handleOutgoing(mockAction, outMessage)
+    switchboard.getTime = ()=>{ 100 }
+    switchboard.checkTimeout()
 
     verify(mockAction).generateResponseMessage(anyObject[Message], anyObject[Message])
     verify(mockAction).callIncomingHandlers(anyObject[InMessage])

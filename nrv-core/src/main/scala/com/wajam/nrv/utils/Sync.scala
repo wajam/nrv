@@ -21,9 +21,11 @@ class Sync[T >:Null <:AnyRef](bubbleException:Boolean = true) {
   }
 
   def get(timeout:Long = 0):T = {
-    this.synchronized {
-      this.wait(timeout)
-    }
+    if (value == null && err == None)
+      this.synchronized {
+        if (value == null && err == None)
+          this.wait(timeout)
+      }
 
     err match {
       case Some(exception) => {

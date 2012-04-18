@@ -73,10 +73,16 @@ class TestAction extends FunSuite {
   test("call timeout") {
     var syncResponse = new Sync[InMessage]
 
-    val action = service.registerAction(new Action("/test_timeout", req => {}))
+    val action = service.registerAction(new Action("/test_timeout", req => {
+      // no reply, make it timeout
+    }))
+
     val req = new OutMessage(Map("call_key" -> "call_value"), syncResponse.done(_, _))
     req.timeoutTime = 100
     action.call(req)
+
+    action.switchboard.getTime = ()=>{System.currentTimeMillis() + 100}
+    action.switchboard.checkTimeout()
 
     intercept[TimeoutException] {
       syncResponse.thenWait(value => {
