@@ -119,6 +119,10 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
     intoMessage.rendezvous = fromMessage.rendezvous
     intoMessage.connection = fromMessage.connection
 
+    // add params from path
+    val (_, params) = this.path.matchesPath(fromMessage.path)
+    intoMessage ++= params
+
     // TODO: shouldn't be like that. Source may not be a member...
     intoMessage.destination = new Endpoints(Seq(new ServiceMember(0, fromMessage.source)))
   }

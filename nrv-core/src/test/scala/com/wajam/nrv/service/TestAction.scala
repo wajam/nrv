@@ -21,7 +21,7 @@ class TestAction extends FunSuite {
     var syncCall = new Sync[String]
     var syncResponse = new Sync[String]
 
-    val action = service.registerAction(new Action("/test", req => {
+    val action = service.registerAction(new Action("/test/:param", req => {
       req.getOrElse("call_key", "") match {
         case s: String =>
           syncCall.done(s)
@@ -34,7 +34,7 @@ class TestAction extends FunSuite {
     action.start()
 
 
-    action.call(Map("call_key" -> "call_value"), (resp, err) => {
+    action.call(Map("call_key" -> "call_value", "param" -> "param_value"), (resp, err) => {
       resp.getOrElse("response_key", "") match {
         case s: String =>
           syncResponse.done(s)
