@@ -160,7 +160,7 @@ class NettyTransport(host: InetAddress,
       val message = protocol.parse(e.getMessage)
       val inMessage = new InMessage
       message.copyTo(inMessage)
-      inMessage.connection = Some(ctx.getChannel)
+      inMessage.attachments.put(Protocol.CONNECTION_KEY, Some(ctx.getChannel))
       protocol.handleIncoming(null, inMessage)
     }
 

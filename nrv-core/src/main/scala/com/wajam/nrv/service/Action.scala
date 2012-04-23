@@ -117,7 +117,7 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
     intoMessage.path = fromMessage.path
     intoMessage.function = MessageType.FUNCTION_RESPONSE
     intoMessage.rendezvous = fromMessage.rendezvous
-    intoMessage.connection = fromMessage.connection
+    intoMessage.attachments ++= fromMessage.attachments
 
     // add params from path
     val (_, params) = this.path.matchesPath(fromMessage.path)

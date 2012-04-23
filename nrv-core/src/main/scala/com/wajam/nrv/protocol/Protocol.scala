@@ -39,7 +39,7 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
       }
     }
 
-    message.connection match {
+    message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
       case Some(channel) => {
         getTransport().sendResponse(channel, generate(message), completionCallback)
       }
@@ -53,4 +53,8 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
   def parse(message: AnyRef): Message
 
   def generate(message: Message): AnyRef
+}
+
+object Protocol {
+  val CONNECTION_KEY = "connection"
 }

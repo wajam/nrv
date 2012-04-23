@@ -7,7 +7,7 @@ import com.wajam.nrv.cluster.Node
 /**
  * Base used for outbound and inbound messages.
  */
-abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, Any] with Serializable {
+abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, Any] {
 
   import MessageType._
 
@@ -26,8 +26,8 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
   var function = FUNCTION_CALL
 
   var source: Node = null
-  var destination = Endpoints.empty // TODO: see @Action, should it be service members??
-  var connection: Option[AnyRef] = None
+  var destination = Endpoints.empty // TODO: see @Action, should it be service members?
+  val attachments = new collection.mutable.HashMap[String, AnyRef]
 
   loadData(data)
 
@@ -41,6 +41,11 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
 
   def copyTo(other: Message) {
     other.loadData(this)
+    copyBaseMessageData(other)
+    other.attachments ++= attachments
+  }
+
+  def copyBaseMessageData(other: Message) {
     other.protocolName = this.protocolName
     other.serviceName = this.serviceName
     other.method = this.method
@@ -51,7 +56,6 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
     other.source = this.source
     other.method = this.method
     other.destination = this.destination // TODO: should be cloned
-    other.connection = this.connection
   }
 }
 
@@ -60,5 +64,13 @@ object MessageType {
   val FUNCTION_RESPONSE = 1
 }
 
-class SerializableMessage extends Message {
+class SerializableMessage(data: Iterable[(String, Any)]) extends Message(data) with Serializable {
+}
+
+object SerializableMessage {
+  def apply(message: Message) = {
+    val serMessage = new SerializableMessage(message)
+    message.copyBaseMessageData(serMessage)
+    serMessage
+  }
 }
