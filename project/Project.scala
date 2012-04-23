@@ -25,7 +25,7 @@ object NrvBuild extends Build {
     "org.apache.zookeeper" % "zookeeper" % "3.4.3" exclude("javax.jms", "jms") exclude("com.sun.jmx", "jmxri") exclude("com.sun.jdmk", "jmxtools")
   )
 
-  val defaultSettings = Defaults.defaultSettings ++ Defaults.itSettings ++  Seq(
+  val defaultSettings = Defaults.defaultSettings ++ Defaults.itSettings ++ Seq(
     libraryDependencies ++= commonDeps,
     resolvers ++= commonResolvers,
     retrieveManaged := true,
@@ -40,7 +40,7 @@ object NrvBuild extends Build {
     settings = defaultSettings ++ Seq(
       // some other
     )
-  ) configs( IntegrationTest ) aggregate(core, zookeeper)
+  ) configs (IntegrationTest) aggregate(core, zookeeper)
 
   // all keys at http://harrah.github.com/xsbt/latest/sxr/Keys.scala.html#295872
   lazy val core = Project(
@@ -49,7 +49,7 @@ object NrvBuild extends Build {
     settings = defaultSettings ++ Seq(
       // some other
     )
-  ) configs( IntegrationTest )
+  ) configs (IntegrationTest)
 
   lazy val zookeeper = Project(
     id = "nrv-zookeeper",
@@ -57,6 +57,6 @@ object NrvBuild extends Build {
     settings = defaultSettings ++ Seq(
       libraryDependencies ++= zookeeperDeps
     )
-  ) configs( IntegrationTest ) dependsOn (core)
+  ) configs (IntegrationTest) dependsOn (core)
 }
 
