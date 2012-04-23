@@ -4,7 +4,8 @@ import com.wajam.nrv.cluster.Cluster
 import com.wajam.nrv.transport.netty.HttpNettyTransport
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
-import com.wajam.nrv.data.{InMessage, Message}
+import java.net.URI
+import com.wajam.nrv.data.{OutMessage, InMessage, Message}
 
 /**
  * Implementation of HTTP protocol.
@@ -31,7 +32,8 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
       case req: HttpRequest => {
         msg.method = req.getMethod().getName()
         msg.protocolName = "http"
-        msg.path = req.getUri()
+        msg.serviceName = name
+        msg.path = new URI(req.getUri).getPath
         // TODO: do more stuff
 
       }
@@ -44,12 +46,22 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
   }
 
   override def generate(message: Message): AnyRef = {
-    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1,
-      HttpMethod.valueOf(message.method),
-      message.serviceName + message.path)
-    val sb = new StringBuilder()
-    message.keys.foreach(k => (sb.append(k).append(":").append(message.get(k)).append('\n')))
-    request.setContent(ChannelBuffers.copiedBuffer(sb.toString().getBytes))
-    request
+    message match {
+      case req: InMessage => {
+        val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1,
+          HttpMethod.valueOf(req.method),
+          req.serviceName + req.path)
+        val sb = new StringBuilder()
+        req.keys.foreach(k => (sb.append(k).append(":").append(req.get(k)).append('\n')))
+        request.setContent(ChannelBuffers.copiedBuffer(sb.toString().getBytes))
+        request
+      }
+      case response: OutMessage => {
+        val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+        response
+      }
+
+    }
+
   }
 }
