@@ -24,7 +24,7 @@ class TestSwitchboard extends FunSuite with MockitoSugar {
     switchboard.handleOutgoing(null, outMessage, _ => {
       val inMessage = new InMessage()
       inMessage.function = MessageType.FUNCTION_RESPONSE
-      inMessage.rendezvous = outMessage.rendezvous
+      inMessage.rendezvousId = outMessage.rendezvousId
       switchboard.handleIncoming(null, inMessage, Unit => {
         sync.done(inMessage.matchingOutMessage.get)
       })

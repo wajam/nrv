@@ -116,7 +116,7 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
     intoMessage.serviceName = this.service.name
     intoMessage.path = fromMessage.path
     intoMessage.function = MessageType.FUNCTION_RESPONSE
-    intoMessage.rendezvous = fromMessage.rendezvous
+    intoMessage.rendezvousId = fromMessage.rendezvousId
     intoMessage.attachments ++= fromMessage.attachments
 
     // add params from path

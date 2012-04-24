@@ -1,7 +1,7 @@
 package com.wajam.nrv.data
 
 /**
- * Message received from a remoter node
+ * Message received from a remote node
  */
 class InMessage extends Message {
   protected[nrv] var replyCallback: (OutMessage => Unit) = null

@@ -29,7 +29,7 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
    */
   protected[nrv] var getTime:(()=>Long) = ()=>{ System.currentTimeMillis() }
 
-  private class RendezVous(var action: Action, var outMessage: OutMessage)
+  private class RendezVous(val action: Action, val outMessage: OutMessage)
 
   private object CheckTimeout
 
@@ -112,7 +112,7 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
           this.received.mark()
 
           this.id += 1
-          rdv.outMessage.rendezvous = this.id
+          rdv.outMessage.rendezvousId = this.id
           this.rendezvous += (this.id -> rdv)
 
           if (this.id > Int.MaxValue)
@@ -125,7 +125,7 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
 
           // check for rendez-vous
           if (inMessage.function == MessageType.FUNCTION_RESPONSE) {
-            val optRdv = this.rendezvous.remove(inMessage.rendezvous)
+            val optRdv = this.rendezvous.remove(inMessage.rendezvousId)
             optRdv match {
               case Some(rdv) =>
                 inMessage.matchingOutMessage = Some(rdv.outMessage)

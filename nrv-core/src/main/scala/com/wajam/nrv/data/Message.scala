@@ -15,8 +15,7 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
   var serviceName = ""
   var method = ""
   var path = "/"
-  var rendezvous = 0
-
+  var rendezvousId = 0
   var error: Option[Exception] = None
 
   /*
@@ -27,6 +26,7 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
 
   var source: Node = null
   var destination = Endpoints.empty // TODO: see @Action, should it be service members?
+
   val attachments = new collection.mutable.HashMap[String, AnyRef]
 
   loadData(data)
@@ -50,7 +50,7 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
     other.serviceName = this.serviceName
     other.method = this.method
     other.path = this.path
-    other.rendezvous = this.rendezvous
+    other.rendezvousId = this.rendezvousId
     other.function = this.function
     other.error = this.error
     other.source = this.source
