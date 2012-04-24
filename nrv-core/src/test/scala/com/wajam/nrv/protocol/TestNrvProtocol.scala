@@ -44,7 +44,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     }
 
     assert(received != null)
-    assert(received.getOrElse("test", "") == "someval")
+    assert(received.parameters.getOrElse("test", "") == "someval")
   }
 
   test("test connection failure") {

@@ -5,6 +5,7 @@ import com.wajam.nrv.utils.Sync
 import com.yammer.metrics.scala.Instrumented
 import java.util.concurrent.TimeUnit
 import com.wajam.nrv.data.{Message, MessageType, OutMessage, InMessage}
+import scala.Unit
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -16,14 +17,19 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
   private val msgReplyTime = metrics.timer("reply-time", this.path.replace(":", "_"))
   private val executeTime = metrics.timer("execute-time", this.path.replace(":", "_"))
 
-  def call(data: Map[String, Any]): Sync[InMessage] = {
+  def call(params: Iterable[(String, Any)],
+           meta: Iterable[(String, Any)],
+           data: Any): Sync[InMessage] = {
     val sync = new Sync[InMessage]
-    this.call(data, sync.done(_, _))
+    this.call(params, sync.done(_, _), meta, data)
     sync
   }
 
-  def call(data: Map[String, Any], onReply: ((InMessage, Option[Exception]) => Unit)) {
-    this.call(new OutMessage(data, onReply))
+  def call(params: Iterable[(String, Any)],
+           onReply: ((InMessage, Option[Exception]) => Unit),
+           meta: Iterable[(String, Any)] = null,
+           data: Any = null) {
+    this.call(new OutMessage(params, meta, data, onReply))
   }
 
   def call(message: OutMessage) {
@@ -53,7 +59,7 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
     // initialize message
     outMessage.source = this.cluster.localNode
     outMessage.serviceName = this.service.name
-    outMessage.path = this.path.buildPath(outMessage)
+    outMessage.path = this.path.buildPath(outMessage.parameters)
     outMessage.sentTime = System.currentTimeMillis()
 
     // resolve endpoints
@@ -121,7 +127,7 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
 
     // add params from path
     val (_, params) = this.path.matchesPath(fromMessage.path)
-    intoMessage ++= params
+    intoMessage.parameters ++= params
 
     // TODO: shouldn't be like that. Source may not be a member...
     intoMessage.destination = new Endpoints(Seq(new ServiceMember(0, fromMessage.source)))

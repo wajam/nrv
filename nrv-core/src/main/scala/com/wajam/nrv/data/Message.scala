@@ -1,13 +1,16 @@
 package com.wajam.nrv.data
 
-import scala.collection.mutable.HashMap
 import com.wajam.nrv.service.{ActionURL, Endpoints}
 import com.wajam.nrv.cluster.Node
+import scala.Option
+import collection.immutable.HashMap
 
 /**
  * Base used for outbound and inbound messages.
  */
-abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, Any] {
+abstract class Message(params: Iterable[(String, Any)] = null,
+                       meta: Iterable[(String, Any)] = null,
+                       data: Any = null) extends Serializable {
 
   import MessageType._
 
@@ -27,25 +30,40 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
   var source: Node = null
   var destination = Endpoints.empty // TODO: see @Action, should it be service members?
 
-  val attachments = new collection.mutable.HashMap[String, AnyRef]
+  val parameters = new collection.mutable.HashMap[String, Any]
+  val metadata = new collection.mutable.HashMap[String, Any]
+  var messageData: Any = null
 
-  loadData(data)
+  val attachments = new collection.mutable.HashMap[String, Any]
 
-  def this(params: (String, Any)*) = this(params)
+  loadData(params, meta, data)
 
-  def loadData(data: Iterable[(String, Any)]) {
-    this ++= data
+  def this() = this(null, null, null)
+
+  private def loadData(params: Iterable[(String, Any)] = null,
+                        meta: Iterable[(String, Any)] = null,
+                        data: Any = null) {
+    if (params != null) {
+      parameters ++= params
+    }
+    if (meta != null) {
+      metadata ++= meta
+    }
+    messageData = data
   }
 
   lazy val actionURL = new ActionURL(serviceName, path, protocolName)
 
   def copyTo(other: Message) {
-    other.loadData(this)
     copyBaseMessageData(other)
     other.attachments ++= attachments
   }
 
   def copyBaseMessageData(other: Message) {
+
+    other.parameters ++= this.parameters
+    other.metadata ++= this.metadata
+    other.messageData = this.messageData
     other.protocolName = this.protocolName
     other.serviceName = this.serviceName
     other.method = this.method
@@ -64,12 +82,15 @@ object MessageType {
   val FUNCTION_RESPONSE = 1
 }
 
-class SerializableMessage(data: Iterable[(String, Any)]) extends Message(data) with Serializable {
+class SerializableMessage(params: Iterable[(String, Any)] = null,
+                          meta: Iterable[(String, Any)] = null,
+                          data: Any = null) extends Message(params, meta, data) with Serializable{
+
 }
 
 object SerializableMessage {
   def apply(message: Message) = {
-    val serMessage = new SerializableMessage(message)
+    val serMessage = new SerializableMessage()
     message.copyBaseMessageData(serMessage)
     serMessage
   }

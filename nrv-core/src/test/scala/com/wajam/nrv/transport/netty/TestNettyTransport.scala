@@ -38,7 +38,7 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
     val decoder = new StringDecoder() {
       override def decode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
         val message = new InMessage()
-        message.loadData(Map("text" -> super.decode(ctx, channel, msg)))
+        message.parameters += ("text" -> super.decode(ctx, channel, msg))
         message
       }
     }
@@ -48,7 +48,7 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
     var receivedMessage: String = null
 
     override def parse(message: AnyRef): Message = {
-      receivedMessage = message.asInstanceOf[Message].getOrElse("text", "").asInstanceOf[String]
+      receivedMessage = message.asInstanceOf[Message].parameters.getOrElse("text", "").asInstanceOf[String]
       notifier.synchronized {
         notifier.notify()
       }

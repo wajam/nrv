@@ -3,12 +3,17 @@ package com.wajam.nrv.data
 /**
  * Message received from a remote node
  */
-class InMessage extends Message {
+class InMessage(params: Iterable[(String, Any)] = null,
+                meta: Iterable[(String, Any)] = null,
+                data: Any = null) extends Message(params, meta, data) {
+
   protected[nrv] var replyCallback: (OutMessage => Unit) = null
   protected[nrv] var matchingOutMessage:Option[OutMessage] = None
 
-  def reply(data: (String, Any)*) {
-    this.reply(new OutMessage(data))
+  def reply(params: Iterable[(String, Any)],
+            meta: Iterable[(String, Any)] = null,
+            data: Any = null) {
+    this.reply(new OutMessage(params, meta, data))
   }
 
   def reply(message: OutMessage) {

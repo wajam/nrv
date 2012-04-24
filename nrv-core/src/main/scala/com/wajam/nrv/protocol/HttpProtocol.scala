@@ -30,7 +30,7 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
     val msg = new InMessage()
     message match {
       case req: HttpRequest => {
-        msg.method = req.getMethod().getName()
+        msg.method = req.getMethod.getName
         msg.protocolName = "http"
         msg.serviceName = name
         msg.path = new URI(req.getUri).getPath
@@ -52,7 +52,7 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
           HttpMethod.valueOf(req.method),
           req.serviceName + req.path)
         val sb = new StringBuilder()
-        req.keys.foreach(k => (sb.append(k).append(":").append(req.get(k)).append('\n')))
+        req.parameters.keys.foreach(k => (sb.append(k).append(":").append(req.parameters(k)).append('\n')))
         request.setContent(ChannelBuffers.copiedBuffer(sb.toString().getBytes))
         request
       }

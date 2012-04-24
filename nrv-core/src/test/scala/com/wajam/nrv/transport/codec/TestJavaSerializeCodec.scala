@@ -25,7 +25,7 @@ class TestJavaSerializeCodec extends FunSuite {
 
     decoded match {
       case m: Message =>
-        assert(m.getOrElse("test", "") == "someval")
+        assert(m.parameters.getOrElse("test", "") == "someval")
       case _ => fail("Wasn't decoded to message")
     }
 

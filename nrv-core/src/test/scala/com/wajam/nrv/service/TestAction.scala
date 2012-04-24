@@ -22,20 +22,20 @@ class TestAction extends FunSuite {
     var syncResponse = new Sync[String]
 
     val action = service.registerAction(new Action("/test/:param", req => {
-      req.getOrElse("call_key", "") match {
+      req.parameters.getOrElse("call_key", "") match {
         case s: String =>
           syncCall.done(s)
         case _ =>
           syncCall.error(new Exception("Expected paramter 'call_key'"))
       }
 
-      req.reply("response_key" -> "response_value")
+      req.reply(Seq("response_key" -> "response_value"))
     }))
     action.start()
 
 
-    action.call(Map("call_key" -> "call_value", "param" -> "param_value"), (resp, err) => {
-      resp.getOrElse("response_key", "") match {
+    action.call(Map("call_key" -> "call_value", "param" -> "param_value"), onReply = (resp, err) => {
+      resp.parameters.getOrElse("response_key", "") match {
         case s: String =>
           syncResponse.done(s)
         case _ =>
@@ -59,7 +59,7 @@ class TestAction extends FunSuite {
       throw new InvalidParameter("TEST ERROR")
     }))
 
-    action.call(Map("call_key" -> "call_value"), syncResponse.done(_, _))
+    action.call(Map("call_key" -> "call_value"), onReply = syncResponse.done(_, _))
 
     val except = intercept[RemoteException] {
       syncResponse.thenWait(value => {
@@ -77,7 +77,7 @@ class TestAction extends FunSuite {
       // no reply, make it timeout
     }))
 
-    val req = new OutMessage(Map("call_key" -> "call_value"), syncResponse.done(_, _))
+    val req = new OutMessage(Map("call_key" -> "call_value"), onReply = syncResponse.done(_, _))
     req.timeoutTime = 100
     action.call(req)
 

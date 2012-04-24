@@ -3,7 +3,11 @@ package com.wajam.nrv.data
 /**
  * Message sent to a remote node
  */
-class OutMessage(data: Iterable[(String, Any)] = None, onReply: (InMessage, Option[Exception]) => Unit = null) extends Message(data) {
+class OutMessage(params: Iterable[(String, Any)] = null,
+                 meta: Iterable[(String, Any)] = null,
+                 data: Any = null,
+                 onReply: (InMessage, Option[Exception]) => Unit = null) extends Message(params, meta, data) {
+
   var timeoutTime:Long = 1000
   var sentTime:Long = 0
 
