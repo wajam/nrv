@@ -52,6 +52,10 @@ abstract class Message(data: Iterable[(String, Any)]) extends HashMap[String, An
     other.method = this.method
     other.destination = this.destination // TODO: should be cloned
     other.connection = this.connection
+
+    if (other.isInstanceOf[SerializableMessage]) {
+      other.asInstanceOf[SerializableMessage].cleanBeforeSend()
+    }
   }
 }
 
@@ -61,4 +65,7 @@ object MessageType {
 }
 
 class SerializableMessage extends Message {
+  def cleanBeforeSend() {
+    this.connection = None
+  }
 }
