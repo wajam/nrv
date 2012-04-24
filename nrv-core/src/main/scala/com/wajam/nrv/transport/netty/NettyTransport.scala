@@ -8,8 +8,10 @@ import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.channel._
 import com.wajam.nrv.Logging
 import java.net.{InetAddress, InetSocketAddress}
-import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.InMessage
+import org.jboss.netty.util.HashedWheelTimer
+import com.wajam.nrv.transport.Transport
+import org.jboss.netty.handler.timeout._
 
 /**
  * Transport implementation based on Netty.
@@ -23,10 +25,13 @@ class NettyTransport(host: InetAddress,
                      protocol: Protocol,
                      factory: NettyTransportCodecFactory) extends Transport(host, port, protocol) {
 
+  val idleTimeoutIsSec = 60
+  val connectionTimeoutInMs = 5000
   val server = new NettyServer(host, port, factory)
   val connectionPool = new NettyConnectionPool(10000, 100)
   val client = new NettyClient(factory)
   val allChannels = new DefaultChannelGroup
+  val timer = new HashedWheelTimer();
 
   override def start() {
     server.start()
@@ -38,6 +43,7 @@ class NettyTransport(host: InetAddress,
     allChannels.clear()
     server.stop()
     client.stop()
+    timer.stop()
   }
 
   def sendResponse(connection: AnyRef, message: AnyRef,
@@ -64,7 +70,7 @@ class NettyTransport(host: InetAddress,
     val future = channel.write(message)
     future.addListener(new ChannelFutureListener {
       override def operationComplete(p1: ChannelFuture) {
-        val t = p1.getCause()
+        val t = p1.getCause
         if (t == null) {
           completionCallback(None)
           destination match {
@@ -117,7 +123,7 @@ class NettyTransport(host: InetAddress,
   class NettyClient(factory: NettyTransportCodecFactory) extends Logging {
 
     val clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(Executors.newCachedThreadPool, Executors.newCachedThreadPool))
-
+    clientBootstrap.setOption("connectTimeoutMillis", connectionTimeoutInMs);
     clientBootstrap.setPipelineFactory(new DefaultPipelineFactory)
 
     def start() {
@@ -149,7 +155,12 @@ class NettyTransport(host: InetAddress,
 
   }
 
-  val incomingMessageHandler = new SimpleChannelUpstreamHandler with Logging {
+  val incomingMessageHandler = new IdleStateAwareChannelHandler with Logging {
+
+    override def channelIdle(ctx: ChannelHandlerContext , e: IdleStateEvent) {
+      log.info("Connection was idle for {} sec and will be closed.", idleTimeoutIsSec)
+      e.getChannel.close();
+    }
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
       e.getChannel.close()
