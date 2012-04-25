@@ -1,4 +1,4 @@
-package com.wajam.nrv.codec
+package com.wajam.nrv.transport.codec
 
 import java.io._
 import com.wajam.nrv.data.{SerializableMessage, Message}
@@ -8,7 +8,7 @@ import com.wajam.nrv.data.{SerializableMessage, Message}
  * Codec that uses Java object serialization to encode messages
  */
 class JavaSerializeCodec extends Codec {
-  def encodeAny(obj:AnyRef): Array[Byte] = {
+  def encodeAny(obj: AnyRef): Array[Byte] = {
     val baos = new ByteArrayOutputStream();
     val serializer = new ObjectOutputStream(baos)
     serializer.writeObject(obj)

@@ -1,4 +1,4 @@
-package com.wajam.nrv.codec
+package com.wajam.nrv.transport.codec
 
 import com.wajam.nrv.data.Message
 
@@ -6,7 +6,7 @@ import com.wajam.nrv.data.Message
 /**
  * Message encoder/decoder used by a protocol
  */
-abstract class Codec {
+trait Codec {
   def encode(message: Message): Array[Byte]
 
   def decode(data: Array[Byte]): Message

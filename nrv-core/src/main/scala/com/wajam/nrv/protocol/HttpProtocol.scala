@@ -31,24 +31,22 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
     val msg = new InMessage()
     message match {
       case req: HttpRequest => {
-        val uri = new URI(req.getUri)
         msg.protocolName = "http"
         msg.method = req.getMethod.getName
         msg.serviceName = name
-        msg.path = uri.getPath
-        val nettyUri = new QueryStringDecoder(uri)
-        val requestParams = Map.empty[String, Seq[String]] ++ nettyUri.getParameters.asScala.mapValues(_.asScala)
-        msg.parameters ++= requestParams
-        getHeaders(req, msg)
-        getContent(req, msg)
+        msg.path = new URI(req.getUri).getPath
+        val nettyUriDecoder = new QueryStringDecoder(req.getUri)
+        msg.parameters ++= Map.empty[String, Seq[String]] ++ nettyUriDecoder.getParameters.asScala.mapValues(_.asScala)
+        mapHeaders(req, msg)
+        mapContent(req, msg)
       }
       case res: HttpResponse => {
         msg.protocolName = "http"
         msg.method = null
         msg.serviceName = name
         msg.path = null
-        getHeaders(res, msg)
-        getContent(res, msg)
+        mapHeaders(res, msg)
+        mapContent(res, msg)
       }
       case _ => throw new RuntimeException("Invalid type: " + message.getClass.getName)
     }
@@ -79,11 +77,14 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
     }
   }
 
-  private def getHeaders(httpMessage: HttpMessage, message: Message) {
-    httpMessage.getHeaders.asScala.foreach(entry => message.metadata.put(entry.getKey, entry.getValue))
+  private def mapHeaders(httpMessage: HttpMessage, message: Message) {
+    val headers: Map[String, Seq[String]] = httpMessage.getHeaderNames.asScala.map { key =>
+      key.toUpperCase -> httpMessage.getHeaders(key).asScala
+    }.toMap
+    message.metadata ++= headers
   }
 
-  private def getContent(httpMessage: HttpMessage, message: Message) {
+  private def mapContent(httpMessage: HttpMessage, message: Message) {
     message.messageData = httpMessage.getContent  //todo manage content
   }
 

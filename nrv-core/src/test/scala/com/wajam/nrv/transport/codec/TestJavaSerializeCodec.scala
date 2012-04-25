@@ -6,7 +6,6 @@ import com.wajam.nrv.service.{ServiceMember, Endpoints}
 import com.wajam.nrv.data.{Message, OutMessage}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.codec.JavaSerializeCodec
 
 @RunWith(classOf[JUnitRunner])
 class TestJavaSerializeCodec extends FunSuite {

@@ -1,4 +1,4 @@
-package com.wajam.nrv.codec
+package com.wajam.nrv.transport.codec
 
 /**
  * Codec of the NRV protocol (default standard protocol of NRV)

@@ -5,8 +5,8 @@ import org.jboss.netty.handler.codec.oneone.OneToOneEncoder
 import org.jboss.netty.channel.{Channel, ChannelHandlerContext}
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.handler.codec.frame.{CorruptedFrameException, FrameDecoder}
-import com.wajam.nrv.codec.NrvCodec
 import com.wajam.nrv.data.Message
+import com.wajam.nrv.transport.codec.NrvCodec
 
 /**
  * Codec factory for NRV protocol. This class provides the channel handlers used by netty
