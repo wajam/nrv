@@ -27,7 +27,7 @@ class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends A
   }
 
   def routeIncoming(inMessage: InMessage) {
-    val action = cluster.getAction(inMessage.actionURL)
+    val action = cluster.getAction(inMessage.actionURL, inMessage.method)
     if (action != null) {
       action.callIncomingHandlers(inMessage)
     } else {
@@ -43,12 +43,12 @@ class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends A
     service
   }
 
-  def getAction(url: ActionURL): Action = {
+  def getAction(url: ActionURL, method: String): Action = {
     val service = services.get(url.service)
     if (service == None)
       return null
 
-    val action = service.get.findAction(url.path)
+    val action = service.get.findAction(url.path, method)
 
     action.getOrElse(null)
   }

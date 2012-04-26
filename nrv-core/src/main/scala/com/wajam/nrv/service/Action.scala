@@ -11,7 +11,11 @@ import scala.Unit
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
  * but uses path to locale functions instead of functions name.
  */
-class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) extends ActionSupport with Instrumented {
+class Action(var path: ActionPath,
+             var implementation: ((InMessage) => Unit),
+             var method: ActionMethod = ActionMethod.ANY)
+  extends ActionSupport with Instrumented {
+
   private val msgInMeter = metrics.meter("message-in", "messages-in", this.path.replace(":","_"))
   private val msgOutMeter = metrics.meter("message-out", "messages-out", this.path.replace(":","_"))
   private val msgReplyTime = metrics.timer("reply-time", this.path.replace(":", "_"))
@@ -37,7 +41,9 @@ class Action(var path: ActionPath, var implementation: ((InMessage) => Unit)) ex
     this.callOutgoingHandlers(message)
   }
 
-  def matches(path: ActionPath) = this.path.matchesPath(path)._1
+  def matches(path: ActionPath, method: ActionMethod) = {
+    (this.path.matchesPath(path)._1 && this.method.matchMethod(method))
+  }
 
   protected[nrv] def start() {
     this.checkSupported()

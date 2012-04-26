@@ -3,9 +3,9 @@ package com.wajam.nrv.protocol
 import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import org.jboss.netty.handler.codec.http.{HttpMethod, HttpVersion, DefaultHttpRequest}
 import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.cluster.{Node, Cluster}
+import org.jboss.netty.handler.codec.http._
 
 /**
  *
@@ -47,11 +47,21 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     msg.parameters("b") should equal (Seq("2"))
   }
 
-  test("should map HTTP header to message metadata") {
+  test("should map HTTP header to message metadata in requests") {
     val nettyRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/")
     nettyRequest.addHeader("header", "value")
 
     val msg = protocol.parse(nettyRequest)
+
+    msg.metadata.size should equal (1)
+    msg.metadata("HEADER") should equal (Seq("value"))
+  }
+
+  test("should map HTTP header to message metadata in responses") {
+    val nettyresponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+    nettyresponse.addHeader("header", "value")
+
+    val msg = protocol.parse(nettyresponse)
 
     msg.metadata.size should equal (1)
     msg.metadata("HEADER") should equal (Seq("value"))
