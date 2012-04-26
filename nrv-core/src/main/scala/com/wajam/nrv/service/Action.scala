@@ -11,6 +11,7 @@ import scala.Unit
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
  * but uses path to locale functions instead of functions name.
  */
+
 class Action(var path: ActionPath,
              var implementation: ((InMessage) => Unit),
              var method: ActionMethod = ActionMethod.ANY)
@@ -137,5 +138,22 @@ class Action(var path: ActionPath,
 
     // TODO: shouldn't be like that. Source may not be a member...
     intoMessage.destination = new Endpoints(Seq(new ServiceMember(0, fromMessage.source)))
+  }
+}
+
+/**
+ * Utilities method to ease action declaration
+ */
+object Action {
+  def createAction(path: ActionPath, method: ActionMethod, implementation: ((InMessage) => Unit)): Action = {
+    new Action(path, implementation, method)
+  }
+
+  def forPath(path: String): ActionPath = {
+    path
+  }
+
+  def forMethod(method: String): ActionMethod = {
+    method
   }
 }

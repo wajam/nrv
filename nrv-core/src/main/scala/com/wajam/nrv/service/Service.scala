@@ -42,6 +42,11 @@ class Service(var name: String, protocol: Option[Protocol] = None, resolver: Opt
     action
   }
 
+  def registerActions(actions: List[Action]): List[Action] = {
+    actions.foreach(registerAction(_))
+    actions
+  }
+
   def findAction(path: ActionPath, method: String): Option[Action] = {
     this.actions find { _.matches(path, method) }
   }
