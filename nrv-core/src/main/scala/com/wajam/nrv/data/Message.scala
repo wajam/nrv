@@ -1,9 +1,8 @@
 package com.wajam.nrv.data
 
-import com.wajam.nrv.service.{ActionURL, Endpoints}
 import com.wajam.nrv.cluster.Node
 import scala.Option
-import collection.immutable.HashMap
+import com.wajam.nrv.service.{ActionMethod, ActionURL, Endpoints}
 
 /**
  * Base used for outbound and inbound messages.
@@ -16,7 +15,7 @@ abstract class Message(params: Iterable[(String, Any)] = null,
 
   var protocolName = ""
   var serviceName = ""
-  var method = ""
+  var method = ActionMethod.ANY
   var path = "/"
   var rendezvousId = 0
   var error: Option[Exception] = None

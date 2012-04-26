@@ -6,6 +6,7 @@ import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.cluster.{Node, Cluster}
 import org.jboss.netty.handler.codec.http._
+import com.wajam.nrv.service.ActionMethod
 
 /**
  *
@@ -26,7 +27,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyRequest)
 
-    msg.method should equal ("GET")
+    msg.method should equal (ActionMethod("GET"))
   }
 
   test("should map HTTP path to message path") {

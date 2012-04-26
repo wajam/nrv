@@ -4,7 +4,7 @@ package com.wajam.nrv.service
  *
  */
 
-class ActionMethod(val method: String) {
+class ActionMethod(val method: String) extends Serializable {
 
   def matchMethod(method: ActionMethod) = {
     if(method.equals(ActionMethod.ANY) || this.equals(ActionMethod.ANY)) {
