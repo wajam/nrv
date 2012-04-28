@@ -15,10 +15,12 @@ abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) {
   def stop()
 
   def sendMessage(destination: InetSocketAddress, message: AnyRef,
-                  completionCallback: Option[Throwable] => Unit = (_) => {})
+                  completionCallback: Option[Throwable] => Unit = (_) => {},
+                  closeAfter:Boolean = false)
 
   def sendResponse(connection: AnyRef, message: AnyRef,
-                  completionCallback: Option[Throwable] => Unit = (_) => {})
+                  completionCallback: Option[Throwable] => Unit = (_) => {},
+                  closeAfter: Boolean = true)
 
 }
 

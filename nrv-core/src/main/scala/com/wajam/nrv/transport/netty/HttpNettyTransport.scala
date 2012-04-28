@@ -12,7 +12,6 @@ import org.jboss.netty.handler.codec.http.{HttpResponseEncoder, HttpResponseDeco
  */
 
 class HttpNettyTransport(host: InetAddress, port: Int, protocol: Protocol) extends NettyTransport(host, port, protocol, HttpNettyTransportCodec) {
-
 }
 
 object HttpNettyTransportCodec extends NettyTransportCodecFactory {

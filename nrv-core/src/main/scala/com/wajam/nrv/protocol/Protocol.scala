@@ -41,11 +41,17 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
 
     message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
       case Some(channel) => {
-        getTransport().sendResponse(channel, generate(message), completionCallback)
+        val response = generate(message)
+        getTransport().sendResponse(channel,
+          response,
+          completionCallback,
+          message.attachments.getOrElse(Protocol.CLOSE_AFTER, true).asInstanceOf[Boolean])
       }
       case None => {
+        val request = generate(message)
         getTransport().sendMessage(new InetSocketAddress(node.host, node.ports(name)),
-          generate(message), completionCallback)
+          request, completionCallback,
+          message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean])
       }
     }
   }
@@ -57,4 +63,5 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
 
 object Protocol {
   val CONNECTION_KEY = "connection"
+  val CLOSE_AFTER = "close_after"
 }

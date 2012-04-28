@@ -13,6 +13,7 @@ import scala.collection.JavaConverters._
  */
 class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluster) {
 
+  val KEEP_ALIVE_KEY = "httpprotocol-keepalive"
   val transport = new HttpNettyTransport(cluster.localNode.host,
     cluster.localNode.ports(name),
     this)
@@ -35,6 +36,7 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
         msg.method = req.getMethod.getName
         msg.serviceName = name
         msg.path = new URI(req.getUri).getPath
+        msg.attachments(KEEP_ALIVE_KEY) = isKeepAlive(req)
         val nettyUriDecoder = new QueryStringDecoder(req.getUri)
         msg.parameters ++= Map.empty[String, Seq[String]] ++ nettyUriDecoder.getParameters.asScala.mapValues(_.asScala)
         mapHeaders(req, msg)
@@ -72,6 +74,13 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
         val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
         setHeaders(response, res)
         setContent(response, res)
+        if(isKeepAlive(response) && message.attachments(KEEP_ALIVE_KEY).asInstanceOf[Boolean])  {
+          message.attachments(Protocol.CLOSE_AFTER) = false
+          response.setHeader("Connection", "keep-alive")
+        } else {
+          message.attachments(Protocol.CLOSE_AFTER) = true
+          response.setHeader("Connection", "close")
+        }
         response
       }
     }
@@ -98,6 +107,16 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
       httpMessage.setHeader("Content-Length", message.messageData.toString.getBytes.length)
     } else {
       httpMessage.setHeader("Content-Length", 0)
+    }
+  }
+
+  private def isKeepAlive(message: HttpMessage): Boolean = {
+    if(message.getHeader("Connection") == null) {
+      message.getProtocolVersion == HttpVersion.HTTP_1_1
+    } else if(message.getHeader("Connection").equalsIgnoreCase("keep-alive")) {
+      true
+    } else {
+      false
     }
   }
 }

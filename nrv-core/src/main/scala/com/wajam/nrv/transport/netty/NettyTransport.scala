@@ -47,12 +47,15 @@ class NettyTransport(host: InetAddress,
   }
 
   def sendResponse(connection: AnyRef, message: AnyRef,
-                  completionCallback: Option[Throwable] => Unit = (_) => {}) {
+                   completionCallback: Option[Throwable] => Unit = (_) => {},
+                   closeAfter: Boolean = true) {
     val channel = connection.asInstanceOf[Channel]
-    writeOnChannel(channel, message, None, completionCallback)
+    writeOnChannel(channel, message, None, completionCallback, closeAfter)
   }
 
-  override def sendMessage(destination: InetSocketAddress, message: AnyRef, completionCallback: Option[Throwable] => Unit = (_) => {}) {
+  override def sendMessage(destination: InetSocketAddress, message: AnyRef,
+                           completionCallback: Option[Throwable] => Unit = (_) => {},
+                           closeAfter: Boolean = false) {
     var writeChannel: Channel = null
     val pooledConnection = connectionPool.getPooledConnection(destination)
     pooledConnection match {
@@ -61,12 +64,13 @@ class NettyTransport(host: InetAddress,
         writeChannel = client.openConnection(destination)
       }
     }
-    writeOnChannel(writeChannel, message, Some(destination), completionCallback)
+    writeOnChannel(writeChannel, message, Some(destination), completionCallback, closeAfter)
   }
 
   private def writeOnChannel(channel: Channel, message: AnyRef,
                              destination: Option[InetSocketAddress],
-                             completionCallback: Option[Throwable] => Unit = (_) => {}) {
+                             completionCallback: Option[Throwable] => Unit = (_) => {},
+                             closeAfter: Boolean = false) {
     val future = channel.write(message)
     future.addListener(new ChannelFutureListener {
       override def operationComplete(p1: ChannelFuture) {
@@ -85,6 +89,11 @@ class NettyTransport(host: InetAddress,
         }
       }
     })
+    if(closeAfter) {
+      future.addListener(ChannelFutureListener.CLOSE)
+    } else {
+      future.addListener(ChannelFutureListener.CLOSE_ON_FAILURE)
+    }
   }
 
   class NettyServer(host: InetAddress, port: Int, factory: NettyTransportCodecFactory) extends Logging {
@@ -183,5 +192,4 @@ class NettyTransport(host: InetAddress,
       allChannels.remove(ctx.getChannel)
     }
   }
-
 }
