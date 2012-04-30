@@ -73,7 +73,7 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
   }
 
   test("send message to self") {
-    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), "hello")
+    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), "hello", true)
 
     notifier.synchronized {
       notifier.wait(1000)
@@ -85,10 +85,11 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
 
   test("send message to invalid destination") {
     var result: AnyRef = null
-    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1:", 12344), "hello", (opResult: Option[Throwable]) => {
-      opResult match {
-        case None => fail()
-        case Some(t) => result = t
+    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1:", 12344), "hello", true,
+      (opResult: Option[Throwable]) => {
+        opResult match {
+          case None => fail()
+          case Some(t) => result = t
       }
     })
 

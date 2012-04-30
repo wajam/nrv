@@ -46,16 +46,18 @@ class NettyTransport(host: InetAddress,
     timer.stop()
   }
 
-  def sendResponse(connection: AnyRef, message: AnyRef,
-                   completionCallback: Option[Throwable] => Unit = (_) => {},
-                   closeAfter: Boolean = true) {
+  def sendResponse(connection: AnyRef,
+                   message: AnyRef,
+                   closeAfter: Boolean,
+                   completionCallback: Option[Throwable] => Unit = (_) => {}) {
     val channel = connection.asInstanceOf[Channel]
     writeOnChannel(channel, message, None, completionCallback, closeAfter)
   }
 
-  override def sendMessage(destination: InetSocketAddress, message: AnyRef,
-                           completionCallback: Option[Throwable] => Unit = (_) => {},
-                           closeAfter: Boolean = false) {
+  override def sendMessage(destination: InetSocketAddress,
+                           message: AnyRef,
+                           closeAfter: Boolean,
+                           completionCallback: Option[Throwable] => Unit = (_) => {}) {
     var writeChannel: Channel = null
     val pooledConnection = connectionPool.getPooledConnection(destination)
     pooledConnection match {

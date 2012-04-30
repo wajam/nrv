@@ -23,7 +23,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
     var receivedURI : String = null
 
     override def parse(message: AnyRef): Message = {
-      receivedURI = message.asInstanceOf[HttpRequest].getUri()
+      receivedURI = message.asInstanceOf[HttpRequest].getUri
       notifier.synchronized {
         notifier.notify()
       }
@@ -52,7 +52,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
 
   test ("send message to self") {
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "uri")
-    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), request)
+    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), request, true)
 
     notifier.synchronized {
       notifier.wait(100)
@@ -64,7 +64,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
 
   test ("send message to self and response") {
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "uri")
-    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), request)
+    nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), request, true)
 
     notifier.synchronized {
       notifier.wait(100)

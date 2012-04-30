@@ -44,14 +44,15 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
         val response = generate(message)
         getTransport().sendResponse(channel,
           response,
-          completionCallback,
-          message.attachments.getOrElse(Protocol.CLOSE_AFTER, true).asInstanceOf[Boolean])
+          message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
+          completionCallback)
       }
       case None => {
         val request = generate(message)
         getTransport().sendMessage(new InetSocketAddress(node.host, node.ports(name)),
-          request, completionCallback,
-          message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean])
+          request,
+          message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
+          completionCallback)
       }
     }
   }
