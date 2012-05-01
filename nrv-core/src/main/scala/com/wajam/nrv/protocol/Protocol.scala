@@ -12,15 +12,21 @@ import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
  */
 abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandler with Logging {
 
+  val transport:Transport
+
+  /**
+   * Start the protocol and the transport layer below it.
+   */
   def start()
 
+  /**
+   * Stop the protocol and the transport layer below it.
+   */
   def stop()
 
   override def handleIncoming(action: Action, message: InMessage) {
     this.cluster.routeIncoming(message)
   }
-
-  def getTransport(): Transport = null
 
   override def handleOutgoing(action: Action, message: OutMessage) {
     val node = message.destination(0).node
@@ -42,14 +48,14 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
     message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
       case Some(channel) => {
         val response = generate(message)
-        getTransport().sendResponse(channel,
+        transport.sendResponse(channel,
           response,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
           completionCallback)
       }
       case None => {
         val request = generate(message)
-        getTransport().sendMessage(new InetSocketAddress(node.host, node.ports(name)),
+        transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),
           request,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
           completionCallback)
@@ -57,8 +63,20 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
     }
   }
 
+  /**
+   * Parse the received message and convert it to a standard Message object.
+   *
+   * @param message The message received from the network
+   * @return The standard Message object that represent the network message
+   */
   def parse(message: AnyRef): Message
 
+  /**
+   * Generate a transport message from a standard Message object.
+   *
+   * @param message The standard Message object
+   * @return The message to be sent of the network
+   */
   def generate(message: Message): AnyRef
 }
 

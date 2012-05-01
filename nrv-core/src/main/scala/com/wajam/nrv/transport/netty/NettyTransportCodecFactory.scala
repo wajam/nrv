@@ -4,10 +4,7 @@ import org.jboss.netty.channel.{ChannelUpstreamHandler, ChannelDownstreamHandler
 
 
 /**
- * This class...
- *
- * User: felix
- * Date: 04/04/12
+ * Transport codec factory for netty transport.
  */
 
 trait NettyTransportCodecFactory {

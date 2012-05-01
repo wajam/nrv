@@ -14,7 +14,8 @@ import scala.collection.JavaConverters._
 class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluster) {
 
   val KEEP_ALIVE_KEY = "httpprotocol-keepalive"
-  val transport = new HttpNettyTransport(cluster.localNode.host,
+
+  override val transport = new HttpNettyTransport(cluster.localNode.host,
     cluster.localNode.ports(name),
     this)
 
@@ -25,8 +26,6 @@ class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluste
   def stop() {
     transport.stop()
   }
-
-  override def getTransport() = transport
 
   override def parse(message: AnyRef): Message = {
     val msg = new InMessage()

@@ -45,6 +45,8 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
   }
 
   class MockProtocol extends Protocol("test", null) {
+
+    override val transport = null
     var receivedMessage: String = null
 
     override def parse(message: AnyRef): Message = {

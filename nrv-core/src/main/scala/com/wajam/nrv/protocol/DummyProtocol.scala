@@ -8,15 +8,18 @@ import com.wajam.nrv.data.{OutMessage, Message, InMessage}
  * Loopback protocol that always send messages to local process
  */
 class DummyProtocol(cluster: Cluster, name: String) extends Protocol(name, cluster) {
+
+  override val transport = null
+
   override def handleOutgoing(action: Action, message: OutMessage) {
     val newMessage = new InMessage()
     message.copyTo(newMessage)
     cluster.routeIncoming(newMessage)
   }
 
-  def start() = null
+  def start() {}
 
-  def stop() = null
+  def stop() {}
 
   def parse(message: AnyRef): Message = null
 

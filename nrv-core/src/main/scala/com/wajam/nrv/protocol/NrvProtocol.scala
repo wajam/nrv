@@ -11,12 +11,10 @@ import com.wajam.nrv.data.Message
  */
 class NrvProtocol(cluster: Cluster) extends Protocol("nrv", cluster) {
 
-  val transport = new NettyTransport(cluster.localNode.host,
+  override val transport = new NettyTransport(cluster.localNode.host,
     cluster.localNode.ports(name),
     this,
     new NrvNettyTransportCodecFactory)
-
-  override def getTransport() = transport
 
   def start() {
     transport.start()
