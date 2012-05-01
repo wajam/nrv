@@ -6,7 +6,7 @@ import org.jboss.netty.handler.codec.http._
 import java.net.URI
 import com.wajam.nrv.data.{OutMessage, InMessage, Message}
 import scala.collection.JavaConverters._
-import com.wajam.nrv.cluster.{Node, Cluster}
+import com.wajam.nrv.cluster.Node
 
 /**
  * Implementation of HTTP protocol.
