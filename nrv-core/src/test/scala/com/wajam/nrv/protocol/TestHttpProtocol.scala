@@ -18,8 +18,9 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
   var protocol: HttpProtocol = null
 
   before {
-    val node = new Node("localhost", Map("nrv" -> 19191, "test" -> 1909))
-    protocol = new HttpProtocol("test", new Cluster(node, null))
+    val localnode = new Node("localhost", Map("nrv" -> 19191, "test" -> 1909))
+    val cluster = new Cluster(localnode, null)
+    protocol = new HttpProtocol("test", localnode, cluster)
   }
 
   test("should map HTTP method to message method") {

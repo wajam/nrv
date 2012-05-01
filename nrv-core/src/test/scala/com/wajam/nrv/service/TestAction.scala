@@ -13,7 +13,7 @@ import com.wajam.nrv.data.{OutMessage, InMessage}
 @RunWith(classOf[JUnitRunner])
 class TestAction extends FunSuite {
   val cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
-  cluster.registerProtocol(new DummyProtocol(cluster, "dummy"), default = true)
+  cluster.registerProtocol(new DummyProtocol("dummy", cluster), default = true)
   val service = cluster.addService(new Service("test", resolver = Some(new Resolver(Some(1)))))
   service.addMember(0, cluster.localNode)
 

@@ -10,7 +10,7 @@ import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 /**
  * Protocol used to send and receive messages to remote nodes over a network
  */
-abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandler with Logging {
+abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener) extends MessageHandler with Logging {
 
   val transport:Transport
 
@@ -25,7 +25,7 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
   def stop()
 
   override def handleIncoming(action: Action, message: InMessage) {
-    this.cluster.routeIncoming(message)
+    this.messageRouter.messageReceived(message)
   }
 
   override def handleOutgoing(action: Action, message: OutMessage) {
@@ -83,4 +83,17 @@ abstract class Protocol(var name: String, cluster: Cluster) extends MessageHandl
 object Protocol {
   val CONNECTION_KEY = "connection"
   val CLOSE_AFTER = "close_after"
+}
+
+/**
+ * Entity that will receive message from the protocol.
+ */
+trait ProtocolMessageListener {
+
+  /**
+   * Route the received message
+   *
+   * @param inMessage The received message
+   */
+  def messageReceived(inMessage: InMessage)
 }

@@ -1,22 +1,23 @@
 package com.wajam.nrv.protocol
 
-import com.wajam.nrv.cluster.Cluster
 import com.wajam.nrv.transport.netty.HttpNettyTransport
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
 import java.net.URI
 import com.wajam.nrv.data.{OutMessage, InMessage, Message}
 import scala.collection.JavaConverters._
+import com.wajam.nrv.cluster.{Node, Cluster}
 
 /**
  * Implementation of HTTP protocol.
  */
-class HttpProtocol(name: String, cluster: Cluster) extends Protocol(name, cluster) {
+class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessageListener)
+  extends Protocol(name, messageRouter) {
 
   val KEEP_ALIVE_KEY = "httpprotocol-keepalive"
 
-  override val transport = new HttpNettyTransport(cluster.localNode.host,
-    cluster.localNode.ports(name),
+  override val transport = new HttpNettyTransport(localNode.host,
+    localNode.ports(name),
     this)
 
   def start() {
