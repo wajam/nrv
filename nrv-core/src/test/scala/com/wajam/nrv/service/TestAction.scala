@@ -90,4 +90,20 @@ class TestAction extends FunSuite {
       }, 1000)
     }
   }
+
+  test("parameter in the path should be in the message parameters") {
+    var syncCall = new Sync[String]
+
+    val action = service.registerAction(new Action("/test/:param", req => {
+      syncCall.done(req.parameters("param").asInstanceOf[String])
+    }))
+    action.start()
+
+    val message = new InMessage()
+    message.path = "/test/1"
+
+    action.callIncomingHandlers(message)
+
+    assert("1".equals(syncCall.get(1000)))
+  }
 }

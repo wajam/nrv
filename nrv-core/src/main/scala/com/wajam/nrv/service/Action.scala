@@ -110,6 +110,7 @@ class Action(var path: ActionPath,
           // handle the message, catch errors to throw them back to the caller
           try {
             this.executeTime.time {
+              extractParamsFromPath(fromMessage, fromMessage.path)
               this.implementation(fromMessage)
             }
           } catch {
@@ -132,12 +133,15 @@ class Action(var path: ActionPath,
     intoMessage.rendezvousId = fromMessage.rendezvousId
     intoMessage.attachments ++= fromMessage.attachments
 
-    // add params from path
-    val (_, params) = this.path.matchesPath(fromMessage.path)
-    intoMessage.parameters ++= params
+    extractParamsFromPath(intoMessage, fromMessage.path)
 
     // TODO: shouldn't be like that. Source may not be a member...
     intoMessage.destination = new Endpoints(Seq(new ServiceMember(0, fromMessage.source)))
+  }
+
+  private def extractParamsFromPath(intoMessage: Message, path: String) {
+    val (_, params) = this.path.matchesPath(path)
+    intoMessage.parameters ++= params
   }
 }
 
