@@ -40,13 +40,13 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
   }
 
   test("should map HTTP query to message parameters") {
-    val nettyRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "path?a=1&b=2")
+    val nettyRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "path?a=1&b=2&b=3")
 
     val msg = protocol.parse(nettyRequest)
 
     msg.parameters.size should equal (2)
     msg.parameters("a") should equal (Seq("1"))
-    msg.parameters("b") should equal (Seq("2"))
+    msg.parameters("b") should equal (Seq("2", "3"))
   }
 
   test("should map HTTP header to message metadata in requests") {
