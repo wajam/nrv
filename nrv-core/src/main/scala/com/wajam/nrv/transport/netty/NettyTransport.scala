@@ -181,6 +181,7 @@ class NettyTransport(host: InetAddress,
     }
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
+      log.info("Received a message on connection {}: {}", ctx.getChannel, e.getMessage)
       val message = protocol.parse(e.getMessage)
       val inMessage = new InMessage
       message.copyTo(inMessage)
@@ -196,6 +197,16 @@ class NettyTransport(host: InetAddress,
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       log.info("Connection closed: {}", ctx.getChannel)
       allChannels.remove(ctx.getChannel)
+    }
+
+    override def writeRequested(ctx: ChannelHandlerContext, e: MessageEvent) {
+      log.info("Sending a message on connection {}: {}", ctx.getChannel, e.getMessage)
+      super.writeRequested(ctx, e)
+    }
+
+    override def writeComplete(ctx: ChannelHandlerContext, e: WriteCompletionEvent) {
+      log.info("Message sent on connection {}", ctx.getChannel)
+      super.writeComplete(ctx, e)
     }
   }
 }
