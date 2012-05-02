@@ -25,7 +25,7 @@ class NettyTransport(host: InetAddress,
                      protocol: Protocol,
                      factory: NettyTransportCodecFactory) extends Transport(host, port, protocol) {
 
-  val idleTimeoutIsSec = 60
+  val idleTimeoutIsSec = 30
   val connectionTimeoutInMs = 5000
   val server = new NettyServer(host, port, factory)
   val connectionPool = new NettyConnectionPool(10000, 100)
@@ -124,6 +124,7 @@ class NettyTransport(host: InetAddress,
         val newPipeline = Channels.pipeline()
         newPipeline.addLast("decoder", factory.createRequestDecoder())
         newPipeline.addLast("encoder", factory.createResponseEncoder())
+        newPipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, idleTimeoutIsSec))
         newPipeline.addLast("handler", incomingMessageHandler)
         newPipeline
       }
@@ -159,6 +160,7 @@ class NettyTransport(host: InetAddress,
         val newPipeline = Channels.pipeline()
         newPipeline.addLast("decoder", factory.createResponseDecoder())
         newPipeline.addLast("encoder", factory.createRequestEncoder())
+        newPipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, idleTimeoutIsSec))
         newPipeline.addLast("handler", incomingMessageHandler)
         newPipeline
       }
@@ -187,10 +189,12 @@ class NettyTransport(host: InetAddress,
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+      log.info("New connection opened: {}", ctx.getChannel)
       allChannels.add(ctx.getChannel)
     }
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
+      log.info("Connection closed: {}", ctx.getChannel)
       allChannels.remove(ctx.getChannel)
     }
   }
