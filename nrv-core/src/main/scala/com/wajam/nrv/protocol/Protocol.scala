@@ -25,7 +25,15 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
   def stop()
 
   override def handleIncoming(action: Action, message: InMessage) {
-    this.messageRouter.messageReceived(message)
+    try {
+      this.messageRouter.messageReceived(message)
+    } catch {
+      case e: ListenerException => {
+        transport.sendResponse(message.attachments(Protocol.CONNECTION_KEY).asInstanceOf[Option[AnyRef]].get,
+          generate(createErrorMessage(message, e)),
+          false)
+      }
+    }
   }
 
   override def handleOutgoing(action: Action, message: OutMessage) {
@@ -78,6 +86,15 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
    * @return The message to be sent of the network
    */
   def generate(message: Message): AnyRef
+
+  /**
+   * Create an Error message
+   *
+   * @param inMessage The message that triggered an error.
+   * @param exception The exception
+   * @return The error message to send
+   */
+  def createErrorMessage(inMessage: InMessage, exception: ListenerException): OutMessage
 }
 
 object Protocol {
@@ -95,5 +112,8 @@ trait ProtocolMessageListener {
    *
    * @param inMessage The received message
    */
+  @throws(classOf[ListenerException])
   def messageReceived(inMessage: InMessage)
 }
+
+case class ListenerException(message:String) extends Exception(message)

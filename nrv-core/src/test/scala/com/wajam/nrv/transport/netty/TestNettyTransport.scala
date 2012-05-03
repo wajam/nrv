@@ -3,11 +3,11 @@ package com.wajam.nrv.transport.netty
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.handler.codec.string.{StringEncoder, StringDecoder}
 import org.jboss.netty.channel._
-import com.wajam.nrv.data.{InMessage, Message}
 import java.net.{InetSocketAddress, InetAddress}
+import com.wajam.nrv.data.{OutMessage, InMessage, Message}
+import com.wajam.nrv.protocol.{ListenerException, Protocol}
 
 @RunWith(classOf[JUnitRunner])
 class TestNettyTransport extends FunSuite with BeforeAndAfter {
@@ -57,11 +57,19 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
       null
     }
 
-    override def generate(message: Message): AnyRef = null
+    def createErrorMessage(inMessage: InMessage, exception: ListenerException): OutMessage = null
 
     override def start() {}
 
     override def stop() {}
+
+    /**
+     * Generate a transport message from a standard Message object.
+     *
+     * @param message The standard Message object
+     * @return The message to be sent of the network
+     */
+    def generate(message: Message) = null
   }
 
   before {

@@ -2,8 +2,8 @@ package com.wajam.nrv.protocol
 
 import com.wajam.nrv.transport.netty.NettyTransport
 import com.wajam.nrv.transport.nrv.NrvNettyTransportCodecFactory
-import com.wajam.nrv.data.Message
 import com.wajam.nrv.cluster.{Node, Cluster}
+import com.wajam.nrv.data.{OutMessage, InMessage, Message}
 
 /**
  * Default protocol used by NRV. All nodes must have this protocol, since it's
@@ -31,5 +31,12 @@ class NrvProtocol(localNode: Node, messageRouter: ProtocolMessageListener)
 
   def generate(message: Message): AnyRef = {
     message
+  }
+
+  def createErrorMessage(inMessage: InMessage, exception: ListenerException) = {
+    val errorMessage = new OutMessage()
+    inMessage.copyTo(errorMessage)
+    errorMessage.metadata("status") = "error"
+    errorMessage
   }
 }

@@ -4,7 +4,7 @@ import com.wajam.nrv.service._
 import com.wajam.nrv.service.{Action, Service}
 import com.wajam.nrv.data.InMessage
 import com.wajam.nrv.Logging
-import com.wajam.nrv.protocol.{ProtocolMessageListener, NrvProtocol, Protocol}
+import com.wajam.nrv.protocol.{ListenerException, ProtocolMessageListener, NrvProtocol, Protocol}
 
 /**
  * A cluster composed of services that are provided by nodes.
@@ -33,6 +33,7 @@ with ProtocolMessageListener with Logging {
       action.callIncomingHandlers(inMessage)
     } else {
       warn("Received a incoming for path {}, but couldn't find action", inMessage.actionURL.toString)
+      throw new ListenerException("Route not found.")
     }
   }
 

@@ -14,8 +14,6 @@ import com.wajam.nrv.cluster.Node
 class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessageListener)
   extends Protocol(name, messageRouter) {
 
-  val KEEP_ALIVE_KEY = "httpprotocol-keepalive"
-
   override val transport = new HttpNettyTransport(localNode.host,
     localNode.ports(name),
     this)
@@ -36,7 +34,7 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
         msg.method = req.getMethod.getName
         msg.serviceName = name
         msg.path = new URI(req.getUri).getPath
-        msg.attachments(KEEP_ALIVE_KEY) = isKeepAlive(req)
+        msg.attachments(HttpProtocol.KEEP_ALIVE_KEY) = isKeepAlive(req)
         val nettyUriDecoder = new QueryStringDecoder(req.getUri)
         msg.parameters ++= Map.empty[String, Seq[String]] ++ nettyUriDecoder.getParameters.asScala.mapValues(_.asScala)
         mapHeaders(req, msg)
@@ -47,6 +45,7 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
         msg.method = null
         msg.serviceName = name
         msg.path = null
+        msg.metadata(HttpProtocol.STATUS_CODE_KEY) = res.getStatus.getCode
         mapHeaders(res, msg)
         mapContent(res, msg)
       }
@@ -71,19 +70,26 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
         request
       }
       case res: OutMessage => {
-        val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+        val code = res.metadata.getOrElse(HttpProtocol.STATUS_CODE_KEY, 200).asInstanceOf[Int]
+        val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(code))
         setHeaders(response, res)
         setContent(response, res)
-        if(isKeepAlive(response) && message.attachments(KEEP_ALIVE_KEY).asInstanceOf[Boolean])  {
-          message.attachments(Protocol.CLOSE_AFTER) = false
+        if(isKeepAlive(response) && res.attachments.getOrElse(HttpProtocol.KEEP_ALIVE_KEY, false).asInstanceOf[Boolean])  {
+          res.attachments(Protocol.CLOSE_AFTER) = false
           response.setHeader("Connection", "keep-alive")
         } else {
-          message.attachments(Protocol.CLOSE_AFTER) = true
+          res.attachments(Protocol.CLOSE_AFTER) = true
           response.setHeader("Connection", "close")
         }
         response
       }
     }
+  }
+
+  def createErrorMessage(inMessage: InMessage, exception: ListenerException) = {
+    val errorMessage = new OutMessage()
+    errorMessage.metadata(HttpProtocol.STATUS_CODE_KEY) = 404
+    errorMessage
   }
 
   private def mapHeaders(httpMessage: HttpMessage, message: Message) {
@@ -119,5 +125,10 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
       false
     }
   }
+}
+
+object HttpProtocol {
+  val KEEP_ALIVE_KEY = "httpprotocol-keepalive"
+  val STATUS_CODE_KEY = "status-code"
 }
 

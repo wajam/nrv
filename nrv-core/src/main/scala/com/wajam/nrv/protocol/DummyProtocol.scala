@@ -24,4 +24,6 @@ class DummyProtocol(name: String, messageRouter: ProtocolMessageListener) extend
   def parse(message: AnyRef): Message = null
 
   def generate(message: Message): AnyRef = null
+
+  def createErrorMessage(inMessage: InMessage, exception: ListenerException) = null
 }

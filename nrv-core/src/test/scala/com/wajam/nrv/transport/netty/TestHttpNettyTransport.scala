@@ -3,11 +3,12 @@ package com.wajam.nrv.transport.netty
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.handler.codec.http._
 import java.net.{InetSocketAddress, InetAddress}
 import com.wajam.nrv.service.Action
-import com.wajam.nrv.data.{InMessage, Message}
+import com.wajam.nrv.data.{OutMessage, InMessage, Message}
+import scala.Predef._
+import com.wajam.nrv.protocol.{ListenerException, Protocol}
 
 @RunWith(classOf[JUnitRunner])
 class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
@@ -37,6 +38,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
     }
 
     override def generate(message: Message): AnyRef = null
+    def createErrorMessage(inMessage: InMessage, exception: ListenerException): OutMessage = null
     override def start() {}
     override def stop() {}
   }
