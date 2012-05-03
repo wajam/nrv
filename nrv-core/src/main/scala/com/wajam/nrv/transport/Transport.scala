@@ -3,12 +3,19 @@ package com.wajam.nrv.transport
 import com.wajam.nrv.protocol.Protocol
 import java.net.{InetSocketAddress, InetAddress}
 import com.wajam.nrv.data.Message
+import com.yammer.metrics.scala.Instrumented
 
 /**
  * Transport layer used to send and received messages from the network.
  */
 
-abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) {
+abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) extends Instrumented {
+
+  protected val totalConnectionCounter = metrics.counter("current-connection-count")
+  protected val clientConnectionCounter = metrics.counter("client-connection-count")
+  protected val serverConnectionCounter = metrics.counter("server-connection-count")
+  protected val inMessagePerSecond = metrics.meter("in-message-rate", "messages")
+  protected val outMessagePerSecond = metrics.meter("out-message-rate", "messages")
 
   /**
    * Start the transport layer. After this call, messages can be sent and received.
@@ -46,5 +53,31 @@ abstract class Transport (host: InetAddress, port: Int, protocol: Protocol) {
                    message: AnyRef,
                    closeAfter: Boolean,
                    completionCallback: Option[Throwable] => Unit = (_) => {})
+
+  protected def connectionEstablishedEvent(server: Boolean) {
+    totalConnectionCounter += 1
+    if (server) {
+      serverConnectionCounter += 1
+    } else {
+      clientConnectionCounter += 1
+    }
+  }
+
+  protected def connectionClosedEvent(server: Boolean) {
+    totalConnectionCounter -= 1
+    if (server) {
+      serverConnectionCounter -= 1
+    } else {
+      clientConnectionCounter -= 1
+    }
+  }
+
+  protected def messageReceivedEvent() {
+    inMessagePerSecond.mark()
+  }
+
+  protected def messageSentEvent() {
+    outMessagePerSecond.mark()
+  }
 }
 

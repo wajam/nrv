@@ -8,10 +8,10 @@ import com.wajam.nrv.protocol.Protocol
 import org.jboss.netty.channel._
 import com.wajam.nrv.Logging
 import java.net.{InetAddress, InetSocketAddress}
-import com.wajam.nrv.data.InMessage
 import org.jboss.netty.util.HashedWheelTimer
 import com.wajam.nrv.transport.Transport
 import org.jboss.netty.handler.timeout._
+import com.wajam.nrv.data.{Message, InMessage}
 
 /**
  * Transport implementation based on Netty.
@@ -125,7 +125,7 @@ class NettyTransport(host: InetAddress,
         newPipeline.addLast("decoder", factory.createRequestDecoder())
         newPipeline.addLast("encoder", factory.createResponseEncoder())
         newPipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, idleTimeoutIsSec))
-        newPipeline.addLast("handler", incomingMessageHandler)
+        newPipeline.addLast("handler", serverMessageHandler)
         newPipeline
       }
     }
@@ -161,14 +161,17 @@ class NettyTransport(host: InetAddress,
         newPipeline.addLast("decoder", factory.createResponseDecoder())
         newPipeline.addLast("encoder", factory.createRequestEncoder())
         newPipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, idleTimeoutIsSec))
-        newPipeline.addLast("handler", incomingMessageHandler)
+        newPipeline.addLast("handler", clientMessageHandler)
         newPipeline
       }
     }
 
   }
 
-  val incomingMessageHandler = new IdleStateAwareChannelHandler with Logging {
+  val serverMessageHandler = new MessageHandler(true)
+  val clientMessageHandler = new MessageHandler(false)
+
+  class MessageHandler(isServer: Boolean) extends IdleStateAwareChannelHandler with Logging {
 
     override def channelIdle(ctx: ChannelHandlerContext , e: IdleStateEvent) {
       log.info("Connection was idle for {} sec and will be closed.", idleTimeoutIsSec)
@@ -182,6 +185,7 @@ class NettyTransport(host: InetAddress,
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
       log.info("Received a message on connection {}: {}", ctx.getChannel, e.getMessage)
+      messageReceivedEvent()
       val message = protocol.parse(e.getMessage)
       val inMessage = new InMessage
       message.copyTo(inMessage)
@@ -191,11 +195,13 @@ class NettyTransport(host: InetAddress,
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       log.info("New connection opened: {}", ctx.getChannel)
+      connectionEstablishedEvent(isServer)
       allChannels.add(ctx.getChannel)
     }
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       log.info("Connection closed: {}", ctx.getChannel)
+      connectionClosedEvent(isServer)
       allChannels.remove(ctx.getChannel)
     }
 
@@ -206,6 +212,7 @@ class NettyTransport(host: InetAddress,
 
     override def writeComplete(ctx: ChannelHandlerContext, e: WriteCompletionEvent) {
       log.info("Message sent on connection {}", ctx.getChannel)
+      messageSentEvent()
       super.writeComplete(ctx, e)
     }
   }
