@@ -1,12 +1,12 @@
 package com.wajam.nrv.protocol
 
-import com.wajam.nrv.transport.netty.HttpNettyTransport
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
 import java.net.URI
 import com.wajam.nrv.data.{OutMessage, InMessage, Message}
 import scala.collection.JavaConverters._
 import com.wajam.nrv.cluster.Node
+import com.wajam.nrv.transport.http.HttpNettyTransport
 
 /**
  * Implementation of HTTP protocol.

@@ -1,4 +1,4 @@
-package com.wajam.nrv.transport.codec
+package com.wajam.nrv.transport.nrv.codec
 
 import com.wajam.nrv.data.Message
 

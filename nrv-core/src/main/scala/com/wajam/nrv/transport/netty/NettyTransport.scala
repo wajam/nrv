@@ -20,18 +20,20 @@ import com.wajam.nrv.data.{Message, InMessage}
  * Date: 04/04/12
  */
 
-class NettyTransport(host: InetAddress,
+abstract class NettyTransport(host: InetAddress,
                      port: Int,
-                     protocol: Protocol,
-                     factory: NettyTransportCodecFactory) extends Transport(host, port, protocol) {
+                     protocol: Protocol) extends Transport(host, port, protocol) {
+
+  val factory: NettyTransportCodecFactory
 
   val idleTimeoutIsSec = 30
   val connectionTimeoutInMs = 5000
-  val server = new NettyServer(host, port, factory)
   val connectionPool = new NettyConnectionPool(10000, 100)
-  val client = new NettyClient(factory)
   val allChannels = new DefaultChannelGroup
   val timer = new HashedWheelTimer();
+
+  lazy val server = new NettyServer(host, port, factory)
+  lazy val client = new NettyClient(factory)
 
   override def start() {
     server.start()
@@ -100,6 +102,8 @@ class NettyTransport(host: InetAddress,
 
   class NettyServer(host: InetAddress, port: Int, factory: NettyTransportCodecFactory) extends Logging {
 
+    val serverMessageHandler = new MessageHandler(true)
+
     val serverBootstrap = new ServerBootstrap(
       new org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory(
         Executors.newCachedThreadPool(),
@@ -134,6 +138,8 @@ class NettyTransport(host: InetAddress,
 
   class NettyClient(factory: NettyTransportCodecFactory) extends Logging {
 
+    val clientMessageHandler = new MessageHandler(false)
+
     val clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(Executors.newCachedThreadPool, Executors.newCachedThreadPool))
     clientBootstrap.setOption("connectTimeoutMillis", connectionTimeoutInMs);
     clientBootstrap.setPipelineFactory(new DefaultPipelineFactory)
@@ -165,11 +171,7 @@ class NettyTransport(host: InetAddress,
         newPipeline
       }
     }
-
   }
-
-  val serverMessageHandler = new MessageHandler(true)
-  val clientMessageHandler = new MessageHandler(false)
 
   class MessageHandler(isServer: Boolean) extends IdleStateAwareChannelHandler with Logging {
 

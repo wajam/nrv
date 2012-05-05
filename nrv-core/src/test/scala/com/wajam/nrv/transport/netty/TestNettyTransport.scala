@@ -74,7 +74,9 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
 
   before {
     mockProtocol = new MockProtocol
-    nettyTransport = new NettyTransport(host, port, mockProtocol, TestEncoderDecoderFactory)
+    nettyTransport = new NettyTransport(host, port, mockProtocol) {
+      val factory = TestEncoderDecoderFactory
+    }
     nettyTransport.start()
   }
 

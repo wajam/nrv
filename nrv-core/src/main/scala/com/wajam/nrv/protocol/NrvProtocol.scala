@@ -1,21 +1,22 @@
 package com.wajam.nrv.protocol
 
 import com.wajam.nrv.transport.netty.NettyTransport
-import com.wajam.nrv.transport.nrv.NrvNettyTransportCodecFactory
 import com.wajam.nrv.cluster.{Node, Cluster}
 import com.wajam.nrv.data.{OutMessage, InMessage, Message}
+import com.wajam.nrv.transport.nrv.{NrvNettyTransport, NrvNettyTransportCodecFactory}
+import com.wajam.nrv.transport.nrv.codec.{JavaSerializeCodec, Codec}
 
 /**
  * Default protocol used by NRV. All nodes must have this protocol, since it's
  * used for cluster management.
  */
-class NrvProtocol(localNode: Node, messageRouter: ProtocolMessageListener)
+class NrvProtocol(localNode: Node, messageRouter: ProtocolMessageListener, codec: Codec = new JavaSerializeCodec)
   extends Protocol("nrv", messageRouter) {
 
-  override val transport = new NettyTransport(localNode.host,
+  override val transport = new NrvNettyTransport(localNode.host,
     localNode.ports(name),
     this,
-    new NrvNettyTransportCodecFactory)
+    codec)
 
   def start() {
     transport.start()

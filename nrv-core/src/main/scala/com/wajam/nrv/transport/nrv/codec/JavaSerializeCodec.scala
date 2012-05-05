@@ -1,4 +1,4 @@
-package com.wajam.nrv.transport.codec
+package com.wajam.nrv.transport.nrv.codec
 
 import java.io._
 import com.wajam.nrv.data.{SerializableMessage, Message}

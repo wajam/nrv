@@ -1,4 +1,4 @@
-package com.wajam.nrv.transport.netty
+package com.wajam.nrv.transport.http
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
@@ -17,12 +17,12 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
   val port = 54322
   val notifier = new Object()
 
-  var nettyTransport :HttpNettyTransport = null
-  var mockProtocol : MockProtocol = null
+  var nettyTransport: HttpNettyTransport = null
+  var mockProtocol: MockProtocol = null
 
   class MockProtocol extends Protocol("test", null) {
     override val transport = null
-    var receivedURI : String = null
+    var receivedURI: String = null
 
     override def parse(message: AnyRef): Message = {
       receivedURI = message.asInstanceOf[HttpRequest].getUri
@@ -38,8 +38,11 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
     }
 
     override def generate(message: Message): AnyRef = null
+
     def createErrorMessage(inMessage: InMessage, exception: ListenerException): OutMessage = null
+
     override def start() {}
+
     override def stop() {}
   }
 
@@ -53,7 +56,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
     nettyTransport.stop()
   }
 
-  test ("send message to self") {
+  test("send message to self") {
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "uri")
     nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), request, true)
 
@@ -65,7 +68,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
     assert(mockProtocol.receivedURI.equals("uri"))
   }
 
-  test ("send message to self and response") {
+  test("send message to self and response") {
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "uri")
     nettyTransport.sendMessage(new InetSocketAddress("127.0.0.1", port), request, true)
 
