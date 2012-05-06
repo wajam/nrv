@@ -1,8 +1,7 @@
-package com.wajam.nrv.transport.nrv.codec
+package com.wajam.nrv.protocol.codec
 
 import java.io._
 import com.wajam.nrv.data.{SerializableMessage, Message}
-
 
 /**
  * Codec that uses Java object serialization to encode messages

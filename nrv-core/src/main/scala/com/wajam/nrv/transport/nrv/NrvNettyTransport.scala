@@ -1,54 +1,46 @@
 package com.wajam.nrv.transport.nrv
 
-import codec.Codec
 import com.wajam.nrv.transport.netty.{NettyTransportCodecFactory, NettyTransport}
 import org.jboss.netty.handler.codec.oneone.OneToOneEncoder
-import org.jboss.netty.channel.{Channel, ChannelHandlerContext}
-import com.wajam.nrv.data.Message
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.handler.codec.frame.{CorruptedFrameException, FrameDecoder}
 import java.net.InetAddress
 import com.wajam.nrv.protocol.Protocol
+import org.jboss.netty.channel.{ChannelHandlerContext, Channel}
 
 /**
  * Transport layer for NRV
  */
 
-class NrvNettyTransport(host: InetAddress, port: Int, protocol: Protocol, codec: Codec)
+class NrvNettyTransport(host: InetAddress, port: Int, protocol: Protocol)
   extends NettyTransport(host, port, protocol) {
 
-  val factory = new NrvNettyTransportCodecFactory(codec)
+  val factory = NrvNettyTransportCodecFactory
 }
 
-class NrvNettyTransportCodecFactory(codec: Codec) extends NettyTransportCodecFactory {
+object NrvNettyTransportCodecFactory extends NettyTransportCodecFactory {
 
-  def createRequestEncoder() = new NrvEncoder(codec)
+  def createRequestEncoder() = new NrvEncoder
 
-  def createResponseEncoder() = new NrvEncoder(codec)
+  def createResponseEncoder() = new NrvEncoder
 
-  def createRequestDecoder() = new NrvDecoder(codec)
+  def createRequestDecoder() = new NrvDecoder
 
-  def createResponseDecoder() = new NrvDecoder(codec)
+  def createResponseDecoder() = new NrvDecoder
 
-  class NrvEncoder(codec: Codec) extends OneToOneEncoder {
+  class NrvEncoder extends OneToOneEncoder {
     override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef): Object = {
       msg match {
-        case m: Message =>
+        case m: Array[Byte] =>
         // Ignore what this encoder can't encode.
         case _ => return msg
       }
 
       // Convert to a message first for easier implementation.
-      val v = msg match {
-        case m: Message => m
-        case _ => null
-      }
-
-      // Convert the number into a byte array
-      val data = codec.encode(v)
+      val data = msg.asInstanceOf[Array[Byte]]
       val dataLength = data.length
 
-      // Construct a message
+      // write to buffer
       val buf = ChannelBuffers.dynamicBuffer
       buf.writeByte('F'.toByte)
       buf.writeInt(dataLength)
@@ -58,7 +50,7 @@ class NrvNettyTransportCodecFactory(codec: Codec) extends NettyTransportCodecFac
     }
   }
 
-  class NrvDecoder(codec: Codec) extends FrameDecoder {
+  class NrvDecoder extends FrameDecoder {
     override def decode(ctx: ChannelHandlerContext, channel: Channel, buffer: ChannelBuffer): Object = {
       // Wait until the length prefix is available.
       if (buffer.readableBytes < 5) {
@@ -84,9 +76,7 @@ class NrvNettyTransportCodecFactory(codec: Codec) extends NettyTransportCodecFac
       // Read all the bytes.
       val bytes = new Array[Byte](dataLength)
       buffer.readBytes(bytes)
-
-      // Return the real thing
-      codec.decode(bytes)
+      bytes
     }
   }
 }

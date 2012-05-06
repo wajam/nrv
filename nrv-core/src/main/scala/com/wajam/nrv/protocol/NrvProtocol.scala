@@ -1,10 +1,9 @@
 package com.wajam.nrv.protocol
 
-import com.wajam.nrv.transport.netty.NettyTransport
-import com.wajam.nrv.cluster.{Node, Cluster}
+import codec.{JavaSerializeCodec, Codec}
 import com.wajam.nrv.data.{OutMessage, InMessage, Message}
-import com.wajam.nrv.transport.nrv.{NrvNettyTransport, NrvNettyTransportCodecFactory}
-import com.wajam.nrv.transport.nrv.codec.{JavaSerializeCodec, Codec}
+import com.wajam.nrv.transport.nrv.NrvNettyTransport
+import com.wajam.nrv.cluster.Node
 
 /**
  * Default protocol used by NRV. All nodes must have this protocol, since it's
@@ -15,8 +14,7 @@ class NrvProtocol(localNode: Node, messageRouter: ProtocolMessageListener, codec
 
   override val transport = new NrvNettyTransport(localNode.host,
     localNode.ports(name),
-    this,
-    codec)
+    this)
 
   def start() {
     transport.start()
@@ -27,11 +25,11 @@ class NrvProtocol(localNode: Node, messageRouter: ProtocolMessageListener, codec
   }
 
   def parse(message: AnyRef): Message = {
-    message.asInstanceOf[Message]
+    codec.decode(message.asInstanceOf[Array[Byte]])
   }
 
   def generate(message: Message): AnyRef = {
-    message
+    codec.encode(message)
   }
 
   def createErrorMessage(inMessage: InMessage, exception: ListenerException) = {

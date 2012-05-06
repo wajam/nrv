@@ -1,4 +1,4 @@
-package com.wajam.nrv.transport.nrv.codec
+package com.wajam.nrv.protocol.codec
 
 import org.scalatest.FunSuite
 import com.wajam.nrv.cluster.Node

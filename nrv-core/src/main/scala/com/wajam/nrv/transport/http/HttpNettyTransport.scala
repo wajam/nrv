@@ -15,10 +15,10 @@ import com.wajam.nrv.transport.netty.{NettyTransportCodecFactory, NettyTransport
 class HttpNettyTransport(host: InetAddress, port: Int, protocol: Protocol)
   extends NettyTransport(host, port, protocol) {
 
-  val factory = HttpNettyTransportCodec
+  val factory = HttpNettyTransportCodecFactory
 }
 
-object HttpNettyTransportCodec extends NettyTransportCodecFactory {
+object HttpNettyTransportCodecFactory extends NettyTransportCodecFactory {
 
   def createRequestEncoder() = new HttpRequestEncoder()
 
