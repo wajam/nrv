@@ -1,5 +1,6 @@
 package com.wajam.nrv.protocol
 
+import com.wajam.nrv.protocol.codec.Codec
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
 import java.net.URI
@@ -11,12 +12,26 @@ import com.wajam.nrv.transport.http.HttpNettyTransport
 /**
  * Implementation of HTTP protocol.
  */
-class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessageListener)
+class HttpProtocol(name: String, localNode: Node,
+                   messageRouter: ProtocolMessageListener,
+                   contentTypeCodecs: Map[String, Codec[Any]] = Map())
   extends Protocol(name, messageRouter) {
 
   override val transport = new HttpNettyTransport(localNode.host,
     localNode.ports(name),
     this)
+
+  var codecs = Map("text/plain" -> new Codec[Any] {
+    def encode(entity: Any) = {
+      entity.toString.getBytes("UTF-8") //todo support encoding
+    }
+
+    def decode(data: Array[Byte]) = {
+      new String(data, "UTF-8")
+    }
+  })
+
+  codecs ++ contentTypeCodecs
 
   def start() {
     transport.start()
@@ -100,7 +115,11 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
   }
 
   private def mapContent(httpMessage: HttpMessage, message: Message) {
-    message.messageData = httpMessage.getContent  //todo manage content
+    val byteBuffer = httpMessage.getContent.toByteBuffer
+    val data: Array[Byte] = new Array[Byte](byteBuffer.limit())
+    httpMessage.getContent.getBytes(0, data)
+    val codec = findCodec(message)
+    message.messageData = codec.decode(data)
   }
 
   private def setHeaders(httpMessage: HttpMessage, message: Message) {
@@ -109,8 +128,10 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
 
   private def setContent(httpMessage: HttpMessage, message: Message) {
     if(message.messageData != null) {
-      httpMessage.setContent(ChannelBuffers.copiedBuffer(message.messageData.toString.getBytes)) //todo manage content
-      httpMessage.setHeader("Content-Length", message.messageData.toString.getBytes.length)
+      val codec = findCodec(message)
+      val data = codec.encode(message.messageData)
+      httpMessage.setContent(ChannelBuffers.wrappedBuffer(data))
+      httpMessage.setHeader("Content-Length", data.length)
     } else {
       httpMessage.setHeader("Content-Length", 0)
     }
@@ -124,6 +145,10 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
     } else {
       false
     }
+  }
+
+  private def findCodec(message: Message): Codec[Any] = {
+    codecs(message.metadata.getOrElse("Content-Type", "text/plain").asInstanceOf[String])  //TODO support content-encoding
   }
 }
 
