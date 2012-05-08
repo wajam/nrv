@@ -1,18 +1,23 @@
 package com.wajam.nrv.protocol
 
+import com.wajam.nrv.protocol.codec.{Codec, StringCodec}
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
 import java.net.URI
-import com.wajam.nrv.data.{OutMessage, InMessage, Message}
 import scala.collection.JavaConverters._
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.transport.http.HttpNettyTransport
+import scala.Array
+import com.wajam.nrv.data.{Message, InMessage, OutMessage}
 
 /**
  * Implementation of HTTP protocol.
  */
 class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessageListener)
   extends Protocol(name, messageRouter) {
+
+  val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
+  contentTypeCodecs += ("text/plain" -> new StringCodec())
 
   override val transport = new HttpNettyTransport(localNode.host,
     localNode.ports(name),
@@ -24,6 +29,10 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
 
   def stop() {
     transport.stop()
+  }
+
+  def registerCodec(contentType: String, codec: Codec) {
+    contentTypeCodecs += (contentType -> codec)
   }
 
   override def parse(message: AnyRef): Message = {
@@ -100,7 +109,16 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
   }
 
   private def mapContent(httpMessage: HttpMessage, message: Message) {
-    message.messageData = httpMessage.getContent  //todo manage content
+    val contentTypeHeader = message.metadata.getOrElse("Content-Type",
+      HttpProtocol.DEFAULT_CONTENT_TYPE).asInstanceOf[String]
+    val (contentType, contentEncoding) = splitContentTypeHeader(contentTypeHeader)
+    val byteBuffer = httpMessage.getContent.toByteBuffer
+    val bytes = new Array[Byte](byteBuffer.limit())
+    httpMessage.getContent.readBytes(bytes)
+    contentTypeCodecs.get(contentType) match {
+      case Some(codec) => message.messageData = codec.decode(bytes, contentEncoding)
+      case None => log.warn("Missing codec for content-type {}", contentType)
+    }
   }
 
   private def setHeaders(httpMessage: HttpMessage, message: Message) {
@@ -109,8 +127,20 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
 
   private def setContent(httpMessage: HttpMessage, message: Message) {
     if(message.messageData != null) {
-      httpMessage.setContent(ChannelBuffers.copiedBuffer(message.messageData.toString.getBytes)) //todo manage content
-      httpMessage.setHeader("Content-Length", message.messageData.toString.getBytes.length)
+      val contentTypeHeader = message.metadata.getOrElse("Content-Type",
+        HttpProtocol.DEFAULT_CONTENT_TYPE).asInstanceOf[String]
+      val (contentType, contentEncoding) = splitContentTypeHeader(contentTypeHeader)
+      contentTypeCodecs.get(contentType) match {
+        case Some(codec) => {
+          val data = codec.encode(message.messageData, contentEncoding)
+          httpMessage.setContent(ChannelBuffers.copiedBuffer(data))
+          httpMessage.setHeader("Content-Length", data.length)
+        }
+        case None => {
+          log.warn("Missing codec for content-type {}", contentType)
+          httpMessage.setHeader("Content-Length", 0)
+        }
+      }
     } else {
       httpMessage.setHeader("Content-Length", 0)
     }
@@ -125,10 +155,29 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
       false
     }
   }
+
+  private def splitContentTypeHeader(contentType: String): (String, String) = {
+    val parts = contentType.split(";")
+    var found = false
+    var charset: String = HttpProtocol.DEFAULT_ENCODING
+    for (part:String <- parts if !found) {
+      if (part.trim().startsWith("charset=")) {
+        val vals = part.split("=");
+        if (vals.length > 1) {
+          charset = vals(1).trim();
+          charset = charset.replaceAll("\"", "").replaceAll("'", "");
+          found = true
+        }
+      }
+    }
+    (parts(0), charset)
+  }
 }
 
 object HttpProtocol {
   val KEEP_ALIVE_KEY = "httpprotocol-keepalive"
   val STATUS_CODE_KEY = "status-code"
+  val DEFAULT_CONTENT_TYPE = "text/plain"
+  val DEFAULT_ENCODING = "ISO-8859-1"
 }
 

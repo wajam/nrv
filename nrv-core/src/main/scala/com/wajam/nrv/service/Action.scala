@@ -1,11 +1,11 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.{RemoteException, UnavailableException}
 import com.wajam.nrv.utils.Sync
 import com.yammer.metrics.scala.Instrumented
 import java.util.concurrent.TimeUnit
 import com.wajam.nrv.data.{Message, MessageType, OutMessage, InMessage}
 import scala.Unit
+import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -15,7 +15,7 @@ import scala.Unit
 class Action(var path: ActionPath,
              var implementation: ((InMessage) => Unit),
              var method: ActionMethod = ActionMethod.ANY)
-  extends ActionSupport with Instrumented {
+  extends ActionSupport with Instrumented with Logging {
 
   private val msgInMeter = metrics.meter("message-in", "messages-in", this.path.replace(":","_"))
   private val msgOutMeter = metrics.meter("message-out", "messages-out", this.path.replace(":","_"))
@@ -117,7 +117,11 @@ class Action(var path: ActionPath,
             case ex: Exception => {
               val errMessage = new OutMessage
               errMessage.error = Some(new RemoteException(ex.getMessage))
-              fromMessage.reply(errMessage)
+              try {
+                fromMessage.reply(errMessage)
+              } catch {
+                case e: Exception => log.error("Could not send error message back to caller.", e)
+              }
             }
           }
         }
