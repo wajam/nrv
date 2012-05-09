@@ -39,7 +39,7 @@ with ProtocolMessageListener with Logging {
 
   def getService(name: String): Service = this.services(name)
 
-  def addService(service: Service): Service = {
+  def registerService(service: Service): Service = {
     service.supportedBy(this)
     this.services += (service.name -> service)
     service
@@ -56,6 +56,8 @@ with ProtocolMessageListener with Logging {
   }
 
   def start() {
+    clusterManager.start()
+
     for ((name, protocol) <- this.protocols) {
       protocol.start()
     }
