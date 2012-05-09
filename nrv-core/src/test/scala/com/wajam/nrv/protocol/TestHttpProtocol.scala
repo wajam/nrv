@@ -45,7 +45,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val msg = protocol.parse(nettyRequest)
 
     msg.parameters.size should equal (2)
-    msg.parameters("a") should equal (Seq("1"))
+    msg.parameters("a") should equal ("1")
     msg.parameters("b") should equal (Seq("2", "3"))
   }
 
@@ -56,7 +56,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val msg = protocol.parse(nettyRequest)
 
     msg.metadata.size should equal (1)
-    msg.metadata("HEADER") should equal (Seq("value"))
+    msg.metadata("HEADER") should equal ("value")
   }
 
   test("should map HTTP header to message metadata in responses") {
@@ -65,7 +65,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyresponse)
 
-    msg.metadata("HEADER") should equal (Seq("value"))
+    msg.metadata("HEADER") should equal ("value")
   }
 
   test("should map status code") {

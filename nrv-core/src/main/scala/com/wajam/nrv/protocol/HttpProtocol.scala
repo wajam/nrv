@@ -45,7 +45,8 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
         msg.path = new URI(req.getUri).getPath
         msg.attachments(HttpProtocol.KEEP_ALIVE_KEY) = isKeepAlive(req)
         val nettyUriDecoder = new QueryStringDecoder(req.getUri)
-        msg.parameters ++= Map.empty[String, Seq[String]] ++ nettyUriDecoder.getParameters.asScala.mapValues(_.asScala)
+        val parsedParameters = Map.empty[String, Any] ++ nettyUriDecoder.getParameters.asScala.mapValues(_.asScala)
+        msg.parameters ++= collapseSingletonLists(parsedParameters)
         mapHeaders(req, msg)
         mapContent(req, msg)
       }
@@ -102,10 +103,10 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
   }
 
   private def mapHeaders(httpMessage: HttpMessage, message: Message) {
-    val headers: Map[String, Seq[String]] = httpMessage.getHeaderNames.asScala.map { key =>
+    val headers: Map[String, Any] = httpMessage.getHeaderNames.asScala.map { key =>
       key.toUpperCase -> httpMessage.getHeaders(key).asScala
     }.toMap
-    message.metadata ++= headers
+    message.metadata ++= collapseSingletonLists(headers)
   }
 
   private def mapContent(httpMessage: HttpMessage, message: Message) {
@@ -171,6 +172,17 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
       }
     }
     (parts(0), charset)
+  }
+
+  private def collapseSingletonLists(parameters: Map[String, Any]): Map[String, Any] = {
+    parameters.mapValues( v => {
+      v match {
+        case l:Seq[_] if l.size == 1 => {
+          l(0)
+        }
+        case x => v
+      }
+    })
   }
 }
 
