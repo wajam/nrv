@@ -13,8 +13,8 @@ class TestCluster extends FunSuite {
   val cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
 
   val method = "testmethod"
-  val srv1 = cluster.addService(new Service("test1"))
-  val srv2 = cluster.addService(new Service("test2"))
+  val srv1 = cluster.registerService(new Service("test1"))
+  val srv2 = cluster.registerService(new Service("test2"))
 
   var act1: Action = null
   var act2: Action = null

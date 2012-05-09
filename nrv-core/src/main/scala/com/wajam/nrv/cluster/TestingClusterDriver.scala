@@ -8,6 +8,8 @@ class TestingClusterDriver(var instanceCreator: (Int, ClusterManager) => Testing
   var instances = List[TestingClusterInstance]()
   var size: Int = 0
 
+  def start() {}
+
   private def init(size: Int) {
     // create instances
     this.size = size

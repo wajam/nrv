@@ -5,12 +5,12 @@ import org.apache.zookeeper.ZooKeeper
 
 
 /**
- * DESCRIPTION HERE
- *
- * Author: Andre-Philippe Paquet <andre-philippe@wajam.com>
- * Copyright (c) Wajam
+ * Zookeeper cluster manager
  */
-
 class ZookeeperClusterManager extends ClusterManager {
   @volatile private var zk: ZooKeeper = null
+
+  def start() {
+    // TODO: Do something with zookeeper
+  }
 }
