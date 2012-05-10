@@ -154,7 +154,7 @@ abstract class NettyTransport(host: InetAddress,
     }
 
     def openConnection(destination: InetSocketAddress): Channel = {
-      log.info("Opening connection to: {}", destination)
+      log.debug("Opening connection to: {}", destination)
       val connectFuture = clientBootstrap.connect(destination)
       val channel = connectFuture.awaitUninterruptibly.getChannel
       allChannels.add(channel)
@@ -176,17 +176,17 @@ abstract class NettyTransport(host: InetAddress,
   class MessageHandler(isServer: Boolean) extends IdleStateAwareChannelHandler with Logging {
 
     override def channelIdle(ctx: ChannelHandlerContext , e: IdleStateEvent) {
-      log.info("Connection was idle for {} sec and will be closed.", idleTimeoutIsSec)
+      log.debug("Connection was idle for {} sec and will be closed.", idleTimeoutIsSec)
       e.getChannel.close();
     }
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
       e.getChannel.close()
-      log.info("Connection closed because of an exception: ", e.getCause)
+      log.debug("Connection closed because of an exception: ", e.getCause)
     }
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      log.info("Received a message on connection {}: {}", ctx.getChannel, e.getMessage)
+      log.trace("Received a message on connection {}: {}", ctx.getChannel, e.getMessage)
       messageReceivedEvent()
       val message = protocol.parse(e.getMessage)
       val inMessage = new InMessage
@@ -196,24 +196,24 @@ abstract class NettyTransport(host: InetAddress,
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-      log.info("New connection opened: {}", ctx.getChannel)
+      log.debug("New connection opened: {}", ctx.getChannel)
       connectionEstablishedEvent(isServer)
       allChannels.add(ctx.getChannel)
     }
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-      log.info("Connection closed: {}", ctx.getChannel)
+      log.debug("Connection closed: {}", ctx.getChannel)
       connectionClosedEvent(isServer)
       allChannels.remove(ctx.getChannel)
     }
 
     override def writeRequested(ctx: ChannelHandlerContext, e: MessageEvent) {
-      log.info("Sending a message on connection {}: {}", ctx.getChannel, e.getMessage)
+      log.trace("Sending a message on connection {}: {}", ctx.getChannel, e.getMessage)
       super.writeRequested(ctx, e)
     }
 
     override def writeComplete(ctx: ChannelHandlerContext, e: WriteCompletionEvent) {
-      log.info("Message sent on connection {}", ctx.getChannel)
+      log.trace("Message sent on connection {}", ctx.getChannel)
       messageSentEvent()
       super.writeComplete(ctx, e)
     }

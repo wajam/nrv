@@ -110,7 +110,7 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
   }
 
   private def mapContent(httpMessage: HttpMessage, message: Message) {
-    val contentTypeHeader = message.metadata.getOrElse("Content-Type",
+    val contentTypeHeader = message.metadata.getOrElse("CONTENT-TYPE",
       HttpProtocol.DEFAULT_CONTENT_TYPE).asInstanceOf[String]
     val (contentType, contentEncoding) = splitContentTypeHeader(contentTypeHeader)
     val byteBuffer = httpMessage.getContent.toByteBuffer
