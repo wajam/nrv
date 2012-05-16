@@ -3,18 +3,24 @@ package com.wajam.nrv.cluster.zookeeper
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.apache.zookeeper.{CreateMode, ZooKeeper}
-import org.scalatest.{BeforeAndAfter, FunSuite}
+import com.wajam.nrv.cluster.zookeeper.ZookeeperClient._
+import org.scalatest.FunSuite
 
 @RunWith(classOf[JUnitRunner])
 class TestZookeeperClient extends FunSuite {
-  var zClient = new ZookeeperClient("127.0.0.1:13370")
+  var zClient = new ZookeeperClient("127.0.0.1")
 
   test("connected") {
     assert(zClient.getHandle.getState == ZooKeeper.States.CONNECTED)
   }
 
   test("create path") {
-    zClient.delete("/cluster")
+    try {
+      zClient.delete("/cluster")
+    } catch {
+      case _ =>
+    }
+
     zClient.create("/cluster", null, CreateMode.EPHEMERAL)
 
     // if version >= 0 then the path exists
@@ -22,17 +28,12 @@ class TestZookeeperClient extends FunSuite {
   }
 
   test("set data") {
-    var data = new Array[Byte](1)
-    val str = "data:test"
-    data :+ str.toByte
-
-    // zClient.create("/cluster", null, CreateMode.EPHEMERAL)
-    zClient.set("/cluster", data)
-
-    assert(zClient.getHandle.getData("/cluster", false, null) == data)
+    zClient.set("/cluster", "data:test")
+    assert("data:test".equals(new String(zClient.getHandle.getData("/cluster", false, null))))
   }
 
-  test("get data") {
-
+  test("increment") {
+    assert(zClient.incrementCounter("/counter", 10, 4) == 14)
+    assert(zClient.getInt("/counter") == 14)
   }
 }
