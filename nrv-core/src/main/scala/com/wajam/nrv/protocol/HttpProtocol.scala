@@ -80,7 +80,8 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
         request
       }
       case res: OutMessage => {
-        val code = res.metadata.getOrElse(HttpProtocol.STATUS_CODE_KEY, 200).asInstanceOf[Int]
+        val code = res.metadata.getOrElse(HttpProtocol.STATUS_CODE_KEY,
+          res.metadata.getOrElse(HttpProtocol.STATUS_CODE_KEY, 200)).asInstanceOf[Int]
         val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(code))
         setHeaders(response, res)
         setContent(response, res)
