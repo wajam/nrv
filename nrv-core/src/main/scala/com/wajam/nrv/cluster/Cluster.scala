@@ -30,9 +30,11 @@ with ProtocolMessageListener with Logging {
   def messageReceived(inMessage: InMessage) {
     val action = cluster.getAction(inMessage.actionURL, inMessage.method)
     if (action != null) {
+      info("Received an incoming message for path {} with method {}.",
+        inMessage.actionURL.toString, inMessage.method.toString)
       action.callIncomingHandlers(inMessage)
     } else {
-      warn("Received a incoming for path {}, but couldn't find action", inMessage.actionURL.toString)
+      warn("Received an incoming for path {}, but couldn't find action", inMessage.actionURL.toString)
       throw new ListenerException("Route not found.")
     }
   }
