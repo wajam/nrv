@@ -39,34 +39,36 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
   override def handleOutgoing(action: Action, message: OutMessage) {
     val node = message.destination(0).node
 
-    def completionCallback = (result: Option[Throwable]) => {
-      result match {
-        case Some(throwable) => {
-          val response = new InMessage()
-          message.copyTo(response)
-          response.error = Some(new RuntimeException(throwable))
-          response.function = MessageType.FUNCTION_RESPONSE
-
-          handleIncoming(action, response, Unit => {})
-        }
-        case None =>
-      }
-    }
-
     message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
       case Some(channel) => {
         val response = generate(message)
         transport.sendResponse(channel,
           response,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
-          completionCallback)
+          (result: Option[Throwable]) => {
+            result match {
+              case Some(throwable) => {warn("Could not send the response because of an error.", throwable)}
+              case None =>}
+          })
       }
       case None => {
         val request = generate(message)
         transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),
           request,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
-          completionCallback)
+          (result: Option[Throwable]) => {
+            result match {
+              case Some(throwable) => {
+                val response = new InMessage()
+                message.copyTo(response)
+                response.error = Some(new RuntimeException(throwable))
+                response.function = MessageType.FUNCTION_RESPONSE
+
+                handleIncoming(action, response, Unit => {})
+              }
+              case None =>
+            }
+          })
       }
     }
   }

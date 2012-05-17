@@ -115,7 +115,7 @@ class Action(var path: ActionPath,
             }
           } catch {
             case ex: Exception => {
-              debug("Got an exeception calling implementation", ex)
+              warn("Got an exeception calling implementation", ex)
               val errMessage = new OutMessage
               errMessage.error = Some(new RemoteException(ex.getMessage))
               try {
