@@ -38,6 +38,8 @@ class Action(var path: ActionPath,
   }
 
   def call(message: OutMessage) {
+    this.checkSupported()
+
     message.function = MessageType.FUNCTION_CALL
     this.callOutgoingHandlers(message)
   }

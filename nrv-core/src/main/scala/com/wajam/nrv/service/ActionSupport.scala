@@ -22,32 +22,42 @@ trait ActionSupport {
   def cluster: Cluster =
     if (_cluster != null)
       this._cluster
-    else
+    else if (this.supporter != null)
       this.supporter.cluster
+    else
+      throw new UninitializedError
 
   def service: Service =
     if (_service != null)
       this._service
-    else
+    else if (this.supporter != null)
       this.supporter.service
+    else
+      throw new UninitializedError
 
   def resolver: Resolver =
     if (_resolver != null)
       this._resolver
-    else
+    else if (this.supporter != null)
       this.supporter.resolver
+    else
+      throw new UninitializedError
 
   def protocol: Protocol =
     if (_protocol != null)
       this._protocol
-    else
+    else if (this.supporter != null)
       this.supporter.protocol
+    else
+      throw new UninitializedError
 
   def switchboard: Switchboard =
     if (_switchboard != null)
       this._switchboard
-    else
+    else if (this.supporter != null)
       this.supporter.switchboard
+    else
+      throw new UninitializedError
 
   def checkSupported() {
     if (this.cluster == null || this.service == null || this.protocol == null || this.resolver == null || this.switchboard == null)

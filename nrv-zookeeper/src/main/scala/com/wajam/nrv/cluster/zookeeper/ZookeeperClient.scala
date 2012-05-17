@@ -53,7 +53,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
     log.info("Zookeeper event: %s".format(event))
     assignLatch.await()
     event.getState match {
-      case KeeperState.SyncConnected => {
+      case KeeperState.SyncConnected =>
         try {
           watcher.map(fn => fn(this))
         } catch {
@@ -61,12 +61,14 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
             log.error("Exception during zookeeper connection established callback")
         }
         connectionLatch.countDown()
-      }
-      case KeeperState.Expired => {
+
+      case KeeperState.Expired =>
+        // TODO: notify manager! probably need we are not reliable anymore, we need to resync
         // Session was expired; create a new zookeeper connection
         connect()
-      }
-      case _ => // Disconnected -- zookeeper library will handle reconnects
+
+      case _ =>
+        // Disconnected -- zookeeper library will handle reconnects
     }
   }
 
@@ -131,8 +133,6 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
         data = this.get(path, stat)
       } catch {
         case e: Exception =>
-          this.zk
-
       }
 
       current = data match {
