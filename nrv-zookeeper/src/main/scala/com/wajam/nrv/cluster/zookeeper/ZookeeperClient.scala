@@ -79,9 +79,9 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
     zk.create(path, data, Ids.OPEN_ACL_UNSAFE, createMode)
   }
 
-  def ensureExists(path: String, data: Array[Byte]): Boolean = {
+  def ensureExists(path: String, data: Array[Byte], createMode: CreateMode = CreateMode.PERSISTENT): Boolean = {
     try {
-      this.create(path, data, CreateMode.PERSISTENT)
+      this.create(path, data, createMode)
       return true
 
     } catch {
