@@ -8,24 +8,39 @@ import org.slf4j.LoggerFactory
 trait Logging {
   val log = LoggerFactory.getLogger(getClass)
 
-  def debug(msg: => String, params: AnyRef*) {
-    if (log.isDebugEnabled) log.debug(msg, params.toArray)
+  def debug(msg: => String, params: Any*) {
+    if (log.isDebugEnabled) {
+      val arr = params.map(m => m.asInstanceOf[Object]).toArray
+      log.debug(msg, arr)
+    }
   }
 
-  def trace(msg: => String, params: AnyRef*) {
-    if (log.isDebugEnabled) log.trace(msg, params.toArray)
+  def trace(msg: => String, params: Any*) {
+    if (log.isTraceEnabled) {
+      val arr = params.map(m => m.asInstanceOf[Object]).toArray
+      log.trace(msg, arr)
+    }
   }
 
-  def info(msg: => String, params: AnyRef*) {
-    if (log.isInfoEnabled) log.info(msg, params.toArray)
+  def info(msg: => String, params: Any*) {
+    if (log.isInfoEnabled) {
+      val arr = params.map(m => m.asInstanceOf[Object]).toArray
+      log.info(msg, arr)
+    }
   }
 
-  def warn(msg: => String, params: AnyRef*) {
-    if (log.isWarnEnabled) log.warn(msg, params.toArray)
+  def warn(msg: => String, params: Any*) {
+    if (log.isWarnEnabled) {
+      val arr = params.map(m => m.asInstanceOf[Object]).toArray
+      log.warn(msg, arr)
+    }
   }
 
-  def error(msg: => String, params: AnyRef*) {
-    if (log.isErrorEnabled) log.error(msg, params.toArray)
+  def error(msg: => String, params: Any*) {
+    if (log.isErrorEnabled) {
+      val arr = params.map(m => m.asInstanceOf[Object]).toArray
+      log.error(msg, arr)
+    }
   }
 
 }

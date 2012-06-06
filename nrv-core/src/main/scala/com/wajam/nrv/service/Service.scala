@@ -23,13 +23,13 @@ class Service(var name: String, protocol: Option[Protocol] = None, resolver: Opt
 
   def membersCount = this.ring.size
 
-  protected[nrv] def start() {
+  def start() {
     for (action <- this.actions) {
       action.start()
     }
   }
 
-  protected[nrv] def stop() {
+  def stop() {
     for (action <- this.actions) {
       action.stop()
     }

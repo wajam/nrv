@@ -17,8 +17,8 @@ class Action(var path: ActionPath,
              var method: ActionMethod = ActionMethod.ANY)
   extends ActionSupport with Instrumented with Logging {
 
-  private val msgInMeter = metrics.meter("message-in", "messages-in", this.path.replace(":","_"))
-  private val msgOutMeter = metrics.meter("message-out", "messages-out", this.path.replace(":","_"))
+  private val msgInMeter = metrics.meter("message-in", "messages-in", this.path.replace(":", "_"))
+  private val msgOutMeter = metrics.meter("message-out", "messages-out", this.path.replace(":", "_"))
   private val msgReplyTime = metrics.timer("reply-time", this.path.replace(":", "_"))
   private val executeTime = metrics.timer("execute-time", this.path.replace(":", "_"))
 
@@ -93,16 +93,10 @@ class Action(var path: ActionPath,
     this.msgInMeter.mark()
 
     this.switchboard.handleIncoming(this, fromMessage, Unit => {
+      fromMessage.function match {
 
-      fromMessage.matchingOutMessage match {
-        // it's a reply to a message
-        case Some(originalMessage) =>
-          this.msgReplyTime.update(System.currentTimeMillis() - originalMessage.sentTime, TimeUnit.MILLISECONDS)
-          originalMessage.handleReply(fromMessage)
-
-        // no original message, means that this is a new message
-        case None => {
-
+        // function call
+        case MessageType.FUNCTION_CALL =>
           // set the reply callback for this message
           fromMessage.replyCallback = (intoMessage => {
             this.generateResponseMessage(fromMessage, intoMessage)
@@ -127,12 +121,23 @@ class Action(var path: ActionPath,
               }
             }
           }
-        }
+
+
+        // it's a reply to a message
+        case MessageType.FUNCTION_RESPONSE =>
+          fromMessage.matchingOutMessage match {
+            // it's a reply to a message
+            case Some(originalMessage) =>
+              this.msgReplyTime.update(System.currentTimeMillis() - originalMessage.sentTime, TimeUnit.MILLISECONDS)
+              originalMessage.handleReply(fromMessage)
+            case None =>
+              warn("Response with no matching original message received")
+          }
       }
     })
   }
 
-  protected[nrv] def generateResponseMessage(fromMessage:Message, intoMessage:Message) {
+  protected[nrv] def generateResponseMessage(fromMessage: Message, intoMessage: Message) {
     intoMessage.source = this.cluster.localNode
     intoMessage.serviceName = this.service.name
     intoMessage.path = fromMessage.path

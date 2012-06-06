@@ -11,14 +11,12 @@ class Node(val host: InetAddress, val ports: Map[String, Int]) extends Serializa
 
   def this(host: String, ports: Map[String, Int]) = this(InetAddress.getByName(host), ports)
 
-  override def hashCode():Int = {
-    var sum = host.hashCode()
-    for ((s, p) <- ports) sum += (s.hashCode + p.hashCode())
-    sum
-  }
+  def uniqueKey = "%s_%d".format(host.getHostAddress, ports("nrv"))
+
+  override def hashCode():Int = uniqueKey.hashCode
 
   override def equals(that: Any) = that match {
-    case other: Node => this.hashCode == that.hashCode
+    case other: Node => this.uniqueKey.equalsIgnoreCase(other.uniqueKey)
     case _ => false
   }
 }

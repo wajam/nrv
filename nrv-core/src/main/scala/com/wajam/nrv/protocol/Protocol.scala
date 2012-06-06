@@ -38,7 +38,7 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
 
   override def handleOutgoing(action: Action, message: OutMessage) {
     val node = message.destination(0).node
-
+    message.protocolName = this.name
     message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
       case Some(channel) => {
         val response = generate(message)
