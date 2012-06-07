@@ -129,7 +129,13 @@ class Action(var path: ActionPath,
             // it's a reply to a message
             case Some(originalMessage) =>
               this.msgReplyTime.update(System.currentTimeMillis() - originalMessage.sentTime, TimeUnit.MILLISECONDS)
-              originalMessage.handleReply(fromMessage)
+              try {
+                originalMessage.handleReply(fromMessage)
+              } catch {
+                case ex: Exception => {
+                  warn("Got an exception calling reply callback", ex)
+                }
+              }
             case None =>
               warn("Response with no matching original message received")
           }

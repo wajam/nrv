@@ -27,7 +27,9 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
   /**
    * Returns current time, overridden by unit tests
    */
-  protected[nrv] var getTime:(()=>Long) = ()=>{ System.currentTimeMillis() }
+  protected[nrv] var getTime: (() => Long) = () => {
+    System.currentTimeMillis()
+  }
 
   private class RendezVous(val action: Action, val outMessage: OutMessage)
 
@@ -84,60 +86,64 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
 
   def act() {
     while (true) {
-      receive {
+      try {
+        receive {
 
-        case CheckTimeout =>
-          var toRemove = List[Int]()
+          case CheckTimeout =>
+            var toRemove = List[Int]()
 
-          for ((id, rdv) <- this.rendezvous) {
-            val elaps = this.getTime() - rdv.outMessage.sentTime
-            if (elaps >= rdv.outMessage.timeoutTime) {
-              var exceptionMessage = new InMessage
-              exceptionMessage.matchingOutMessage = Some(rdv.outMessage)
-              exceptionMessage.error = Some(new TimeoutException("Didn't receive a reply within time"))
-              rdv.action.generateResponseMessage(rdv.outMessage, exceptionMessage)
-              rdv.action.callIncomingHandlers(exceptionMessage)
+            for ((id, rdv) <- this.rendezvous) {
+              val elaps = this.getTime() - rdv.outMessage.sentTime
+              if (elaps >= rdv.outMessage.timeoutTime) {
+                var exceptionMessage = new InMessage
+                exceptionMessage.matchingOutMessage = Some(rdv.outMessage)
+                exceptionMessage.error = Some(new TimeoutException("Didn't receive a reply within time"))
+                rdv.action.generateResponseMessage(rdv.outMessage, exceptionMessage)
+                rdv.action.callIncomingHandlers(exceptionMessage)
 
-              toRemove :+= id
+                toRemove :+= id
+              }
             }
-          }
 
-          for (id <- toRemove) {
-            this.rendezvous -= id
-          }
-
-          sender ! true
-
-        case (rdv: RendezVous, next: (Unit => Unit)) =>
-          this.received.mark()
-
-          this.id += 1
-          rdv.outMessage.rendezvousId = this.id
-          this.rendezvous += (this.id -> rdv)
-
-          if (this.id > Int.MaxValue)
-            this.id = 0
-
-          next()
-
-        case (inMessage: InMessage, next: (Unit => Unit)) =>
-          this.received.mark()
-
-          // check for rendez-vous
-          if (inMessage.function == MessageType.FUNCTION_RESPONSE) {
-            val optRdv = this.rendezvous.remove(inMessage.rendezvousId)
-            optRdv match {
-              case Some(rdv) =>
-                inMessage.matchingOutMessage = Some(rdv.outMessage)
-
-              case None =>
-                warn("Received a incoming message with a rendez-vous, but with no matching outgoing message: {}", inMessage)
-
+            for (id <- toRemove) {
+              this.rendezvous -= id
             }
-          }
 
-          next()
+            sender ! true
 
+          case (rdv: RendezVous, next: (Unit => Unit)) =>
+            this.received.mark()
+
+            this.id += 1
+            rdv.outMessage.rendezvousId = this.id
+            this.rendezvous += (this.id -> rdv)
+
+            if (this.id > Int.MaxValue)
+              this.id = 0
+
+            next()
+
+          case (inMessage: InMessage, next: (Unit => Unit)) =>
+            this.received.mark()
+
+            // check for rendez-vous
+            if (inMessage.function == MessageType.FUNCTION_RESPONSE) {
+              val optRdv = this.rendezvous.remove(inMessage.rendezvousId)
+              optRdv match {
+                case Some(rdv) =>
+                  inMessage.matchingOutMessage = Some(rdv.outMessage)
+
+                case None =>
+                  warn("Received a incoming message with a rendez-vous, but with no matching outgoing message: {}", inMessage)
+
+              }
+            }
+
+            next()
+
+        }
+      } catch {
+        case e: Exception => error("Catched an exeception in switchboard! Should never happen!")
       }
     }
   }
