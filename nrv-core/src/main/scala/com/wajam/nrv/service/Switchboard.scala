@@ -143,7 +143,7 @@ class Switchboard extends Actor with MessageHandler with Logging with Instrument
 
         }
       } catch {
-        case e: Exception => error("Catched an exeception in switchboard! Should never happen!")
+        case e: Exception => error("Catched an exception in switchboard! Should never happen!", e)
       }
     }
   }
