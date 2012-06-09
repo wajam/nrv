@@ -14,7 +14,7 @@ import com.wajam.nrv.data.{OutMessage, InMessage}
 class TestAction extends FunSuite {
   val cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
   cluster.registerProtocol(new DummyProtocol("dummy", cluster), default = true)
-  val service = cluster.registerService(new Service("test", resolver = Some(new Resolver(Some(1)))))
+  val service = cluster.registerService(new Service("test", resolver = Some(new Resolver(1))))
   service.addMember(0, cluster.localNode)
 
   test("call, reply") {

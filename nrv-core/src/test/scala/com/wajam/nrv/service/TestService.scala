@@ -25,19 +25,6 @@ class TestService extends FunSuite with BeforeAndAfter {
     assert(service.membersCount == 2)
   }
 
-  test("member resolve") {
-    service.addMember(5, new Node("localhost", Map("nrv" -> 12345)))
-    service.addMember(9, new Node("localhost", Map("nrv" -> 12346)))
-    var endpoints = service.resolveMembers(8, 1)
-    assert(endpoints.size == 1)
-    assert(endpoints(0).token == 9)
-
-    endpoints = service.resolveMembers(10, 2)
-    assert(endpoints.size == 2)
-    assert(endpoints(0).token == 5)
-    assert(endpoints(1).token == 9)
-  }
-
   test("add many actions and make sure they are in reverse order") {
     val action1 = new Action("/test1", (req) => Unit)
     val action2 = new Action("/test2", (req) => Unit)

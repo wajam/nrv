@@ -21,6 +21,12 @@ class Service(var name: String, protocol: Option[Protocol] = None, resolver: Opt
 
   def resolveMembers(token: Long, count: Int) = this.ring.resolve(token, count)
 
+  def resolveMembers(token: Long, count: Int, filter: ServiceMember => Boolean) = {
+    this.ring.resolve(token, count, node => {
+      filter(new ServiceMember(node.token, node.value.get))
+    })
+  }
+
   def membersCount = this.ring.size
 
   def start() {
@@ -48,6 +54,8 @@ class Service(var name: String, protocol: Option[Protocol] = None, resolver: Opt
   }
 
   def findAction(path: ActionPath, method: String): Option[Action] = {
-    this.actions find { _.matches(path, method) }
+    this.actions find {
+      _.matches(path, method)
+    }
   }
 }
