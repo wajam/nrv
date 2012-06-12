@@ -20,8 +20,12 @@ class TestResolver extends FunSuite {
     assert(Resolver.TOKEN_FULLPATH("/test/:par", "/test/parval") == Resolver.hashData("/test/parval"))
   }
 
+  test("param hash path extractor should hash param path") {
+    assert(Resolver.TOKEN_HASH_PARAM("par")("/test/:par", "/test/parval") == Resolver.hashData("parval"))
+  }
+
   test("param path extractor should hash param path") {
-    assert(Resolver.TOKEN_PARAM("par")("/test/:par", "/test/parval") == Resolver.hashData("parval"))
+    assert(Resolver.TOKEN_PARAM("token")("/test/:token", "/test/5345435") == 5345435)
   }
 
   test("resolver with count should return count") {

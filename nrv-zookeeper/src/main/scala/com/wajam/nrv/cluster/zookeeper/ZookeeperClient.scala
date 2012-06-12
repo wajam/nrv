@@ -7,6 +7,7 @@ import org.apache.zookeeper.ZooDefs.Ids
 import org.apache.zookeeper._
 import data.Stat
 import org.apache.zookeeper.KeeperException.Code
+import com.yammer.metrics.scala.Instrumented
 
 object ZookeeperClient {
   implicit def string2bytes(value: String) = value.getBytes
@@ -16,9 +17,15 @@ object ZookeeperClient {
   implicit def long2bytes(value: Long) = value.toString.getBytes
 }
 
-class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: String = "", watcher: Option[ZookeeperClient => Unit] = None) extends Logging {
+class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: String = "", watcher: Option[ZookeeperClient => Unit] = None) extends Logging with Instrumented {
   @volatile private var zk: ZooKeeper = null
   connect()
+
+  private lazy val metricsGet = metrics.timer("get")
+  private lazy val metricsCreate = metrics.timer("create")
+  private lazy val metricsSet = metrics.timer("set")
+  private lazy val metricsDelete = metrics.timer("delete")
+  private lazy val metricsIncrement = metrics.timer("increment")
 
   import ZookeeperClient._
 
@@ -68,7 +75,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
         connect()
 
       case _ =>
-        // Disconnected -- zookeeper library will handle reconnects
+      // Disconnected -- zookeeper library will handle reconnects
     }
   }
 
@@ -76,7 +83,9 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
    * Create single path
    */
   def create(path: String, data: Array[Byte], createMode: CreateMode): String = {
-    zk.create(path, data, Ids.OPEN_ACL_UNSAFE, createMode)
+    this.metricsCreate.time {
+      zk.create(path, data, Ids.OPEN_ACL_UNSAFE, createMode)
+    }
   }
 
   def ensureExists(path: String, data: Array[Byte], createMode: CreateMode = CreateMode.PERSISTENT): Boolean = {
@@ -95,7 +104,9 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
   }
 
   def get(path: String, stat: Stat = null): Array[Byte] = {
-    zk.getData(makeNodePath(path), false, stat)
+    this.metricsGet.time {
+      zk.getData(makeNodePath(path), false, stat)
+    }
   }
 
   def getString(path: String, stat: Stat = null): String = {
@@ -111,11 +122,15 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
   }
 
   def set(path: String, data: Array[Byte], version: Int = -1) {
-    zk.setData(makeNodePath(path), data, version)
+    this.metricsSet.time {
+      zk.setData(makeNodePath(path), data, version)
+    }
   }
 
   def delete(path: String, version: Int = -1) {
-    zk.delete(makeNodePath(path), version)
+    this.metricsDelete.time {
+      zk.delete(makeNodePath(path), version)
+    }
   }
 
   /**
@@ -125,31 +140,33 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
     val stat = new Stat
     var current: Long = 0
 
-    this.ensureExists(path, initial)
+    this.metricsIncrement.time {
+      this.ensureExists(path, initial)
 
-    while (true) {
-      var data: Array[Byte] = null
-      try {
-        data = this.get(path, stat)
-      } catch {
-        case e: Exception =>
-      }
+      while (true) {
+        var data: Array[Byte] = null
+        try {
+          data = this.get(path, stat)
+        } catch {
+          case e: Exception =>
+        }
 
-      current = data match {
-        case d: Array[Byte] =>
-          new String(d).toLong
-        case null =>
-          initial
-      }
+        current = data match {
+          case d: Array[Byte] =>
+            new String(d).toLong
+          case null =>
+            initial
+        }
 
-      current += by
+        current += by
 
-      try {
-        this.set(path, current, stat.getVersion)
-        return current
-      } catch {
-        case e: KeeperException.BadVersionException =>
-          debug("Counter increment retry for {}", path)
+        try {
+          this.set(path, current, stat.getVersion)
+          return current
+        } catch {
+          case e: KeeperException.BadVersionException =>
+            debug("Counter increment retry for {}", path)
+        }
       }
     }
 

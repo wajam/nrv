@@ -17,10 +17,12 @@ class Action(var path: ActionPath,
              var method: ActionMethod = ActionMethod.ANY)
   extends ActionSupport with Instrumented with Logging {
 
-  private val msgInMeter = metrics.meter("message-in", "messages-in", this.path.replace(":", "_"))
-  private val msgOutMeter = metrics.meter("message-out", "messages-out", this.path.replace(":", "_"))
-  private val msgReplyTime = metrics.timer("reply-time", this.path.replace(":", "_"))
-  private val executeTime = metrics.timer("execute-time", this.path.replace(":", "_"))
+  lazy val fullPath = this.protocol.name + "://" + this.service.name + this.path
+
+  private lazy val msgInMeter = metrics.meter("message-in", "messages-in", this.fullPath.replace(":", "_"))
+  private lazy val msgOutMeter = metrics.meter("message-out", "messages-out", this.fullPath.replace(":", "_"))
+  private lazy val msgReplyTime = metrics.timer("reply-time", this.fullPath.replace(":", "_"))
+  private lazy val executeTime = metrics.timer("execute-time", this.fullPath.replace(":", "_"))
 
   def call(params: Iterable[(String, Any)],
            meta: Iterable[(String, Any)],

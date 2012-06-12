@@ -43,9 +43,14 @@ class Resolver(val replica: Int = 1,
 object Resolver {
   def TOKEN_FULLPATH = (actionPath: ActionPath, path: String) => hashData(path)
 
-  def TOKEN_PARAM(param: String) = (actionPath: ActionPath, path: String) => {
+  def TOKEN_HASH_PARAM(param: String) = (actionPath: ActionPath, path: String) => {
     val (_, d) = actionPath.matchesPath(path)
     hashData(d(param))
+  }
+
+  def TOKEN_PARAM(param: String) = (actionPath: ActionPath, path: String) => {
+    val (_, d) = actionPath.matchesPath(path)
+    d(param).toLong
   }
 
   def SORTER_RING = null
