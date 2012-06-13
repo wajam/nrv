@@ -3,7 +3,7 @@ package com.wajam.nrv.cluster
 /**
  * Cluster driver used to drive integration tests
  */
-class TestingClusterDriver(var instanceCreator: (Int, ClusterManager) => TestingClusterInstance) extends ClusterManager {
+class TestingClusterDriver(var instanceCreator: (Int, Int, ClusterManager) => TestingClusterInstance) extends ClusterManager {
   var nodeInstances = Map[Node, TestingClusterInstance]()
   var instances = List[TestingClusterInstance]()
   var size: Int = 0
@@ -14,7 +14,7 @@ class TestingClusterDriver(var instanceCreator: (Int, ClusterManager) => Testing
     // create instances
     this.size = size
     for (i <- 1 to size) {
-      val instance = instanceCreator(i, new StaticClusterManager)
+      val instance = instanceCreator(size, i, new StaticClusterManager)
       this.nodeInstances += (instance.cluster.localNode -> instance)
       this.instances :+= instance
     }

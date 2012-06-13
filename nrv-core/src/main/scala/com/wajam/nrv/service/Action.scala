@@ -11,7 +11,6 @@ import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
  * but uses path to locale functions instead of functions name.
  */
-
 class Action(var path: ActionPath,
              var implementation: ((InMessage) => Unit),
              var method: ActionMethod = ActionMethod.ANY)

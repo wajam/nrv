@@ -46,6 +46,8 @@ trait Ring[T] {
 
   class RingNode(var token: Long, var value: Option[T]) extends Comparable[RingNode] {
     def compareTo(o: RingNode) = (this.token - o.token).asInstanceOf[Int]
+
+    override def toString: String = "%s@%d".format(value, token)
   }
 }
 
