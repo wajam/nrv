@@ -1,6 +1,6 @@
 package com.wajam.nrv.transport.netty
 
-import org.jboss.netty.channel.{ChannelUpstreamHandler, ChannelDownstreamHandler}
+import org.jboss.netty.channel.{ChannelPipeline, ChannelUpstreamHandler, ChannelDownstreamHandler}
 
 
 /**
@@ -9,12 +9,12 @@ import org.jboss.netty.channel.{ChannelUpstreamHandler, ChannelDownstreamHandler
 
 trait NettyTransportCodecFactory {
 
-  def createRequestEncoder(): ChannelDownstreamHandler
+  def configureRequestEncoders(pipeline: ChannelPipeline)
 
-  def createResponseEncoder(): ChannelDownstreamHandler
+  def configureResponseEncoders(pipeline: ChannelPipeline)
 
-  def createRequestDecoder(): ChannelUpstreamHandler
+  def configureRequestDecoders(pipeline: ChannelPipeline)
 
-  def createResponseDecoder(): ChannelUpstreamHandler
+  def configureResponseDecoders(pipeline: ChannelPipeline)
 
 }

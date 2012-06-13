@@ -89,6 +89,10 @@ class TestConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar 
   object DummyChannel extends Channel {
     def getId = null
 
+    def getAttachment = null
+
+    def setAttachment(attachment: Any) {}
+
     def getFactory = null
 
     def getParent = null

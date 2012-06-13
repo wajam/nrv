@@ -126,8 +126,8 @@ abstract class NettyTransport(host: InetAddress,
     class DefaultPipelineFactory extends ChannelPipelineFactory {
       override def getPipeline = {
         val newPipeline = Channels.pipeline()
-        newPipeline.addLast("decoder", factory.createRequestDecoder())
-        newPipeline.addLast("encoder", factory.createResponseEncoder())
+        factory.configureRequestDecoders(newPipeline)
+        factory.configureResponseEncoders(newPipeline)
         newPipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, idleTimeoutIsSec))
         newPipeline.addLast("handler", serverMessageHandler)
         newPipeline
@@ -164,8 +164,8 @@ abstract class NettyTransport(host: InetAddress,
     class DefaultPipelineFactory extends ChannelPipelineFactory {
       override def getPipeline = {
         val newPipeline = Channels.pipeline()
-        newPipeline.addLast("decoder", factory.createResponseDecoder())
-        newPipeline.addLast("encoder", factory.createRequestEncoder())
+        factory.configureResponseDecoders(newPipeline)
+        factory.configureRequestEncoders(newPipeline)
         newPipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, idleTimeoutIsSec))
         newPipeline.addLast("handler", clientMessageHandler)
         newPipeline

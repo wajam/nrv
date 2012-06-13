@@ -6,7 +6,7 @@ import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.handler.codec.frame.{CorruptedFrameException, FrameDecoder}
 import java.net.InetAddress
 import com.wajam.nrv.protocol.Protocol
-import org.jboss.netty.channel.{ChannelHandlerContext, Channel}
+import org.jboss.netty.channel.{ChannelPipeline, ChannelHandlerContext, Channel}
 
 /**
  * Transport layer for NRV
@@ -20,13 +20,21 @@ class NrvNettyTransport(host: InetAddress, port: Int, protocol: Protocol)
 
 object NrvNettyTransportCodecFactory extends NettyTransportCodecFactory {
 
-  def createRequestEncoder() = new NrvEncoder
+  def configureRequestEncoders(pipeline: ChannelPipeline) {
+    pipeline.addLast("encoder", new NrvEncoder)
+  }
 
-  def createResponseEncoder() = new NrvEncoder
+  def configureResponseEncoders(pipeline: ChannelPipeline) {
+    pipeline.addLast("encoder", new NrvEncoder)
+  }
 
-  def createRequestDecoder() = new NrvDecoder
+  def configureRequestDecoders(pipeline: ChannelPipeline) {
+    pipeline.addLast("decoder", new NrvDecoder)
+  }
 
-  def createResponseDecoder() = new NrvDecoder
+  def configureResponseDecoders(pipeline: ChannelPipeline) {
+    pipeline.addLast("decoder", new NrvDecoder)
+  }
 
   class NrvEncoder extends OneToOneEncoder {
     override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef): Object = {

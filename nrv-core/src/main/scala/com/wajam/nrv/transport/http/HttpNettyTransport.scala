@@ -2,8 +2,9 @@ package com.wajam.nrv.transport.http
 
 import java.net.InetAddress
 import com.wajam.nrv.protocol.Protocol
-import org.jboss.netty.handler.codec.http.{HttpResponseEncoder, HttpResponseDecoder, HttpRequestDecoder, HttpRequestEncoder}
 import com.wajam.nrv.transport.netty.{NettyTransportCodecFactory, NettyTransport}
+import org.jboss.netty.channel.ChannelPipeline
+import org.jboss.netty.handler.codec.http._
 
 /**
  * This class...
@@ -20,11 +21,20 @@ class HttpNettyTransport(host: InetAddress, port: Int, protocol: Protocol)
 
 object HttpNettyTransportCodecFactory extends NettyTransportCodecFactory {
 
-  def createRequestEncoder() = new HttpRequestEncoder()
+  def configureRequestEncoders(pipeline: ChannelPipeline) {
+    pipeline.addLast("encoder", new HttpRequestEncoder())
+  }
 
-  def createResponseEncoder() = new HttpResponseEncoder()
+  def configureResponseEncoders(pipeline: ChannelPipeline) {
+    pipeline.addLast("encoder",  new HttpResponseEncoder())
+    pipeline.addLast("deflater", new HttpContentCompressor())
+  }
 
-  def createRequestDecoder() = new HttpRequestDecoder()
+  def configureRequestDecoders(pipeline: ChannelPipeline) {
+    pipeline.addLast("decoder", new HttpRequestDecoder())
+  }
 
-  def createResponseDecoder() = new HttpResponseDecoder()
+  def configureResponseDecoders(pipeline: ChannelPipeline) {
+    pipeline.addLast("decoder",  new HttpResponseDecoder())
+  }
 }

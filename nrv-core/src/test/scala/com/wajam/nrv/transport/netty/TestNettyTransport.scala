@@ -21,13 +21,21 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
 
   object TestEncoderDecoderFactory extends NettyTransportCodecFactory {
 
-    def createRequestEncoder() = encoder
+    def configureRequestEncoders(pipeline: ChannelPipeline) {
+      pipeline.addLast("encoder", encoder)
+    }
 
-    def createResponseEncoder() = encoder
+    def configureResponseEncoders(pipeline: ChannelPipeline) {
+      pipeline.addLast("encoder", encoder)
+    }
 
-    def createRequestDecoder() = decoder
+    def configureRequestDecoders(pipeline: ChannelPipeline) {
+      pipeline.addLast("decoder", decoder)
+    }
 
-    def createResponseDecoder() = decoder
+    def configureResponseDecoders(pipeline: ChannelPipeline) {
+      pipeline.addLast("decoder", decoder)
+    }
 
     val encoder = new StringEncoder() {
       override def encode(ctx: ChannelHandlerContext, channel: Channel, msg: AnyRef) = {
