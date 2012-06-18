@@ -35,7 +35,7 @@ class Action(var path: ActionPath,
            onReply: ((InMessage, Option[Exception]) => Unit),
            meta: Iterable[(String, Any)] = null,
            data: Any = null) {
-    this.call(new OutMessage(params, meta, data, onReply))
+    this.call(new OutMessage(params, meta, data, onReply = onReply))
   }
 
   def call(message: OutMessage) {

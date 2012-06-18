@@ -9,6 +9,7 @@ import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.transport.http.HttpNettyTransport
 import scala.Array
 import com.wajam.nrv.data.{Message, InMessage, OutMessage}
+import com.wajam.nrv.service.ActionMethod
 
 /**
  * Implementation of HTTP protocol.
@@ -44,6 +45,11 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
         msg.serviceName = name
         msg.path = new URI(req.getUri).getPath
         msg.attachments(HttpProtocol.KEEP_ALIVE_KEY) = isKeepAlive(req)
+        msg.code = if (req.getHeader(HttpProtocol.CODE_HEADER) != null) {
+          req.getHeader(HttpProtocol.CODE_HEADER).toInt
+        } else {
+          200
+        }
         val nettyUriDecoder = new QueryStringDecoder(req.getUri)
         val parsedParameters = Map.empty[String, Any] ++ nettyUriDecoder.getParameters.asScala.mapValues(_.asScala)
         msg.parameters ++= collapseSingletonLists(parsedParameters)
@@ -52,10 +58,18 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
       }
       case res: HttpResponse => {
         msg.protocolName = "http"
-        msg.method = null
+        msg.method = if (res.getHeader(HttpProtocol.METHOD_HEADER) != null) {
+          res.getHeader(HttpProtocol.METHOD_HEADER)
+        } else {
+          ActionMethod.GET
+        }
         msg.serviceName = name
-        msg.path = null
-        msg.metadata(HttpProtocol.STATUS_CODE_KEY) = res.getStatus.getCode
+        msg.path = if (res.getHeader(HttpProtocol.PATH_HEADER) != null) {
+          res.getHeader(HttpProtocol.PATH_HEADER)
+        } else {
+          ""
+        }
+        msg.code = res.getStatus.getCode
         mapHeaders(res, msg)
         mapContent(res, msg)
       }
@@ -71,23 +85,18 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
         req.parameters.foreach(e => {
           query.append(e._1).append("=").append(e._2).append('&')
         })
-
-        val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1,
-          HttpMethod.valueOf(req.method),
-          req.serviceName + req.path + '?' + query)
-        setHeaders(request, req)
+        var uri = req.serviceName + req.path
+        if (query.length > 0) {
+          uri = uri + '?' + query
+        }
+        val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(req.method), uri)
+        setRequestHeaders(request, req)
         setContent(request, req)
         request
       }
       case res: OutMessage => {
-        val defaultHttpCode = res.error match {
-          case Some(ex) => 500
-          case _ => 200
-        }
-        val code = res.metadata.getOrElse(HttpProtocol.STATUS_CODE_KEY, defaultHttpCode).asInstanceOf[Int]
-        
-        val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(code))
-        setHeaders(response, res)
+        val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
+        setResponseHeaders(response, res)
         setContent(response, res)
         if(isKeepAlive(response) && res.attachments.getOrElse(HttpProtocol.KEEP_ALIVE_KEY, false).asInstanceOf[Boolean])  {
           res.attachments(Protocol.CLOSE_AFTER) = false
@@ -103,7 +112,7 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
 
   def createErrorMessage(inMessage: InMessage, exception: ListenerException) = {
     val errorMessage = new OutMessage()
-    errorMessage.metadata(HttpProtocol.STATUS_CODE_KEY) = 404
+    errorMessage.code = 404
     errorMessage
   }
 
@@ -125,6 +134,17 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
       case Some(codec) => message.messageData = codec.decode(bytes, contentEncoding)
       case None => log.warn("Missing codec for content-type {}", contentType)
     }
+  }
+
+  private def setRequestHeaders(httpMessage: HttpMessage, message: Message) {
+    setHeaders(httpMessage, message)
+    httpMessage.addHeader(HttpProtocol.CODE_HEADER, message.code)
+  }
+
+  private def setResponseHeaders(httpMessage: HttpMessage, message: Message) {
+    setHeaders(httpMessage, message)
+    httpMessage.addHeader(HttpProtocol.METHOD_HEADER, message.method)
+    httpMessage.addHeader(HttpProtocol.PATH_HEADER, message.path)
   }
 
   private def setHeaders(httpMessage: HttpMessage, message: Message) {
@@ -192,9 +212,13 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
 }
 
 object HttpProtocol {
-  val KEEP_ALIVE_KEY = "httpprotocol-keepalive"
-  val STATUS_CODE_KEY = "status-code"
   val DEFAULT_CONTENT_TYPE = "text/plain"
   val DEFAULT_ENCODING = "ISO-8859-1"
+  val KEEP_ALIVE_KEY = "httpprotocol-keepalive"
+  val STATUS_CODE_KEY = "status-code"
+
+  val CODE_HEADER = "nrv-code-header"
+  val METHOD_HEADER = "nrv-method-header"
+  val PATH_HEADER = "nrv-path-header"
 }
 

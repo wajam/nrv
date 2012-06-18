@@ -17,6 +17,7 @@ abstract class Message(params: Iterable[(String, Any)] = null,
   var serviceName = ""
   var method = ActionMethod.ANY
   var path = "/"
+  var code: Int = 200
   var rendezvousId = 0
   var error: Option[Exception] = None
 
@@ -67,6 +68,7 @@ abstract class Message(params: Iterable[(String, Any)] = null,
     other.serviceName = this.serviceName
     other.method = this.method
     other.path = this.path
+    other.code = this.code
     other.rendezvousId = this.rendezvousId
     other.function = this.function
     other.error = this.error

@@ -12,8 +12,9 @@ class InMessage(params: Iterable[(String, Any)] = null,
 
   def reply(params: Iterable[(String, Any)],
             meta: Iterable[(String, Any)] = null,
-            data: Any = null) {
-    this.reply(new OutMessage(params, meta, data))
+            data: Any = null,
+            code: Int = 200) {
+    this.reply(new OutMessage(params, meta, data, code))
   }
 
   def reply(message: OutMessage) {

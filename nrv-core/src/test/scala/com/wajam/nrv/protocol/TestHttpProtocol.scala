@@ -7,6 +7,7 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.cluster.{Node, Cluster}
 import org.jboss.netty.handler.codec.http._
 import com.wajam.nrv.service.ActionMethod
+import com.wajam.nrv.data.{OutMessage, InMessage}
 
 /**
  *
@@ -21,22 +22,6 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val localnode = new Node("localhost", Map("nrv" -> 19191, "test" -> 1909))
     val cluster = new Cluster(localnode, null)
     protocol = new HttpProtocol("test", localnode, cluster)
-  }
-
-  test("should map HTTP method to message method") {
-    val nettyRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "")
-
-    val msg = protocol.parse(nettyRequest)
-
-    msg.method should equal (ActionMethod("GET"))
-  }
-
-  test("should map HTTP path to message path") {
-    val nettyRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "path")
-
-    val msg = protocol.parse(nettyRequest)
-
-    msg.path should equal ("path")
   }
 
   test("should map HTTP query to message parameters") {
@@ -68,12 +53,110 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     msg.metadata("HEADER") should equal ("value")
   }
 
-  test("should map status code") {
+  test("should HTTP map status code to code") {
     val nettyresponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
-    nettyresponse.addHeader("header", "value")
 
     val msg = protocol.parse(nettyresponse)
 
-    msg.metadata(HttpProtocol.STATUS_CODE_KEY).asInstanceOf[Int] should equal (200)
+    msg.code should equal (200)
+  }
+
+  test("should map status code in special header to code") {
+    val nettyRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "")
+    nettyRequest.addHeader(HttpProtocol.CODE_HEADER, 200)
+
+    val msg = protocol.parse(nettyRequest)
+
+    msg.code should equal (200)
+  }
+
+  test ("should set code to HTTP request special header") {
+    val msg = new InMessage()
+    msg.method = "GET"
+    msg.code = 333
+
+    val req = protocol.generate(msg).asInstanceOf[HttpRequest]
+
+    assert(333 === req.getHeader(HttpProtocol.CODE_HEADER).toInt)
+  }
+
+  test ("should use message code as status code") {
+    val msg = new OutMessage()
+    msg.code = 500
+
+    val res = protocol.generate(msg).asInstanceOf[HttpResponse]
+
+    assert(500 === res.getStatus.getCode)
+  }
+
+  test("should map HTTP method to message method") {
+    val nettyRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "")
+
+    val msg = protocol.parse(nettyRequest)
+
+    msg.method should equal (ActionMethod("GET"))
+  }
+
+  test("should map special method HTTP header to message method") {
+    val nettyresponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+    nettyresponse.addHeader(HttpProtocol.METHOD_HEADER, ActionMethod.GET)
+
+    val msg = protocol.parse(nettyresponse)
+
+    msg.method should equal (ActionMethod.GET)
+  }
+
+  test ("should set method in special HTTP header on response") {
+    val msg = new OutMessage()
+    msg.method = ActionMethod.GET
+
+    val res = protocol.generate(msg).asInstanceOf[HttpResponse]
+
+    assert("GET" === res.getHeader(HttpProtocol.METHOD_HEADER))
+  }
+
+  test ("should set method in HTTP request") {
+    val msg = new InMessage()
+    msg.method = ActionMethod.GET
+
+    val req = protocol.generate(msg).asInstanceOf[HttpRequest]
+
+    assert("GET" === req.getMethod.toString)
+  }
+
+  test("should map HTTP path to message path") {
+    val nettyRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "path")
+
+    val msg = protocol.parse(nettyRequest)
+
+    msg.path should equal ("path")
+  }
+
+  test("should map special method HTTP header to message path") {
+    val nettyresponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+    nettyresponse.addHeader(HttpProtocol.PATH_HEADER, "path")
+
+    val msg = protocol.parse(nettyresponse)
+
+    msg.path should equal ("path")
+  }
+
+  test ("should set path in special HTTP header on response") {
+    val msg = new OutMessage()
+    msg.path = "path"
+
+    val res = protocol.generate(msg).asInstanceOf[HttpResponse]
+
+    assert("path" === res.getHeader(HttpProtocol.PATH_HEADER))
+  }
+
+  test ("should set path in HTTP request") {
+    val msg = new InMessage()
+    msg.method = ActionMethod.GET
+    msg.path = "path"
+
+    val req = protocol.generate(msg).asInstanceOf[HttpRequest]
+
+    assert("path" === req.getUri)
   }
 }
