@@ -9,7 +9,8 @@ import com.wajam.nrv.service.{ActionMethod, ActionURL, Endpoints}
  */
 abstract class Message(params: Iterable[(String, Any)] = null,
                        meta: Iterable[(String, Any)] = null,
-                       data: Any = null) extends Serializable {
+                       data: Any = null,
+                       var code: Int = 200) extends Serializable {
 
   import MessageType._
 
@@ -17,7 +18,6 @@ abstract class Message(params: Iterable[(String, Any)] = null,
   var serviceName = ""
   var method = ActionMethod.ANY
   var path = "/"
-  var code: Int = 200
   var rendezvousId = 0
   var error: Option[Exception] = None
 
