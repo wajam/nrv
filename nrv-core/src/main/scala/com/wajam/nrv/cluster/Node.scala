@@ -11,7 +11,7 @@ class Node(val host: InetAddress, val ports: Map[String, Int]) extends Serializa
 
   def this(host: String, ports: Map[String, Int]) = this(InetAddress.getByName(host), ports)
 
-  def uniqueKey = "%s_%d".format(InetAddress.getLocalHost.getHostName, ports("nrv"))
+  def uniqueKey = "%s_%d".format(InetAddress.getLocalHost.getHostName.replace(".", "-"), ports("nrv"))
 
   override def hashCode():Int = uniqueKey.hashCode
 

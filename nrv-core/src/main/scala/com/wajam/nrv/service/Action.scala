@@ -17,11 +17,12 @@ class Action(var path: ActionPath,
   extends ActionSupport with Instrumented with Logging {
 
   lazy val fullPath = this.protocol.name + "://" + this.service.name + this.path
+  lazy val metricsPath = this.protocol.name + "-" + this.service.name + this.path.replace("/", "-").replace(":", "+")
 
-  private lazy val msgInMeter = metrics.meter("message-in", "messages-in", this.fullPath.replace(":", "_"))
-  private lazy val msgOutMeter = metrics.meter("message-out", "messages-out", this.fullPath.replace(":", "_"))
-  private lazy val msgReplyTime = metrics.timer("reply-time", this.fullPath.replace(":", "_"))
-  private lazy val executeTime = metrics.timer("execute-time", this.fullPath.replace(":", "_"))
+  private lazy val msgInMeter = metrics.meter("message-in", "messages-in", metricsPath)
+  private lazy val msgOutMeter = metrics.meter("message-out", "messages-out", metricsPath)
+  private lazy val msgReplyTime = metrics.timer("reply-time", metricsPath)
+  private lazy val executeTime = metrics.timer("execute-time", metricsPath)
 
   def call(params: Iterable[(String, Any)],
            meta: Iterable[(String, Any)],

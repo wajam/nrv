@@ -30,7 +30,7 @@ abstract class NettyTransport(host: InetAddress,
   val connectionTimeoutInMs = 5000
   val connectionPool = new NettyConnectionPool(10000, 100)
   val allChannels = new DefaultChannelGroup
-  val timer = new HashedWheelTimer();
+  val timer = new HashedWheelTimer()
 
   lazy val server = new NettyServer(host, port, factory)
   lazy val client = new NettyClient(factory)
