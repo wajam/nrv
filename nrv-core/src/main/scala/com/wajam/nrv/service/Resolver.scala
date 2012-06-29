@@ -1,7 +1,8 @@
 package com.wajam.nrv.service
 
 import java.util.zip.CRC32
-import com.wajam.nrv.data.OutMessage
+import com.wajam.nrv.data.{Message, OutMessage}
+import util.Random
 
 /**
  * Resolves endpoints that handle a specific action (from a path) within a service.
@@ -14,7 +15,7 @@ class Resolver(val replica: Int = 1,
 
   override def handleOutgoing(action: Action, message: OutMessage) {
     if (message.destination.size == 0)
-      message.destination = this.resolve(action.service, tokenExtractor(action.path, message.path))
+      message.destination = this.resolve(action.service, extractToken(action, message))
   }
 
   def resolve(service: Service, token: Long): Endpoints = {
@@ -38,6 +39,10 @@ class Resolver(val replica: Int = 1,
 
     new Endpoints(endpointsList)
   }
+
+  def extractToken(action: Action, message: Message) = {
+    tokenExtractor.apply(action.path, message.path)
+  }
 }
 
 object Resolver {
@@ -53,17 +58,19 @@ object Resolver {
     d(param).toLong
   }
 
-  def SORTER_RING = null
+  def TOKEN_RANDOM() = (actionPath: ActionPath, path: String) => {
+    random.nextInt().toLong & 0xffffffffL
+  }
 
+  def SORTER_RING = null
   def CONSTRAINT_NONE = null
 
-
-  private val crcGenerator = new CRC32()
+  private val random = new Random()
 
   def hashData(data: String): Long = {
-    crcGenerator.reset()
-    crcGenerator.update(data.getBytes("UTF-8"))
-    crcGenerator.getValue
+    val generator = new CRC32()
+    generator.update(data.getBytes("UTF-8"))
+    generator.getValue
   }
 }
 

@@ -1,6 +1,6 @@
 package com.wajam.nrv.service
 
-import org.scalatest.FunSuite
+import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.mock.MockitoSugar
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
@@ -10,10 +10,18 @@ import org.mockito.Mockito._
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
 
 @RunWith(classOf[JUnitRunner])
-class TestSwitchboard extends FunSuite with MockitoSugar {
+class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
 
-  val switchboard = new Switchboard
-  switchboard.start()
+  var switchboard: Switchboard = null
+
+  before {
+    switchboard = new Switchboard
+    switchboard.start()
+  }
+
+  after {
+    switchboard.stop()
+  }
 
   test("in-out matching") {
     val sync = new Sync[OutMessage]
