@@ -13,9 +13,9 @@ import util.concurrent.atomic.AtomicBoolean
  * rendez-vous number.
  */
 class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler with Logging with Instrumented {
-  private val TIMEOUT_CHECK = 10
-  private val random = new util.Random
-  private val rendezvous = collection.mutable.HashMap[Int, Sending]()
+  private val TIMEOUT_CHECK_IN_MS = 100
+
+  private val rendezvous = collection.mutable.HashMap[Int, SentMessageContext]()
   private val timer = new util.Timer
   private var id = 0
   private val executors = Array.fill(numExecutor) {new SwitchboardExecutor}
@@ -36,7 +36,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
         def run() {
           checkTimeout()
         }
-      }, 0, TIMEOUT_CHECK)
+      }, 0, TIMEOUT_CHECK_IN_MS)
       for (e <- executors) {
         e.start()}
     }
@@ -57,7 +57,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
   override def handleOutgoing(action: Action, outMessage: OutMessage, next: Unit => Unit) {
     outMessage.function match {
       case MessageType.FUNCTION_CALL =>
-        this !(new Sending(action, outMessage), next)
+        this !(new SentMessageContext(action, outMessage), next)
 
       case _ =>
         next()
@@ -72,7 +72,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
     inMessage.matchingOutMessage match {
       // no matching out message, we need to find matching message
       case None =>
-        this ! (new Receiving(action, inMessage), next)
+        this ! (new ReceivedMessageContext(action, inMessage), next)
 
       case Some(outMessage) =>
         next()
@@ -100,53 +100,57 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
 
   def act() {
     while (true) {
-      receive {
-        case CheckTimeout =>
-          var toRemove = List[Int]()
+      try {
+        receive {
+          case CheckTimeout =>
+            var toRemove = List[Int]()
 
-          for ((id, rdv) <- rendezvous) {
-            val elaps = getTime() - rdv.outMessage.sentTime
-            if (elaps >= rdv.outMessage.timeoutTime) {
-              var exceptionMessage = new InMessage
-              exceptionMessage.matchingOutMessage = Some(rdv.outMessage)
-              exceptionMessage.error = Some(new TimeoutException("Didn't receive a reply within time"))
-              rdv.action.generateResponseMessage(rdv.outMessage, exceptionMessage)
-              rdv.action.callIncomingHandlers(exceptionMessage)
+            for ((id, rdv) <- rendezvous) {
+              val elaps = getTime() - rdv.outMessage.sentTime
+              if (elaps >= rdv.outMessage.timeoutTime) {
+                var exceptionMessage = new InMessage
+                exceptionMessage.matchingOutMessage = Some(rdv.outMessage)
+                exceptionMessage.error = Some(new TimeoutException("Didn't receive a reply within time"))
+                rdv.action.generateResponseMessage(rdv.outMessage, exceptionMessage)
+                rdv.action.callIncomingHandlers(exceptionMessage)
 
-              toRemove :+= id
+                toRemove :+= id
+              }
             }
-          }
 
-          for (id <- toRemove) {
-            rendezvous -= id
-          }
-
-          sender ! true
-
-        case (sending: Sending, next: (Unit => Unit)) =>
-          received.mark()
-
-          sending.outMessage.rendezvousId = nextId
-          rendezvous += (sending.outMessage.rendezvousId -> sending)
-
-          execute(sending.action, sending.outMessage, next)
-
-        case (receiving: Receiving, next: (Unit => Unit)) =>
-          // check for rendez-vous
-          if (receiving.inMessage.function == MessageType.FUNCTION_RESPONSE) {
-            val optRdv = rendezvous.remove(receiving.inMessage.rendezvousId)
-            optRdv match {
-              case Some(rdv) =>
-                receiving.inMessage.matchingOutMessage = Some(rdv.outMessage)
-
-              case None =>
-                warn("Received a incoming message with a rendez-vous, but with no matching outgoing message: {}",
-                  receiving.inMessage)
-
+            for (id <- toRemove) {
+              rendezvous -= id
             }
-          }
 
-          execute(receiving.action, receiving.inMessage, next)
+            sender ! true
+
+          case (sending: SentMessageContext, next: (Unit => Unit)) =>
+            received.mark()
+
+            sending.outMessage.rendezvousId = nextId
+            rendezvous += (sending.outMessage.rendezvousId -> sending)
+
+            execute(sending.action, sending.outMessage, next)
+
+          case (receiving: ReceivedMessageContext, next: (Unit => Unit)) =>
+            // check for rendez-vous
+            if (receiving.inMessage.function == MessageType.FUNCTION_RESPONSE) {
+              val optRdv = rendezvous.remove(receiving.inMessage.rendezvousId)
+              optRdv match {
+                case Some(rdv) =>
+                  receiving.inMessage.matchingOutMessage = Some(rdv.outMessage)
+
+                case None =>
+                  warn("Received a incoming message with a rendez-vous, but with no matching outgoing message: {}",
+                    receiving.inMessage)
+
+              }
+            }
+
+            execute(receiving.action, receiving.inMessage, next)
+        }
+      } catch {
+        case e: Exception => error("Catched an exception in switchboard! Should never happen!", e)
       }
     }
   }
@@ -155,13 +159,13 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
     val index = if (action != null && action.resolver != null) {
       action.resolver.extractToken(action, message)
     } else {
-      math.abs(random.nextInt())
+      message.rendezvousId
     }
     executors((index % numExecutor).toInt) ! next
   }
 
-  private class Sending(val action: Action, val outMessage: OutMessage)
-  private class Receiving(val action: Action, val inMessage: InMessage)
+  private class SentMessageContext(val action: Action, val outMessage: OutMessage)
+  private class ReceivedMessageContext(val action: Action, val inMessage: InMessage)
 
   private object CheckTimeout
 
