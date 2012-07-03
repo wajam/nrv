@@ -5,6 +5,7 @@ import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.ActionPath._
 import org.scalatest.FunSuite
+import com.wajam.nrv.data.{OutMessage, InMessage}
 
 @RunWith(classOf[JUnitRunner])
 class TestResolver extends FunSuite {
@@ -57,5 +58,22 @@ class TestResolver extends FunSuite {
     assert(endsPoints(0).token == 30, endsPoints(0).token)
     assert(endsPoints(1).token == 5, endsPoints(1).token)
     assert(endsPoints(2).token == 7, endsPoints(2).token)
+  }
+
+  test("resolver add token to message") {
+    val tokenValue = 42
+    val action = new Action("test", (message: InMessage) => {})
+    action.supportedBy(service)
+    val resolver = new Resolver(tokenExtractor = (actionPath: ActionPath, path: String) => tokenValue)
+
+    val outMessage = new OutMessage()
+    assert(outMessage.token != tokenValue)
+    resolver.handleOutgoing(action, outMessage)
+    assert(tokenValue === outMessage.token)
+
+    val inMessage = new InMessage()
+    assert(inMessage != tokenValue)
+    resolver.handleIncoming(action, inMessage)
+    assert(tokenValue === inMessage.token)
   }
 }
