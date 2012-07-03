@@ -46,6 +46,8 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
 
     assert(received != null)
     assert(received.parameters.getOrElse("test", "") == "someval")
+
+    cluster.stop()
   }
 
   test("test connection failure") {

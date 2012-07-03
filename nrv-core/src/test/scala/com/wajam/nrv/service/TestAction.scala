@@ -1,6 +1,6 @@
 package com.wajam.nrv.service
 
-import org.scalatest.FunSuite
+import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.protocol.DummyProtocol
 import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
@@ -9,13 +9,24 @@ import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
 import com.wajam.nrv.utils.Sync
 import com.wajam.nrv.{TimeoutException, UnavailableException, RemoteException, InvalidParameter}
 import com.wajam.nrv.data.{OutMessage, InMessage}
+import org.junit.Before
 
 @RunWith(classOf[JUnitRunner])
-class TestAction extends FunSuite {
-  val cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
-  cluster.registerProtocol(new DummyProtocol("dummy", cluster), default = true)
-  val service = cluster.registerService(new Service("test", resolver = Some(new Resolver(1))))
-  service.addMember(0, cluster.localNode)
+class TestAction extends FunSuite with BeforeAndAfter {
+
+  var cluster: Cluster = null
+  var service: Service = null
+
+  before {
+    cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
+    cluster.registerProtocol(new DummyProtocol("dummy", cluster), default = true)
+    service = cluster.registerService(new Service("test", resolver = Some(new Resolver(1))))
+    service.addMember(0, cluster.localNode)
+  }
+
+  after {
+    service.stop()
+  }
 
   test("call, reply") {
     var syncCall = new Sync[String]
@@ -45,11 +56,13 @@ class TestAction extends FunSuite {
 
     syncCall.thenWait(value => {
       assert(value == "call_value", "expected 'call_value', got '" + value + "'")
-    }, 100)
+    }, 1000)
 
     syncResponse.thenWait(value => {
       assert(value == "response_value", "expected 'response_key', got '" + value + "'")
-    }, 100)
+    }, 1000)
+
+    action.stop()
   }
 
   test("call error") {
@@ -58,6 +71,7 @@ class TestAction extends FunSuite {
     val action = service.registerAction(new Action("/test_error", req => {
       throw new InvalidParameter("TEST ERROR")
     }))
+    action.start()
 
     action.call(Map("call_key" -> "call_value"), onReply = syncResponse.done(_, _))
 
@@ -68,6 +82,7 @@ class TestAction extends FunSuite {
     }
 
     assert(except.getMessage == "TEST ERROR")
+    action.stop()
   }
 
   test("call timeout") {
@@ -76,6 +91,8 @@ class TestAction extends FunSuite {
     val action = service.registerAction(new Action("/test_timeout", req => {
       // no reply, make it timeout
     }))
+
+    action.start()
 
     val req = new OutMessage(Map("call_key" -> "call_value"), onReply = syncResponse.done(_, _))
     req.timeoutTime = 100
@@ -89,6 +106,7 @@ class TestAction extends FunSuite {
         fail("Shouldn't be call because an exception occured")
       }, 1000)
     }
+    action.stop()
   }
 
   test("parameter in the path should be in the message parameters") {
@@ -105,5 +123,7 @@ class TestAction extends FunSuite {
     action.callIncomingHandlers(message)
 
     assert("1".equals(syncCall.get(1000)))
+
+    action.stop()
   }
 }
