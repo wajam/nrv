@@ -156,12 +156,11 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
   }
 
   private def execute(action: Action, message: Message, next: (Unit => Unit)) {
-    val index = if (action != null && action.resolver != null) {
-      action.resolver.extractToken(action, message)
+    if (message.token >= 0) {
+      executors((message.token % numExecutor).toInt) ! next
     } else {
-      message.rendezvousId
+      throw new RuntimeException("Invald token for message: " + message)
     }
-    executors((index % numExecutor).toInt) ! next
   }
 
   private class SentMessageContext(val action: Action, val outMessage: OutMessage)

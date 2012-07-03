@@ -29,6 +29,7 @@ abstract class Message(params: Iterable[(String, Any)] = null,
 
   var source: Node = null
   var destination = Endpoints.empty // TODO: see @Action, should it be service members?
+  var token: Long = -1
 
   val parameters = new collection.mutable.HashMap[String, Any]
   val metadata = new collection.mutable.HashMap[String, Any]
@@ -75,6 +76,7 @@ abstract class Message(params: Iterable[(String, Any)] = null,
     other.source = this.source
     other.method = this.method
     other.destination = this.destination // TODO: should be cloned
+    other.token = this.token
   }
 }
 

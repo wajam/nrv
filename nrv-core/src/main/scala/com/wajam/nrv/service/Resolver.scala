@@ -1,7 +1,7 @@
 package com.wajam.nrv.service
 
 import java.util.zip.CRC32
-import com.wajam.nrv.data.{Message, OutMessage}
+import com.wajam.nrv.data.{InMessage, Message, OutMessage}
 import util.Random
 
 /**
@@ -14,8 +14,13 @@ class Resolver(val replica: Int = 1,
                val sorter: (ServiceMember, ServiceMember) => Boolean = Resolver.SORTER_RING) extends MessageHandler {
 
   override def handleOutgoing(action: Action, message: OutMessage) {
+    message.token = extractToken(action, message)
     if (message.destination.size == 0)
-      message.destination = this.resolve(action.service, extractToken(action, message))
+      message.destination = this.resolve(action.service, message.token)
+  }
+
+  override def handleIncoming(action: Action, message: InMessage) {
+    message.token = extractToken(action, message)
   }
 
   def resolve(service: Service, token: Long): Endpoints = {
@@ -40,8 +45,8 @@ class Resolver(val replica: Int = 1,
     new Endpoints(endpointsList)
   }
 
-  def extractToken(action: Action, message: Message) = {
-    tokenExtractor.apply(action.path, message.path)
+  private def extractToken(action: Action, message: Message) = {
+    tokenExtractor(action.path, message.path)
   }
 }
 

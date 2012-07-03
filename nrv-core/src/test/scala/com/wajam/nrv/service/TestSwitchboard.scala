@@ -29,10 +29,12 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
     val outMessage = new OutMessage()
     outMessage.sentTime = System.currentTimeMillis()
     outMessage.path = "/test"
+    outMessage.token = 0
     switchboard.handleOutgoing(null, outMessage, _ => {
       val inMessage = new InMessage()
       inMessage.function = MessageType.FUNCTION_RESPONSE
       inMessage.rendezvousId = outMessage.rendezvousId
+      inMessage.token = outMessage.token
       switchboard.handleIncoming(null, inMessage, Unit => {
         sync.done(inMessage.matchingOutMessage.get)
       })
