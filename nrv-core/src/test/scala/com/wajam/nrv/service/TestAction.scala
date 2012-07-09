@@ -81,7 +81,8 @@ class TestAction extends FunSuite with BeforeAndAfter {
       }, 1000)
     }
 
-    assert(except.getMessage == "TEST ERROR")
+    assert("Exception calling action implementation".equals(except.getMessage))
+    assert("TEST ERROR".equals(except.getCause.getMessage))
     action.stop()
   }
 
