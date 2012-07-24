@@ -110,12 +110,6 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
     }
   }
 
-  def createErrorMessage(inMessage: InMessage, exception: ListenerException) = {
-    val errorMessage = new OutMessage()
-    errorMessage.code = 404
-    errorMessage
-  }
-
   private def mapHeaders(httpMessage: HttpMessage, message: Message) {
     val headers: Map[String, Any] = httpMessage.getHeaderNames.asScala.map { key =>
       key.toUpperCase -> httpMessage.getHeaders(key).asScala
@@ -132,7 +126,9 @@ class HttpProtocol(name: String, localNode: Node, messageRouter: ProtocolMessage
     httpMessage.getContent.readBytes(bytes)
     contentTypeCodecs.get(contentType) match {
       case Some(codec) => message.messageData = codec.decode(bytes, contentEncoding)
-      case None => log.warn("Missing codec for content-type {}", contentType)
+      case None => {
+        throw new ParsingException("Unsupported content-type " + contentType, 406)
+      }
     }
   }
 

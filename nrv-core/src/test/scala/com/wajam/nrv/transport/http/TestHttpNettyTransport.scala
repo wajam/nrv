@@ -39,8 +39,6 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
 
     override def generate(message: Message): AnyRef = null
 
-    def createErrorMessage(inMessage: InMessage, exception: ListenerException): OutMessage = null
-
     override def start() {}
 
     override def stop() {}

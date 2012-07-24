@@ -11,7 +11,6 @@ import java.net.{InetAddress, InetSocketAddress}
 import org.jboss.netty.util.HashedWheelTimer
 import com.wajam.nrv.transport.Transport
 import org.jboss.netty.handler.timeout._
-import com.wajam.nrv.data.{Message, InMessage}
 
 /**
  * Transport implementation based on Netty.
@@ -182,17 +181,13 @@ abstract class NettyTransport(host: InetAddress,
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
       e.getChannel.close()
-      log.debug("Connection closed because of an exception: ", e.getCause)
+      log.warn("Connection closed because of an exception: ", e.getCause)
     }
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
       log.trace("Received a message on connection {}: {}", ctx.getChannel, e.getMessage)
       messageReceivedEvent()
-      val message = protocol.parse(e.getMessage)
-      val inMessage = new InMessage
-      message.copyTo(inMessage)
-      inMessage.attachments.put(Protocol.CONNECTION_KEY, Some(ctx.getChannel))
-      protocol.handleIncoming(null, inMessage)
+      protocol.transportMessageReceived(e.getMessage, Some(ctx.getChannel))
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {

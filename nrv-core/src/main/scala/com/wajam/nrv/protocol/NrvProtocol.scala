@@ -31,11 +31,4 @@ class NrvProtocol(localNode: Node, messageRouter: ProtocolMessageListener, codec
   def generate(message: Message): AnyRef = {
     codec.encode(message)
   }
-
-  def createErrorMessage(inMessage: InMessage, exception: ListenerException) = {
-    val errorMessage = new OutMessage()
-    inMessage.copyTo(errorMessage)
-    errorMessage.metadata("status") = "error"
-    errorMessage
-  }
 }
