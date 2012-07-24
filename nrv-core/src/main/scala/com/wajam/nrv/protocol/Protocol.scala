@@ -12,7 +12,7 @@ import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
  */
 abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener) extends MessageHandler with Logging {
 
-  val transport:Transport
+  val transport: Transport
 
   /**
    * Start the protocol and the transport layer below it.
@@ -30,14 +30,13 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
     } catch {
       case e: ListenerException => {
         transport.sendResponse(message.attachments(Protocol.CONNECTION_KEY).asInstanceOf[Option[AnyRef]].get,
-          generate(createErrorMessage(message, e)),
+          generate(createErrorMessage(message, e, 404)),
           false)
       }
     }
   }
 
   override def handleOutgoing(action: Action, message: OutMessage) {
-    val node = message.destination(0).node
     message.protocolName = this.name
     message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
       case Some(channel) => {
@@ -47,11 +46,15 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
           (result: Option[Throwable]) => {
             result match {
-              case Some(throwable) => {warn("Could not send the response because of an error.", throwable)}
-              case None =>}
+              case Some(throwable) => {
+                warn("Could not send the response because of an error.", throwable)
+              }
+              case None =>
+            }
           })
       }
       case None => {
+        val node = message.destination(0).node
         val request = generate(message)
         transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),
           request,
@@ -69,6 +72,25 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
               case None =>
             }
           })
+      }
+    }
+  }
+
+  def transportMessageReceived(message: AnyRef, connectionInfo: Option[AnyRef]) {
+    val inMessage = new InMessage
+    inMessage.attachments.put(Protocol.CONNECTION_KEY, connectionInfo)
+    try {
+      val parsedMessage = parse(message)
+      parsedMessage.copyTo(inMessage)
+      handleIncoming(null, inMessage)
+    } catch {
+      case pe: ParsingException => {
+        warn("Parsing exception: {}", pe)
+        handleOutgoing(null, createErrorMessage(inMessage, pe, pe.code))
+      }
+      case e: Exception => {
+        warn("Exception caught whileprocessing a message from transport: {}", e)
+        handleOutgoing(null, createErrorMessage(inMessage, e, 500))
       }
     }
   }
@@ -96,7 +118,13 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
    * @param exception The exception
    * @return The error message to send
    */
-  def createErrorMessage(inMessage: InMessage, exception: ListenerException): OutMessage
+  def createErrorMessage(inMessage: InMessage, exception: Exception, code: Int = 500): OutMessage = {
+    val errorMessage = new OutMessage()
+    inMessage.copyTo(errorMessage)
+    errorMessage.code = code
+    errorMessage.messageData = exception.getMessage
+    errorMessage
+  }
 }
 
 object Protocol {
@@ -118,4 +146,6 @@ trait ProtocolMessageListener {
   def messageReceived(inMessage: InMessage)
 }
 
-case class ListenerException(message:String) extends Exception(message)
+case class ParsingException(message: String, code: Int = 400) extends Exception(message)
+
+case class ListenerException(message: String) extends Exception(message)

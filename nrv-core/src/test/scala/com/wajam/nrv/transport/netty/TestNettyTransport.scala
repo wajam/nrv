@@ -65,8 +65,6 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
       null
     }
 
-    def createErrorMessage(inMessage: InMessage, exception: ListenerException): OutMessage = null
-
     override def start() {}
 
     override def stop() {}
