@@ -89,7 +89,7 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
         handleOutgoing(null, createErrorMessage(inMessage, pe, pe.code))
       }
       case e: Exception => {
-        warn("Exception caught whileprocessing a message from transport: {}", e)
+        warn("Exception caught while processing a message from transport: {}", e)
         handleOutgoing(null, createErrorMessage(inMessage, e, 500))
       }
     }
