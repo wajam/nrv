@@ -11,6 +11,7 @@ import java.net.{InetAddress, InetSocketAddress}
 import org.jboss.netty.util.HashedWheelTimer
 import com.wajam.nrv.transport.Transport
 import org.jboss.netty.handler.timeout._
+import java.nio.channels.ClosedChannelException
 
 /**
  * Transport implementation based on Netty.
@@ -180,8 +181,15 @@ abstract class NettyTransport(host: InetAddress,
     }
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-      e.getChannel.close()
-      log.warn("Connection closed because of an exception: ", e.getCause)
+      e.getCause match {
+        case closeException: ClosedChannelException => {
+          log.info("Close channel exception caught: ", closeException.toString)
+        }
+        case ex => {
+          log.warn("Closing connection because of an exception: ", ex)
+          e.getChannel.close()
+        }
+      }
     }
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
