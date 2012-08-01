@@ -11,6 +11,7 @@ import java.net.{InetAddress, InetSocketAddress}
 import org.jboss.netty.util.HashedWheelTimer
 import com.wajam.nrv.transport.Transport
 import org.jboss.netty.handler.timeout._
+import java.nio.channels.ClosedChannelException
 
 /**
  * Transport implementation based on Netty.
@@ -175,35 +176,42 @@ abstract class NettyTransport(host: InetAddress,
   class MessageHandler(isServer: Boolean) extends IdleStateAwareChannelHandler with Logging {
 
     override def channelIdle(ctx: ChannelHandlerContext , e: IdleStateEvent) {
-      log.debug("Connection was idle for {} sec and will be closed.", idleTimeoutIsSec)
-      e.getChannel.close();
+      log.trace("Connection was idle for {} sec and will be closed.", idleTimeoutIsSec)
+      e.getChannel.close()
     }
 
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
-      e.getChannel.close()
-      log.warn("Connection closed because of an exception: ", e.getCause)
+      e.getCause match {
+        case closeException: ClosedChannelException => {
+          log.info("Close channel exception caught: ", closeException.toString)
+        }
+        case ex => {
+          log.info("Closing connection because of an exception: ", ex)
+          e.getChannel.close()
+        }
+      }
     }
 
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
-      log.trace("Received a message on connection {}: {}", ctx.getChannel, e.getMessage)
+      log.debug("Received a message on connection {}: {}", ctx.getChannel, e.getMessage)
       messageReceivedEvent()
       protocol.transportMessageReceived(e.getMessage, Some(ctx.getChannel))
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-      log.debug("New connection opened: {}", ctx.getChannel)
+      log.trace("New connection opened: {}", ctx.getChannel)
       connectionEstablishedEvent(isServer)
       allChannels.add(ctx.getChannel)
     }
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-      log.debug("Connection closed: {}", ctx.getChannel)
+      log.trace("Connection closed: {}", ctx.getChannel)
       connectionClosedEvent(isServer)
       allChannels.remove(ctx.getChannel)
     }
 
     override def writeRequested(ctx: ChannelHandlerContext, e: MessageEvent) {
-      log.trace("Sending a message on connection {}: {}", ctx.getChannel, e.getMessage)
+      log.debug("Sending a message on connection {}: {}", ctx.getChannel, e.getMessage)
       super.writeRequested(ctx, e)
     }
 
