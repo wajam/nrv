@@ -2,7 +2,7 @@ package com.wajam.nrv.data
 
 import com.wajam.nrv.cluster.Node
 import scala.Option
-import com.wajam.nrv.service.{ActionMethod, ActionURL, Endpoints}
+import com.wajam.nrv.service.{ActionMethod, ActionURL}
 
 /**
  * Base used for outbound and inbound messages.
@@ -28,7 +28,7 @@ abstract class Message(params: Iterable[(String, Any)] = null,
   var function = FUNCTION_CALL
 
   var source: Node = null
-  var destination = Endpoints.empty // TODO: see @Action, should it be service members?
+  var destination:Endpoints = Endpoints.EMPTY
   var token: Long = -1
 
   val parameters = new collection.mutable.HashMap[String, Any]

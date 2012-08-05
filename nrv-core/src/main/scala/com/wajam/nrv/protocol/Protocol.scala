@@ -54,24 +54,27 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
           })
       }
       case None => {
-        val node = message.destination(0).node
-        val request = generate(message)
-        transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),
-          request,
-          message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
-          (result: Option[Throwable]) => {
-            result match {
-              case Some(throwable) => {
-                val response = new InMessage()
-                message.copyTo(response)
-                response.error = Some(new RuntimeException(throwable))
-                response.function = MessageType.FUNCTION_RESPONSE
+        for (physicalEndpoint <- message.destination.onlinePhysicalEndpoints) {
+          val node = physicalEndpoint.node
+          val request = generate(message)
 
-                handleIncoming(action, response, Unit => {})
+          transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),
+            request,
+            message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
+            (result: Option[Throwable]) => {
+              result match {
+                case Some(throwable) => {
+                  val response = new InMessage()
+                  message.copyTo(response)
+                  response.error = Some(new RuntimeException(throwable))
+                  response.function = MessageType.FUNCTION_RESPONSE
+
+                  handleIncoming(action, response, Unit => {})
+                }
+                case None =>
               }
-              case None =>
-            }
-          })
+            })
+        }
       }
     }
   }

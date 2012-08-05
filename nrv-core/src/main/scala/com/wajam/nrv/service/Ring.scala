@@ -6,11 +6,15 @@ import collection.immutable.TreeSet
  * Consistent hashing ring (http://en.wikipedia.org/wiki/Consistent_hashing)
  */
 trait Ring[T] {
-  var tree = TreeSet[RingNode]()
+  private var tree = TreeSet[RingNode]()
+
+  def size = this.tree.size
 
   def add(token: Long, elem: T) {
     this.tree += new RingNode(token, Some(elem))
   }
+
+  def nodes: Iterable[RingNode] = this.tree
 
   def resolve(token: Long, count: Int): Seq[RingNode] = {
     var result = this.tree.rangeImpl(Some(new RingNode(token, None)), None).toList.slice(0, count)
@@ -38,17 +42,18 @@ trait Ring[T] {
 
   def copyTo(that: Ring[T]) {
     for (node <- tree) {
-      that.add(node.token, node.value.get)
+      that.add(node.token, node.value)
     }
   }
 
-  def size = this.tree.size
-
-  class RingNode(var token: Long, var value: Option[T]) extends Comparable[RingNode] {
+  class RingNode(var token: Long, optValue: Option[T]) extends Comparable[RingNode] {
     def compareTo(o: RingNode) = (this.token - o.token).asInstanceOf[Int]
+
+    def value = optValue.get
 
     override def toString: String = "%s@%d".format(value, token)
   }
+
 }
 
 

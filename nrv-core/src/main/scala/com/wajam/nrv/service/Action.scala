@@ -3,9 +3,10 @@ package com.wajam.nrv.service
 import com.wajam.nrv.utils.Sync
 import com.yammer.metrics.scala.Instrumented
 import java.util.concurrent.TimeUnit
-import com.wajam.nrv.data.{Message, MessageType, OutMessage, InMessage}
 import scala.Unit
 import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
+import com.wajam.nrv.data._
+import scala.Some
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -75,7 +76,7 @@ class Action(var path: ActionPath,
 
     // resolve endpoints
     this.resolver.handleOutgoing(this, outMessage, _ => {
-      if (outMessage.destination.size == 0)
+      if (outMessage.destination.noOnlinePhysicalEndpoints)
         throw new UnavailableException
 
       this.switchboard.handleOutgoing(this, outMessage, _ => {
@@ -158,7 +159,7 @@ class Action(var path: ActionPath,
     extractParamsFromPath(intoMessage, fromMessage.path)
 
     // TODO: shouldn't be like that. Source may not be a member...
-    intoMessage.destination = new Endpoints(Seq(new ServiceMember(0, fromMessage.source)))
+    intoMessage.destination = new Endpoints(Seq(new LogicalEndpoint(0, Seq(new PhysicalEndpoint(0, fromMessage.source)))))
   }
 
   private def extractParamsFromPath(intoMessage: Message, path: String) {

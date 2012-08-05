@@ -9,12 +9,16 @@ import com.wajam.nrv.protocol.{ListenerException, ProtocolMessageListener, NrvPr
 /**
  * A cluster composed of services that are provided by nodes.
  */
-class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends ActionSupport
+class Cluster(val localNode: Node, val clusterManager: ClusterManager) extends ActionSupport
 with ProtocolMessageListener with Logging {
-  applySupport(cluster = Some(this), resolver = Some(new Resolver), switchboard = Some(new Switchboard))
-
   var services = Map[String, Service]()
   var protocols = Map[String, Protocol]()
+
+  // assign default resolver, switchboard, etc.
+  applySupport(cluster = Some(this), resolver = Some(new Resolver), switchboard = Some(new Switchboard))
+
+  // initialize manager
+  clusterManager.init(cluster)
 
   // register default protocol, which is nrv
   this.registerProtocol(new NrvProtocol(this.localNode, this), true)
@@ -69,8 +73,14 @@ with ProtocolMessageListener with Logging {
   }
 
   def stop() {
+    for ((name, service) <- this.services) {
+      service.stop()
+    }
+
     for ((name, protocol) <- this.protocols) {
       protocol.stop()
     }
+
+    clusterManager.stop()
   }
 }

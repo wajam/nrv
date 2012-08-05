@@ -159,7 +159,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
     if (message.token >= 0) {
       executors((message.token % numExecutor).toInt) ! next
     } else {
-      throw new RuntimeException("Invald token for message: " + message)
+      throw new RuntimeException("Invalid token for message: " + message)
     }
   }
 

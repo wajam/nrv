@@ -26,18 +26,18 @@ class TestStaticClusterManager extends FunSuite {
 
     val t1 = service.resolveMembers(50, 1)
     assert(t1.length == 1)
-    assert(t1(0).value.get == node1)
+    assert(t1(0).node == node1)
 
     val t2 = service.resolveMembers(2000, 1)
     assert(t2.length == 1)
-    assert(t2(0).value.get == node2)
+    assert(t2(0).node == node2)
 
     val t3 = service.resolveMembers(7000, 1)
     assert(t3.length == 1)
-    assert(t3(0).value.get == node3)
+    assert(t3(0).node == node3)
 
     val t4 = service.resolveMembers(10000, 1)
     assert(t4.length == 1)
-    assert(t4(0).value.get == node1)
+    assert(t4(0).node == node1)
   }
 }

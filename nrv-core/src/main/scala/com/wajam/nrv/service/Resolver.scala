@@ -1,8 +1,8 @@
 package com.wajam.nrv.service
 
 import java.util.zip.CRC32
-import com.wajam.nrv.data.{InMessage, Message, OutMessage}
 import util.Random
+import com.wajam.nrv.data._
 
 /**
  * Resolves endpoints that handle a specific action (from a path) within a service.
@@ -15,7 +15,7 @@ class Resolver(val replica: Int = 1,
 
   override def handleOutgoing(action: Action, message: OutMessage) {
     message.token = extractToken(action, message)
-    if (message.destination.size == 0)
+    if (message.destination.noOnlinePhysicalEndpoints)
       message.destination = this.resolve(action.service, message.token)
   }
 
@@ -24,25 +24,31 @@ class Resolver(val replica: Int = 1,
   }
 
   def resolve(service: Service, token: Long): Endpoints = {
-    var endpointsList = List[ServiceMember]()
+    var members = List[ServiceMember]()
+
     if (constraints == Resolver.CONSTRAINT_NONE) {
       val results = service.resolveMembers(token, replica)
       for (result <- results) {
-        endpointsList :+= new ServiceMember(result.token, result.value.get)
+        members :+= result
       }
     } else {
       service.resolveMembers(token, replica, member => {
-        val toAdd = constraints(endpointsList, member)
+        val toAdd = constraints(members, member)
         if (toAdd)
-          endpointsList :+= member
+          members :+= member
         toAdd
       })
     }
 
     if (sorter != null)
-      endpointsList = endpointsList.sortWith(sorter)
+      members = members.sortWith(sorter)
 
-    new Endpoints(endpointsList)
+    // TODO: implement multiple logical endpoint (multiple shard)
+    val logicalEndpoint = new LogicalEndpoint(token, members.map(member => {
+      new PhysicalEndpoint(member.token, member.node, selected = member.status == MemberStatus.UP)
+    }))
+
+    new Endpoints(Seq(logicalEndpoint))
   }
 
   private def extractToken(action: Action, message: Message) = {
@@ -68,6 +74,7 @@ object Resolver {
   }
 
   def SORTER_RING = null
+
   def CONSTRAINT_NONE = null
 
   private val random = new Random()

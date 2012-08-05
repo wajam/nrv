@@ -4,18 +4,32 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.ActionPath._
-import org.scalatest.FunSuite
+import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.data.{OutMessage, InMessage}
 
 @RunWith(classOf[JUnitRunner])
-class TestResolver extends FunSuite {
-  val service = new Service("test")
-  service.addMember(5, new Node("localhost", Map("nrv" -> 12345)))
-  service.addMember(7, new Node("localhost", Map("nrv" -> 12346)))
-  service.addMember(9, new Node("localhost", Map("nrv" -> 12346)))
-  service.addMember(12, new Node("localhost", Map("nrv" -> 12346)))
-  service.addMember(20, new Node("localhost", Map("nrv" -> 12346)))
-  service.addMember(30, new Node("localhost", Map("nrv" -> 12346)))
+class TestResolver extends FunSuite with BeforeAndAfter {
+  var service: Service = null
+  var memb5: ServiceMember = null
+  var memb7: ServiceMember = null
+  var memb9: ServiceMember = null
+  var memb12: ServiceMember = null
+  var memb20: ServiceMember = null
+  var memb30: ServiceMember = null
+
+  before {
+    service = new Service("test")
+    memb5 = service.addMember(5, new Node("localhost", Map("nrv" -> 12345)))
+    memb7 = service.addMember(7, new Node("localhost", Map("nrv" -> 12346)))
+    memb9 = service.addMember(9, new Node("localhost", Map("nrv" -> 12346)))
+    memb12 = service.addMember(12, new Node("localhost", Map("nrv" -> 12346)))
+    memb20 = service.addMember(20, new Node("localhost", Map("nrv" -> 12346)))
+    memb30 = service.addMember(30, new Node("localhost", Map("nrv" -> 12346)))
+
+    for (member <- service.members) {
+      member.status = MemberStatus.UP
+    }
+  }
 
   test("fullpath extractor should hash full path") {
     assert(Resolver.TOKEN_FULLPATH("/test/:par", "/test/parval") == Resolver.hashData("/test/parval"))
@@ -29,20 +43,41 @@ class TestResolver extends FunSuite {
     assert(Resolver.TOKEN_PARAM("token")("/test/:token", "/test/5345435") == 5345435)
   }
 
-  test("resolver with count should return count") {
+  test("resolver returns physical endpoints matching asked replica count") {
     val resolver = new Resolver(replica = 3)
-    val endsPoints = resolver.resolve(service, 19)
+    val endsPoints = resolver.resolve(service, 19).onlinePhysicalEndpoints
     assert(endsPoints.size == 3)
     assert(endsPoints(0).token == 20, endsPoints(0).token)
     assert(endsPoints(1).token == 30, endsPoints(1).token)
     assert(endsPoints(2).token == 5, endsPoints(2).token)
   }
 
+  test("resolver returns physical endpoints even if they are not UP, but mark DOWNs as disabled") {
+    memb30.status = MemberStatus.DOWN
+
+    val resolver = new Resolver(replica = 3)
+    val endsPoints = resolver.resolve(service, 19).logicalEndpoints(0).physicalEndpoints
+    assert(endsPoints.size == 3)
+    assert(endsPoints(0).token == 20, endsPoints(0).token)
+    assert(endsPoints(0).selected)
+    assert(endsPoints(1).token == 30, endsPoints(1).token)
+    assert(!endsPoints(1).selected)
+    assert(endsPoints(2).token == 5, endsPoints(2).token)
+    assert(endsPoints(2).selected)
+    assert(resolver.resolve(service, 19).onlinePhysicalEndpoints.size == 2)
+
+
+    memb20.status = MemberStatus.DOWN
+    memb30.status = MemberStatus.DOWN
+    memb5.status = MemberStatus.DOWN
+    assert(resolver.resolve(service, 19).onlinePhysicalEndpoints.size == 0)
+  }
+
   test("resolver with a sorter should use that sorter") {
     val resolver = new Resolver(replica = 3, sorter = (m1, m2) => {
       m1.token < m2.token
     })
-    val endsPoints = resolver.resolve(service, 19)
+    val endsPoints = resolver.resolve(service, 19).onlinePhysicalEndpoints
     assert(endsPoints.size == 3)
     assert(endsPoints(0).token == 5, endsPoints(0).token)
     assert(endsPoints(1).token == 20, endsPoints(1).token)
@@ -53,7 +88,7 @@ class TestResolver extends FunSuite {
     val resolver = new Resolver(replica = 3, constraints = (cur, m) => {
       m.token != 20
     })
-    val endsPoints = resolver.resolve(service, 19)
+    val endsPoints = resolver.resolve(service, 19).onlinePhysicalEndpoints
     assert(endsPoints.size == 3)
     assert(endsPoints(0).token == 30, endsPoints(0).token)
     assert(endsPoints(1).token == 5, endsPoints(1).token)
