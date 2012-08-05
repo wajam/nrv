@@ -20,6 +20,7 @@ import org.jboss.netty.handler.codec.oneone.{OneToOneDecoder, OneToOneEncoder}
 class HttpNettyTransport(host: InetAddress, port: Int, protocol: Protocol)
   extends NettyTransport(host, port, protocol) {
 
+  val MAX_SIZE = 1048576 //1M
   val factory = new HttpNettyTransportCodecFactory
 
   class HttpNettyTransportCodecFactory extends NettyTransportCodecFactory {
@@ -36,10 +37,12 @@ class HttpNettyTransport(host: InetAddress, port: Int, protocol: Protocol)
 
     def configureRequestDecoders(pipeline: ChannelPipeline) {
       pipeline.addLast("decoder", new HttpRequestDecoder())
+      pipeline.addLast("request-aggregator", new HttpChunkAggregator(MAX_SIZE))
     }
 
     def configureResponseDecoders(pipeline: ChannelPipeline) {
       pipeline.addLast("decoder", new HttpResponseDecoder())
+      pipeline.addLast("response-aggregator", new HttpChunkAggregator(MAX_SIZE))
       pipeline.addLast("metrics", new ClientHttpResponseMetricUpdater())
     }
   }
