@@ -29,7 +29,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
     rendezvous.size
   }
 
-  private val executorMailbox = metrics.gauge("executors-mailbox-size")
+  private val executorQueueSize = metrics.gauge("executors-queue-size")
   {executors.foldLeft[Int](0)((sum: Int, actor: SwitchboardExecutor) => {sum + actor.queueSize})}
 
   override def start(): Actor = {
