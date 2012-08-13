@@ -9,9 +9,10 @@ import com.wajam.nrv.protocol.{ListenerException, ProtocolMessageListener, NrvPr
 /**
  * A cluster composed of services that are provided by nodes.
  */
-class Cluster(var localNode: Node, var clusterManager: ClusterManager) extends ActionSupport
+class Cluster(var localNode: Node, var clusterManager: ClusterManager, switchboardNumExecutors: Int = 100) extends ActionSupport
 with ProtocolMessageListener with Logging {
-  applySupport(cluster = Some(this), resolver = Some(new Resolver), switchboard = Some(new Switchboard))
+  //TODO HERE
+  applySupport(cluster = Some(this), resolver = Some(new Resolver), switchboard = Some(new Switchboard(switchboardNumExecutors)))
 
   var services = Map[String, Service]()
   var protocols = Map[String, Protocol]()

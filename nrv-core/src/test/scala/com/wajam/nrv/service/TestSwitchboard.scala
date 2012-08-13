@@ -15,7 +15,7 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
   var switchboard: Switchboard = null
 
   before {
-    switchboard = new Switchboard
+    switchboard = new Switchboard(100)
     switchboard.start()
   }
 

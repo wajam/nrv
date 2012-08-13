@@ -12,7 +12,7 @@ import util.concurrent.atomic.AtomicBoolean
  * Handle incoming messages and find matching outgoing messages, having same
  * rendez-vous number.
  */
-class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler with Logging with Instrumented {
+class Switchboard(val numExecutor: Int) extends Actor with MessageHandler with Logging with Instrumented {
   private val TIMEOUT_CHECK_IN_MS = 100
 
   private val rendezvous = collection.mutable.HashMap[Int, SentMessageContext]()
