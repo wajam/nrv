@@ -11,7 +11,7 @@ import com.wajam.nrv.protocol.{ListenerException, ProtocolMessageListener, NrvPr
  */
 class Cluster(var localNode: Node,
               var clusterManager: ClusterManager,
-              switchboard: Switchboard = new Switchboard(),
+              switchboard: Switchboard = new Switchboard,
               resolver: Resolver = new Resolver)
   extends ActionSupport with ProtocolMessageListener with Logging {
   //TODO HERE
