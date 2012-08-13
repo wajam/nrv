@@ -14,7 +14,6 @@ class Cluster(var localNode: Node,
               switchboard: Switchboard = new Switchboard,
               resolver: Resolver = new Resolver)
   extends ActionSupport with ProtocolMessageListener with Logging {
-  //TODO HERE
   applySupport(cluster = Some(this), resolver = Some(resolver), switchboard = Some(switchboard))
 
   var services = Map[String, Service]()
