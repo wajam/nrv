@@ -5,8 +5,7 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.tracing.Annotation.Message
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
-import com.wajam.nrv.utils.CurrentTime
-import com.sun.scenario.animation.shared.CurrentTime
+import com.wajam.nrv.utils.ControlableCurrentTime
 
 /**
  *
@@ -142,13 +141,11 @@ class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
   test("Time should be recorded") {
 
     val message: Message = Message("I'm in a context!")
-    val curTime: Long = System.currentTimeMillis
     val mockTracer: Tracer = mock[Tracer]
     var context: Option[TraceContext] = None
-    var count = 0;
+    val duration = 1000
 
-    val trace = new Trace {
-      override def currentTime = curTime  // TODO: Advance time at the second call
+    val trace = new Trace with ControlableCurrentTime {
       override def currentTracer = mockTracer
     }
 
@@ -157,11 +154,12 @@ class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
       context = trace.currentContext
       trace.time(message.content) {
         called = true
+        trace.currentTime += duration
       }
     }
 
     called should be (true)
-    verify(mockTracer).record(Record(context.get, curTime, message, Some(0)))
+    verify(mockTracer).record(Record(context.get, trace.currentTime, message, Some(duration)))
   }
 
   test("Record should fail outside of a trace context") {
@@ -181,12 +179,10 @@ class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
   test("Record should record!") {
 
     val message: Message = Message("I'm in a context!")
-    val curTime: Long = System.currentTimeMillis
     val mockTracer: Tracer = mock[Tracer]
     var context: Option[TraceContext] = None
 
-    val trace = new Trace {
-      override def currentTime = curTime
+    val trace = new Trace with ControlableCurrentTime {
       override def currentTracer = mockTracer
     }
     trace.trace() {
@@ -194,6 +190,6 @@ class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
       trace.record(message)
     }
 
-    verify(mockTracer).record(Record(context.get, curTime, message))
+    verify(mockTracer).record(Record(context.get, trace.currentTime, message))
   }
 }

@@ -1,7 +1,7 @@
 package com.wajam.nrv.tracing
 
 import java.text.SimpleDateFormat
-import java.util.{UUID, Calendar}
+import java.util.UUID
 import java.net.InetSocketAddress
 import com.wajam.nrv.tracing.Annotation.Message
 import com.wajam.nrv.Logging
