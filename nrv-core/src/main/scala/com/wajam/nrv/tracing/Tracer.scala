@@ -23,21 +23,6 @@ object Annotation {
   case class ServerAddress(addr: InetSocketAddress) extends Annotation
 }
 
-case class Record(timestamp: Long, annotation: Annotation, duration: Option[Long] = None) {
-  override def toString = "%s, %s, %s".format(
-    new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(timestamp), annotation, duration)
-}
-
-trait Tracer {
-  def record(record: Record)
-}
-
-object LoggingTracer extends Tracer with Logging {
-  def record(record: Record) {
-    trace(record.toString)
-  }
-}
-
 final case class TraceContext(traceId: Option[String] = TraceContext.createId, parentSpanId: Option[String] = None, spanId: Option[String] = TraceContext.createId) {
 
   if (traceId.isEmpty)
@@ -50,7 +35,23 @@ final case class TraceContext(traceId: Option[String] = TraceContext.createId, p
 object TraceContext {
 
   def createId: Option[String] = {
-     Some(UUID.randomUUID().toString)
+    Some(UUID.randomUUID().toString)
+  }
+}
+
+case class Record(context: TraceContext, timestamp: Long, annotation: Annotation, duration: Option[Long] = None) {
+
+  override def toString = "[%s] %s, %s, %s".format(
+    context, new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(timestamp), annotation, duration)
+}
+
+  trait Tracer {
+  def record(record: Record)
+}
+
+object LoggingTracer extends Tracer with Logging {
+  def record(record: Record) {
+    trace(record.toString)
   }
 }
 
@@ -87,7 +88,7 @@ protected[tracing] trait Trace extends CurrentTime {
     if (currentContext.isEmpty)
       throw new IllegalStateException("No trace context")
 
-    currentTracer.record(Record(currentTime, annotation, None))
+    currentTracer.record(Record(currentContext.get, currentTime, annotation, None))
   }
 
   def time[S](message: String)(block: => S) {
@@ -100,7 +101,7 @@ protected[tracing] trait Trace extends CurrentTime {
       block
     } finally {
       val end = currentTime
-      currentTracer.record(Record(end, Message(message), Some(end-start)))
+      currentTracer.record(Record(currentContext.get, end, Message(message), Some(end-start)))
     }
   }
 

@@ -144,6 +144,7 @@ class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
     val message: Message = Message("I'm in a context!")
     val curTime: Long = System.currentTimeMillis
     val mockTracer: Tracer = mock[Tracer]
+    var context: Option[TraceContext] = None
     var count = 0;
 
     val trace = new Trace {
@@ -153,13 +154,14 @@ class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     var called = false
     trace.trace() {
+      context = trace.currentContext
       trace.time(message.content) {
         called = true
       }
     }
 
     called should be (true)
-    verify(mockTracer).record(Record(curTime, message, Some(0)))
+    verify(mockTracer).record(Record(context.get, curTime, message, Some(0)))
   }
 
   test("Record should fail outside of a trace context") {
@@ -181,15 +183,17 @@ class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
     val message: Message = Message("I'm in a context!")
     val curTime: Long = System.currentTimeMillis
     val mockTracer: Tracer = mock[Tracer]
+    var context: Option[TraceContext] = None
 
     val trace = new Trace {
       override def currentTime = curTime
       override def currentTracer = mockTracer
     }
     trace.trace() {
+      context = trace.currentContext
       trace.record(message)
     }
 
-    verify(mockTracer).record(Record(curTime, message))
+    verify(mockTracer).record(Record(context.get, curTime, message))
   }
 }
