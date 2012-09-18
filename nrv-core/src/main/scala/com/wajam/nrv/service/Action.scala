@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit
 import com.wajam.nrv.data.{Message, MessageType, OutMessage, InMessage}
 import scala.Unit
 import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
+import com.wajam.nrv.tracing.{Trace, TraceHeader}
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -78,9 +79,14 @@ class Action(var path: ActionPath,
       if (outMessage.destination.size == 0)
         throw new UnavailableException
 
+      // Store current trace context in message metadata for the trace filter
+      TraceHeader.setContext(outMessage.metadata, Trace.currentContext)
+
       this.switchboard.handleOutgoing(this, outMessage, _ => {
-        this.protocol.handleOutgoing(this, outMessage, _ => {
-          outMessage.sentTime = System.currentTimeMillis()
+        this.traceFilter.handleOutgoing(this, outMessage, _ => {
+          this.protocol.handleOutgoing(this, outMessage, _ => {
+            outMessage.sentTime = System.currentTimeMillis()
+          })
         })
       })
     })
@@ -94,55 +100,57 @@ class Action(var path: ActionPath,
   protected[nrv] def callIncomingHandlers(fromMessage: InMessage) {
     this.msgInMeter.mark()
 
-    this.resolver.handleIncoming(this, fromMessage, Unit => {
-      this.switchboard.handleIncoming(this, fromMessage, Unit => {
-        fromMessage.function match {
+    this.resolver.handleIncoming(this, fromMessage, _ => {
+      this.switchboard.handleIncoming(this, fromMessage, _ => {
+        this.traceFilter.handleIncoming(this, fromMessage, _ => {
+          fromMessage.function match {
 
-          // function call
-          case MessageType.FUNCTION_CALL =>
-            // set the reply callback for this message
-            fromMessage.replyCallback = (intoMessage => {
-              this.generateResponseMessage(fromMessage, intoMessage)
-              this.callOutgoingHandlers(intoMessage)
-            })
+            // function call
+            case MessageType.FUNCTION_CALL =>
+              // set the reply callback for this message
+              fromMessage.replyCallback = (intoMessage => {
+                this.generateResponseMessage(fromMessage, intoMessage)
+                this.callOutgoingHandlers(intoMessage)
+              })
 
-            // handle the message, catch errors to throw them back to the caller
-            try {
-              this.executeTime.time {
-                extractParamsFromPath(fromMessage, fromMessage.path)
-                this.implementation(fromMessage)
-              }
-            } catch {
-              case ex: Exception => {
-                warn("Got an exception calling implementation", ex)
-                val errMessage = new OutMessage
-                errMessage.error = Some(new RemoteException("Exception calling action implementation", ex))
-                try {
-                  fromMessage.reply(errMessage)
-                } catch {
-                  case e: Exception => log.error("Could not send error message back to caller.", e)
+              // handle the message, catch errors to throw them back to the caller
+              try {
+                this.executeTime.time {
+                  extractParamsFromPath(fromMessage, fromMessage.path)
+                  this.implementation(fromMessage)
                 }
-              }
-            }
-
-
-          // it's a reply to a message
-          case MessageType.FUNCTION_RESPONSE =>
-            fromMessage.matchingOutMessage match {
-              // it's a reply to a message
-              case Some(originalMessage) =>
-                this.msgReplyTime.update(System.currentTimeMillis() - originalMessage.sentTime, TimeUnit.MILLISECONDS)
-                try {
-                  originalMessage.handleReply(fromMessage)
-                } catch {
-                  case ex: Exception => {
-                    warn("Got an exception calling reply callback", ex)
+              } catch {
+                case ex: Exception => {
+                  warn("Got an exception calling implementation", ex)
+                  val errMessage = new OutMessage
+                  errMessage.error = Some(new RemoteException("Exception calling action implementation", ex))
+                  try {
+                    fromMessage.reply(errMessage)
+                  } catch {
+                    case e: Exception => log.error("Could not send error message back to caller.", e)
                   }
                 }
-              case None =>
-                warn("Response with no matching original message received")
-            }
-        }
+              }
+
+
+            // it's a reply to a message
+            case MessageType.FUNCTION_RESPONSE =>
+              fromMessage.matchingOutMessage match {
+                // it's a reply to a message
+                case Some(originalMessage) =>
+                  this.msgReplyTime.update(System.currentTimeMillis() - originalMessage.sentTime, TimeUnit.MILLISECONDS)
+                  try {
+                    originalMessage.handleReply(fromMessage)
+                  } catch {
+                    case ex: Exception => {
+                      warn("Got an exception calling reply callback", ex)
+                    }
+                  }
+                case None =>
+                  warn("Response with no matching original message received")
+              }
+          }
+        })
       })
     })
   }

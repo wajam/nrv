@@ -30,12 +30,15 @@ object TraceHeader extends Enumeration
     }
   }
 
-  def setContext(map: scala.collection.mutable.Map[String, Any], context: TraceContext) {
+  def setContext(map: scala.collection.mutable.Map[String, Any], context: Option[TraceContext]) {
     clearContext(map)
-    map(TraceId.toString) = context.traceId.get
-    map(SpanId.toString) = context.spanId.get
-    if (context.parentSpanId.isDefined)
-      map(ParentSpanId.toString) = context.parentSpanId
+
+    if (context.isDefined) {
+      map(TraceId.toString) = context.get.traceId.get
+      map(SpanId.toString) = context.get.spanId.get
+      if (context.get.parentSpanId.isDefined)
+        map(ParentSpanId.toString) = context.get.parentSpanId
+    }
   }
 
   def clearContext(map: scala.collection.mutable.Map[String, Any]) {
