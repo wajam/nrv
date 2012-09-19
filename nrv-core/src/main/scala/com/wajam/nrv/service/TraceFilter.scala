@@ -12,25 +12,25 @@ class TraceFilter extends MessageHandler with Logging {
     handleIncoming(action, message, _ => {})
   }
 
-  override def handleIncoming(action: Action, inMessage: InMessage, next: (Unit) => Unit) {
+  override def handleIncoming(action: Action, message: InMessage, next: (Unit) => Unit) {
 
-    inMessage.function match {
+    message.function match {
       // Message is an incomming request. Inherit from received trace context or create a new one
       case MessageType.FUNCTION_CALL =>
-        val traceContext = createChildContext(inMessage).getOrElse(TraceContext())
+        val traceContext = createChildContext(message).getOrElse(TraceContext())
 
-        TraceHeader.clearContext(inMessage.metadata) // Clear trace context metadata in request message
+        TraceHeader.clearContext(message.metadata) // Clear trace context metadata in request message
         Trace.trace(Some(traceContext)) {
           Trace.record(Annotation.ServerRecv())
-          Trace.record(toRpcName(inMessage))
+          Trace.record(toRpcName(message))
           next()
         }
 
       // Message is an incomming response. Use matching out message trace context
-      case MessageType.FUNCTION_RESPONSE if inMessage.matchingOutMessage.isDefined =>
-        val traceContext: Option[TraceContext] = TraceHeader.getContext(inMessage.matchingOutMessage.get.metadata)
+      case MessageType.FUNCTION_RESPONSE if message.matchingOutMessage.isDefined =>
+        val traceContext: Option[TraceContext] = TraceHeader.getContext(message.matchingOutMessage.get.metadata)
         Trace.trace(traceContext) {
-          Trace.record(Annotation.ClientRecv())
+          Trace.record(Annotation.ClientRecv(message.code))
           next()
         }
 
@@ -45,36 +45,36 @@ class TraceFilter extends MessageHandler with Logging {
     handleOutgoing(action, message, _ => {})
   }
 
-  override def handleOutgoing(action: Action, outMessage: OutMessage, next: (Unit) => Unit) {
-    outMessage.function match {
+  override def handleOutgoing(action: Action, message: OutMessage, next: (Unit) => Unit) {
+    message.function match {
       // Message is a call to an external service. Create a sub context (i.e. new span) for the call
       case MessageType.FUNCTION_CALL =>
-        val traceContext = createChildContext(outMessage).getOrElse({
+        val traceContext = createChildContext(message).getOrElse({
           // TODO: Fail with an exception once trace context propagation is integrated in all services
-          debug("Outgoing request has not trace context! {}", toRpcName(outMessage))
+          debug("Outgoing request has not trace context! {}", toRpcName(message))
           TraceContext()
-//          throw new IllegalStateException("Outgoing request has not trace context! " + toRpcName(outMessage))
+//          throw new IllegalStateException("Outgoing request has not trace context! " + toRpcName(message))
         })
 
         // Set trace context metadata in request message
-        TraceHeader.setContext(outMessage.metadata, Some(traceContext))
+        TraceHeader.setContext(message.metadata, Some(traceContext))
 
         Trace.trace(Some(traceContext)){
           Trace.record(Annotation.ClientSend())
-          Trace.record(toRpcName(outMessage))
+          Trace.record(toRpcName(message))
           next()
         }
 
       case _ =>
         // Message is a response for an external service. Already in an trace context.
-        TraceHeader.clearContext(outMessage.metadata) // Clear trace context metadata in response message
+        TraceHeader.clearContext(message.metadata) // Clear trace context metadata in response message
 
         // TODO: Fail with an exception once trace context propagation is integrated in all services
         if (Trace.currentContext.isEmpty)
-          debug("Outgoing response has not trace context! {}", toRpcName(outMessage))
-//          throw new IllegalStateException("Outgoing response has not trace context! " + toRpcName(outMessage))
+          debug("Outgoing response has not trace context! {}", toRpcName(message))
+//          throw new IllegalStateException("Outgoing response has not trace context! " + toRpcName(message))
         else
-          Trace.record(Annotation.ServerSend())
+          Trace.record(Annotation.ServerSend(message.code))
 
         next()
     }
