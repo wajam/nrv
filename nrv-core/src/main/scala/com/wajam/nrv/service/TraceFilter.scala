@@ -3,6 +3,8 @@ package com.wajam.nrv.service
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
 import com.wajam.nrv.tracing.{TraceContext, TraceHeader, Trace, Annotation}
 import com.wajam.nrv.Logging
+import java.net.{Inet4Address, NetworkInterface, InetAddress, InetSocketAddress}
+import com.wajam.nrv.cluster.Node
 
 /**
  *
@@ -23,6 +25,7 @@ class TraceFilter extends MessageHandler with Logging {
         Trace.trace(Some(traceContext)) {
           Trace.record(Annotation.ServerRecv())
           Trace.record(toRpcName(action, message))
+          Trace.record(Annotation.ClientAddress(toInetSocketAddress(action, message)))
           next()
         }
 
@@ -62,6 +65,7 @@ class TraceFilter extends MessageHandler with Logging {
         Trace.trace(Some(traceContext)){
           Trace.record(Annotation.ClientSend())
           Trace.record(toRpcName(action, message))
+          Trace.record(Annotation.ClientAddress(toInetSocketAddress(action, message)))
           next()
         }
 
@@ -85,6 +89,27 @@ class TraceFilter extends MessageHandler with Logging {
    */
   private def toRpcName(action: Action, message: Message): Annotation.RpcName = {
     Annotation.RpcName(message.serviceName, message.protocolName, message.method, action.path)
+  }
+
+  private def toInetSocketAddress(action: Action, message: Message): InetSocketAddress = {
+    val node = action.cluster.localNode
+    val addr = if (!node.host.isAnyLocalAddress)
+      node.host
+    else
+      localInetAddress.getOrElse(node.host)
+
+    new InetSocketAddress(addr, node.ports.getOrElse(message.serviceName, node.ports(message.protocolName)))
+  }
+
+  lazy val localInetAddress = firstInetAddress
+
+  private def firstInetAddress: Option[InetAddress] = {
+    import scala.collection.JavaConversions._
+    val nic = NetworkInterface.getNetworkInterfaces.find(nic => !nic.isLoopback && nic.isUp)
+    nic match {
+      case Some(n) => n.getInetAddresses.find(_.isInstanceOf[Inet4Address])
+      case _ => None
+    }
   }
 
   /**

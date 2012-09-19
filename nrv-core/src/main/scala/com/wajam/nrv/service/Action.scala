@@ -83,8 +83,8 @@ class Action(var path: ActionPath,
       TraceHeader.setContext(outMessage.metadata, Trace.currentContext)
 
       this.switchboard.handleOutgoing(this, outMessage, _ => {
-        this.traceFilter.handleOutgoing(this, outMessage, _ => {
-          this.protocol.handleOutgoing(this, outMessage, _ => {
+        this.protocol.handleOutgoing(this, outMessage, _ => {
+          this.traceFilter.handleOutgoing(this, outMessage, _ => {
             outMessage.sentTime = System.currentTimeMillis()
           })
         })
