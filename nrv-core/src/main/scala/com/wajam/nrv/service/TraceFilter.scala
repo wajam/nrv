@@ -51,7 +51,7 @@ class TraceFilter extends MessageHandler with Logging {
       case MessageType.FUNCTION_CALL =>
         val traceContext = createChildContext(outMessage).getOrElse({
           // TODO: Fail with an exception once trace context propagation is integrated in all services
-          warn("Outgoing request has not trace context! {}", toRpcName(outMessage))
+          debug("Outgoing request has not trace context! {}", toRpcName(outMessage))
           TraceContext()
 //          throw new IllegalStateException("Outgoing request has not trace context! " + toRpcName(outMessage))
         })
@@ -71,7 +71,7 @@ class TraceFilter extends MessageHandler with Logging {
 
         // TODO: Fail with an exception once trace context propagation is integrated in all services
         if (Trace.currentContext.isEmpty)
-          warn("Outgoing response has not trace context! {}", toRpcName(outMessage))
+          debug("Outgoing response has not trace context! {}", toRpcName(outMessage))
 //          throw new IllegalStateException("Outgoing response has not trace context! " + toRpcName(outMessage))
         else
           Trace.record(Annotation.ServerSend())
