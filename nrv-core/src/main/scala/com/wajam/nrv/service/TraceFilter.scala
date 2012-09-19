@@ -22,7 +22,7 @@ class TraceFilter extends MessageHandler with Logging {
         TraceHeader.clearContext(message.metadata) // Clear trace context metadata in request message
         Trace.trace(Some(traceContext)) {
           Trace.record(Annotation.ServerRecv())
-          Trace.record(toRpcName(message))
+          Trace.record(toRpcName(action, message))
           next()
         }
 
@@ -51,7 +51,7 @@ class TraceFilter extends MessageHandler with Logging {
       case MessageType.FUNCTION_CALL =>
         val traceContext = createChildContext(message).getOrElse({
           // TODO: Fail with an exception once trace context propagation is integrated in all services
-          debug("Outgoing request has not trace context! {}", toRpcName(message))
+          debug("Outgoing request has not trace context! {}", toRpcName(action, message))
           TraceContext()
 //          throw new IllegalStateException("Outgoing request has not trace context! " + toRpcName(message))
         })
@@ -61,7 +61,7 @@ class TraceFilter extends MessageHandler with Logging {
 
         Trace.trace(Some(traceContext)){
           Trace.record(Annotation.ClientSend())
-          Trace.record(toRpcName(message))
+          Trace.record(toRpcName(action, message))
           next()
         }
 
@@ -71,7 +71,7 @@ class TraceFilter extends MessageHandler with Logging {
 
         // TODO: Fail with an exception once trace context propagation is integrated in all services
         if (Trace.currentContext.isEmpty)
-          debug("Outgoing response has not trace context! {}", toRpcName(message))
+          debug("Outgoing response has not trace context! {}", toRpcName(action, message))
 //          throw new IllegalStateException("Outgoing response has not trace context! " + toRpcName(message))
         else
           Trace.record(Annotation.ServerSend(message.code))
@@ -83,8 +83,8 @@ class TraceFilter extends MessageHandler with Logging {
   /**
    * Creates a new RpcName annotation from the specified message information
    */
-  private def toRpcName(message: Message): Annotation.RpcName = {
-    Annotation.RpcName(message.serviceName, message.protocolName + " " + message.method + " " + message.path)
+  private def toRpcName(action: Action, message: Message): Annotation.RpcName = {
+    Annotation.RpcName(message.serviceName, message.protocolName, message.method, action.path)
   }
 
   /**

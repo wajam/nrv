@@ -16,7 +16,7 @@ object Annotation {
   case class ClientRecv(code: Int) extends Annotation
   case class ServerSend(code: Int) extends Annotation
   case class ServerRecv() extends Annotation
-  case class RpcName(service: String, path: String)  extends Annotation
+  case class RpcName(service: String, protocol: String, method: String, path: String)  extends Annotation
   case class Message(content: String) extends Annotation
   case class ClientAddress(addr: InetSocketAddress) extends Annotation
   case class ServerAddress(addr: InetSocketAddress) extends Annotation
