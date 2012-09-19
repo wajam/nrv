@@ -16,7 +16,7 @@ object Annotation {
   case class ClientRecv() extends Annotation
   case class ServerSend() extends Annotation
   case class ServerRecv() extends Annotation
-  case class Name(service: String, path: String)  extends Annotation
+  case class RpcName(service: String, path: String)  extends Annotation
   case class Message(content: String) extends Annotation
   case class ClientAddress(addr: InetSocketAddress) extends Annotation
   case class ServerAddress(addr: InetSocketAddress) extends Annotation
@@ -48,7 +48,7 @@ object Trace extends Trace {
 
 protected[tracing] trait Trace extends CurrentTime {
   private val localContext: DynamicVariable[Option[TraceContext]] = new DynamicVariable[Option[TraceContext]](None)
-  private val defaultTracer: Tracer = ConsoleTracer
+  private val defaultTracer: Tracer = NullTracer
 
   def currentContext: Option[TraceContext] = {
     localContext.value

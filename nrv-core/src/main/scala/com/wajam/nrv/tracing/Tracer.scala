@@ -11,7 +11,7 @@ trait Tracer {
 
 object LoggingTracer extends Tracer with Logging {
   def record(record: Record) {
-    trace(record.toString)
+    info(record.toString)
   }
 }
 
