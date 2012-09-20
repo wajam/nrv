@@ -2,6 +2,7 @@ package com.wajam.nrv.service
 
 import com.wajam.nrv.protocol.Protocol
 import com.wajam.nrv.cluster.Cluster
+import com.wajam.nrv.tracing.Tracer
 
 /**
  * Action support trait handles protocol/resolver/... switching
@@ -18,7 +19,7 @@ trait ActionSupport {
   protected var _resolver: Resolver = null
   protected var _protocol: Protocol = null
   protected var _switchboard: Switchboard = null
-  protected var _traceFilter: TraceFilter = null
+  protected var _tracer: Tracer = null
 
   def cluster: Cluster =
     if (_cluster != null)
@@ -60,21 +61,21 @@ trait ActionSupport {
     else
       throw new UninitializedError
 
-  def traceFilter: TraceFilter =
-    if (_traceFilter != null)
-      this._traceFilter
+  def tracer: Tracer =
+    if (_tracer != null)
+      this._tracer
     else if (this.supporter != null)
-      this.supporter.traceFilter
+      this.supporter.tracer
     else
       throw new UninitializedError
 
   def checkSupported() {
-    if (this.cluster == null || this.service == null || this.protocol == null || this.resolver == null || this.switchboard == null || this.traceFilter == null)
+    if (this.cluster == null || this.service == null || this.protocol == null || this.resolver == null || this.switchboard == null || this.tracer == null)
       throw new UninitializedError
   }
 
   def applySupport(cluster: Option[Cluster] = None, service: Option[Service] = None, resolver: Option[Resolver] = None, protocol: Option[Protocol] = None,
-                   switchboard: Option[Switchboard] = None, traceFilter: Option[TraceFilter] = None) {
+                   switchboard: Option[Switchboard] = None, tracer: Option[Tracer] = None) {
     if (cluster != None)
       this._cluster = cluster.get
 
@@ -90,8 +91,8 @@ trait ActionSupport {
     if (switchboard != None)
       this._switchboard = switchboard.get
 
-    if (traceFilter != None)
-      this._traceFilter = traceFilter.get
+    if (tracer != None)
+      this._tracer = tracer.get
   }
 
   def supportedBy(supporter: ActionSupport) {

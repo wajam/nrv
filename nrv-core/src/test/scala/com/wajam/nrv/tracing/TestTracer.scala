@@ -10,7 +10,14 @@ import com.wajam.nrv.utils.ControlableCurrentTime
 /**
  *
  */
-class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
+class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
+
+  val mockRecorder: TraceRecorder = mock[TraceRecorder]
+  val tracer = new Tracer(mockRecorder) with ControlableCurrentTime
+
+  before {
+    reset(mockRecorder)
+  }
 
   test("Should fail when context has no traceId") {
     val e = evaluating {
@@ -28,12 +35,12 @@ class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   test("Should create a new tracing context if no current context") {
 
-    Trace.currentContext should be (None)
+    tracer.currentContext should be (None)
 
     var called = false
-    Trace.trace() {
-      Trace.currentContext should not be (None)
-      val context: TraceContext = Trace.currentContext.get
+    tracer.trace() {
+      tracer.currentContext should not be (None)
+      val context: TraceContext = tracer.currentContext.get
       context.traceId should not be (None)
       context.spanId should not be (None)
       context.parentSpanId should be (None)
@@ -41,53 +48,53 @@ class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
     }
     called should be (true)
 
-    Trace.currentContext should be (None)
+    tracer.currentContext should be (None)
   }
 
   test("Should use specified tracing context if no current context") {
 
-    Trace.currentContext should be (None)
+    tracer.currentContext should be (None)
 
     val context = TraceContext(TraceContext.createId, TraceContext.createId, TraceContext.createId)
 
     var called = false
-    Trace.trace(Some(context)) {
-      Trace.currentContext should not be (None)
-      Trace.currentContext should be (Some(context))
+    tracer.trace(Some(context)) {
+      tracer.currentContext should not be (None)
+      tracer.currentContext should be (Some(context))
       context.parentSpanId should not be (None)
       called = true
     }
     called should be (true)
 
-    Trace.currentContext should be (None)
+    tracer.currentContext should be (None)
   }
 
   test("Should create a child tracing context if a current context already exist") {
 
-    Trace.currentContext should be (None)
+    tracer.currentContext should be (None)
 
     var called = false
     var childCalled = false
-    Trace.trace() {
+    tracer.trace() {
 
-      Trace.currentContext should not be (None)
+      tracer.currentContext should not be (None)
 
-      val parent = Trace.currentContext
-      Trace.trace() {
-        Trace.currentContext should not be (Some(parent))
+      val parent = tracer.currentContext
+      tracer.trace() {
+        tracer.currentContext should not be (Some(parent))
 
-        Trace.currentContext.get.traceId should be (parent.get.traceId)
-        Trace.currentContext.get.spanId should not be (None)
-        Trace.currentContext.get.spanId should not be (parent.get.spanId)
-        Trace.currentContext.get.parentSpanId should be (parent.get.spanId)
+        tracer.currentContext.get.traceId should be (parent.get.traceId)
+        tracer.currentContext.get.spanId should not be (None)
+        tracer.currentContext.get.spanId should not be (parent.get.spanId)
+        tracer.currentContext.get.parentSpanId should be (parent.get.spanId)
         childCalled = true
       }
 
-      Trace.currentContext should be (parent)
+      tracer.currentContext should be (parent)
       called = true
     }
 
-    Trace.currentContext should be (None)
+    tracer.currentContext should be (None)
     called should be (true)
     childCalled should be (true)
 
@@ -95,101 +102,82 @@ class TestTrace extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   test("Should fail if new trace context isn't a child of parent context") {
 
-    Trace.currentContext should be (None)
+    tracer.currentContext should be (None)
 
     var called = false
     var childCalled = false
-    Trace.trace() {
+    tracer.trace() {
 
-      Trace.currentContext should not be (None)
+      tracer.currentContext should not be (None)
 
-      val parent = Trace.currentContext
+      val parent = tracer.currentContext
       evaluating {
         val child = TraceContext()
-        Trace.trace(Some(child)) {
+        tracer.trace(Some(child)) {
           childCalled = true
         }
       } should produce [IllegalArgumentException]
 
-      Trace.currentContext should be (parent)
+      tracer.currentContext should be (parent)
       called = true
     }
 
-    Trace.currentContext should be (None)
+    tracer.currentContext should be (None)
     called should be (true)
     childCalled should be (false)
   }
 
   test("Time should fail outside of a trace context") {
 
-    val mockTracer: Tracer = mock[Tracer]
-    val trace = new Trace {
-      override def currentTracer = mockTracer
-    }
-
     var called = false
     evaluating {
-      trace.time("I'm outside a trace context!") {
+      tracer.time("I'm outside a trace context!") {
         called = true
       }
     } should produce [IllegalStateException]
     called should be (false)
 
-    verifyZeroInteractions(mockTracer)
+    verifyZeroInteractions(mockRecorder)
   }
 
   test("Time should be recorded") {
 
     val message: Message = Message("I'm in a context!")
-    val mockTracer: Tracer = mock[Tracer]
     var context: Option[TraceContext] = None
     val duration = 1000
 
-    val trace = new Trace with ControlableCurrentTime {
-      override def currentTracer = mockTracer
-    }
-
     var called = false
-    trace.trace() {
-      context = trace.currentContext
-      trace.time(message.content) {
+    tracer.trace() {
+      context = tracer.currentContext
+      tracer.time(message.content) {
         called = true
-        trace.currentTime += duration
+        tracer.currentTime += duration
       }
     }
 
     called should be (true)
-    verify(mockTracer).record(Record(context.get, trace.currentTime, message, Some(duration)))
+    verify(mockRecorder).record(Record(context.get, tracer.currentTime, message, Some(duration)))
   }
 
   test("Record should fail outside of a trace context") {
 
-    val mockTracer: Tracer = mock[Tracer]
-    val trace = new Trace {
-      override def currentTracer = mockTracer
-    }
-
     evaluating {
-      trace.record(Message("I'm outside a trace context!"))
+      tracer.record(Message("I'm outside a trace context!"))
     } should produce [IllegalStateException]
 
-    verifyZeroInteractions(mockTracer)
+    verifyZeroInteractions(mockRecorder)
   }
 
   test("Record should record!") {
 
     val message: Message = Message("I'm in a context!")
-    val mockTracer: Tracer = mock[Tracer]
     var context: Option[TraceContext] = None
 
-    val trace = new Trace with ControlableCurrentTime {
-      override def currentTracer = mockTracer
-    }
-    trace.trace() {
-      context = trace.currentContext
-      trace.record(message)
+    tracer.trace() {
+      context = tracer.currentContext
+      tracer.record(message)
     }
 
-    verify(mockTracer).record(Record(context.get, trace.currentTime, message))
+    verify(mockRecorder).record(Record(context.get, tracer.currentTime, message))
   }
 }

@@ -9,7 +9,7 @@ import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
 import com.wajam.nrv.utils.Sync
 import com.wajam.nrv.{TimeoutException, RemoteException, InvalidParameter}
 import com.wajam.nrv.data.{OutMessage, InMessage}
-import com.wajam.nrv.tracing.Trace
+import com.wajam.nrv.tracing.Tracer
 
 @RunWith(classOf[JUnitRunner])
 class TestAction extends FunSuite with BeforeAndAfter {
@@ -44,7 +44,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
     }))
     action.start()
 
-    Trace.trace() {
+    action.tracer.trace() {
       action.call(Map("call_key" -> "call_value", "param" -> "param_value"), onReply = (resp, err) => {
         resp.parameters.getOrElse("response_key", "") match {
           case s: String =>
@@ -74,7 +74,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
     }))
     action.start()
 
-    Trace.trace() {
+    action.tracer.trace() {
       action.call(Map("call_key" -> "call_value"), onReply = syncResponse.done(_, _))
     }
 
@@ -101,7 +101,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
     val req = new OutMessage(Map("call_key" -> "call_value"), onReply = syncResponse.done(_, _))
     req.timeoutTime = 100
 
-    Trace.trace() {
+    action.tracer.trace() {
       action.call(req)
     }
 

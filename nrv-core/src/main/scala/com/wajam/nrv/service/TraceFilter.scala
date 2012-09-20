@@ -1,7 +1,7 @@
 package com.wajam.nrv.service
 
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
-import com.wajam.nrv.tracing.{TraceContext, TraceHeader, Trace, Annotation}
+import com.wajam.nrv.tracing.{TraceContext, TraceHeader, Tracer, Annotation}
 import com.wajam.nrv.Logging
 import java.net.{Inet4Address, NetworkInterface, InetAddress, InetSocketAddress}
 import com.wajam.nrv.cluster.Node
@@ -9,7 +9,8 @@ import com.wajam.nrv.cluster.Node
 /**
  *
  */
-class TraceFilter extends MessageHandler with Logging {
+object TraceFilter extends MessageHandler with Logging {
+
   override def handleIncoming(action: Action, message: InMessage) {
     handleIncoming(action, message, _ => {})
   }
@@ -22,18 +23,18 @@ class TraceFilter extends MessageHandler with Logging {
         val traceContext = createChildContext(message).getOrElse(TraceContext())
 
         TraceHeader.clearContext(message.metadata) // Clear trace context metadata in request message
-        Trace.trace(Some(traceContext)) {
-          Trace.record(Annotation.ServerRecv())
-          Trace.record(toRpcName(action, message))
-          Trace.record(Annotation.ClientAddress(toInetSocketAddress(action, message)))
+        action.tracer.trace(Some(traceContext)) {
+          action.tracer.record(Annotation.ServerRecv())
+          action.tracer.record(toRpcName(action, message))
+          action.tracer.record(Annotation.ServerAddress(toInetSocketAddress(action, message)))
           next()
         }
 
       // Message is an incomming response. Use matching out message trace context
       case MessageType.FUNCTION_RESPONSE if message.matchingOutMessage.isDefined =>
         val traceContext: Option[TraceContext] = TraceHeader.getContext(message.matchingOutMessage.get.metadata)
-        Trace.trace(traceContext) {
-          Trace.record(Annotation.ClientRecv(message.code))
+        action.tracer.trace(traceContext) {
+          action.tracer.record(Annotation.ClientRecv(message.code))
           next()
         }
 
@@ -62,10 +63,10 @@ class TraceFilter extends MessageHandler with Logging {
         // Set trace context metadata in request message
         TraceHeader.setContext(message.metadata, Some(traceContext))
 
-        Trace.trace(Some(traceContext)){
-          Trace.record(Annotation.ClientSend())
-          Trace.record(toRpcName(action, message))
-          Trace.record(Annotation.ClientAddress(toInetSocketAddress(action, message)))
+        action.tracer.trace(Some(traceContext)){
+          action.tracer.record(Annotation.ClientSend())
+          action.tracer.record(toRpcName(action, message))
+          action.tracer.record(Annotation.ClientAddress(toInetSocketAddress(action, message)))
           next()
         }
 
@@ -74,11 +75,11 @@ class TraceFilter extends MessageHandler with Logging {
         TraceHeader.clearContext(message.metadata) // Clear trace context metadata in response message
 
         // TODO: Fail with an exception once trace context propagation is integrated in all services
-        if (Trace.currentContext.isEmpty)
+        if (action.tracer.currentContext.isEmpty)
           debug("Outgoing response has not trace context! {}", toRpcName(action, message))
 //          throw new IllegalStateException("Outgoing response has not trace context! " + toRpcName(message))
         else
-          Trace.record(Annotation.ServerSend(message.code))
+          action.tracer.record(Annotation.ServerSend(message.code))
 
         next()
     }
