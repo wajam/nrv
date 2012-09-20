@@ -13,7 +13,8 @@ import com.wajam.nrv.utils.ControlableCurrentTime
 class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   val mockRecorder: TraceRecorder = mock[TraceRecorder]
-  val tracer = new Tracer(mockRecorder) with ControlableCurrentTime
+  val time = new ControlableCurrentTime {}
+  val tracer = new Tracer(mockRecorder, time)
 
   before {
     reset(mockRecorder)
@@ -21,14 +22,14 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   test("Should fail when context has no traceId") {
     val e = evaluating {
-      TraceContext(None)
+      TraceContext(None, None, tracer.createId)
     } should produce [IllegalArgumentException]
     e.getMessage should include ("traceId")
   }
 
   test("Should fail when context has no spanId") {
     val e = evaluating {
-      TraceContext(TraceContext.createId, TraceContext.createId, None)
+      TraceContext(tracer.createId, tracer.createId, None)
     } should produce [IllegalArgumentException]
     e.getMessage should include ("spanId")
   }
@@ -55,7 +56,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     tracer.currentContext should be (None)
 
-    val context = TraceContext(TraceContext.createId, TraceContext.createId, TraceContext.createId)
+    val context = TraceContext(tracer.createId, tracer.createId, tracer.createId)
 
     var called = false
     tracer.trace(Some(context)) {
@@ -112,7 +113,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
       val parent = tracer.currentContext
       evaluating {
-        val child = TraceContext()
+        val child = TraceContext(tracer.createId, None, tracer.createId)
         tracer.trace(Some(child)) {
           childCalled = true
         }
@@ -151,12 +152,12 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
       context = tracer.currentContext
       tracer.time(message.content) {
         called = true
-        tracer.currentTime += duration
+        time.currentTime += duration
       }
     }
 
     called should be (true)
-    verify(mockRecorder).record(Record(context.get, tracer.currentTime, message, Some(duration)))
+    verify(mockRecorder).record(Record(context.get, time.currentTime, message, Some(duration)))
   }
 
   test("Record should fail outside of a trace context") {
@@ -178,6 +179,6 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
       tracer.record(message)
     }
 
-    verify(mockRecorder).record(Record(context.get, tracer.currentTime, message))
+    verify(mockRecorder).record(Record(context.get, time.currentTime, message))
   }
 }

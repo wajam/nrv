@@ -5,7 +5,7 @@ import java.util.UUID
 import java.net.InetSocketAddress
 import com.wajam.nrv.tracing.Annotation.Message
 import util.DynamicVariable
-import com.wajam.nrv.utils.CurrentTime
+import com.wajam.nrv.utils.{UuidStringGenerator, IdGenerator, CurrentTime}
 
 /**
  *
@@ -13,8 +13,8 @@ import com.wajam.nrv.utils.CurrentTime
 sealed trait Annotation
 object Annotation {
   case class ClientSend() extends Annotation
-  case class ClientRecv(code: Int) extends Annotation
-  case class ServerSend(code: Int) extends Annotation
+  case class ClientRecv(code: Option[Int]) extends Annotation
+  case class ServerSend(code: Option[Int]) extends Annotation
   case class ServerRecv() extends Annotation
   case class RpcName(service: String, protocol: String, method: String, path: String)  extends Annotation
   case class Message(content: String) extends Annotation
@@ -22,7 +22,7 @@ object Annotation {
   case class ServerAddress(addr: InetSocketAddress) extends Annotation
 }
 
-final case class TraceContext(traceId: Option[String] = TraceContext.createId, parentSpanId: Option[String] = None, spanId: Option[String] = TraceContext.createId) {
+final case class TraceContext(traceId: Option[String], parentSpanId: Option[String], spanId: Option[String]) {
 
   if (traceId.isEmpty)
     throw new IllegalArgumentException("traceId must be specified")
@@ -31,19 +31,15 @@ final case class TraceContext(traceId: Option[String] = TraceContext.createId, p
     throw new IllegalArgumentException("spanId must be specified")
 }
 
-object TraceContext {
-  def createId: Option[String] = {
-    Some(UUID.randomUUID().toString)
-  }
-}
-
 case class Record(context: TraceContext, timestamp: Long, annotation: Annotation, duration: Option[Long] = None) {
 
   override def toString = "<%s %s>, %s, %s".format(
     new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(timestamp), annotation, context, duration)
 }
 
-class Tracer(private val recorder: TraceRecorder = NullTraceRecorder) extends CurrentTime {
+class Tracer(private val recorder: TraceRecorder = NullTraceRecorder,
+             private val currentTimeGenerator: CurrentTime = new CurrentTime {},
+             private val idGenerator: IdGenerator[String] = new UuidStringGenerator) {
 
   private val localContext: DynamicVariable[Option[TraceContext]] = new DynamicVariable[Option[TraceContext]](None)
 
@@ -51,13 +47,21 @@ class Tracer(private val recorder: TraceRecorder = NullTraceRecorder) extends Cu
     localContext.value
   }
 
+  def createId: Option[String] = {
+    Some(idGenerator.createId)
+  }
+
+  def createChildContext(parent: TraceContext): TraceContext = {
+    TraceContext(parent.traceId, parent.spanId, createId)
+  }
+
   def trace[S](newContext: Option[TraceContext] = None)(block: => S): S = {
 
     val context: TraceContext = (currentContext, newContext) match {
       // No current or new context provided. Create a brand new one.
-      case (None, None) => TraceContext()
+      case (None, None) => TraceContext(createId, None, createId)
       // No new context provided, use current context.
-      case (cur, None) => TraceContext(currentContext.get.traceId, currentContext.get.spanId)
+      case (cur, None) => createChildContext(currentContext.get)
       // No current context but one is provided, use provided context.
       case (None, ctx) => ctx.get
       // Both current context and new context provided, validate that the new context is a direct child.
@@ -73,7 +77,7 @@ class Tracer(private val recorder: TraceRecorder = NullTraceRecorder) extends Cu
     if (currentContext.isEmpty)
       throw new IllegalStateException("No trace context")
 
-    recorder.record(Record(currentContext.get, currentTime, annotation, None))
+    recorder.record(Record(currentContext.get, currentTimeGenerator.currentTime, annotation, None))
   }
 
   def time[S](message: String)(block: => S) {
@@ -81,11 +85,11 @@ class Tracer(private val recorder: TraceRecorder = NullTraceRecorder) extends Cu
     if (currentContext.isEmpty)
       throw new IllegalStateException("No trace context")
 
-    val start = currentTime
+    val start = currentTimeGenerator.currentTime
     try {
       block
     } finally {
-      val end = currentTime
+      val end = currentTimeGenerator.currentTime
       recorder.record(Record(currentContext.get, end, Message(message), Some(end-start)))
     }
   }

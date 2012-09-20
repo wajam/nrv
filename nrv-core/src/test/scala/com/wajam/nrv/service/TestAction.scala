@@ -9,7 +9,6 @@ import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
 import com.wajam.nrv.utils.Sync
 import com.wajam.nrv.{TimeoutException, RemoteException, InvalidParameter}
 import com.wajam.nrv.data.{OutMessage, InMessage}
-import com.wajam.nrv.tracing.Tracer
 
 @RunWith(classOf[JUnitRunner])
 class TestAction extends FunSuite with BeforeAndAfter {
@@ -126,6 +125,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val message = new InMessage()
     message.path = "/test/1"
+    message.protocolName = "dummy"
 
     action.callIncomingHandlers(message)
 

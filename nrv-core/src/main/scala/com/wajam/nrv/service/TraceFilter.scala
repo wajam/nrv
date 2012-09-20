@@ -4,7 +4,6 @@ import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
 import com.wajam.nrv.tracing.{TraceContext, TraceHeader, Tracer, Annotation}
 import com.wajam.nrv.Logging
 import java.net.{Inet4Address, NetworkInterface, InetAddress, InetSocketAddress}
-import com.wajam.nrv.cluster.Node
 
 /**
  *
@@ -20,28 +19,28 @@ object TraceFilter extends MessageHandler with Logging {
     message.function match {
       // Message is an incomming request. Inherit from received trace context or create a new one
       case MessageType.FUNCTION_CALL =>
-        val traceContext = createChildContext(message).getOrElse(TraceContext())
-
-        TraceHeader.clearContext(message.metadata) // Clear trace context metadata in request message
-        action.tracer.trace(Some(traceContext)) {
+        val traceContext = createChildContext(message, action.tracer)
+        action.tracer.trace(traceContext) {
+          TraceHeader.clearContext(message.metadata) // Clear trace context metadata in request message
           action.tracer.record(Annotation.ServerRecv())
           action.tracer.record(toRpcName(action, message))
           action.tracer.record(Annotation.ServerAddress(toInetSocketAddress(action, message)))
           next()
         }
 
-      // Message is an incomming response. Use matching out message trace context
+      // Message is an incoming response to a known ourgoing request. Use matching outgoing request trace context
       case MessageType.FUNCTION_RESPONSE if message.matchingOutMessage.isDefined =>
         val traceContext: Option[TraceContext] = TraceHeader.getContext(message.matchingOutMessage.get.metadata)
         action.tracer.trace(traceContext) {
-          action.tracer.record(Annotation.ClientRecv(message.code))
+          action.tracer.record(Annotation.ClientRecv(Some(message.code)))
           next()
         }
 
-      // TODO: Handle this gracefully!
-//      case _ =>
-
-
+      // Message is an incoming response but it has no known outgoing request matching it. Response likely arrived
+      // after a timeout i.e. the reponse took too long to come back and we stoped waiting for it. Too bad!!!
+     case _ =>
+       // TODO: Verify if this is realy possible???
+       warn("Incomming response ignored since it has no matching outgoing request! {}", toRpcName(action, message))
     }
   }
 
@@ -53,17 +52,14 @@ object TraceFilter extends MessageHandler with Logging {
     message.function match {
       // Message is a call to an external service. Create a sub context (i.e. new span) for the call
       case MessageType.FUNCTION_CALL =>
-        val traceContext = createChildContext(message).getOrElse({
+        val traceContext = createChildContext(message, action.tracer)
+        if (traceContext.isEmpty) {
           // TODO: Fail with an exception once trace context propagation is integrated in all services
           debug("Outgoing request has not trace context! {}", toRpcName(action, message))
-          TraceContext()
-//          throw new IllegalStateException("Outgoing request has not trace context! " + toRpcName(message))
-        })
+        }
 
-        // Set trace context metadata in request message
-        TraceHeader.setContext(message.metadata, Some(traceContext))
-
-        action.tracer.trace(Some(traceContext)){
+        action.tracer.trace(traceContext){
+          TraceHeader.setContext(message.metadata, action.tracer.currentContext)  // Set trace context metadata in request message
           action.tracer.record(Annotation.ClientSend())
           action.tracer.record(toRpcName(action, message))
           action.tracer.record(Annotation.ClientAddress(toInetSocketAddress(action, message)))
@@ -74,13 +70,12 @@ object TraceFilter extends MessageHandler with Logging {
         // Message is a response for an external service. Already in an trace context.
         TraceHeader.clearContext(message.metadata) // Clear trace context metadata in response message
 
-        // TODO: Fail with an exception once trace context propagation is integrated in all services
-        if (action.tracer.currentContext.isEmpty)
+        if (action.tracer.currentContext.isEmpty) {
+          // TODO: Fail with an exception once trace context propagation is integrated in all services
           debug("Outgoing response has not trace context! {}", toRpcName(action, message))
-//          throw new IllegalStateException("Outgoing response has not trace context! " + toRpcName(message))
-        else
-          action.tracer.record(Annotation.ServerSend(message.code))
-
+        } else {
+          action.tracer.record(Annotation.ServerSend(Some(message.code)))
+        }
         next()
     }
   }
@@ -117,10 +112,10 @@ object TraceFilter extends MessageHandler with Logging {
    * Creates a new trace context using the specified message trace context as parent. Returns None if the message has
    * has no trace context
    */
-  private def createChildContext(message: Message): Option[TraceContext] = {
+  private def createChildContext(message: Message, tracer: Tracer): Option[TraceContext] = {
     val parentContext: Option[TraceContext] = TraceHeader.getContext(message.metadata)
     if (parentContext.isDefined) {
-      Some(TraceContext(parentContext.get.traceId, parentContext.get.spanId))
+      Some(tracer.createChildContext(parentContext.get))
     } else {
       None
     }
