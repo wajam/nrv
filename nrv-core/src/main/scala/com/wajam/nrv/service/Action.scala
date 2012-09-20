@@ -6,7 +6,6 @@ import java.util.concurrent.TimeUnit
 import com.wajam.nrv.data.{Message, MessageType, OutMessage, InMessage}
 import scala.Unit
 import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
-import com.wajam.nrv.tracing.{Tracer, TraceHeader}
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -80,7 +79,7 @@ class Action(var path: ActionPath,
         throw new UnavailableException
 
       // Store current trace context in message metadata for the trace filter
-      TraceHeader.setContext(outMessage.metadata, tracer.currentContext)
+      TraceFilter.setMessageContext(outMessage, tracer.currentContext)
 
       this.switchboard.handleOutgoing(this, outMessage, _ => {
         this.protocol.handleOutgoing(this, outMessage, _ => {

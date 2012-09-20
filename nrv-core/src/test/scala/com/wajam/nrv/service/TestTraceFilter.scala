@@ -102,7 +102,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     val expectedContext: TraceContext = TraceContext(Some("TID"), None, Some("SID"))
     val outMessage = new OutMessage()
-    TraceHeader.setContext(outMessage.metadata, Some(expectedContext))
+    TraceFilter.setMessageContext(outMessage, Some(expectedContext))
     message.matchingOutMessage = Some(outMessage)
 
     TraceFilter.handleIncoming(action, message)
