@@ -55,7 +55,7 @@ class Tracer(private val recorder: TraceRecorder = NullTraceRecorder,
     TraceContext(parent.traceId, parent.spanId, createId)
   }
 
-  def trace[S](newContext: Option[TraceContext] = None)(block: => S): S = {
+  def trace[S](newContext: Option[TraceContext] = None)(block: => S) {
 
     val context: TraceContext = (currentContext, newContext) match {
       // No current or new context provided. Create a brand new one.
