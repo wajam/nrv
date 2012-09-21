@@ -13,7 +13,8 @@ import com.wajam.nrv.tracing.Tracer
 class Cluster(var localNode: Node,
               var clusterManager: ClusterManager,
               switchboard: Switchboard = new Switchboard,
-              resolver: Resolver = new Resolver, tracer: Tracer = new Tracer)
+              resolver: Resolver = new Resolver,
+              tracer: Tracer = new Tracer)
   extends ActionSupport with ProtocolMessageListener with Logging {
   applySupport(cluster = Some(this), resolver = Some(resolver), switchboard = Some(switchboard), tracer = Some(tracer))
 

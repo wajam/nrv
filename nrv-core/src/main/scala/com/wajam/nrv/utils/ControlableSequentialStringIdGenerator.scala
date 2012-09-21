@@ -3,7 +3,7 @@ package com.wajam.nrv.utils
 /**
  *
  */
-class ControlableSequencialStringIdGenerator extends IdGenerator[String] {
+class ControlableSequentialStringIdGenerator extends IdGenerator[String] {
   var value: Int = 0
 
   def createId = {
