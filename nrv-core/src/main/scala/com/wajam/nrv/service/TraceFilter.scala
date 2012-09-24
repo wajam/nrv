@@ -38,9 +38,9 @@ object TraceFilter extends MessageHandler with Logging {
 
       // Message is an incoming response but it has no known outgoing request matching it. Response likely arrived
       // after a timeout i.e. the reponse took too long to come back and we stoped waiting for it. Too bad!!!
-     case _ =>
-       // TODO: Verify if this is realy possible???
-       warn("Incomming response ignored since it has no matching outgoing request! {}", toRpcName(action, message))
+      case _ =>
+        // TODO: Verify if this is realy possible???
+        warn("Incomming response ignored since it has no matching outgoing request! {}", toRpcName(action, message))
     }
   }
 
@@ -58,8 +58,8 @@ object TraceFilter extends MessageHandler with Logging {
           debug("Outgoing request has not trace context! {}", toRpcName(action, message))
         }
 
-        action.tracer.trace(traceContext){
-          setMessageContext(message, action.tracer.currentContext)  // Set trace context metadata in request message
+        action.tracer.trace(traceContext) {
+          setMessageContext(message, action.tracer.currentContext) // Set trace context metadata in request message
           action.tracer.record(Annotation.ClientSend())
           action.tracer.record(toRpcName(action, message))
           action.tracer.record(Annotation.ClientAddress(toInetSocketAddress(action, message)))
@@ -158,8 +158,7 @@ object TraceFilter extends MessageHandler with Logging {
   }
 }
 
-object TraceHeader extends Enumeration
-{
+object TraceHeader extends Enumeration {
   val TraceId = Value("X-TraceId")
   val SpanId = Value("X-SpanId")
   val ParentSpanId = Value("X-ParentSpanId")

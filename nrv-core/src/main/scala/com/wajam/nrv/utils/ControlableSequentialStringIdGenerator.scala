@@ -1,9 +1,11 @@
 package com.wajam.nrv.utils
 
 /**
- *
+ * Trait generating string identified from a sequence of number. Every call to #createId increment the sequence.
+ * The initial sequence start at zero.
+ * Not thread safe, The sequence can be reset. Used for testing.
  */
-class ControlableSequentialStringIdGenerator extends IdGenerator[String] {
+trait ControlableSequentialStringIdGenerator extends IdGenerator[String] {
   var value: Int = 0
 
   def createId = {
@@ -12,5 +14,7 @@ class ControlableSequentialStringIdGenerator extends IdGenerator[String] {
     id
   }
 
-  def reset() { value = 0 }
+  def reset() {
+    value = 0
+  }
 }

@@ -23,7 +23,7 @@ import java.net.{InetAddress, InetSocketAddress}
 class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   val mockRecorder: TraceRecorder = mock[TraceRecorder]
-  val idGenerator = new ControlableSequentialStringIdGenerator
+  val idGenerator = new ControlableSequentialStringIdGenerator {}
   val time = new ControlableCurrentTime {}
   val tracer = new Tracer(mockRecorder, time, idGenerator)
   var cluster: Cluster = null
