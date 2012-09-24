@@ -20,14 +20,14 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
     reset(mockRecorder)
   }
 
-  test("Should fail when context has no traceId") {
+  test("Should fail when TraceContext ctor has no traceId") {
     val e = evaluating {
       TraceContext(None, None, tracer.createId)
     } should produce [IllegalArgumentException]
     e.getMessage should include ("traceId")
   }
 
-  test("Should fail when context has no spanId") {
+  test("Should fail when TraceContext ctor has no spanId") {
     val e = evaluating {
       TraceContext(tracer.createId, tracer.createId, None)
     } should produce [IllegalArgumentException]
@@ -36,10 +36,12 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   test("Should create a new tracing context if no current context") {
 
+    Tracer.currentTracer should be (None)
     tracer.currentContext should be (None)
 
     var called = false
     tracer.trace() {
+      Tracer.currentTracer should be (Some(tracer))
       tracer.currentContext should not be (None)
       val context: TraceContext = tracer.currentContext.get
       context.traceId should not be (None)
@@ -49,17 +51,20 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
     }
     called should be (true)
 
+    Tracer.currentTracer should be (None)
     tracer.currentContext should be (None)
   }
 
   test("Should use specified tracing context if no current context") {
 
+    Tracer.currentTracer should be (None)
     tracer.currentContext should be (None)
 
     val context = TraceContext(tracer.createId, tracer.createId, tracer.createId)
 
     var called = false
     tracer.trace(Some(context)) {
+      Tracer.currentTracer should be (Some(tracer))
       tracer.currentContext should not be (None)
       tracer.currentContext should be (Some(context))
       context.parentSpanId should not be (None)
@@ -67,21 +72,25 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
     }
     called should be (true)
 
+    Tracer.currentTracer should be (None)
     tracer.currentContext should be (None)
   }
 
   test("Should create a child tracing context if a current context already exist") {
 
+    Tracer.currentTracer should be (None)
     tracer.currentContext should be (None)
 
     var called = false
     var childCalled = false
     tracer.trace() {
 
+      Tracer.currentTracer should be (Some(tracer))
       tracer.currentContext should not be (None)
 
       val parent = tracer.currentContext
       tracer.trace() {
+        Tracer.currentTracer should be (Some(tracer))
         tracer.currentContext should not be (Some(parent))
 
         tracer.currentContext.get.traceId should be (parent.get.traceId)
@@ -95,6 +104,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
       called = true
     }
 
+    Tracer.currentTracer should be (None)
     tracer.currentContext should be (None)
     called should be (true)
     childCalled should be (true)
@@ -103,19 +113,20 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   test("Should fail if new trace context isn't a child of parent context") {
 
+    Tracer.currentTracer should be (None)
     tracer.currentContext should be (None)
 
     var called = false
-    var childCalled = false
     tracer.trace() {
 
+      Tracer.currentTracer should be (Some(tracer))
       tracer.currentContext should not be (None)
 
       val parent = tracer.currentContext
       evaluating {
         val child = TraceContext(tracer.createId, None, tracer.createId)
         tracer.trace(Some(child)) {
-          childCalled = true
+          fail("Must not be called!")
         }
       } should produce [IllegalArgumentException]
 
@@ -123,25 +134,23 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
       called = true
     }
 
+    Tracer.currentTracer should be (None)
     tracer.currentContext should be (None)
     called should be (true)
-    childCalled should be (false)
   }
 
   test("Time should fail outside of a trace context") {
 
-    var called = false
     evaluating {
       tracer.time("I'm outside a trace context!") {
-        called = true
+        fail("Must not be called!")
       }
     } should produce [IllegalStateException]
-    called should be (false)
 
     verifyZeroInteractions(mockRecorder)
   }
 
-  test("Time should be recorded") {
+  test("Time should record message with expected duration") {
 
     val message: Message = Message("I'm in a context!")
     var context: Option[TraceContext] = None
@@ -150,9 +159,29 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
     var called = false
     tracer.trace() {
       context = tracer.currentContext
-      tracer.time(message.content) {
-        called = true
+      called = tracer.time(message.content) {
         time.currentTime += duration
+        true
+      }
+    }
+
+    called should be (true)
+    verify(mockRecorder).record(Record(context.get, time.currentTime, message, Some(duration)))
+  }
+
+  test("Time should record message with source") {
+
+    val source = getClass.getCanonicalName
+    val message: Message = Message("I'm in a context!", Some(source))
+    var context: Option[TraceContext] = None
+    val duration = 2500
+
+    var called = false
+    tracer.trace() {
+      context = tracer.currentContext
+      called = tracer.time(message.content, Some(source)) {
+        time.currentTime += duration
+        true
       }
     }
 
@@ -180,5 +209,18 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
     }
 
     verify(mockRecorder).record(Record(context.get, time.currentTime, message))
+  }
+
+  test("Record should record with duration") {
+
+    val message: Message = Message("I'm in a context!")
+    var context: Option[TraceContext] = None
+
+    tracer.trace() {
+      context = tracer.currentContext
+      tracer.record(message, Some(123456))
+    }
+
+    verify(mockRecorder).record(Record(context.get, time.currentTime, message, Some(123456)))
   }
 }
