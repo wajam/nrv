@@ -3,8 +3,8 @@ package com.wajam.nrv.utils
 import java.util.UUID
 
 /**
- *
+ * Trait generating string representation of UUID identifier.
  */
-class UuidStringGenerator extends IdGenerator[String] {
+trait UuidStringGenerator extends IdGenerator[String] {
   def createId = UUID.randomUUID().toString
 }
