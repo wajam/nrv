@@ -1,17 +1,18 @@
 package com.wajam.nrv.protocol
 
-import com.wajam.nrv.cluster.Cluster
 import com.wajam.nrv.Logging
 import com.wajam.nrv.service.{MessageHandler, Action}
 import java.net.InetSocketAddress
 import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
+import com.yammer.metrics.scala.Instrumented
 
 /**
  * Protocol used to send and receive messages to remote nodes over a network
  */
-abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener) extends MessageHandler with Logging {
+abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener) extends MessageHandler with Logging with Instrumented {
 
+  private val sendingMessageFailure = metrics.meter("sendMessageFailure", "failure")
   val transport: Transport
 
   /**
@@ -47,6 +48,7 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
           (result: Option[Throwable]) => {
             result match {
               case Some(throwable) => {
+                sendingMessageFailure.mark()
                 warn("Could not send the response because of an error: {}.", throwable.toString)
               }
               case None =>
