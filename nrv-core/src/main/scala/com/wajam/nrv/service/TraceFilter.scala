@@ -39,8 +39,7 @@ object TraceFilter extends MessageHandler with Logging {
       // Message is an incoming response but it has no known outgoing request matching it. Response likely arrived
       // after a timeout i.e. the reponse took too long to come back and we stoped waiting for it. Too bad!!!
       case _ =>
-        // TODO: Verify if this is realy possible???
-        warn("Incomming response ignored since it has no matching outgoing request! {}", toRpcName(action, message))
+        next()
     }
   }
 
