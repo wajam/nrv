@@ -19,7 +19,7 @@ object TraceFilter extends MessageHandler with Logging {
     message.function match {
       // Message is an incomming request. Inherit from received trace context or create a new one
       case MessageType.FUNCTION_CALL =>
-        val traceContext = createChildContext(message, action.tracer)
+        val traceContext = createSubcontextFromMessage(message, action.tracer)
         action.tracer.trace(traceContext) {
           clearContextInMessage(message) // Clear trace context metadata in request message
           action.tracer.record(Annotation.ServerRecv())
@@ -52,7 +52,7 @@ object TraceFilter extends MessageHandler with Logging {
     message.function match {
       // Message is a call to an external service. Create a sub context (i.e. new span) for the call
       case MessageType.FUNCTION_CALL =>
-        val traceContext = createChildContext(message, action.tracer)
+        val traceContext = createSubcontextFromMessage(message, action.tracer)
         if (traceContext.isEmpty) {
           // TODO: Fail with an exception once trace context propagation is integrated in all services
           debug("Outgoing request has not trace context! {}", toRpcName(action, message))
@@ -148,10 +148,10 @@ object TraceFilter extends MessageHandler with Logging {
    * Creates a new trace context using the specified message trace context as parent. Returns None if the message has
    * has no trace context
    */
-  private def createChildContext(message: Message, tracer: Tracer): Option[TraceContext] = {
+  private def createSubcontextFromMessage(message: Message, tracer: Tracer): Option[TraceContext] = {
     val parentContext: Option[TraceContext] = getContextFromMessage(message)
     if (parentContext.isDefined) {
-      Some(tracer.createChildContext(parentContext.get))
+      Some(tracer.createSubcontext(parentContext.get))
     } else {
       None
     }
