@@ -47,7 +47,7 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
           (result: Option[Throwable]) => {
             result match {
               case Some(throwable) => {
-                warn("Could not send the response because of an error.", throwable)
+                warn("Could not send the response because of an error: {}.", throwable.toString)
               }
               case None =>
             }
@@ -56,6 +56,7 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
       case None => {
         val node = message.destination(0).node
         val request = generate(message)
+        System.err.println(message)
         transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),
           request,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],

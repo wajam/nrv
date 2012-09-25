@@ -183,7 +183,7 @@ abstract class NettyTransport(host: InetAddress,
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
       e.getCause match {
         case closeException: ClosedChannelException => {
-          log.info("Close channel exception caught: ", closeException.toString)
+          log.info("Close channel exception caught: {}", closeException.toString)
         }
         case ex => {
           log.info("Closing connection because of an exception: ", ex)
