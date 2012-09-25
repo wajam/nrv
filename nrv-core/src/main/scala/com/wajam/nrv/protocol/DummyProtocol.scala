@@ -12,6 +12,7 @@ class DummyProtocol(name: String, messageRouter: ProtocolMessageListener) extend
   override val transport = null
 
   override def handleOutgoing(action: Action, message: OutMessage) {
+    message.protocolName = name
     val newMessage = new InMessage()
     message.copyTo(newMessage)
     messageRouter.messageReceived(newMessage)

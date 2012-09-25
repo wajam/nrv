@@ -5,6 +5,7 @@ import com.wajam.nrv.service.{Action, Service}
 import com.wajam.nrv.data.InMessage
 import com.wajam.nrv.Logging
 import com.wajam.nrv.protocol.{ListenerException, ProtocolMessageListener, NrvProtocol, Protocol}
+import com.wajam.nrv.tracing.Tracer
 
 /**
  * A cluster composed of services that are provided by nodes.
@@ -12,9 +13,10 @@ import com.wajam.nrv.protocol.{ListenerException, ProtocolMessageListener, NrvPr
 class Cluster(var localNode: Node,
               var clusterManager: ClusterManager,
               switchboard: Switchboard = new Switchboard,
-              resolver: Resolver = new Resolver)
+              resolver: Resolver = new Resolver,
+              tracer: Tracer = new Tracer)
   extends ActionSupport with ProtocolMessageListener with Logging {
-  applySupport(cluster = Some(this), resolver = Some(resolver), switchboard = Some(switchboard))
+  applySupport(cluster = Some(this), resolver = Some(resolver), switchboard = Some(switchboard), tracer = Some(tracer))
 
   var services = Map[String, Service]()
   var protocols = Map[String, Protocol]()
