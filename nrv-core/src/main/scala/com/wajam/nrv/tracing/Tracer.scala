@@ -11,13 +11,13 @@ import com.wajam.nrv.utils.{UuidStringGenerator, IdGenerator, CurrentTime}
  * Every outgoing and incomming messages are recorded in a new subcontext (i.e. new SpanId)
  * refering to its parent SpanIn. The root span has not parent SpanId.
  */
-final case class TraceContext(traceId: Option[String], parentSpanId: Option[String], spanId: Option[String]) {
+final case class TraceContext(traceId: String, spanId: String, parentSpanId: Option[String]) {
 
-  if (traceId.isEmpty)
-    throw new IllegalArgumentException("traceId must be specified")
+  if (traceId == null)
+    throw new NullPointerException("traceId")
 
-  if (spanId.isEmpty)
-    throw new IllegalArgumentException("spanId must be specified")
+  if (spanId == null)
+    throw new NullPointerException("spanId")
 }
 
 /**
@@ -72,7 +72,7 @@ class Tracer(private val recorder: TraceRecorder = NullTraceRecorder,
              private val currentTimeGenerator: CurrentTime = new CurrentTime {},
              private val idGenerator: IdGenerator[String] = new UuidStringGenerator {}) {
 
-  private val localContext: DynamicVariable[Option[TraceContext]] = new DynamicVariable[Option[TraceContext]](None)
+  private val localContext = new DynamicVariable[Option[TraceContext]](None)
 
   /**
    * Returns the current trace context. The current trace context is only valid if the caller is a block of code
@@ -83,18 +83,11 @@ class Tracer(private val recorder: TraceRecorder = NullTraceRecorder,
   }
 
   /**
-   * Create a new globally unique identified. Used to create a new TraceId or a new SpanId composing a trace context.
-   */
-  def createId: Option[String] = {
-    Some(idGenerator.createId)
-  }
-
-  /**
    * Creates a new subcontext object from the specified context. Just create a new context object and does not affect
    * the current context.
    */
-  def createChildContext(parent: TraceContext): TraceContext = {
-    TraceContext(parent.traceId, parent.spanId, createId)
+  def createSubcontext(parent: TraceContext): TraceContext = {
+    TraceContext(parent.traceId, idGenerator.createId, Some(parent.spanId))
   }
 
   /**
@@ -107,9 +100,9 @@ class Tracer(private val recorder: TraceRecorder = NullTraceRecorder,
 
     val context: TraceContext = (currentContext, newContext) match {
       // No current or new context provided. Create a brand new one.
-      case (None, None) => TraceContext(createId, None, createId)
-      // No new context provided, use current context.
-      case (cur, None) => createChildContext(currentContext.get)
+      case (None, None) => TraceContext(idGenerator.createId, idGenerator.createId, None)
+      // No new context provided, create a subcontext of current context.
+      case (cur, None) => createSubcontext(currentContext.get)
       // No current context but one is provided, use provided context.
       case (None, ctx) => ctx.get
       // Both current context and new context provided, validate that the new context is a direct child.

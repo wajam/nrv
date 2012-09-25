@@ -79,7 +79,7 @@ class Action(var path: ActionPath,
         throw new UnavailableException
 
       // Store current trace context in message metadata for the trace filter
-      TraceFilter.setMessageContext(outMessage, tracer.currentContext)
+      TraceFilter.setContextInMessage(outMessage, tracer.currentContext)
 
       this.switchboard.handleOutgoing(this, outMessage, _ => {
         this.protocol.handleOutgoing(this, outMessage, _ => {
