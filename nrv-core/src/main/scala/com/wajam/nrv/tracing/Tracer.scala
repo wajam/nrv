@@ -1,7 +1,6 @@
 package com.wajam.nrv.tracing
 
 import java.text.SimpleDateFormat
-import java.util.UUID
 import java.net.InetSocketAddress
 import com.wajam.nrv.tracing.Annotation.Message
 import util.DynamicVariable
@@ -47,12 +46,23 @@ object Annotation {
 
   case class RpcName(service: String, protocol: String, method: String, path: String) extends Annotation
 
-  case class Message(content: String) extends Annotation
+  case class Message(content: String, source: Option[String] = None) extends Annotation
 
   case class ClientAddress(addr: InetSocketAddress) extends Annotation
 
   case class ServerAddress(addr: InetSocketAddress) extends Annotation
 
+}
+
+/**
+ * Tracer companion object used to access current tracer.
+ */
+object Tracer {
+  private val localTracer: DynamicVariable[Option[Tracer]] = new DynamicVariable[Option[Tracer]](None)
+
+    def currentTracer: Option[Tracer] = {
+      localTracer.value
+  }
 }
 
 /**
@@ -99,26 +109,28 @@ class Tracer(private val recorder: TraceRecorder = NullTraceRecorder,
       case (cur, ctx) => validateContext(newContext.get)
     }
 
-    localContext.withValue(Some(context)) {
-      block
+    Tracer.localTracer.withValue(Some(this)) {
+      localContext.withValue(Some(context)) {
+        block
+      }
     }
   }
 
   /**
    * Record a new trace annotation. Must be called from a code block executed within a #trace method call.
    */
-  def record(annotation: Annotation) {
+  def record(annotation: Annotation, duration: Option[Long] = None) {
     if (currentContext.isEmpty)
       throw new IllegalStateException("No trace context")
 
-    recorder.record(Record(currentContext.get, currentTimeGenerator.currentTime, annotation, None))
+    recorder.record(Record(currentContext.get, currentTimeGenerator.currentTime, annotation, duration))
   }
 
   /**
    * Execute the specified code block and record a new message annotation with a the block execution duration once
    * executed. Must be called from a code block executed within a #trace method call.
    */
-  def time[S](message: String)(block: => S) {
+  def time[S](message: String, source: Option[String] = None)(block: => S): S = {
 
     if (currentContext.isEmpty)
       throw new IllegalStateException("No trace context")
@@ -128,7 +140,7 @@ class Tracer(private val recorder: TraceRecorder = NullTraceRecorder,
       block
     } finally {
       val end = currentTimeGenerator.currentTime
-      recorder.record(Record(currentContext.get, end, Message(message), Some(end - start)))
+      recorder.record(Record(currentContext.get, end, Message(message, source), Some(end - start)))
     }
   }
 
