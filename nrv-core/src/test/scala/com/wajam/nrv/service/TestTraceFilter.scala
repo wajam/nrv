@@ -71,7 +71,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     TraceFilter.handleIncoming(action, message)
 
-    val expectedContext: TraceContext = TraceContext(Some("0"), None, Some("1"))
+    val expectedContext: TraceContext = TraceContext("0", "1", None)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv()))
     verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
@@ -83,11 +83,11 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val message = new InMessage()
     message.protocolName = "dummy"
 
-    tracer.trace(Some(TraceContext(Some("TID"), None, Some("SID")))) {
+    tracer.trace(Some(TraceContext("TID", "SID", None))) {
       TraceFilter.handleIncoming(action, message)
     }
 
-    val expectedContext: TraceContext = TraceContext(Some("TID"), Some("SID"), Some("0"))
+    val expectedContext: TraceContext = TraceContext("TID", "0", Some("SID"))
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv()))
     verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
@@ -99,9 +99,9 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val message = new InMessage()
     message.function = MessageType.FUNCTION_RESPONSE
 
-    val expectedContext: TraceContext = TraceContext(Some("TID"), None, Some("SID"))
+    val expectedContext: TraceContext = TraceContext("TID", "SID", None)
     val outMessage = new OutMessage()
-    TraceFilter.setMessageContext(outMessage, Some(expectedContext))
+    TraceFilter.setContextInMessage(outMessage, Some(expectedContext))
     message.matchingOutMessage = Some(outMessage)
 
     TraceFilter.handleIncoming(action, message)
@@ -126,27 +126,28 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val message = new OutMessage()
     message.protocolName = "dummy"
 
-    tracer.trace(Some(TraceContext(Some("TID"), None, Some("SID")))) {
+    tracer.trace(Some(TraceContext("TID", "SID", None))) {
       TraceFilter.handleOutgoing(action, message)
     }
 
-    val expectedContext: TraceContext = TraceContext(Some("TID"), Some("SID"), Some("0"))
+    val expectedContext: TraceContext = TraceContext("TID", "0", Some("SID"))
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend()))
     verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress])))
   }
 
-  ignore("Should fail on outgoing request without current trace context") {
+  test("Should record outgoing request outside a trace context in a brand new context (percolation)") {
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new OutMessage()
     message.protocolName = "dummy"
 
-    evaluating {
-      TraceFilter.handleOutgoing(action, message)
-    } should produce [IllegalStateException]
+    TraceFilter.handleOutgoing(action, message)
 
-    verifyZeroInteractions(mockRecorder)
+    val expectedContext: TraceContext = TraceContext("0", "1", None)
+    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend()))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress])))
   }
 
   test("Should record outgoing response when inside a trace context (use current context)") {
@@ -157,7 +158,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     message.protocolName = "dummy"
     message.code = 201
 
-    val expectedContext: TraceContext = TraceContext(Some("TID"), None, Some("SID"))
+    val expectedContext: TraceContext = TraceContext("TID", "SID", None)
     tracer.trace(Some(expectedContext)) {
       TraceFilter.handleOutgoing(action, message)
     }
@@ -165,16 +166,14 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerSend(Some(201))))
   }
 
-  ignore("Should fail on outgoing response without current trace context") {
+  test("Should ignore outgoing response outside a trace context") {
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new OutMessage()
     message.function = MessageType.FUNCTION_RESPONSE
     message.protocolName = "dummy"
 
-    evaluating {
-      TraceFilter.handleOutgoing(action, message)
-    } should produce [IllegalStateException]
+    TraceFilter.handleOutgoing(action, message)
 
     verifyZeroInteractions(mockRecorder)
   }
@@ -187,7 +186,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     TraceFilter.handleIncoming(action, message)
 
-    val expectedContext: TraceContext = TraceContext(Some("0"), None, Some("1"))
+    val expectedContext: TraceContext = TraceContext("0", "1", None)
     val expectedAddress = ServerAddress(new InetSocketAddress("127.0.0.1", 12346))
 
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv])))

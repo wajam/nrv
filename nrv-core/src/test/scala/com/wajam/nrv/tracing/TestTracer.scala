@@ -5,7 +5,7 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.tracing.Annotation.Message
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
-import com.wajam.nrv.utils.ControlableCurrentTime
+import com.wajam.nrv.utils.{ControlableSequentialStringIdGenerator, ControlableCurrentTime}
 
 /**
  *
@@ -13,8 +13,9 @@ import com.wajam.nrv.utils.ControlableCurrentTime
 class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   val mockRecorder: TraceRecorder = mock[TraceRecorder]
+  val idGenerator = new ControlableSequentialStringIdGenerator {}
   val time = new ControlableCurrentTime {}
-  val tracer = new Tracer(mockRecorder, time)
+  val tracer = new Tracer(mockRecorder, time, idGenerator)
 
   before {
     reset(mockRecorder)
@@ -22,15 +23,15 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   test("Should fail when context has no traceId") {
     val e = evaluating {
-      TraceContext(None, None, tracer.createId)
-    } should produce [IllegalArgumentException]
+      TraceContext(null, "SID", None)
+    } should produce [NullPointerException]
     e.getMessage should include ("traceId")
   }
 
   test("Should fail when context has no spanId") {
     val e = evaluating {
-      TraceContext(tracer.createId, tracer.createId, None)
-    } should produce [IllegalArgumentException]
+      TraceContext("TID", null, Some("PID"))
+    } should produce [NullPointerException]
     e.getMessage should include ("spanId")
   }
 
@@ -56,7 +57,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     tracer.currentContext should be (None)
 
-    val context = TraceContext(tracer.createId, tracer.createId, tracer.createId)
+    val context = TraceContext("TID", "SID", Some("PID"))
 
     var called = false
     tracer.trace(Some(context)) {
@@ -87,7 +88,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
         tracer.currentContext.get.traceId should be (parent.get.traceId)
         tracer.currentContext.get.spanId should not be (None)
         tracer.currentContext.get.spanId should not be (parent.get.spanId)
-        tracer.currentContext.get.parentSpanId should be (parent.get.spanId)
+        tracer.currentContext.get.parentSpanId should be (Some(parent.get.spanId))
         childCalled = true
       }
 
@@ -113,7 +114,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
       val parent = tracer.currentContext
       evaluating {
-        val child = TraceContext(tracer.createId, None, tracer.createId)
+        val child = TraceContext(idGenerator.createId, idGenerator.createId, None)
         tracer.trace(Some(child)) {
           childCalled = true
         }

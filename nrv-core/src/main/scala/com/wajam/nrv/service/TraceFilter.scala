@@ -21,7 +21,7 @@ object TraceFilter extends MessageHandler with Logging {
       case MessageType.FUNCTION_CALL =>
         val traceContext = createChildContext(message, action.tracer)
         action.tracer.trace(traceContext) {
-          clearMessageContext(message) // Clear trace context metadata in request message
+          clearContextInMessage(message) // Clear trace context metadata in request message
           action.tracer.record(Annotation.ServerRecv())
           action.tracer.record(toRpcName(action, message))
           action.tracer.record(Annotation.ServerAddress(toInetSocketAddress(action, message)))
@@ -30,7 +30,7 @@ object TraceFilter extends MessageHandler with Logging {
 
       // Message is an incoming response to a known ourgoing request. Use matching outgoing request trace context
       case MessageType.FUNCTION_RESPONSE if message.matchingOutMessage.isDefined =>
-        val traceContext: Option[TraceContext] = getMessageContext(message.matchingOutMessage.get)
+        val traceContext: Option[TraceContext] = getContextFromMessage(message.matchingOutMessage.get)
         action.tracer.trace(traceContext) {
           action.tracer.record(Annotation.ClientRecv(Some(message.code)))
           next()
@@ -59,7 +59,7 @@ object TraceFilter extends MessageHandler with Logging {
         }
 
         action.tracer.trace(traceContext) {
-          setMessageContext(message, action.tracer.currentContext) // Set trace context metadata in request message
+          setContextInMessage(message, action.tracer.currentContext) // Set trace context metadata in request message
           action.tracer.record(Annotation.ClientSend())
           action.tracer.record(toRpcName(action, message))
           action.tracer.record(Annotation.ClientAddress(toInetSocketAddress(action, message)))
@@ -68,7 +68,7 @@ object TraceFilter extends MessageHandler with Logging {
 
       case _ =>
         // Message is a response for an external service. Already in an trace context.
-        clearMessageContext(message) // Clear trace context metadata in response message
+        clearContextInMessage(message) // Clear trace context metadata in response message
 
         if (action.tracer.currentContext.isEmpty) {
           // TODO: Fail with an exception once trace context propagation is integrated in all services
@@ -80,13 +80,13 @@ object TraceFilter extends MessageHandler with Logging {
     }
   }
 
-  def getMessageContext(message: Message): Option[TraceContext] = {
+  def getContextFromMessage(message: Message): Option[TraceContext] = {
     val traceId: Option[String] = getMetadataValue(message, TraceHeader.TraceId.toString)
     val spanId: Option[String] = getMetadataValue(message, TraceHeader.SpanId.toString)
     val parentSpanId: Option[String] = getMetadataValue(message, TraceHeader.ParentSpanId.toString)
 
     if (traceId.isDefined && spanId.isDefined)
-      Some(TraceContext(traceId, parentSpanId, spanId))
+      Some(TraceContext(traceId.get, spanId.get, parentSpanId))
     else
       None
   }
@@ -101,18 +101,18 @@ object TraceFilter extends MessageHandler with Logging {
     }
   }
 
-  def setMessageContext(message: Message, context: Option[TraceContext]) {
-    clearMessageContext(message)
+  def setContextInMessage(message: Message, context: Option[TraceContext]) {
+    clearContextInMessage(message)
 
     if (context.isDefined) {
-      message.metadata(TraceHeader.TraceId.toString) = context.get.traceId.get
-      message.metadata(TraceHeader.SpanId.toString) = context.get.spanId.get
+      message.metadata(TraceHeader.TraceId.toString) = context.get.traceId
+      message.metadata(TraceHeader.SpanId.toString) = context.get.spanId
       if (context.get.parentSpanId.isDefined)
         message.metadata(TraceHeader.ParentSpanId.toString) = context.get.parentSpanId
     }
   }
 
-  def clearMessageContext(message: Message) {
+  def clearContextInMessage(message: Message) {
     TraceHeader.values.foreach(message.metadata -= _.toString)
   }
 
@@ -149,7 +149,7 @@ object TraceFilter extends MessageHandler with Logging {
    * has no trace context
    */
   private def createChildContext(message: Message, tracer: Tracer): Option[TraceContext] = {
-    val parentContext: Option[TraceContext] = getMessageContext(message)
+    val parentContext: Option[TraceContext] = getContextFromMessage(message)
     if (parentContext.isDefined) {
       Some(tracer.createChildContext(parentContext.get))
     } else {
