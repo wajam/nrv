@@ -29,6 +29,8 @@ case class Record(context: TraceContext, timestamp: Long, annotation: Annotation
     new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(timestamp), annotation, context, duration)
 }
 
+case class RpcName(service: String, protocol: String, method: String, path: String)
+
 /**
  * Basic trace event information without a context.
  */
@@ -36,15 +38,13 @@ sealed trait Annotation
 
 object Annotation {
 
-  case class ClientSend() extends Annotation
+  case class ClientSend(name: RpcName) extends Annotation
 
   case class ClientRecv(code: Option[Int]) extends Annotation
 
   case class ServerSend(code: Option[Int]) extends Annotation
 
-  case class ServerRecv() extends Annotation
-
-  case class RpcName(service: String, protocol: String, method: String, path: String) extends Annotation
+  case class ServerRecv(name: RpcName) extends Annotation
 
   case class Message(content: String, source: Option[String] = None) extends Annotation
 

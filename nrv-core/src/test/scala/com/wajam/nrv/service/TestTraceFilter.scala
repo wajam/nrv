@@ -68,13 +68,14 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new InMessage()
     message.protocolName = "dummy"
+    message.serviceName = service.name
 
     var called = false
     TraceFilter.handleIncoming(action, message, _ => called = true)
 
-    val expectedContext: TraceContext = TraceContext("0", "1", None)
-    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv()))
-    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
+    val expectedContext = TraceContext("0", "1", None)
+    val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
+    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv(expectedRpcName)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
   }
 
@@ -83,16 +84,18 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new InMessage()
     message.protocolName = "dummy"
+    message.serviceName = service.name
 
     var called = false
     tracer.trace(Some(TraceContext("TID", "SID", None))) {
       TraceFilter.handleIncoming(action, message, _ => called = true)
     }
 
-    val expectedContext: TraceContext = TraceContext("TID", "0", Some("SID"))
+    val expectedContext = TraceContext("TID", "0", Some("SID"))
+    val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be (true)
-    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv()))
-    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
+    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv(expectedRpcName)))
+//    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
   }
 
@@ -132,16 +135,18 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new OutMessage()
     message.protocolName = "dummy"
+    message.serviceName = service.name
 
     var called = false
     tracer.trace(Some(TraceContext("TID", "SID", None))) {
       TraceFilter.handleOutgoing(action, message, _ => called = true)
     }
 
-    val expectedContext: TraceContext = TraceContext("TID", "0", Some("SID"))
+    val expectedContext = TraceContext("TID", "0", Some("SID"))
+    val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be (true)
-    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend()))
-    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
+    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend(expectedRpcName)))
+//    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress])))
   }
 
@@ -150,14 +155,16 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new OutMessage()
     message.protocolName = "dummy"
+    message.serviceName = service.name
 
     var called = false
     TraceFilter.handleOutgoing(action, message, _ => called = true)
 
-    val expectedContext: TraceContext = TraceContext("0", "1", None)
+    val expectedContext = TraceContext("0", "1", None)
+    val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be (true)
-    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend()))
-    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
+    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend(expectedRpcName)))
+//    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress])))
   }
 
@@ -207,7 +214,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     called should be (true)
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv])))
-    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
+//    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, expectedAddress))
   }
 
@@ -227,7 +234,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     called should be (true)
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv])))
-    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
+//    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(new ArgumentMatcher {
       def matches(argument: Any) = {
         val record = argument.asInstanceOf[Record]

@@ -1,7 +1,7 @@
 package com.wajam.nrv.service
 
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
-import com.wajam.nrv.tracing.{TraceContext, Tracer, Annotation}
+import com.wajam.nrv.tracing.{RpcName, TraceContext, Tracer, Annotation}
 import com.wajam.nrv.Logging
 import java.net.{Inet4Address, NetworkInterface, InetAddress, InetSocketAddress}
 
@@ -17,13 +17,13 @@ object TraceFilter extends MessageHandler with Logging {
   override def handleIncoming(action: Action, message: InMessage, next: (Unit) => Unit) {
 
     message.function match {
-      // Message is an incomming request. Inherit from received trace context or create a new one
+      // Message is an incomming request. Adopt received trace context. A new trace context will be created if none
+      // is found from the message.
       case MessageType.FUNCTION_CALL =>
-        val traceContext = createSubcontextFromMessage(message, action.tracer)
+        val traceContext = getContextFromMessage(message)
         action.tracer.trace(traceContext) {
           clearContextInMessage(message) // Clear trace context metadata in request message
-          action.tracer.record(Annotation.ServerRecv())
-          action.tracer.record(toRpcName(action, message))
+          action.tracer.record(Annotation.ServerRecv(toRpcName(action, message)))
           action.tracer.record(Annotation.ServerAddress(toInetSocketAddress(action, message)))
           next()
         }
@@ -59,8 +59,7 @@ object TraceFilter extends MessageHandler with Logging {
 
         action.tracer.trace(traceContext) {
           setContextInMessage(message, action.tracer.currentContext) // Set trace context metadata in request message
-          action.tracer.record(Annotation.ClientSend())
-          action.tracer.record(toRpcName(action, message))
+          action.tracer.record(Annotation.ClientSend(toRpcName(action, message)))
           action.tracer.record(Annotation.ClientAddress(toInetSocketAddress(action, message)))
           next()
         }
@@ -118,8 +117,8 @@ object TraceFilter extends MessageHandler with Logging {
   /**
    * Creates a new RpcName annotation from the specified message information
    */
-  private def toRpcName(action: Action, message: Message): Annotation.RpcName = {
-    Annotation.RpcName(message.serviceName, message.protocolName, message.method, action.path)
+  private def toRpcName(action: Action, message: Message): RpcName = {
+    RpcName(message.serviceName, message.protocolName, message.method, action.path)
   }
 
   private def toInetSocketAddress(action: Action, message: Message): InetSocketAddress = {
