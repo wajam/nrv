@@ -40,11 +40,13 @@ class TestTraced extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     val yammerTimer = new Timer(Metrics.defaultRegistry().newTimer(classOf[TracedTimer], "timer"))
     yammerTimer.clear()
+    yammerTimer.min should be (0.0)
+
     val tracedTimer = new TracedTimer(yammerTimer, "myName", Some("mySource"))
 
     val message = Message("myName", Some("mySource"))
     var context: Option[TraceContext] = None
-    val duration = 500
+    val duration = 250
 
     var called = false
     tracer.trace() {
@@ -57,7 +59,7 @@ class TestTraced extends FunSuite with BeforeAndAfter with MockitoSugar {
     }
 
     called should be (true)
-    yammerTimer.min should be (duration.toDouble plusOrMinus 100)
+    yammerTimer.min should be > (0.0)
     verify(mockRecorder).record(Record(context.get, time.currentTime, message, Some(duration)))
   }
 
@@ -65,9 +67,11 @@ class TestTraced extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     val yammerTimer = new Timer(Metrics.defaultRegistry().newTimer(classOf[TracedTimer], "timer"))
     yammerTimer.clear()
+    yammerTimer.min should be (0.0)
+
     val tracedTimer = new TracedTimer(yammerTimer, "myName", Some("mySource"))
 
-    val duration = 750
+    val duration = 250
 
     var called = false
     called = tracedTimer.time {
@@ -77,7 +81,7 @@ class TestTraced extends FunSuite with BeforeAndAfter with MockitoSugar {
     }
 
     called should be (true)
-    yammerTimer.min should be (duration.toDouble plusOrMinus 100)
+    yammerTimer.min should be > (0.0)
     verifyZeroInteractions(mockRecorder)
   }
 
