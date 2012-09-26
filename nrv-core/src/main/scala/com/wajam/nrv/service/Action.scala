@@ -79,8 +79,9 @@ class Action(var path: ActionPath,
         throw new UnavailableException
 
       // Store current trace context in message attachment for the trace filter
-      if (tracer.currentContext.isDefined)
+      if (tracer.currentContext.isDefined) {
         outMessage.attachments(TraceHeader.OriginalContext) = tracer.currentContext.get
+      }
 
       this.switchboard.handleOutgoing(this, outMessage, _ => {
         TraceFilter.handleOutgoing(this, outMessage, _ => {

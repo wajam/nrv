@@ -66,7 +66,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
   def matchRecord(annClass: Class[_ <: Annotation],
                   context: TraceContext = null,
                   timestamp: Long = time.currentTime) = {
-    new RecordMatcher(annClass, Some(context), timestamp)
+    new RecordMatcher(annClass, Option(context), timestamp)
   }
 
   test("Should record incomming request with a new trace context when no context is present in message metadata") {

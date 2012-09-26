@@ -27,7 +27,7 @@ object TraceFilter extends MessageHandler with Logging {
           next()
         }
 
-      // Message is an incoming response to a known ourgoing request.
+      // Message is an incoming response to a known outgoing request.
       case MessageType.FUNCTION_RESPONSE if message.matchingOutMessage.isDefined =>
 
         // Record ClientRecv response in the same context started by ClientSend
@@ -57,16 +57,10 @@ object TraceFilter extends MessageHandler with Logging {
 
   override def handleOutgoing(action: Action, message: OutMessage, next: (Unit) => Unit) {
     message.function match {
-      // Message is a call to an external service. Create a sub context (i.e. new span) for the call
+      // Message is a call to an external service. Create a sub context (i.e. new span) for the call.
       case MessageType.FUNCTION_CALL =>
         val originalContext = message.attachments.get(TraceHeader.OriginalContext).asInstanceOf[Option[TraceContext]]
-        val traceContext = if (originalContext.isDefined) {
-          Some(action.tracer.createSubcontext(originalContext.get))
-        } else {
-          debug("Outgoing request has not trace context! {}", toRpcName(action, message))
-          None
-        }
-
+        val traceContext = for (context <- originalContext) yield action.tracer.createSubcontext(originalContext.get)
         action.tracer.trace(traceContext) {
           setContextInMessageMetadata(message, action.tracer.currentContext) // Set trace context metadata in request message
           action.tracer.record(Annotation.ClientSend(toRpcName(action, message)))
@@ -79,11 +73,8 @@ object TraceFilter extends MessageHandler with Logging {
         // Clear trace context in response message metadata and attachement
         clearContextInMessageMetadata(message)
         message.attachments.remove(TraceHeader.OriginalContext)
-
-        if (action.tracer.currentContext.isDefined) {
+        for (context <- action.tracer.currentContext) {
           action.tracer.record(Annotation.ServerSend(Some(message.code)))
-        } else {
-          debug("Outgoing response has not trace context! {}", toRpcName(action, message))
         }
         next()
     }
@@ -110,13 +101,14 @@ object TraceFilter extends MessageHandler with Logging {
     }
   }
 
-  def setContextInMessageMetadata(message: Message, context: Option[TraceContext]) {
+  def setContextInMessageMetadata(message: Message, traceContext: Option[TraceContext]) {
     clearContextInMessageMetadata(message)
-    if (context.isDefined) {
-      message.metadata(TraceHeader.TraceId.toString) = context.get.traceId
-      message.metadata(TraceHeader.SpanId.toString) = context.get.spanId
-      if (context.get.parentSpanId.isDefined)
-        message.metadata(TraceHeader.ParentSpanId.toString) = context.get.parentSpanId.get
+    for (context <- traceContext) {
+      message.metadata(TraceHeader.TraceId.toString) = context.traceId
+      message.metadata(TraceHeader.SpanId.toString) = context.spanId
+      for (parentSpanId <- context.parentSpanId) {
+        message.metadata(TraceHeader.ParentSpanId.toString) = parentSpanId
+      }
     }
   }
 
