@@ -58,7 +58,6 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
       case None => {
         val node = message.destination(0).node
         val request = generate(message)
-        System.err.println(message)
         transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),
           request,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
