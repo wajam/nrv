@@ -5,7 +5,7 @@ import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
 import com.wajam.nrv.protocol.DummyProtocol
 import com.wajam.nrv.tracing._
-import com.wajam.nrv.utils.{ControlableSequentialStringIdGenerator, ControlableCurrentTime}
+import com.wajam.nrv.utils.{Sync, ControlableSequentialStringIdGenerator, ControlableCurrentTime}
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import com.wajam.nrv.data.{MessageType, InMessage, OutMessage}
@@ -16,6 +16,7 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.tracing.TraceContext
 import com.wajam.nrv.tracing.Record
 import java.net.{InetAddress, InetSocketAddress}
+import java.text.SimpleDateFormat
 
 /**
  *
@@ -42,7 +43,11 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     setupCluster()
   }
 
-  class RecordMatcher(annClass: Class[_ <: Annotation], timestamp: Long, context: Option[TraceContext]) extends ArgumentMatcher {
+  after {
+    service.stop()
+  }
+
+  class RecordMatcher(annClass: Class[_ <: Annotation], context: Option[TraceContext], timestamp: Long) extends ArgumentMatcher {
 
     def matches(argument: Any): Boolean = {
       val record = argument.asInstanceOf[Record]
@@ -52,18 +57,19 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     override def describeTo(description: Description) {
       super.describeTo(description)
-      description.appendValue(timestamp)
+      description.appendValue(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(timestamp))
       description.appendValue(annClass)
       description.appendValue(context)
     }
   }
 
-  def matchRecord(annClass: Class[_ <: Annotation], timestamp: Long = time.currentTime,
-                  context: Option[TraceContext] = None) = {
-    new RecordMatcher(annClass, timestamp, context)
+  def matchRecord(annClass: Class[_ <: Annotation],
+                  context: TraceContext = null,
+                  timestamp: Long = time.currentTime) = {
+    new RecordMatcher(annClass, Some(context), timestamp)
   }
 
-  test("Should record incomming request without trace context (brand new context)") {
+  test("Should record incomming request with a new trace context when no context is present in message metadata") {
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new InMessage()
@@ -79,42 +85,47 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
   }
 
-  test("Should record incomming request with current trace context (new child context inherited from current)") {
+  test("Should adopt incomming request trace context when present in the message metadata") {
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new InMessage()
     message.protocolName = "dummy"
     message.serviceName = service.name
 
+    val expectedContext = TraceContext("TID", "SID", None)
+    TraceFilter.setContextInMessageMetadata(message, Some(expectedContext))
     var called = false
-    tracer.trace(Some(TraceContext("TID", "SID", None))) {
-      TraceFilter.handleIncoming(action, message, _ => called = true)
-    }
+    TraceFilter.handleIncoming(action, message, _ => called = true)
 
-    val expectedContext = TraceContext("TID", "0", Some("SID"))
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be (true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv(expectedRpcName)))
-//    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
   }
 
-  test("Should record incomming response with matching out message") {
+  test("Should record incomming response with matching out message trace context") {
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new InMessage()
     message.function = MessageType.FUNCTION_RESPONSE
 
-    val expectedContext: TraceContext = TraceContext("TID", "SID", None)
+    val originalContext = TraceContext("TID", "SID", None)
+    val clientRecvContext = TraceContext("TID", "0", Some("SID"))
     val outMessage = new OutMessage()
-    TraceFilter.setContextInMessage(outMessage, Some(expectedContext))
+    outMessage.attachments(TraceHeader.OriginalContext) = originalContext
+    TraceFilter.setContextInMessageMetadata(outMessage, Some(clientRecvContext))
     message.matchingOutMessage = Some(outMessage)
 
     var called = false
-    TraceFilter.handleIncoming(action, message, _ => called = true)
+    TraceFilter.handleIncoming(action, message, _ => {
+      time.advanceTime(123)
+      tracer.record(Annotation.Message("Got the response!"))
+      called = true
+    })
 
     called should be (true)
-    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientRecv(Some(200))))
+    verify(mockRecorder).record(Record(clientRecvContext, time.currentTime-123, ClientRecv(Some(200))))
+    verify(mockRecorder).record(Record(originalContext, time.currentTime, Annotation.Message("Got the response!")))
   }
 
   test("Should not record incomming response without matching request (i.e. response after timeout)") {
@@ -146,7 +157,6 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be (true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend(expectedRpcName)))
-//    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress])))
   }
 
@@ -164,7 +174,6 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be (true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend(expectedRpcName)))
-//    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress])))
   }
 
@@ -214,7 +223,6 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     called should be (true)
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv])))
-//    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, expectedAddress))
   }
 
@@ -234,7 +242,6 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     called should be (true)
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv])))
-//    verify(mockRecorder).record(argThat(matchRecord(classOf[RpcName])))
     verify(mockRecorder).record(argThat(new ArgumentMatcher {
       def matches(argument: Any) = {
         val record = argument.asInstanceOf[Record]
@@ -249,6 +256,59 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
         }
       }
     }))
+  }
 
+  test("Should record nested calls/replies in proper trace context") {
+    var syncResponse = new Sync[String]
+
+    val originalTime = time.currentTime
+    val childAction = service.registerAction(new Action("/child", req => {
+      time.advanceTime(100)
+      Tracer.currentTracer.get.record(Annotation.Message("child"))
+      req.reply(Map())
+    }))
+    childAction.start()
+
+    val parentAction = service.registerAction(new Action("/parent", req => {
+      time.advanceTime(100)
+      Tracer.currentTracer.get.record(Annotation.Message("parent before"))
+      childAction.call(Map(), onReply = (resp, err) => {
+        if (err.isEmpty) {
+          time.advanceTime(100)
+          Tracer.currentTracer.get.record(Annotation.Message("parent after"))
+          req.reply(Map())
+        }
+      })
+    }))
+    parentAction.start()
+
+    parentAction.call(Map(), onReply = (resp, err) => {
+      if (err.isEmpty)
+        syncResponse.done("OK")
+    })
+    syncResponse.thenWait(response => {
+      response should be ("OK")
+    }, 1000)
+
+    parentAction.stop()
+    childAction.stop()
+
+    val parentContext = TraceContext("0", "1", None)
+    val childContext = TraceContext("0", "2", Some("1"))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ClientSend], parentContext, originalTime)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress], parentContext, originalTime)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv], parentContext, originalTime)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress], parentContext, originalTime)))
+    verify(mockRecorder).record(Record(parentContext, originalTime + 100, Annotation.Message("parent before")))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ClientSend], childContext, originalTime + 100)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress], childContext, originalTime + 100)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv], childContext ,originalTime + 100)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress] ,childContext, originalTime + 100)))
+    verify(mockRecorder).record(Record(childContext, originalTime + 200, Annotation.Message("child")))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerSend], childContext, originalTime + 200)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ClientRecv], childContext, originalTime + 200)))
+    verify(mockRecorder).record(Record(parentContext, originalTime + 300, Annotation.Message("parent after")))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerSend], parentContext, originalTime + 300)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ClientRecv], parentContext, originalTime + 300)))
   }
 }
