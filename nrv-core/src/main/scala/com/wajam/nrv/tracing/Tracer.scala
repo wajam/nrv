@@ -8,7 +8,7 @@ import com.wajam.nrv.utils.{UuidStringGenerator, IdGenerator, CurrentTime}
 
 /**
  * Trace context information. All trace events initiated from a common ancestor call share the same TraceId.
- * Every outgoing and incomming messages are recorded in a new subcontext (i.e. new SpanId)
+ * Every outgoing and incoming messages are recorded in a new subcontext (i.e. new SpanId)
  * refering to its parent SpanIn. The root span has not parent SpanId.
  */
 final case class TraceContext(traceId: String, spanId: String, parentSpanId: Option[String]) {

@@ -69,7 +69,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     new RecordMatcher(annClass, Option(context), timestamp)
   }
 
-  test("Should record incomming request with a new trace context when no context is present in message metadata") {
+  test("Should record incoming request with a new trace context when no context is present in message metadata") {
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new InMessage()
@@ -85,7 +85,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
   }
 
-  test("Should adopt incomming request trace context when present in the message metadata") {
+  test("Should adopt incoming request trace context when present in the message metadata") {
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new InMessage()
@@ -103,7 +103,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
   }
 
-  test("Should record incomming response with matching out message trace context") {
+  test("Should record incoming response with matching out message trace context") {
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new InMessage()
@@ -128,7 +128,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     verify(mockRecorder).record(Record(originalContext, time.currentTime, Annotation.Message("Got the response!")))
   }
 
-  test("Should not record incomming response without matching request (i.e. response after timeout)") {
+  test("Should not record incoming response without matching request (i.e. response after timeout)") {
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new InMessage()

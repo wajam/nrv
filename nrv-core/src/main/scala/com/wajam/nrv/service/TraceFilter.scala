@@ -17,7 +17,7 @@ object TraceFilter extends MessageHandler with Logging {
   override def handleIncoming(action: Action, message: InMessage, next: (Unit) => Unit) {
 
     message.function match {
-      // Message is an incomming request. Adopt received trace context. A new trace context will be automatically
+      // Message is an incoming request. Adopt received trace context. A new trace context will be automatically
       // created by the Tracer if none is present in the message.
       case MessageType.FUNCTION_CALL =>
         val traceContext = getContextFromMessageMetadata(message)
