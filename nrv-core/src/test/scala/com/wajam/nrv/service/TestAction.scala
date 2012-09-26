@@ -7,9 +7,8 @@ import org.junit.runner.RunWith
 import java.lang.String
 import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
 import com.wajam.nrv.utils.Sync
-import com.wajam.nrv.{TimeoutException, UnavailableException, RemoteException, InvalidParameter}
+import com.wajam.nrv.{TimeoutException, RemoteException, InvalidParameter}
 import com.wajam.nrv.data.{OutMessage, InMessage}
-import org.junit.Before
 
 @RunWith(classOf[JUnitRunner])
 class TestAction extends FunSuite with BeforeAndAfter {
@@ -45,15 +44,16 @@ class TestAction extends FunSuite with BeforeAndAfter {
     }))
     action.start()
 
-
-    action.call(Map("call_key" -> "call_value", "param" -> "param_value"), onReply = (resp, err) => {
-      resp.parameters.getOrElse("response_key", "") match {
-        case s: String =>
-          syncResponse.done(s)
-        case _ =>
-          syncResponse.error(new Exception("Expected paramter 'response_key'"))
-      }
-    })
+    action.tracer.trace() {
+      action.call(Map("call_key" -> "call_value", "param" -> "param_value"), onReply = (resp, err) => {
+        resp.parameters.getOrElse("response_key", "") match {
+          case s: String =>
+            syncResponse.done(s)
+          case _ =>
+            syncResponse.error(new Exception("Expected paramter 'response_key'"))
+        }
+      })
+    }
 
     syncCall.thenWait(value => {
       assert(value == "call_value", "expected 'call_value', got '" + value + "'")
@@ -74,7 +74,9 @@ class TestAction extends FunSuite with BeforeAndAfter {
     }))
     action.start()
 
-    action.call(Map("call_key" -> "call_value"), onReply = syncResponse.done(_, _))
+    action.tracer.trace() {
+      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.done(_, _))
+    }
 
     val except = intercept[RemoteException] {
       syncResponse.thenWait(value => {
@@ -98,7 +100,10 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val req = new OutMessage(Map("call_key" -> "call_value"), onReply = syncResponse.done(_, _))
     req.timeoutTime = 100
-    action.call(req)
+
+    action.tracer.trace() {
+      action.call(req)
+    }
 
     action.switchboard.getTime = ()=>{System.currentTimeMillis() + 100}
     action.switchboard.checkTimeout()
@@ -121,6 +126,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val message = new InMessage()
     message.path = "/test/1"
+    message.protocolName = "dummy"
 
     action.callIncomingHandlers(message)
 
