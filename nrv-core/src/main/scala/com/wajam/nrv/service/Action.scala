@@ -79,12 +79,14 @@ class Action(var path: ActionPath,
       if (outMessage.destination.noOnlinePhysicalEndpoints)
         throw new UnavailableException
 
-      // Store current trace context in message metadata for the trace filter
-      TraceFilter.setContextInMessage(outMessage, tracer.currentContext)
+      // Store current trace context in message attachment for the trace filter
+      if (tracer.currentContext.isDefined) {
+        outMessage.attachments(TraceHeader.OriginalContext) = tracer.currentContext.get
+      }
 
       this.switchboard.handleOutgoing(this, outMessage, _ => {
-        this.protocol.handleOutgoing(this, outMessage, _ => {
-          TraceFilter.handleOutgoing(this, outMessage, _ => {
+        TraceFilter.handleOutgoing(this, outMessage, _ => {
+          this.protocol.handleOutgoing(this, outMessage, _ => {
             outMessage.sentTime = System.currentTimeMillis()
           })
         })

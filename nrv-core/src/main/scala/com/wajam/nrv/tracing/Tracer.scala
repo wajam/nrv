@@ -8,7 +8,7 @@ import com.wajam.nrv.utils.{UuidStringGenerator, IdGenerator, CurrentTime}
 
 /**
  * Trace context information. All trace events initiated from a common ancestor call share the same TraceId.
- * Every outgoing and incomming messages are recorded in a new subcontext (i.e. new SpanId)
+ * Every outgoing and incoming messages are recorded in a new subcontext (i.e. new SpanId)
  * refering to its parent SpanIn. The root span has not parent SpanId.
  */
 final case class TraceContext(traceId: String, spanId: String, parentSpanId: Option[String]) {
@@ -29,6 +29,8 @@ case class Record(context: TraceContext, timestamp: Long, annotation: Annotation
     new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(timestamp), annotation, context, duration)
 }
 
+case class RpcName(service: String, protocol: String, method: String, path: String)
+
 /**
  * Basic trace event information without a context.
  */
@@ -36,15 +38,13 @@ sealed trait Annotation
 
 object Annotation {
 
-  case class ClientSend() extends Annotation
+  case class ClientSend(name: RpcName) extends Annotation
 
   case class ClientRecv(code: Option[Int]) extends Annotation
 
   case class ServerSend(code: Option[Int]) extends Annotation
 
-  case class ServerRecv() extends Annotation
-
-  case class RpcName(service: String, protocol: String, method: String, path: String) extends Annotation
+  case class ServerRecv(name: RpcName) extends Annotation
 
   case class Message(content: String, source: Option[String] = None) extends Annotation
 
