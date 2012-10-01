@@ -73,17 +73,23 @@ class HttpNettyTransport(host: InetAddress, port: Int, protocol: Protocol)
 
   class HttpResponseMetricUpdater(prefix: String) extends Instrumented {
 
-    val success = metrics.counter(prefix+"-http-2xx")
-    val clientFailure = metrics.counter(prefix+"-http-4xx")
-    val serverFailure = metrics.counter(prefix+"-http-5xx")
-    val other = metrics.counter(prefix+"-http-other")
+    val success = metrics.meter(prefix+"-http-2xx", "success")
+    val clientFailure = metrics.meter(prefix+"-http-4xx", "protocol-error")
+    val notFount = metrics.meter(prefix+"-http-404", "not-found")
+    val serverFailure = metrics.meter(prefix+"-http-5xx", "server-error")
+    val other = metrics.meter(prefix+"-http-other", "other-error")
 
     def updateCounter(response: HttpResponse) {
       response.getStatus.getCode / 100 match {
-        case 2 => success += 1
-        case 4 => clientFailure += 1
-        case 5 => serverFailure += 1
-        case _ => other += 1
+        case 2 => success.mark()
+        case 4 => {
+          if (response.getStatus.getCode == 404) {
+            notFount.mark()
+          }
+          clientFailure.mark()
+        }
+        case 5 => serverFailure.mark()
+        case _ => other.mark()
       }
     }
   }
