@@ -21,9 +21,11 @@ object NullTraceRecorder extends TraceRecorder {
 /**
  * Record trace events with standard logging.
  */
-object LoggingTraceRecorder extends TraceRecorder with Logging {
+object LoggingTraceRecorder extends LoggingTraceRecorder(record => record)
+
+class LoggingTraceRecorder[T](formatter: (Record) => T) extends TraceRecorder with Logging {
   def record(record: Record) {
-    info(record.toString)
+    info(formatter(record).toString)
   }
 }
 
