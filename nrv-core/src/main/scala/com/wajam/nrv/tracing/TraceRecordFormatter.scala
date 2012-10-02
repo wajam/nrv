@@ -8,7 +8,7 @@ import java.text.SimpleDateFormat
  * <p>
  * <p>
  * Here is the tab delimited fields sequence (top to bottom) and their presence according the recorded annotation
- * ([ ]=empty, X=yes, !=optional, ?=should we):
+ * ([ ]=empty, X=yes, !=optional):
  * <p>
  * <pre>
  *               ClientSend  ClientRecv  ServerSend  ServerRecv  Message   ClientAddress ServerAddress
@@ -18,14 +18,14 @@ import java.text.SimpleDateFormat
  * traceid       X           X           X           X           X           X           X
  * spanid        X           X           X           X           X           X           X
  * parentspanid  !           !           !           !           !           !           !
- * service       X           X
- * protocol      X           X
- * method        !           !
- * path          X           X
+ * service       X                                   X
+ * protocol      X                                   X
+ * method        !                                   !
+ * path          X                                   X
  * hostname                                                                  !           !
  * ipaddress                                                                 X           X
- * port                                                                      ?           X
- * responsecode                          !           !
+ * port                                                                      X           X
+ * responsecode              !           !
  * msgcontent                                                    X
  * msgsource                                                     !
  *
@@ -49,7 +49,7 @@ object TraceRecordFormatter {
   /**
    * Returns a traversable sequence of record field values.
    */
-  def record2Traversable(record: Record): Traversable[String] = new Traversable[String] {
+  def record2Traversable(record: Record, msgEscaper: (String) => String = _.replace("\t", " ")): Traversable[String] = new Traversable[String] {
 
     def foreach[U](f: (String) => U) {
 
@@ -95,7 +95,7 @@ object TraceRecordFormatter {
       f(code.getOrElse("").toString)
 
       // Message
-      val (content, source) = annotation2MessageComponents(record.annotation)
+      val (content, source) = annotation2MessageComponents(record.annotation, msgEscaper)
       //  msgcontent
       f(content)
       //  msgsource
@@ -126,10 +126,10 @@ object TraceRecordFormatter {
       annotation match {
         case ca: Annotation.ClientAddress =>
           val addr = ca.addr
-          (Option(addr.getHostName), Option(addr.getAddress.toString), Option(addr.getPort))
+          (Option(addr.getHostName), Option(addr.getAddress.getHostAddress), Option(addr.getPort))
         case sa: Annotation.ServerAddress =>
           val addr = sa.addr
-          (Option(addr.getHostName), Option(addr.getAddress.toString), Option(addr.getPort))
+          (Option(addr.getHostName), Option(addr.getAddress.getHostAddress), Option(addr.getPort))
         case _ =>
           (None, None, None)
       }
@@ -152,10 +152,10 @@ object TraceRecordFormatter {
     /**
      * Returns a tuple with the different message components (content, source) if the annotation is Message
      */
-    private def annotation2MessageComponents(annotation: Annotation): (String, Option[String]) = {
+    private def annotation2MessageComponents(annotation: Annotation, msgEscaper: (String) => String): (String, Option[String]) = {
       annotation match {
         case msg: Annotation.Message  =>
-          (msg.content, msg.source)
+          (msgEscaper(msg.content), msg.source)
         case _ =>
           ("", None)
       }
