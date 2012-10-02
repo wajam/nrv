@@ -38,7 +38,7 @@ class TestTraceRecordFormatter extends FunSuite {
     actual should be (expected)
   }
 
-  test("ServRecv with empty rpc name and no parent span should be properly formatted") {
+  test("ServRecv with empty rpc name should be properly formatted") {
     val expected = expectedTime + "\t\tServerRecv\tTID\tSID\tPID\t\t\t\t\t\t\t\t\t\t"
 
     val context = TraceContext("TID", "SID", Some("PID"))
