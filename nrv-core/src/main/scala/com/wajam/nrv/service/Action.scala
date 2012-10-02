@@ -1,6 +1,6 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.utils.Sync
+import com.wajam.nrv.utils.{Promise, Future}
 import com.yammer.metrics.scala.Instrumented
 import java.util.concurrent.TimeUnit
 import scala.Unit
@@ -27,10 +27,10 @@ class Action(var path: ActionPath,
 
   def call(params: Iterable[(String, Any)],
            meta: Iterable[(String, Any)],
-           data: Any): Sync[InMessage] = {
-    val sync = new Sync[InMessage]
-    this.call(params, sync.done(_, _), meta, data)
-    sync
+           data: Any): Future[InMessage] = {
+    val p = Promise[InMessage]
+    this.call(params, p.complete(_, _), meta, data)
+    p.future
   }
 
   def call(params: Iterable[(String, Any)],
