@@ -56,8 +56,8 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
           })
       }
       case None => {
-        for (physicalEndpoint <- message.destination.onlinePhysicalEndpoints) {
-          val node = physicalEndpoint.node
+        for (replica <- message.destination.onlineReplicas) {
+          val node = replica.node
           val request = generate(message)
 
           transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),

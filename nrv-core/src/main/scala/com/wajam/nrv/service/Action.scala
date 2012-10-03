@@ -76,7 +76,7 @@ class Action(var path: ActionPath,
 
     // resolve endpoints
     this.resolver.handleOutgoing(this, outMessage, _ => {
-      if (outMessage.destination.noOnlinePhysicalEndpoints)
+      if (outMessage.destination.onlineReplicas == 0)
         throw new UnavailableException
 
       // Store current trace context in message attachment for the trace filter
@@ -168,7 +168,7 @@ class Action(var path: ActionPath,
     extractParamsFromPath(intoMessage, fromMessage.path)
 
     // TODO: shouldn't be like that. Source may not be a member...
-    intoMessage.destination = new Endpoints(Seq(new LogicalEndpoint(0, Seq(new PhysicalEndpoint(0, fromMessage.source)))))
+    intoMessage.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, fromMessage.source)))))
   }
 
   private def extractParamsFromPath(intoMessage: Message, path: String) {

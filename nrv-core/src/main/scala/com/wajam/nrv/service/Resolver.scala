@@ -2,7 +2,7 @@ package com.wajam.nrv.service
 
 import java.util.zip.CRC32
 import util.Random
-import com.wajam.nrv.data._
+import com.wajam.nrv.data.{Message, InMessage, OutMessage}
 
 /**
  * Resolves endpoints that handle a specific action (from a path) within a service.
@@ -15,7 +15,7 @@ class Resolver(val replica: Int = 1,
 
   override def handleOutgoing(action: Action, message: OutMessage) {
     message.token = extractToken(action, message)
-    if (message.destination.noOnlinePhysicalEndpoints)
+    if (message.destination.onlineReplicas == 0)
       message.destination = this.resolve(action.service, message.token)
   }
 
@@ -43,12 +43,12 @@ class Resolver(val replica: Int = 1,
     if (sorter != null)
       members = members.sortWith(sorter)
 
-    // TODO: implement multiple logical endpoint (multiple shard)
-    val logicalEndpoint = new LogicalEndpoint(token, members.map(member => {
-      new PhysicalEndpoint(member.token, member.node, selected = member.status == MemberStatus.UP)
+    // TODO: implement multiple shards
+    val shards = new Shard(token, members.map(member => {
+      new Replica(member.token, member.node, selected = member.status == MemberStatus.UP)
     }))
 
-    new Endpoints(Seq(logicalEndpoint))
+    new Endpoints(Seq(shards))
   }
 
   private def extractToken(action: Action, message: Message) = {
