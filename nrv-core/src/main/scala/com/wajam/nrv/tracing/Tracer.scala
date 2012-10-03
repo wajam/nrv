@@ -68,9 +68,9 @@ object Tracer {
 /**
  * The tracer is used to record traces. It maintain the current trace context.
  */
-class Tracer(private val recorder: TraceRecorder = NullTraceRecorder,
-             private val currentTimeGenerator: CurrentTime = new CurrentTime {},
-             private val idGenerator: IdGenerator[String] = new UuidStringGenerator {}) {
+class Tracer(recorder: TraceRecorder = NullTraceRecorder,
+             currentTimeGenerator: CurrentTime = new CurrentTime {},
+             idGenerator: IdGenerator[String] = new UuidStringGenerator {}) {
 
   private val localContext = new DynamicVariable[Option[TraceContext]](None)
 
