@@ -15,7 +15,7 @@ class Resolver(val replica: Int = 1,
 
   override def handleOutgoing(action: Action, message: OutMessage) {
     message.token = extractToken(action, message)
-    if (message.destination.onlineReplicas == 0)
+    if (message.destination.onlineReplicas.size == 0)
       message.destination = this.resolve(action.service, message.token)
   }
 

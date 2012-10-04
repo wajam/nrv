@@ -111,4 +111,15 @@ class TestResolver extends FunSuite with BeforeAndAfter {
     resolver.handleIncoming(action, inMessage)
     assert(tokenValue === inMessage.token)
   }
+
+  test("outgoing messages are assigned destination") {
+    val tokenValue = 42
+    val action = new Action("test", (message: InMessage) => {})
+    action.supportedBy(service)
+    val resolver = new Resolver(tokenExtractor = (actionPath: ActionPath, path: String) => tokenValue)
+
+    val outMessage = new OutMessage()
+    resolver.handleOutgoing(action, outMessage)
+    assert(outMessage.destination.onlineReplicas.size > 0)
+  }
 }
