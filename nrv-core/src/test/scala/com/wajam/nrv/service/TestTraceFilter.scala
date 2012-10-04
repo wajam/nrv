@@ -37,7 +37,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     cluster.registerProtocol(new DummyProtocol("dummy", cluster), default = true)
     service = cluster.registerService(new Service("test", resolver = Some(new Resolver(1))))
     val member = service.addMember(0, cluster.localNode)
-    member.status = MemberStatus.UP
+    member.status = MemberStatus.Up
   }
 
   before {

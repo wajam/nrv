@@ -10,7 +10,7 @@ import com.wajam.nrv.cluster.Node
  */
 class Endpoints(val shards: Seq[Shard] = Seq()) extends Serializable {
 
-  def onlineReplicas: Seq[Replica] = shards.map(_.selectedEndpoints).flatten
+  def selectedReplicas: Seq[Replica] = shards.map(_.selectedEndpoints).flatten
 
 }
 

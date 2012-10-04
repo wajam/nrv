@@ -15,7 +15,7 @@ class Resolver(val replica: Int = 1,
 
   override def handleOutgoing(action: Action, message: OutMessage) {
     message.token = extractToken(action, message)
-    if (message.destination.onlineReplicas.size == 0)
+    if (message.destination.selectedReplicas.size == 0)
       message.destination = this.resolve(action.service, message.token)
   }
 
@@ -34,7 +34,7 @@ class Resolver(val replica: Int = 1,
     } else {
       service.resolveMembers(token, replica, member => {
         val toAdd = constraints(members, member)
-        if (toAdd)
+        if (toAdd && members.size < replica)
           members :+= member
         toAdd
       })
@@ -45,7 +45,7 @@ class Resolver(val replica: Int = 1,
 
     // TODO: implement multiple shards
     val shards = new Shard(token, members.map(member => {
-      new Replica(member.token, member.node, selected = member.status == MemberStatus.UP)
+      new Replica(member.token, member.node, selected = member.status == MemberStatus.Up)
     }))
 
     new Endpoints(Seq(shards))

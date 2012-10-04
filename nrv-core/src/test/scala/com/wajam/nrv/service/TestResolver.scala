@@ -27,7 +27,7 @@ class TestResolver extends FunSuite with BeforeAndAfter {
     memb30 = service.addMember(30, new Node("localhost", Map("nrv" -> 12346)))
 
     for (member <- service.members) {
-      member.status = MemberStatus.UP
+      member.status = MemberStatus.Up
     }
   }
 
@@ -45,7 +45,7 @@ class TestResolver extends FunSuite with BeforeAndAfter {
 
   test("resolver returns replicas matching asked replica count") {
     val resolver = new Resolver(replica = 3)
-    val endsPoints = resolver.resolve(service, 19).onlineReplicas
+    val endsPoints = resolver.resolve(service, 19).selectedReplicas
     assert(endsPoints.size == 3)
     assert(endsPoints(0).token == 20, endsPoints(0).token)
     assert(endsPoints(1).token == 30, endsPoints(1).token)
@@ -53,7 +53,7 @@ class TestResolver extends FunSuite with BeforeAndAfter {
   }
 
   test("resolver returns replicas even if they are not UP, but mark DOWNs as disabled") {
-    memb30.status = MemberStatus.DOWN
+    memb30.status = MemberStatus.Down
 
     val resolver = new Resolver(replica = 3)
     val endsPoints = resolver.resolve(service, 19).shards(0).replicas
@@ -64,20 +64,20 @@ class TestResolver extends FunSuite with BeforeAndAfter {
     assert(!endsPoints(1).selected)
     assert(endsPoints(2).token == 5, endsPoints(2).token)
     assert(endsPoints(2).selected)
-    assert(resolver.resolve(service, 19).onlineReplicas.size == 2)
+    assert(resolver.resolve(service, 19).selectedReplicas.size == 2)
 
 
-    memb20.status = MemberStatus.DOWN
-    memb30.status = MemberStatus.DOWN
-    memb5.status = MemberStatus.DOWN
-    assert(resolver.resolve(service, 19).onlineReplicas.size == 0)
+    memb20.status = MemberStatus.Down
+    memb30.status = MemberStatus.Down
+    memb5.status = MemberStatus.Down
+    assert(resolver.resolve(service, 19).selectedReplicas.size == 0)
   }
 
   test("resolver with a sorter should use that sorter") {
     val resolver = new Resolver(replica = 3, sorter = (m1, m2) => {
       m1.token < m2.token
     })
-    val endsPoints = resolver.resolve(service, 19).onlineReplicas
+    val endsPoints = resolver.resolve(service, 19).selectedReplicas
     assert(endsPoints.size == 3)
     assert(endsPoints(0).token == 5, endsPoints(0).token)
     assert(endsPoints(1).token == 20, endsPoints(1).token)
@@ -88,7 +88,7 @@ class TestResolver extends FunSuite with BeforeAndAfter {
     val resolver = new Resolver(replica = 3, constraints = (cur, m) => {
       m.token != 20
     })
-    val endsPoints = resolver.resolve(service, 19).onlineReplicas
+    val endsPoints = resolver.resolve(service, 19).selectedReplicas
     assert(endsPoints.size == 3)
     assert(endsPoints(0).token == 30, endsPoints(0).token)
     assert(endsPoints(1).token == 5, endsPoints(1).token)
@@ -120,6 +120,6 @@ class TestResolver extends FunSuite with BeforeAndAfter {
 
     val outMessage = new OutMessage()
     resolver.handleOutgoing(action, outMessage)
-    assert(outMessage.destination.onlineReplicas.size > 0)
+    assert(outMessage.destination.selectedReplicas.size > 0)
   }
 }

@@ -76,7 +76,7 @@ class Action(var path: ActionPath,
 
     // resolve endpoints
     this.resolver.handleOutgoing(this, outMessage, _ => {
-      if (outMessage.destination.onlineReplicas.size == 0)
+      if (outMessage.destination.selectedReplicas.size == 0)
         throw new UnavailableException
 
       // Store current trace context in message attachment for the trace filter

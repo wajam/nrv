@@ -7,25 +7,19 @@ import java.io.Serializable
  * Node that is member of a service, at a specific position (token) in
  * the consistent hashing ring of the service.
  */
-class ServiceMember(val token: Long, val node: Node, var status: MemberStatus = MemberStatus.DOWN) extends Serializable {
+class ServiceMember(val token: Long, val node: Node, var status: MemberStatus = MemberStatus.Down) extends Serializable {
 }
 
-class MemberStatus extends Serializable {
-}
+sealed trait MemberStatus extends Serializable;
 
 object MemberStatus {
-  val DOWN = MemberDown
-  val JOINING = MemberJoining
-  val UP = MemberUp
-  val LEAVING = MemberLeaving
+  case object Down extends MemberStatus
+
+  case object Joining extends MemberStatus
+
+  case object Up extends MemberStatus
+
+  case object Leaving extends MemberStatus
 }
-
-object MemberDown extends MemberStatus
-
-object MemberJoining extends MemberStatus
-
-object MemberUp extends MemberStatus
-
-object MemberLeaving extends MemberStatus
 
 

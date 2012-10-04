@@ -56,7 +56,7 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
           })
       }
       case None => {
-        for (replica <- message.destination.onlineReplicas) {
+        for (replica <- message.destination.selectedReplicas) {
           val node = replica.node
           val request = generate(message)
 

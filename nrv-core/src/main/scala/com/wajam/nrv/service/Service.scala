@@ -18,7 +18,7 @@ class Service(var name: String, protocol: Option[Protocol] = None, resolver: Opt
   // override protocol, resolver if defined
   applySupport(service = Some(this), protocol = protocol, resolver = resolver)
 
-  def members: Iterable[ServiceMember] = this.ring.nodes.map(node => node.value)
+  def members: Iterable[ServiceMember] = this.ring.nodes.map(node => node.element)
 
   def membersCount = this.ring.size
 
@@ -28,12 +28,12 @@ class Service(var name: String, protocol: Option[Protocol] = None, resolver: Opt
     member
   }
 
-  def resolveMembers(token: Long, count: Int): Seq[ServiceMember] = this.ring.resolve(token, count).map(node => node.value)
+  def resolveMembers(token: Long, count: Int): Seq[ServiceMember] = this.ring.resolve(token, count).map(node => node.element)
 
   def resolveMembers(token: Long, count: Int, filter: ServiceMember => Boolean): Seq[ServiceMember] = {
     this.ring.resolve(token, count, node => {
-      filter(node.value)
-    }).map(node => node.value)
+      filter(node.element)
+    }).map(node => node.element)
   }
 
   def start() {

@@ -11,7 +11,7 @@ class StaticClusterManager extends ClusterManager {
   def start() {
     // in static cluster, all nodes are up
     for (member <- this.listServiceMembers) {
-      member.status = MemberStatus.UP
+      member.status = MemberStatus.Up
     }
   }
 
