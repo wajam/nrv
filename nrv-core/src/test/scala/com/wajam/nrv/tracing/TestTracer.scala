@@ -112,7 +112,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   }
 
-  test("Should adopt the specified child tracing context if descendant from current context") {
+  test("Should adopt the specified child trace context if descendant from current context") {
 
     Tracer.currentTracer should be (None)
     tracer.currentContext should be (None)
@@ -129,7 +129,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
       tracer.trace(Some(child)) {
         Tracer.currentTracer should be (Some(tracer))
-        tracer.currentContext should not be (Some(parent))
+        tracer.currentContext should be (Some(child))
 
         tracer.currentContext.get.traceId should be (parent.get.traceId)
         tracer.currentContext.get.spanId should not be (None)
