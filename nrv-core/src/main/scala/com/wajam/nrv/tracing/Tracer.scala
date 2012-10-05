@@ -150,8 +150,8 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
 
     if (child.traceId != parent.traceId)
       throw new IllegalArgumentException("Child traceId [%s] does not match parent traceId [%s]".format(child.traceId, parent.traceId))
-    Map
-    if (child.parentSpanId != parent.spanId)
+
+    if (child.parentSpanId != Option(parent.spanId))
       throw new IllegalArgumentException("Child parentSpanId [%s] does not match parent spanId [%s]".format(child.parentSpanId, parent.spanId))
 
     if (child.spanId == parent.spanId)
