@@ -112,6 +112,43 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   }
 
+  test("Should adopt the specified child trace context if descendant from current context") {
+
+    Tracer.currentTracer should be (None)
+    tracer.currentContext should be (None)
+
+    var called = false
+    var childCalled = false
+    tracer.trace() {
+
+      Tracer.currentTracer should be (Some(tracer))
+      tracer.currentContext should not be (None)
+
+      val parent = tracer.currentContext
+      val child = tracer.createSubcontext(parent.get)
+
+      tracer.trace(Some(child)) {
+        Tracer.currentTracer should be (Some(tracer))
+        tracer.currentContext should be (Some(child))
+
+        tracer.currentContext.get.traceId should be (parent.get.traceId)
+        tracer.currentContext.get.spanId should not be (None)
+        tracer.currentContext.get.spanId should not be (parent.get.spanId)
+        tracer.currentContext.get.parentSpanId should be (Some(parent.get.spanId))
+        childCalled = true
+      }
+
+      tracer.currentContext should be (parent)
+      called = true
+    }
+
+    Tracer.currentTracer should be (None)
+    tracer.currentContext should be (None)
+    called should be (true)
+    childCalled should be (true)
+
+  }
+
   test("Should fail if new trace context isn't a child of parent context") {
 
     Tracer.currentTracer should be (None)
