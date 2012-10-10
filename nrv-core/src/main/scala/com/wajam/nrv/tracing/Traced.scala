@@ -54,14 +54,19 @@ class TracedTimer(val timer: Timer, val name: String, val source: Option[String]
   }
 
   def timerContext(): TracedTimerContext = {
-    new TracedTimerContext(timer.timerContext(), Tracer.currentTracer map (
-      tracer => tracer.getTracingContext(name, source)))
+    new TracedTimerContext(timer.timerContext(), Tracer.currentTracer)
   }
 
-  class TracedTimerContext(timerContext: TimerContext, optTracerContext: Option[TracingContext]) {
+  class TracedTimerContext(timerContext: TimerContext, optTracer: Option[Tracer]) {
+
+    private val startTime: Long = optTracer.map(_.currentTimeGenerator.currentTime).getOrElse(0)
+
     def stop() {
       timerContext.stop()
-      for (tracer <- optTracerContext) tracer.stop()
+      for (tracer <- optTracer) {
+        val endTime: Long = tracer.currentTimeGenerator.currentTime
+        tracer.record(Message(name, source), Some(endTime - startTime))
+      }
     }
   }
 

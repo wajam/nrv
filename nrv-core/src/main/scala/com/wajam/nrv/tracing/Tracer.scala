@@ -69,7 +69,7 @@ object Tracer {
  * The tracer is used to record traces. It maintain the current trace context.
  */
 class Tracer(recorder: TraceRecorder = NullTraceRecorder,
-             currentTimeGenerator: CurrentTime = new CurrentTime {},
+             val currentTimeGenerator: CurrentTime = new CurrentTime {},
              idGenerator: IdGenerator[String] = new UuidStringGenerator {}) {
 
   private val localContext = new DynamicVariable[Option[TraceContext]](None)
@@ -144,10 +144,6 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
     }
   }
 
-  def getTracingContext(message: String, source: Option[String] = None): TracingContext = {
-    new TracingContext(recorder, currentTimeGenerator, currentContext.get, message, source)
-  }
-
   private def validateContext(child: TraceContext): TraceContext = {
 
     val parent: TraceContext = currentContext.get
@@ -162,20 +158,6 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
       throw new IllegalArgumentException("Child spanId [%s] MUST not match parent spanId".format(child.spanId))
 
     child
-  }
-}
-
-class TracingContext(recorder: TraceRecorder,
-                     currentTimeGenerator: CurrentTime,
-                     currentContext: TraceContext,
-                     message: String,
-                     source: Option[String]) {
-
-  private val currentTime: Long = currentTimeGenerator.currentTime
-
-  def stop() {
-    val end = currentTimeGenerator.currentTime
-    recorder.record(Record(currentContext, end, Message(message, source), Some(end - currentTime)))
   }
 }
 
