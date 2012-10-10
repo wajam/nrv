@@ -3,8 +3,7 @@ package com.wajam.nrv.tracing
 import java.text.SimpleDateFormat
 import java.net.InetSocketAddress
 import com.wajam.nrv.tracing.Annotation.Message
-import util.DynamicVariable
-import com.wajam.nrv.utils.{UuidStringGenerator, IdGenerator, CurrentTime}
+import com.wajam.nrv.utils.{ThreadLocalVariable, UuidStringGenerator, IdGenerator, CurrentTime}
 
 /**
  * Trace context information. All trace events initiated from a common ancestor call share the same TraceId.

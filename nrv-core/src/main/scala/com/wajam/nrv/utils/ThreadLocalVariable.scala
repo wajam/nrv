@@ -1,4 +1,4 @@
-package com.wajam.nrv.tracing
+package com.wajam.nrv.utils
 
 /**
  * Copied from DynamicVariable but do not inherit parent's thread value
