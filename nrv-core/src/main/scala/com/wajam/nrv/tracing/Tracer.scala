@@ -58,7 +58,7 @@ object Annotation {
  * Tracer companion object used to access current tracer.
  */
 object Tracer {
-  private val localTracer: DynamicVariable[Option[Tracer]] = new DynamicVariable[Option[Tracer]](None)
+  private val localTracer: ThreadLocalVariable[Option[Tracer]] = new ThreadLocalVariable[Option[Tracer]](None)
 
     def currentTracer: Option[Tracer] = {
       localTracer.value
@@ -72,7 +72,7 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
              currentTimeGenerator: CurrentTime = new CurrentTime {},
              idGenerator: IdGenerator[String] = new UuidStringGenerator {}) {
 
-  private val localContext = new DynamicVariable[Option[TraceContext]](None)
+  private val localContext = new ThreadLocalVariable[Option[TraceContext]](None)
 
   /**
    * Returns the current trace context. The current trace context is only valid if the caller is a block of code
