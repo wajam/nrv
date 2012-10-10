@@ -3,14 +3,10 @@ package com.wajam.nrv.cluster
 /**
  * Cluster driver used to drive integration tests
  */
-class TestingClusterDriver(var instanceCreator: (Int, Int, ClusterManager) => TestingClusterInstance) extends ClusterManager {
+class TestingClusterDriver(var instanceCreator: (Int, Int, ClusterManager) => TestingClusterInstance) {
   var nodeInstances = Map[Node, TestingClusterInstance]()
   var instances = List[TestingClusterInstance]()
   var size: Int = 0
-
-  def start() {}
-
-  def stop() {}
 
   private def init(size: Int) {
     // create instances
@@ -54,6 +50,6 @@ class TestingClusterDriver(var instanceCreator: (Int, Int, ClusterManager) => Te
   }
 }
 
-class TestingClusterInstance(var cluster: Cluster, var data:AnyRef = null) {
+class TestingClusterInstance(var cluster: Cluster, var data: AnyRef = null) {
 }
 

@@ -1,23 +1,24 @@
 package com.wajam.nrv.cluster
 
-import com.wajam.nrv.service.{MemberStatus, Service}
-
+import com.wajam.nrv.service.{ServiceMember, MemberStatus, Service}
 
 /**
  * Static cluster (fixed number of nodes, fixed address)
  */
 class StaticClusterManager extends ClusterManager {
 
-  def start() {
-    // in static cluster, all nodes are up
-    for (member <- this.listServiceMembers) {
-      member.status = MemberStatus.Up
-    }
+  protected def initializeMembers() {
+    for (member <- allMembers)
+      member.setStatus(MemberStatus.Up, triggerEvent = false)
   }
 
-  def stop() {}
+  // make adding members public since it's done at start by application
+  override def addMember(service: Service, token: Long, node: Node): ServiceMember = {
+    if (this.started)
+      throw new Exception("Can't add member to a static cluster after started")
 
-  def addMember(service: Service, token: Long, node: Node) = service.addMember(token, node)
+    super.addMember(service, token, node)
+  }
 
   /**
    * Add members by string.

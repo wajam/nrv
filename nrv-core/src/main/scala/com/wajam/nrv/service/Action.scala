@@ -7,15 +7,20 @@ import scala.Unit
 import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
 import com.wajam.nrv.data._
 import scala.Some
+import com.wajam.nrv.consistency.Consistency
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
  * but uses path to locale functions instead of functions name.
  */
-class Action(var path: ActionPath,
-             var implementation: ((InMessage) => Unit),
-             var method: ActionMethod = ActionMethod.ANY)
+class Action(val path: ActionPath,
+             val implementation: ((InMessage) => Unit),
+             val method: ActionMethod = ActionMethod.ANY,
+             consistency: Option[Consistency] = None)
   extends ActionSupport with Instrumented with Logging {
+
+  // override protocol, resolver if defined
+  applySupport(consistency = consistency)
 
   lazy val fullPath = this.protocol.name + "://" + this.service.name + this.path
   lazy val metricsPath = this.protocol.name + "-" + this.service.name + this.path.replace("/", "-").replace(":", "+")

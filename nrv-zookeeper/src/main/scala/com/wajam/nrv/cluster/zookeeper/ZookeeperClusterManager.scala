@@ -10,9 +10,5 @@ import org.apache.zookeeper.ZooKeeper
 class ZookeeperClusterManager extends ClusterManager {
   @volatile private var zk: ZooKeeper = null
 
-  def start() {
-    // TODO: Do something with zookeeper
-  }
-
-  def stop() {}
+  protected def initializeMembers() {}
 }
