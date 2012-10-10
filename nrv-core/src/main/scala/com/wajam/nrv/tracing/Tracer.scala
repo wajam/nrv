@@ -60,8 +60,8 @@ object Annotation {
 object Tracer {
   private val localTracer: DynamicVariable[Option[Tracer]] = new DynamicVariable[Option[Tracer]](None)
 
-    def currentTracer: Option[Tracer] = {
-      localTracer.value
+  def currentTracer: Option[Tracer] = {
+    localTracer.value
   }
 }
 
@@ -144,6 +144,10 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
     }
   }
 
+  def getTracingContext(message: String, source: Option[String] = None): TracingContext = {
+    new TracingContext(recorder, currentTimeGenerator, currentContext.get, message, source)
+  }
+
   private def validateContext(child: TraceContext): TraceContext = {
 
     val parent: TraceContext = currentContext.get
@@ -160,3 +164,18 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
     child
   }
 }
+
+class TracingContext(recorder: TraceRecorder,
+                     currentTimeGenerator: CurrentTime,
+                     currentContext: TraceContext,
+                     message: String,
+                     source: Option[String]) {
+
+  private val currentTime: Long = currentTimeGenerator.currentTime
+
+  def stop() {
+    val end = currentTimeGenerator.currentTime
+    recorder.record(Record(currentContext, end, Message(message, source), Some(end - currentTime)))
+  }
+}
+
