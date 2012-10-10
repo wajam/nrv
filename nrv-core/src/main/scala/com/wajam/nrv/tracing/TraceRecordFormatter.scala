@@ -1,6 +1,5 @@
 package com.wajam.nrv.tracing
 
-import com.wajam.nrv.tracing.{Annotation, Record}
 import java.text.SimpleDateFormat
 
 /**
