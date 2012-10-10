@@ -4,78 +4,60 @@ import actors.Actor
 import java.util
 
 /**
- * Scheduler that sends a message to an actor at a regular interval.
- * @param actor Actor to send message to
- * @param message Message to send to actor
+ * Scheduler that calls a callback after a given delay and then each period
+ *
+ * @param cb Callback to call
  * @param delay Delay for first message
  * @param period Period between each message
- * @param blocking Is the sent message waiting for a response
  * @return Scheduler
  */
-class Scheduler(actor: Actor, message: Any, delay: Long, period: Long, blocking: Boolean = false) {
+class Scheduler(cb: () => Unit, delay: Long, period: Long) {
   private val timer = new util.Timer
 
   timer.scheduleAtFixedRate(new util.TimerTask {
     def run() {
-      forceSchedule()
+      cb()
     }
   }, delay, period)
+
+  def forceSchedule() {
+    cb()
+  }
 
   def cancel() {
     timer.cancel()
   }
-
-  def forceSchedule() {
-    if (blocking)
-      actor !? message
-    else
-      actor ! message
-  }
-}
-
-object Scheduler {
-  /**
-   * Create a scheduler
-   * @param actor Actor to send message to
-   * @param message Message to send to actor
-   * @param delay Delay for first message
-   * @param period Period between each message
-   * @param blocking Is the sent message waiting for a response
-   * @return Scheduler
-   */
-  def schedule(actor: Actor, message: Any, delay: Long, period: Long, blocking: Boolean = false) =
-    new Scheduler(actor, message, delay, period, blocking)
 }
 
 trait Scheduled extends Actor {
-  private var _scheduler: Option[Scheduler] = None
+  private var _scheduler: Scheduler = null
 
-  /**
-   * Schedule periodic message to actor
-   *
-   * @param message Message to send to actor
-   * @param delay Delay for first message
-   * @param period Period between each message
-   * @param blocking Is the sent message waiting for a response
-   */
-  protected def scheduleMessage(message: Any, delay: Long, period: Long, blocking: Boolean = false) {
-    _scheduler match {
-      case None => _scheduler = Some(new Scheduler(this, message, delay, period))
-      case Some(scheduler) => throw new RuntimeException("This actor is already scheduled")
-    }
+  protected def scheduledMessage: Any
+
+  protected def scheduledBlockingMessage: Boolean = false
+
+  protected def scheduledPeriod: Long
+
+  protected def scheduledDelay: Long = scheduledPeriod
+
+  override def start(): Actor = {
+    this._scheduler = new Scheduler(() => {
+      this.sendScheduledMessage()
+    }, scheduledDelay, scheduledPeriod)
+
+    super.start()
   }
 
-  protected def forceSchedule() = _scheduler match {
-    case Some(scheduler) => scheduler.forceSchedule()
-    case _ => // Do nothing
+  private def sendScheduledMessage() {
+    if (scheduledBlockingMessage)
+      this !? scheduledMessage
+    else
+      this ! scheduledMessage
   }
 
-  protected def cancelScheduler() {
-    _scheduler match {
-      case Some(scheduler) => scheduler.cancel()
-      case _ => // Do nothing
-    }
-  }
+  protected def forceScheduled() = _scheduler.forceSchedule()
+
+  protected def cancelScheduled() = _scheduler.cancel()
 
 }
 

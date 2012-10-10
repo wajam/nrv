@@ -19,10 +19,11 @@ abstract class DynamicClusterManager extends ClusterManager {
 
     case object CheckCluster
 
-    override def start(): Actor = {
-      this.scheduleMessage(CheckCluster, CLUSTER_CHECK_IN_MS, CLUSTER_CHECK_IN_MS)
-      super.start()
-    }
+    // scheduled
+    protected def scheduledMessage = CheckCluster
+
+    protected def scheduledPeriod: Long = CLUSTER_CHECK_IN_MS
+
 
     def act() {
       loop {

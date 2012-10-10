@@ -34,10 +34,17 @@ class Switchboard(val numExecutor: Int = 100)
     })
   }
 
+  // scheduled
+  override protected def scheduledBlockingMessage: Boolean = true
+
+  protected def scheduledMessage = CheckTimeout
+
+  protected def scheduledPeriod: Long = TIMEOUT_CHECK_IN_MS
+
+
   override def start(): Actor = {
     if (started.compareAndSet(false, true)) {
       super.start()
-      this.scheduleMessage(CheckTimeout, 0, TIMEOUT_CHECK_IN_MS, blocking = true)
 
       for (e <- executors) {
         e.start()
@@ -49,7 +56,7 @@ class Switchboard(val numExecutor: Int = 100)
 
   def stop() {
     if (started.compareAndSet(true, false)) {
-      this.cancelScheduler()
+      this.cancelScheduled()
     }
   }
 
@@ -83,7 +90,7 @@ class Switchboard(val numExecutor: Int = 100)
   }
 
   protected[nrv] def checkTimeout() {
-    this.forceSchedule()
+    this.forceScheduled()
   }
 
   /**
@@ -172,7 +179,7 @@ class Switchboard(val numExecutor: Int = 100)
 
   private class ReceivedMessageContext(val action: Action, val inMessage: InMessage)
 
-  private object CheckTimeout
+  protected object CheckTimeout
 
   private class SwitchboardExecutor extends Actor with Logging {
 
