@@ -8,13 +8,23 @@ class InMessage(params: Iterable[(String, Any)] = null,
                 data: Any = null) extends Message(params, meta, data) {
 
   protected[nrv] var replyCallback: (OutMessage => Unit) = null
-  protected[nrv] var matchingOutMessage:Option[OutMessage] = None
+  protected[nrv] var matchingOutMessage: Option[OutMessage] = None
 
   def reply(params: Iterable[(String, Any)],
             meta: Iterable[(String, Any)] = null,
             data: Any = null,
             code: Int = 200) {
     this.reply(new OutMessage(params, meta, data, code))
+  }
+
+  def replyWithError(error: Exception,
+                     params: Iterable[(String, Any)] = null,
+                     meta: Iterable[(String, Any)] = null,
+                     data: Any = null,
+                     code: Int = 500) {
+    val response = new OutMessage(params, meta, data, code)
+    response.error = Some(error)
+    this.reply(response)
   }
 
   def reply(message: OutMessage) {
