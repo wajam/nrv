@@ -59,8 +59,8 @@ object Annotation {
 object Tracer {
   private val localTracer: ThreadLocalVariable[Option[Tracer]] = new ThreadLocalVariable[Option[Tracer]](None)
 
-    def currentTracer: Option[Tracer] = {
-      localTracer.value
+  def currentTracer: Option[Tracer] = {
+    localTracer.value
   }
 }
 
@@ -68,7 +68,7 @@ object Tracer {
  * The tracer is used to record traces. It maintain the current trace context.
  */
 class Tracer(recorder: TraceRecorder = NullTraceRecorder,
-             currentTimeGenerator: CurrentTime = new CurrentTime {},
+             val currentTimeGenerator: CurrentTime = new CurrentTime {},
              idGenerator: IdGenerator[String] = new UuidStringGenerator {}) {
 
   private val localContext = new ThreadLocalVariable[Option[TraceContext]](None)
@@ -159,3 +159,4 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
     child
   }
 }
+
