@@ -1,6 +1,6 @@
 package com.wajam.nrv.tracing
 
-import com.yammer.metrics.core.MetricName
+import com.yammer.metrics.core.{TimerContext, MetricName}
 import java.util.concurrent.TimeUnit
 import com.yammer.metrics.scala.{Instrumented, Timer}
 import com.wajam.nrv.tracing.Annotation.Message
@@ -51,6 +51,23 @@ class TracedTimer(val timer: Timer, val name: String, val source: Option[String]
       tracer.get.record(Message(name, source), Some(unit.toMillis(duration)))
     }
     timer.update(duration, unit)
+  }
+
+  def timerContext(): TracedTimerContext = {
+    new TracedTimerContext(timer.timerContext(), Tracer.currentTracer)
+  }
+
+  class TracedTimerContext(timerContext: TimerContext, optTracer: Option[Tracer]) {
+
+    private val startTime: Long = optTracer.map(_.currentTimeGenerator.currentTime).getOrElse(0)
+
+    def stop() {
+      timerContext.stop()
+      for (tracer <- optTracer) {
+        val endTime: Long = tracer.currentTimeGenerator.currentTime
+        tracer.record(Message(name, source), Some(endTime - startTime))
+      }
+    }
   }
 
 }

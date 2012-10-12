@@ -3,8 +3,7 @@ package com.wajam.nrv.tracing
 import java.text.SimpleDateFormat
 import java.net.InetSocketAddress
 import com.wajam.nrv.tracing.Annotation.Message
-import util.DynamicVariable
-import com.wajam.nrv.utils.{UuidStringGenerator, IdGenerator, CurrentTime}
+import com.wajam.nrv.utils.{ThreadLocalVariable, UuidStringGenerator, IdGenerator, CurrentTime}
 
 /**
  * Trace context information. All trace events initiated from a common ancestor call share the same TraceId.
@@ -58,10 +57,10 @@ object Annotation {
  * Tracer companion object used to access current tracer.
  */
 object Tracer {
-  private val localTracer: DynamicVariable[Option[Tracer]] = new DynamicVariable[Option[Tracer]](None)
+  private val localTracer: ThreadLocalVariable[Option[Tracer]] = new ThreadLocalVariable[Option[Tracer]](None)
 
-    def currentTracer: Option[Tracer] = {
-      localTracer.value
+  def currentTracer: Option[Tracer] = {
+    localTracer.value
   }
 }
 
@@ -69,10 +68,10 @@ object Tracer {
  * The tracer is used to record traces. It maintain the current trace context.
  */
 class Tracer(recorder: TraceRecorder = NullTraceRecorder,
-             currentTimeGenerator: CurrentTime = new CurrentTime {},
+             val currentTimeGenerator: CurrentTime = new CurrentTime {},
              idGenerator: IdGenerator[String] = new UuidStringGenerator {}) {
 
-  private val localContext = new DynamicVariable[Option[TraceContext]](None)
+  private val localContext = new ThreadLocalVariable[Option[TraceContext]](None)
 
   /**
    * Returns the current trace context. The current trace context is only valid if the caller is a block of code
@@ -160,3 +159,4 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
     child
   }
 }
+
