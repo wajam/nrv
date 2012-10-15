@@ -20,7 +20,7 @@ object TraceFilter extends MessageHandler with Logging {
       // Message is an incoming request. Adopt received trace context. A new trace context will be automatically
       // created by the Tracer if none is present in the message.
       case MessageType.FUNCTION_CALL =>
-        val traceContext = getContextFromMessageMetadata(message)
+        val traceContext = getContextFromMessageMetadata(message, action.tracer)
         action.tracer.trace(traceContext) {
           action.tracer.record(Annotation.ServerRecv(toRpcName(action, message)))
           action.tracer.record(Annotation.ServerAddress(toInetSocketAddress(action, message)))
@@ -32,7 +32,7 @@ object TraceFilter extends MessageHandler with Logging {
 
         // Record ClientRecv response in the same context started by ClientSend
         val matchingOutMessage: OutMessage = message.matchingOutMessage.get
-        val traceContext = getContextFromMessageMetadata(matchingOutMessage)
+        val traceContext = getContextFromMessageMetadata(matchingOutMessage, action.tracer)
         action.tracer.trace(traceContext) {
           action.tracer.record(Annotation.ClientRecv(Some(message.code)))
         }
@@ -80,15 +80,16 @@ object TraceFilter extends MessageHandler with Logging {
     }
   }
 
-  def getContextFromMessageMetadata(message: Message): Option[TraceContext] = {
+  def getContextFromMessageMetadata(message: Message, tracer: Tracer): Option[TraceContext] = {
     val traceId: Option[String] = getMetadataValue(message, TraceHeader.TraceId.toString)
     val spanId: Option[String] = getMetadataValue(message, TraceHeader.SpanId.toString)
-    val parentSpanId: Option[String] = getMetadataValue(message, TraceHeader.ParentSpanId.toString)
+    val parentId: Option[String] = getMetadataValue(message, TraceHeader.ParentId.toString)
+    val sampled = for (sampled <- getMetadataValue(message, TraceHeader.Sampled.toString)) yield sampled.toBoolean
 
-    if (traceId.isDefined && spanId.isDefined)
-      Some(TraceContext(traceId.get, spanId.get, parentSpanId))
-    else
-      None
+    (traceId, spanId, parentId, sampled) match {
+      case (Some(tid), Some(sid), pid, s) => Some(TraceContext(tid, sid, pid, s))
+      case (_, _, _, s) => Some(tracer.createContext(s))  // Support sampled header without any other header for debuging
+    }
   }
 
   private def getMetadataValue(message: Message, key: String): Option[String] = {
@@ -106,9 +107,8 @@ object TraceFilter extends MessageHandler with Logging {
     for (context <- traceContext) {
       message.metadata(TraceHeader.TraceId.toString) = context.traceId
       message.metadata(TraceHeader.SpanId.toString) = context.spanId
-      for (parentSpanId <- context.parentSpanId) {
-        message.metadata(TraceHeader.ParentSpanId.toString) = parentSpanId
-      }
+      for (parentId <- context.parentId) message.metadata(TraceHeader.ParentId.toString) = parentId
+      for (sampled <- context.sampled) message.metadata(TraceHeader.Sampled.toString) = sampled.toString
     }
   }
 
@@ -146,11 +146,12 @@ object TraceFilter extends MessageHandler with Logging {
 }
 
 object TraceHeader extends Enumeration {
-  val TraceId = Value("X-TRACEID")
-  val SpanId = Value("X-SPANID")
-  val ParentSpanId = Value("X-PARENTSPANID")
+  val TraceId = Value("X-TRC-TRACEID")
+  val SpanId = Value("X-TRC-SPANID")
+  val ParentId = Value("X-TRC-PARENTID")
+  val Sampled = Value("X-TRC-SAMPLED")
 
   // This is an attachment key, not a metadata key
-  val OriginalContext = "X-ORIGINALCONTEXT"
+  val OriginalContext = "X-TRC-ORIGINALCONTEXT"
 }
 
