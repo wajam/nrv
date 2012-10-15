@@ -84,7 +84,7 @@ object TraceFilter extends MessageHandler with Logging {
     val traceId: Option[String] = getMetadataValue(message, TraceHeader.TraceId.toString)
     val spanId: Option[String] = getMetadataValue(message, TraceHeader.SpanId.toString)
     val parentId: Option[String] = getMetadataValue(message, TraceHeader.ParentId.toString)
-    val sampled = for (sampled <- getMetadataValue(message, TraceHeader.Sampled.toString)) yield sampled.toBoolean
+    val sampled = getMetadataValue(message, TraceHeader.Sampled.toString).map(_.toBoolean)
 
     (traceId, spanId, parentId, sampled) match {
       case (Some(tid), Some(sid), pid, s) => Some(TraceContext(tid, sid, pid, s))
