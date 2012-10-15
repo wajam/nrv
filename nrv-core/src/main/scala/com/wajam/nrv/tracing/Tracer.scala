@@ -109,11 +109,11 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
       // No current or new context provided. Create a brand new one.
       case (None, None) => TraceContext(idGenerator.createId, idGenerator.createId, None, None)
       // No new context provided, create a subcontext of current context.
-      case (cur, None) => createSubcontext(currentContext.get)
+      case (Some(cur), None) => createSubcontext(cur)
       // No current context but one is provided, use provided context.
-      case (None, ctx) => ctx.get
+      case (None, Some(ctx)) => ctx
       // Both current context and new context provided, validate that the new context is a direct child.
-      case (cur, ctx) => validateSubcontext(newContext.get)
+      case (Some(cur), Some(ctx)) => validateSubcontext(cur, ctx)
     }
 
     Tracer.localTracer.withValue(Some(this)) {
@@ -151,21 +151,18 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
     }
   }
 
-  private def validateSubcontext(child: TraceContext): TraceContext = {
-
-    val parent: TraceContext = currentContext.get
-
+  private def validateSubcontext(parent: TraceContext, child: TraceContext): TraceContext = {
     if (child.traceId != parent.traceId)
       throw new IllegalArgumentException("Child traceId [%s] does not match parent traceId [%s]".format(child.traceId, parent.traceId))
 
     if (child.parentId != Option(parent.spanId))
       throw new IllegalArgumentException("Child parentId [%s] does not match parent spanId [%s]".format(child.parentId, parent.spanId))
 
+    if (child.sampled != parent.sampled)
+      throw new IllegalArgumentException("Child sampled flag [%s] MUST match parent sampled flag [%s]".format(child.sampled, parent.sampled))
+
     if (child.spanId == parent.spanId)
       throw new IllegalArgumentException("Child spanId [%s] MUST not match parent spanId".format(child.spanId))
-
-    if (child.sampled == parent.sampled)
-      throw new IllegalArgumentException("Child sampled flag [%s] MUST match parent sampled flag [%s]".format(child.sampled, parent.sampled))
 
     child
   }
