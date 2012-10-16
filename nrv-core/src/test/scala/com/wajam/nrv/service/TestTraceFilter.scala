@@ -86,6 +86,23 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
   }
 
+  test("Should respect 'sampled' flag if it is present without other trace values in message metadata") {
+
+    val action = service.registerAction(new Action("/test1", (req) => Unit))
+    val message = new InMessage()
+    message.protocolName = "dummy"
+    message.serviceName = service.name
+    message.metadata(TraceHeader.Sampled.toString) = true.toString
+
+    var called = false
+    TraceFilter.handleIncoming(action, message, _ => called = true)
+
+    val expectedContext = TraceContext("0", "1", None, Some(true))
+    val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
+    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv(expectedRpcName)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
+  }
+
   test("Should adopt incoming request trace context when present in the message metadata") {
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
@@ -100,6 +117,24 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be(true)
+    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv(expectedRpcName)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
+  }
+
+  test("Should respect 'sampled' flag when present in the message metadata with the adopted context") {
+
+    val action = service.registerAction(new Action("/test1", (req) => Unit))
+    val message = new InMessage()
+    message.protocolName = "dummy"
+    message.serviceName = service.name
+
+    val expectedContext = TraceContext("TID", "SID", None, Some(false))
+    TraceFilter.setContextInMessageMetadata(message, Some(expectedContext))
+    var called = false
+    TraceFilter.handleIncoming(action, message, _ => called = true)
+
+    val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
+    called should be (true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv(expectedRpcName)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
   }
@@ -157,6 +192,25 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val expectedContext = TraceContext("TID", "0", Some("SID"))
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be(true)
+    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend(expectedRpcName)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress])))
+  }
+
+  test("Should inherit 'sampled' flag in outgoing request subcontext") {
+
+    val action = service.registerAction(new Action("/test1", (req) => Unit))
+    val message = new OutMessage()
+    message.protocolName = "dummy"
+    message.serviceName = service.name
+
+    var called = false
+    tracer.trace(Some(TraceContext("TID", "SID", None, Some(true)))) {
+      TraceFilter.handleOutgoing(action, message, _ => called = true)
+    }
+
+    val expectedContext = TraceContext("TID", "0", Some("SID"), Some(true))
+    val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
+    called should be (true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend(expectedRpcName)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress])))
   }

@@ -47,7 +47,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
       val context: TraceContext = tracer.currentContext.get
       context.traceId should not be (None)
       context.spanId should not be (None)
-      context.parentSpanId should be (None)
+      context.parentId should be (None)
       called = true
     }
     called should be (true)
@@ -68,7 +68,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
       Tracer.currentTracer should be (Some(tracer))
       tracer.currentContext should not be (None)
       tracer.currentContext should be (Some(context))
-      context.parentSpanId should not be (None)
+      context.parentId should not be (None)
       called = true
     }
     called should be (true)
@@ -97,7 +97,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
         tracer.currentContext.get.traceId should be (parent.get.traceId)
         tracer.currentContext.get.spanId should not be (None)
         tracer.currentContext.get.spanId should not be (parent.get.spanId)
-        tracer.currentContext.get.parentSpanId should be (Some(parent.get.spanId))
+        tracer.currentContext.get.parentId should be (Some(parent.get.spanId))
         childCalled = true
       }
 
@@ -134,7 +134,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
         tracer.currentContext.get.traceId should be (parent.get.traceId)
         tracer.currentContext.get.spanId should not be (None)
         tracer.currentContext.get.spanId should not be (parent.get.spanId)
-        tracer.currentContext.get.parentSpanId should be (Some(parent.get.spanId))
+        tracer.currentContext.get.parentId should be (Some(parent.get.spanId))
         childCalled = true
       }
 

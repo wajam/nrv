@@ -43,12 +43,12 @@ object TraceRecordFormatter {
   /**
    * Returns a tab delimited string representation of the specified record.
    */
-  def record2TabSeparatedString(record: Record): String = record2Traversable(record).mkString("\t")
+  def record2TabSeparatedString(record: Record): String = record2Traversable(record, _.replace("\t", " ")).mkString("\t")
 
   /**
    * Returns a traversable sequence of record field values.
    */
-  def record2Traversable(record: Record, msgEscaper: (String) => String = _.replace("\t", " ")): Traversable[String] = new Traversable[String] {
+  def record2Traversable(record: Record, msgEscaper: (String) => String): Traversable[String] = new Traversable[String] {
 
     def foreach[U](f: (String) => U) {
 
@@ -66,7 +66,7 @@ object TraceRecordFormatter {
       //  spanid
       f(record.context.spanId)
       //  parentspanid
-      f(record.context.parentSpanId.getOrElse(""))
+      f(record.context.parentId.getOrElse(""))
 
       // ClientSend / ServerRecv
       val (service, protocol, method, path) = annotation2RpcNameComponents(record.annotation)

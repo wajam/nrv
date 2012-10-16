@@ -10,7 +10,7 @@ import com.wajam.nrv.utils.{ThreadLocalVariable, UuidStringGenerator, IdGenerato
  * Every outgoing and incoming messages are recorded in a new subcontext (i.e. new SpanId)
  * refering to its parent SpanIn. The root span has not parent SpanId.
  */
-final case class TraceContext(traceId: String, spanId: String, parentSpanId: Option[String]) {
+final case class TraceContext(traceId: String, spanId: String, parentId: Option[String], sampled: Option[Boolean] = None) {
 
   if (traceId == null)
     throw new NullPointerException("traceId")
@@ -82,11 +82,19 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
   }
 
   /**
-   * Creates a new subcontext object from the specified context. Just create a new context object and does not affect
-   * the current context.
+   * Creates and returns a new subcontext object from the specified context. This method Just create a new context
+   * object and does not affect the tracer current context.
    */
   def createSubcontext(parent: TraceContext): TraceContext = {
-    TraceContext(parent.traceId, idGenerator.createId, Some(parent.spanId))
+    TraceContext(parent.traceId, idGenerator.createId, Some(parent.spanId), parent.sampled)
+  }
+
+  /**
+   * Creates abd returns a new context. This method Just create a new context object and does not affect the tracer
+   * current context.
+   */
+  def createContext(sampled: Option[Boolean]): TraceContext = {
+    TraceContext(idGenerator.createId, idGenerator.createId, None, sampled)
   }
 
   /**
@@ -99,13 +107,13 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
 
     val context: TraceContext = (currentContext, newContext) match {
       // No current or new context provided. Create a brand new one.
-      case (None, None) => TraceContext(idGenerator.createId, idGenerator.createId, None)
+      case (None, None) => TraceContext(idGenerator.createId, idGenerator.createId, None, None)
       // No new context provided, create a subcontext of current context.
-      case (cur, None) => createSubcontext(currentContext.get)
+      case (Some(cur), None) => createSubcontext(cur)
       // No current context but one is provided, use provided context.
-      case (None, ctx) => ctx.get
+      case (None, Some(ctx)) => ctx
       // Both current context and new context provided, validate that the new context is a direct child.
-      case (cur, ctx) => validateContext(newContext.get)
+      case (Some(cur), Some(ctx)) => validateSubcontext(cur, ctx)
     }
 
     Tracer.localTracer.withValue(Some(this)) {
@@ -143,15 +151,15 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
     }
   }
 
-  private def validateContext(child: TraceContext): TraceContext = {
-
-    val parent: TraceContext = currentContext.get
-
+  private def validateSubcontext(parent: TraceContext, child: TraceContext): TraceContext = {
     if (child.traceId != parent.traceId)
       throw new IllegalArgumentException("Child traceId [%s] does not match parent traceId [%s]".format(child.traceId, parent.traceId))
 
-    if (child.parentSpanId != Option(parent.spanId))
-      throw new IllegalArgumentException("Child parentSpanId [%s] does not match parent spanId [%s]".format(child.parentSpanId, parent.spanId))
+    if (child.parentId != Option(parent.spanId))
+      throw new IllegalArgumentException("Child parentId [%s] does not match parent spanId [%s]".format(child.parentId, parent.spanId))
+
+    if (child.sampled != parent.sampled)
+      throw new IllegalArgumentException("Child sampled flag [%s] MUST match parent sampled flag [%s]".format(child.sampled, parent.sampled))
 
     if (child.spanId == parent.spanId)
       throw new IllegalArgumentException("Child spanId [%s] MUST not match parent spanId".format(child.spanId))
