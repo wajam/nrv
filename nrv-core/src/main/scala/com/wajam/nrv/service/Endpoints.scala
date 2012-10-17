@@ -1,16 +1,25 @@
 package com.wajam.nrv.service
 
-/**
- * Endpoints that handle an action. Some action are managed by a single node,
- * but all backup nodes are considered endpoints too in order to handle the
- * high availability. Consensus manager handles replication to these endpoints.
- */
-class Endpoints(members: Seq[ServiceMember]) extends Serializable {
-  def size = members.size
+import com.wajam.nrv.cluster.Node
 
-  def apply(pos: Int) = members(pos)
+
+/**
+ * Endpoints to which a message are sent, composed of shards (position in the ring, associated
+ * to a token) and then for shard, there are replicas (actual node, composed of an ip and
+ * nrv port).
+ */
+class Endpoints(val shards: Seq[Shard] = Seq()) extends Serializable {
+
+  def selectedReplicas: Seq[Replica] = shards.map(_.selectedEndpoints).flatten
+
 }
 
 object Endpoints {
-  val empty = new Endpoints(List())
+  val EMPTY = new Endpoints()
 }
+
+class Shard(val token: Long, val replicas: Seq[Replica]) extends Serializable {
+  def selectedEndpoints: Seq[Replica] = replicas.filter(_.selected)
+}
+
+class Replica(val token: Long, val node: Node, var selected: Boolean = true) extends Serializable

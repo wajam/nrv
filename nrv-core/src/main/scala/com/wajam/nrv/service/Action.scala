@@ -1,11 +1,12 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.utils.Sync
+import com.wajam.nrv.utils.{Promise, Future}
 import com.yammer.metrics.scala.Instrumented
 import java.util.concurrent.TimeUnit
-import com.wajam.nrv.data.{Message, MessageType, OutMessage, InMessage}
 import scala.Unit
 import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
+import com.wajam.nrv.data._
+import scala.Some
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -26,10 +27,10 @@ class Action(var path: ActionPath,
 
   def call(params: Iterable[(String, Any)],
            meta: Iterable[(String, Any)],
-           data: Any): Sync[InMessage] = {
-    val sync = new Sync[InMessage]
-    this.call(params, sync.done(_, _), meta, data)
-    sync
+           data: Any): Future[InMessage] = {
+    val p = Promise[InMessage]
+    this.call(params, p.complete(_, _), meta, data)
+    p.future
   }
 
   def call(params: Iterable[(String, Any)],
@@ -75,7 +76,7 @@ class Action(var path: ActionPath,
 
     // resolve endpoints
     this.resolver.handleOutgoing(this, outMessage, _ => {
-      if (outMessage.destination.size == 0)
+      if (outMessage.destination.selectedReplicas.size == 0)
         throw new UnavailableException
 
       // Store current trace context in message attachment for the trace filter
@@ -165,7 +166,7 @@ class Action(var path: ActionPath,
     extractParamsFromPath(intoMessage, fromMessage.path)
 
     // TODO: shouldn't be like that. Source may not be a member...
-    intoMessage.destination = new Endpoints(Seq(new ServiceMember(0, fromMessage.source)))
+    intoMessage.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, fromMessage.source)))))
   }
 
   private def extractParamsFromPath(intoMessage: Message, path: String) {

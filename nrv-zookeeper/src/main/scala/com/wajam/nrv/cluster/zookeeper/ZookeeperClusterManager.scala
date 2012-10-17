@@ -13,4 +13,6 @@ class ZookeeperClusterManager extends ClusterManager {
   def start() {
     // TODO: Do something with zookeeper
   }
+
+  def stop() {}
 }

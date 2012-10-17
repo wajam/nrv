@@ -16,10 +16,15 @@ class Cluster(var localNode: Node,
               resolver: Resolver = new Resolver,
               tracer: Tracer = new Tracer)
   extends ActionSupport with ProtocolMessageListener with Logging {
+
+  // assign default resolver, switchboard, etc.
   applySupport(cluster = Some(this), resolver = Some(resolver), switchboard = Some(switchboard), tracer = Some(tracer))
 
   var services = Map[String, Service]()
   var protocols = Map[String, Protocol]()
+
+  // initialize manager
+  clusterManager.init(cluster)
 
   // register default protocol, which is nrv
   this.registerProtocol(new NrvProtocol(this.localNode, this), true)
@@ -74,8 +79,14 @@ class Cluster(var localNode: Node,
   }
 
   def stop() {
+    for ((name, service) <- this.services) {
+      service.stop()
+    }
+
     for ((name, protocol) <- this.protocols) {
       protocol.stop()
     }
+
+    clusterManager.stop()
   }
 }

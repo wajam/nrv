@@ -56,24 +56,27 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
           })
       }
       case None => {
-        val node = message.destination(0).node
-        val request = generate(message)
-        transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),
-          request,
-          message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
-          (result: Option[Throwable]) => {
-            result match {
-              case Some(throwable) => {
-                val response = new InMessage()
-                message.copyTo(response)
-                response.error = Some(new RuntimeException(throwable))
-                response.function = MessageType.FUNCTION_RESPONSE
+        for (replica <- message.destination.selectedReplicas) {
+          val node = replica.node
+          val request = generate(message)
 
-                handleIncoming(action, response, Unit => {})
+          transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),
+            request,
+            message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
+            (result: Option[Throwable]) => {
+              result match {
+                case Some(throwable) => {
+                  val response = new InMessage()
+                  message.copyTo(response)
+                  response.error = Some(new RuntimeException(throwable))
+                  response.function = MessageType.FUNCTION_RESPONSE
+
+                  handleIncoming(action, response, Unit => {})
+                }
+                case None =>
               }
-              case None =>
-            }
-          })
+            })
+        }
       }
     }
   }
@@ -91,7 +94,7 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
         handleOutgoing(null, createErrorMessage(inMessage, pe, pe.code))
       }
       case e: Exception => {
-        warn("Exception caught while processing a message from transport: {}", e)
+        warn("Exception caught while processing a message from transport", e)
         handleOutgoing(null, createErrorMessage(inMessage, e, 500))
       }
     }

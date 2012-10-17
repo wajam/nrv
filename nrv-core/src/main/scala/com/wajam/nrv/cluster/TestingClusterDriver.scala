@@ -10,6 +10,8 @@ class TestingClusterDriver(var instanceCreator: (Int, Int, ClusterManager) => Te
 
   def start() {}
 
+  def stop() {}
+
   private def init(size: Int) {
     // create instances
     this.size = size

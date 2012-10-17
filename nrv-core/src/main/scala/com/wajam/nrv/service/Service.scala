@@ -12,22 +12,29 @@ import com.wajam.nrv.cluster.Node
  * Members of the service are represented by a consistent hashing ring (@see Ring)
  */
 class Service(var name: String, protocol: Option[Protocol] = None, resolver: Option[Resolver] = None) extends ActionSupport {
-  var ring = new Object with Ring[Node]
+  var ring = new Object with Ring[ServiceMember]
   var actions = List[Action]()
 
+  // override protocol, resolver if defined
   applySupport(service = Some(this), protocol = protocol, resolver = resolver)
 
-  def addMember(token: Long, node: Node) = this.ring.add(token, node)
-
-  def resolveMembers(token: Long, count: Int) = this.ring.resolve(token, count)
-
-  def resolveMembers(token: Long, count: Int, filter: ServiceMember => Boolean) = {
-    this.ring.resolve(token, count, node => {
-      filter(new ServiceMember(node.token, node.value.get))
-    })
-  }
+  def members: Iterable[ServiceMember] = this.ring.nodes.map(node => node.element)
 
   def membersCount = this.ring.size
+
+  def addMember(token: Long, node: Node): ServiceMember = {
+    val member = new ServiceMember(token, node)
+    this.ring.add(token, member)
+    member
+  }
+
+  def resolveMembers(token: Long, count: Int): Seq[ServiceMember] = this.ring.resolve(token, count).map(node => node.element)
+
+  def resolveMembers(token: Long, count: Int, filter: ServiceMember => Boolean): Seq[ServiceMember] = {
+    this.ring.resolve(token, count, node => {
+      filter(node.element)
+    }).map(node => node.element)
+  }
 
   def start() {
     for (action <- this.actions) {

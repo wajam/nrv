@@ -18,7 +18,9 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
   private val rendezvous = collection.mutable.HashMap[Int, SentMessageContext]()
   private val timer = new util.Timer
   private var id = 0
-  private val executors = Array.fill(numExecutor) {new SwitchboardExecutor}
+  private val executors = Array.fill(numExecutor) {
+    new SwitchboardExecutor
+  }
 
   @volatile
   private var started = new AtomicBoolean(false)
@@ -44,7 +46,8 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
         }
       }, 0, TIMEOUT_CHECK_IN_MS)
       for (e <- executors) {
-        e.start()}
+        e.start()
+      }
     }
 
     this
@@ -78,7 +81,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
     inMessage.matchingOutMessage match {
       // no matching out message, we need to find matching message
       case None =>
-        this ! (new ReceivedMessageContext(action, inMessage), next)
+        this !(new ReceivedMessageContext(action, inMessage), next)
 
       case Some(outMessage) =>
         next()
@@ -98,7 +101,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
 
   private def nextId = {
     id += 1
-    if(id == Int.MaxValue) {
+    if (id == Int.MaxValue) {
       id = 0
     }
     id
@@ -116,7 +119,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
               if (elaps >= rdv.outMessage.timeoutTime) {
                 var exceptionMessage = new InMessage
                 exceptionMessage.matchingOutMessage = Some(rdv.outMessage)
-                exceptionMessage.error = Some(new TimeoutException("Didn't receive a reply within time"))
+                exceptionMessage.error = Some(rdv.enventualTimeoutException)
                 rdv.action.generateResponseMessage(rdv.outMessage, exceptionMessage)
                 rdv.action.callIncomingHandlers(exceptionMessage)
 
@@ -165,11 +168,14 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
     if (message.token >= 0) {
       executors((message.token % numExecutor).toInt) ! next
     } else {
-      throw new RuntimeException("Invald token for message: " + message)
+      throw new RuntimeException("Invalid token for message: " + message)
     }
   }
 
-  private class SentMessageContext(val action: Action, val outMessage: OutMessage)
+  private class SentMessageContext(val action: Action, val outMessage: OutMessage) {
+    val enventualTimeoutException = new TimeoutException("Timeout receiving a reply in time")
+  }
+
   private class ReceivedMessageContext(val action: Action, val inMessage: InMessage)
 
   private object CheckTimeout
@@ -177,6 +183,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
   private class SwitchboardExecutor extends Actor with Logging {
 
     def queueSize = mailboxSize
+
     def act() {
       loop {
         try {
@@ -189,4 +196,5 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
       }
     }
   }
+
 }

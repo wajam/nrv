@@ -5,7 +5,7 @@ import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
 import com.wajam.nrv.protocol.DummyProtocol
 import com.wajam.nrv.tracing._
-import com.wajam.nrv.utils.{Sync, ControlableSequentialStringIdGenerator, ControlableCurrentTime}
+import com.wajam.nrv.utils.{Future, Promise, ControlableSequentialStringIdGenerator, ControlableCurrentTime}
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import com.wajam.nrv.data.{MessageType, InMessage, OutMessage}
@@ -36,7 +36,8 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     cluster = new Cluster(new Node(nodeHost, Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager, tracer = tracer)
     cluster.registerProtocol(new DummyProtocol("dummy", cluster), default = true)
     service = cluster.registerService(new Service("test", resolver = Some(new Resolver(1))))
-    service.addMember(0, cluster.localNode)
+    val member = service.addMember(0, cluster.localNode)
+    member.status = MemberStatus.Up
   }
 
   before {
@@ -115,7 +116,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     TraceFilter.handleIncoming(action, message, _ => called = true)
 
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
-    called should be (true)
+    called should be(true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv(expectedRpcName)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
   }
@@ -158,8 +159,8 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
       called = true
     })
 
-    called should be (true)
-    verify(mockRecorder).record(Record(clientRecvContext, time.currentTime-123, ClientRecv(Some(200))))
+    called should be(true)
+    verify(mockRecorder).record(Record(clientRecvContext, time.currentTime - 123, ClientRecv(Some(200))))
     verify(mockRecorder).record(Record(originalContext, time.currentTime, Annotation.Message("Got the response!")))
   }
 
@@ -172,7 +173,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     var called = false
     TraceFilter.handleIncoming(action, message, _ => called = true)
 
-    called should be (true)
+    called should be(true)
     verifyZeroInteractions(mockRecorder)
   }
 
@@ -190,7 +191,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     val expectedContext = TraceContext("TID", "0", Some("SID"))
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
-    called should be (true)
+    called should be(true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend(expectedRpcName)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress])))
   }
@@ -226,7 +227,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     val expectedContext = TraceContext("0", "1", None)
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
-    called should be (true)
+    called should be(true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend(expectedRpcName)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress])))
   }
@@ -245,7 +246,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
       TraceFilter.handleOutgoing(action, message, _ => called = true)
     }
 
-    called should be (true)
+    called should be(true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerSend(Some(201))))
   }
 
@@ -259,7 +260,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     var called = false
     TraceFilter.handleOutgoing(action, message, _ => called = true)
 
-    called should be (true)
+    called should be(true)
     verifyZeroInteractions(mockRecorder)
   }
 
@@ -275,7 +276,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val expectedContext: TraceContext = TraceContext("0", "1", None)
     val expectedAddress = ServerAddress(new InetSocketAddress("127.0.0.1", 12346))
 
-    called should be (true)
+    called should be(true)
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv])))
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, expectedAddress))
   }
@@ -285,7 +286,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     // Node host may be resolved in the future and not stay 'any local address' (i.e.'0.0.0.0') in the future but
     // this is the current behavior and we currently have to deal with it
     setupCluster("0.0.0.0")
-    cluster.localNode.host should be (InetAddress.getByName("0.0.0.0"))
+    cluster.localNode.host should be(InetAddress.getByName("0.0.0.0"))
 
     val action = service.registerAction(new Action("/test1", (req) => Unit))
     val message = new InMessage()
@@ -294,7 +295,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     var called = false
     TraceFilter.handleIncoming(action, message, _ => called = true)
 
-    called should be (true)
+    called should be(true)
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv])))
     verify(mockRecorder).record(argThat(new ArgumentMatcher {
       def matches(argument: Any) = {
@@ -313,7 +314,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
   }
 
   test("Should record nested calls/replies in proper trace context") {
-    var syncResponse = new Sync[String]
+    val syncResponse = Promise[String]
 
     val originalTime = time.currentTime
     val childAction = service.registerAction(new Action("/child", req => {
@@ -338,11 +339,10 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     parentAction.call(Map(), onReply = (resp, err) => {
       if (err.isEmpty)
-        syncResponse.done("OK")
+        syncResponse.success("OK")
     })
-    syncResponse.thenWait(response => {
-      response should be ("OK")
-    }, 1000)
+
+    Future.blocking(syncResponse.future, 1000) should be("OK")
 
     parentAction.stop()
     childAction.stop()
@@ -356,8 +356,8 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     verify(mockRecorder).record(Record(parentContext, originalTime + 100, Annotation.Message("parent before")))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientSend], childContext, originalTime + 100)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress], childContext, originalTime + 100)))
-    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv], childContext ,originalTime + 100)))
-    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress] ,childContext, originalTime + 100)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv], childContext, originalTime + 100)))
+    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress], childContext, originalTime + 100)))
     verify(mockRecorder).record(Record(childContext, originalTime + 200, Annotation.Message("child")))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerSend], childContext, originalTime + 200)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientRecv], childContext, originalTime + 200)))

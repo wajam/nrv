@@ -4,10 +4,10 @@ import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.mock.MockitoSugar
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.utils.Sync
 import org.mockito.Matchers._
 import org.mockito.Mockito._
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
+import com.wajam.nrv.utils.{Future, Promise}
 
 @RunWith(classOf[JUnitRunner])
 class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
@@ -24,7 +24,7 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
   }
 
   test("in-out matching") {
-    val sync = new Sync[OutMessage]
+    val sync = Promise[OutMessage]
 
     val outMessage = new OutMessage()
     outMessage.sentTime = System.currentTimeMillis()
@@ -36,11 +36,11 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
       inMessage.rendezvousId = outMessage.rendezvousId
       inMessage.token = outMessage.token
       switchboard.handleIncoming(null, inMessage, Unit => {
-        sync.done(inMessage.matchingOutMessage.get)
+        sync.success(inMessage.matchingOutMessage.get)
       })
     })
 
-    assert(sync.get(100) != null)
+    assert(Future.blocking(sync.future, 100) != null)
   }
 
   test("timeout") {
@@ -51,7 +51,9 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
     outMessage.timeoutTime = 20
 
     switchboard.handleOutgoing(mockAction, outMessage)
-    switchboard.getTime = ()=>{ 100 }
+    switchboard.getTime = () => {
+      100
+    }
     switchboard.checkTimeout()
 
     verify(mockAction).generateResponseMessage(anyObject[Message], anyObject[Message])
