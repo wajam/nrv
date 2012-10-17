@@ -78,6 +78,17 @@ abstract class Message(params: Iterable[(String, Any)] = null,
     other.destination = this.destination // TODO: should be cloned
     other.token = this.token
   }
+
+  override def toString = {
+    new StringBuilder("message [")
+      .append("protocol name=" + protocolName)
+      .append(", service name=" + serviceName)
+      .append(", function call=" + (function == FUNCTION_CALL).toString)
+      .append(", path=" + path)
+      .append(", method=" + method)
+      .append(", parameters=" + parameters)
+      .append(", code=" + code).append("]").toString()
+  }
 }
 
 object MessageType {
