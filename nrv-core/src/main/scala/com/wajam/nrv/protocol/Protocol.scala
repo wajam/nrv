@@ -49,7 +49,8 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
             result match {
               case Some(throwable) => {
                 sendingMessageFailure.mark()
-                warn("Could not send the response because of an error: {}.", throwable.toString)
+                warn("Could not send the response because of an error: resonse = {}, error = {}.",
+                  message, throwable.toString)
               }
               case None =>
             }
