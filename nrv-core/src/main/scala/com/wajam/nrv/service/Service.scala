@@ -1,9 +1,9 @@
 package com.wajam.nrv.service
 
 import com.wajam.nrv.protocol.Protocol
-import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.utils.Observable
 import com.wajam.nrv.consistency.Consistency
+import com.wajam.nrv.cluster.Node
 
 /**
  * Service handled by the cluster that offers actions that can be executed on remote nodes. A service
@@ -13,28 +13,40 @@ import com.wajam.nrv.consistency.Consistency
  *
  * Members of the service are represented by a consistent hashing ring (@see Ring)
  */
-class Service(var name: String,
+class Service(val name: String,
               defaultProtocol: Option[Protocol] = None,
               defaultResolver: Option[Resolver] = None,
               defaultConsistency: Option[Consistency] = None)
   extends ActionSupport with Observable {
 
-  var ring = new Object with Ring[ServiceMember]
+  val ring = new Object with Ring[ServiceMember]
   var actions = List[Action]()
 
   // override protocol, resolver if defined
   applySupport(service = Some(this), protocol = defaultProtocol, resolver = defaultResolver, consistency = defaultConsistency)
 
+  override def toString: String = name
+
   def members: Iterable[ServiceMember] = this.ring.nodes.map(node => node.element)
 
   def membersCount = this.ring.size
 
-  def addMember(token: Long, node: Node): ServiceMember = {
-    val member = new ServiceMember(this, token, node)
+  def getMemberAtToken(token: Long): Option[ServiceMember] = this.ring.find(token) match {
+    case None => None
+    case Some(ringNode) => Some(ringNode.element)
+  }
+
+  def addMember(token: Long, node: Node): ServiceMember = addMember(new ServiceMember(token, node))
+
+  def addMember(member: ServiceMember): ServiceMember = {
     member.addParentObserver(this)
-    this.ring.add(token, member)
+    this.ring.add(member.token, member)
     member
   }
+
+  lazy val maximumReplica: Int = actions.foldLeft(0)((cur, action) =>
+    if (action.resolver.replica > cur) action.resolver.replica else cur
+  )
 
   def resolveMembers(token: Long, count: Int): Seq[ServiceMember] = this.ring.resolve(token, count).map(node => node.element)
 
@@ -72,5 +84,14 @@ class Service(var name: String,
     this.actions find {
       _.matches(path, method)
     }
+  }
+
+  def printService: String = {
+    (Seq(
+      "Service: %s".format(name),
+      "Token\tNode\t\t\t\t\tStatus"
+    ) ++
+      members.map(member => "%d\t\t%s\t\t%s".format(member.token, member.node, member.status))
+      ).mkString("\n")
   }
 }

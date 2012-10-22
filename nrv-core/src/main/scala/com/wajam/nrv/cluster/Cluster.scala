@@ -30,6 +30,8 @@ class Cluster(val localNode: Node,
   // initialize manager
   clusterManager.init(cluster)
 
+  def isLocalNode(node: Node) = node == localNode
+
   // register default protocol, which is nrv
   this.registerProtocol(new NrvProtocol(this.localNode, this), true)
 

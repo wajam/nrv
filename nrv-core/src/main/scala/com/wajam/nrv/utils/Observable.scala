@@ -22,6 +22,7 @@ trait Observable {
   private var parents = List[Observable]()
 
   def addParentObserver(parent: Observable) {
+    assert(parent != this)
     this.parents :+= parent
   }
 
@@ -31,7 +32,7 @@ trait Observable {
 
   protected def notifyObservers(event: Event) {
     observers.foreach(obs => obs(event))
-    parents.foreach(parent => notifyObservers(event))
+    parents.foreach(parent => parent.notifyObservers(event))
   }
 }
 

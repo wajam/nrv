@@ -4,15 +4,15 @@ import actors.Actor
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
 import com.wajam.nrv.{TimeoutException, Logging}
-import com.wajam.nrv.utils.Scheduled
 import java.util.concurrent.atomic.AtomicBoolean
+import com.wajam.nrv.utils.Scheduler
 
 /**
  * Handle incoming messages and find matching outgoing messages, having same
  * rendez-vous number.
  */
 class Switchboard(val numExecutor: Int = 100)
-  extends Actor with MessageHandler with Logging with Instrumented with Scheduled {
+  extends Actor with MessageHandler with Logging with Instrumented {
 
   private val TIMEOUT_CHECK_IN_MS = 100
   private val rendezvous = collection.mutable.HashMap[Int, SentMessageContext]()
@@ -35,16 +35,12 @@ class Switchboard(val numExecutor: Int = 100)
   }
 
   // scheduled
-  override protected def scheduledBlockingMessage: Boolean = true
-
-  protected def scheduledMessage = CheckTimeout
-
-  protected def scheduledPeriod: Long = TIMEOUT_CHECK_IN_MS
-
+  val schdlr = new Scheduler(this, CheckTimeout, TIMEOUT_CHECK_IN_MS, TIMEOUT_CHECK_IN_MS, blockingMessage = true)
 
   override def start(): Actor = {
     if (started.compareAndSet(false, true)) {
       super.start()
+      schdlr.start()
 
       for (e <- executors) {
         e.start()
@@ -56,7 +52,7 @@ class Switchboard(val numExecutor: Int = 100)
 
   def stop() {
     if (started.compareAndSet(true, false)) {
-      this.cancelScheduled()
+      this.schdlr.cancel()
     }
   }
 
@@ -90,7 +86,7 @@ class Switchboard(val numExecutor: Int = 100)
   }
 
   protected[nrv] def checkTimeout() {
-    this.forceScheduled()
+    this.schdlr.forceSchedule()
   }
 
   /**

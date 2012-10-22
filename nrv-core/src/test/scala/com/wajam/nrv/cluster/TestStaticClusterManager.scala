@@ -3,7 +3,7 @@ package com.wajam.nrv.cluster
 import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
 import org.scalatest.FunSuite
-import com.wajam.nrv.service.Service
+import com.wajam.nrv.service.{ServiceMember, Service}
 
 @RunWith(classOf[JUnitRunner])
 class TestStaticClusterManager extends FunSuite {
@@ -20,9 +20,9 @@ class TestStaticClusterManager extends FunSuite {
     val service = new Service("test_service")
     cluster.registerService(service)
 
-    clusterManager.addMember(service, 1000, node1)
-    clusterManager.addMember(service, 5000, node2)
-    clusterManager.addMember(service, 9000, node3)
+    clusterManager.addMember(service, new ServiceMember(1000, node1))
+    clusterManager.addMember(service, new ServiceMember(5000, node2))
+    clusterManager.addMember(service, new ServiceMember(9000, node3))
 
     val t1 = service.resolveMembers(50, 1)
     assert(t1.length == 1)

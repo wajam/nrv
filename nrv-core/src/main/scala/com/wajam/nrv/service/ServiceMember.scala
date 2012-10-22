@@ -8,8 +8,7 @@ import com.wajam.nrv.utils.{VotableEvent, Event, Observable}
  * Node that is member of a service, at a specific position (token) in
  * the consistent hashing ring of the service.
  */
-sealed class ServiceMember(private val service: Service,
-                           val token: Long,
+sealed class ServiceMember(val token: Long,
                            val node: Node,
                            protected var _status: MemberStatus = MemberStatus.Down)
   extends Serializable with Observable {
@@ -17,6 +16,8 @@ sealed class ServiceMember(private val service: Service,
   def status = this._status
 
   private[nrv] def trySetStatus(newStatus: MemberStatus, triggerEvent: Boolean): Option[StatusTransitionAttemptEvent] = {
+    // TODO: helper method, too similar
+
     if (this._status != newStatus) {
       if (triggerEvent) {
         val event = new StatusTransitionAttemptEvent(this, this._status, newStatus)
@@ -46,7 +47,25 @@ sealed class ServiceMember(private val service: Service,
     }
   }
 
+  override def hashCode(): Int = toString.hashCode
+
+  override def equals(that: Any) = that match {
+    case other: ServiceMember => this.toString.equalsIgnoreCase(other.toString)
+    case _ => false
+  }
+
+  override def toString: String = "%d:%s".format(token, node.toString)
 }
+
+object ServiceMember {
+
+  def fromString(memberString: String): ServiceMember = {
+    val Array(strToken, strNode) = memberString.split(":", 2)
+    new ServiceMember(strToken.toLong, Node.fromString(strNode))
+  }
+
+}
+
 
 case class StatusTransitionAttemptEvent(member: ServiceMember, from: MemberStatus, to: MemberStatus) extends VotableEvent
 
@@ -56,13 +75,25 @@ sealed trait MemberStatus extends Serializable;
 
 object MemberStatus {
 
-  case object Down extends MemberStatus
+  def fromString(name: String): MemberStatus = {
+    name.toLowerCase match {
+      case "down" => Down
+      case "joining" => Joining
+      case "up" => Up
+    }
+  }
 
-  case object Joining extends MemberStatus
+  case object Down extends MemberStatus {
+    override def toString = "down"
+  }
 
-  case object Up extends MemberStatus
+  case object Joining extends MemberStatus {
+    override def toString = "joining"
+  }
 
-  case object Leaving extends MemberStatus
+  case object Up extends MemberStatus {
+    override def toString = "up"
+  }
 
 }
 

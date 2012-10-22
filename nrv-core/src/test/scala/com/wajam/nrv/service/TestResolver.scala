@@ -19,12 +19,12 @@ class TestResolver extends FunSuite with BeforeAndAfter {
 
   before {
     service = new Service("test")
-    memb5 = service.addMember(5, new Node("localhost", Map("nrv" -> 12345)))
-    memb7 = service.addMember(7, new Node("localhost", Map("nrv" -> 12346)))
-    memb9 = service.addMember(9, new Node("localhost", Map("nrv" -> 12346)))
-    memb12 = service.addMember(12, new Node("localhost", Map("nrv" -> 12346)))
-    memb20 = service.addMember(20, new Node("localhost", Map("nrv" -> 12346)))
-    memb30 = service.addMember(30, new Node("localhost", Map("nrv" -> 12346)))
+    memb5 = service.addMember(new ServiceMember(5, new Node("localhost", Map("nrv" -> 12345))))
+    memb7 = service.addMember(new ServiceMember(7, new Node("localhost", Map("nrv" -> 12346))))
+    memb9 = service.addMember(new ServiceMember(9, new Node("localhost", Map("nrv" -> 12346))))
+    memb12 = service.addMember(new ServiceMember(12, new Node("localhost", Map("nrv" -> 12346))))
+    memb20 = service.addMember(new ServiceMember(20, new Node("localhost", Map("nrv" -> 12346))))
+    memb30 = service.addMember(new ServiceMember(30, new Node("localhost", Map("nrv" -> 12346))))
 
     for (member <- service.members) {
       member.setStatus(MemberStatus.Up, triggerEvent = false)
