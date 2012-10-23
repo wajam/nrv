@@ -12,7 +12,7 @@ import com.yammer.metrics.scala.Instrumented
  */
 abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener) extends MessageHandler with Logging with Instrumented {
 
-  private val sendingMessageFailure = metrics.meter("sendMessageFailure", "failure")
+  private val sendingResponseFailure = metrics.meter("sendResponseFailure", "failure")
   val transport: Transport
 
   /**
@@ -48,8 +48,8 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
           (result: Option[Throwable]) => {
             result match {
               case Some(throwable) => {
-                sendingMessageFailure.mark()
-                warn("Could not send the response because of an error: resonse = {}, error = {}.",
+                sendingResponseFailure.mark()
+                log.debug("Could not send the response because of an error: resonse = {}, error = {}.",
                   message, throwable.toString)
               }
               case None =>
