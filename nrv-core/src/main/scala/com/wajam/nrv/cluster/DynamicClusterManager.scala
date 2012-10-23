@@ -4,18 +4,19 @@ import actors.Actor
 import com.wajam.nrv.utils.Scheduler
 import com.wajam.nrv.service.{Service, ServiceMember, MemberStatus}
 import com.wajam.nrv.Logging
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Manager of a cluster in which nodes can be added/removed and can go up and down.
  */
 abstract class DynamicClusterManager extends ClusterManager with Logging {
-  private var started = false
+  private val started: AtomicBoolean = new AtomicBoolean(false)
   private val CLUSTER_CHECK_IN_MS = 1000
   private val CLUSTER_PRINT_IN_MS = 5000
 
   override def start() {
     super.start()
-    started = true
+    started.set(true)
     EventLoop.start()
   }
 
@@ -32,7 +33,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
     EventLoop !? ForceDown
   }
 
-  protected def compileVotes(candidateMember: ServiceMember, votes: Seq[ServiceMemberVote]): MemberStatus = {
+  private def compileVotes(candidateMember: ServiceMember, votes: Seq[ServiceMemberVote]): MemberStatus = {
     // TODO: implement consensus, not just take the member vote
     val optSelfVote = votes.find(_.voterMember.token == candidateMember.token)
     optSelfVote match {
@@ -42,7 +43,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
   }
 
   protected def syncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) {
-    if (!started)
+    if (started.get)
       syncServiceMembersImpl(service, members)
     else
       EventLoop !? SyncServiceMembers(service, members)
@@ -117,7 +118,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
       member.trySetStatus(newStatus) match {
         case Some(event) =>
           if (event.noVotes > 0) {
-            info("Attempt to switch status of {} in service {} to {} failed because (yea={}, no={})",
+            info("Attempt to switch status of {} in service {} to {} failed by vote (yea={}, no={})",
               member, service, newStatus, event.yeaVotes, event.noVotes)
           }
 
@@ -161,7 +162,6 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
               }
               sender ! true
 
-
             case ForceDown =>
               info("Forcing the whole cluster down")
               allMembers.foreach {
@@ -169,10 +169,10 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
               }
               sender ! true
 
-
             case SyncServiceMembers(service, members) =>
               syncServiceMembersImpl(service, members)
               sender ! true
+
           }
         } catch {
           case e: Exception => error("Got an exception in cluster manager event loop: {}", e)

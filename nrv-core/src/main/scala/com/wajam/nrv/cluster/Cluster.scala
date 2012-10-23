@@ -86,8 +86,6 @@ class Cluster(val localNode: Node,
   }
 
   def stop() {
-    // TODO: probably need to tell cluster manager to prepare
-
     for ((name, service) <- this.services) {
       service.stop()
     }
