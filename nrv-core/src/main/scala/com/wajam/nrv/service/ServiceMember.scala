@@ -15,17 +15,20 @@ sealed class ServiceMember(val token: Long,
 
   def status = this._status
 
-  private[nrv] def trySetStatus(newStatus: MemberStatus, triggerEvent: Boolean): Option[StatusTransitionAttemptEvent] = {
-    // TODO: helper method, too similar
+  def isLegalStatusTransition(oldStatus: MemberStatus, newStatus: MemberStatus): Boolean = {
+    (oldStatus, newStatus) match {
+      case (MemberStatus.Down, MemberStatus.Joining) => true
+      case (MemberStatus.Joining, MemberStatus.Up) => true
+      case (MemberStatus.Up, MemberStatus.Down) => true
+      case _ => false
+    }
+  }
 
+  private[nrv] def trySetStatus(newStatus: MemberStatus): Option[StatusTransitionAttemptEvent] = {
     if (this._status != newStatus) {
-      if (triggerEvent) {
-        val event = new StatusTransitionAttemptEvent(this, this._status, newStatus)
-        this.notifyObservers(event)
-        Some(event)
-      } else {
-        None
-      }
+      val event = new StatusTransitionAttemptEvent(this, this._status, newStatus)
+      this.notifyObservers(event)
+      Some(event)
     } else {
       None
     }

@@ -20,9 +20,9 @@ class TestStaticClusterManager extends FunSuite {
     val service = new Service("test_service")
     cluster.registerService(service)
 
-    clusterManager.addMember(service, new ServiceMember(1000, node1))
-    clusterManager.addMember(service, new ServiceMember(5000, node2))
-    clusterManager.addMember(service, new ServiceMember(9000, node3))
+    service.addMember(new ServiceMember(1000, node1))
+    service.addMember(new ServiceMember(5000, node2))
+    service.addMember(new ServiceMember(9000, node3))
 
     val t1 = service.resolveMembers(50, 1)
     assert(t1.length == 1)

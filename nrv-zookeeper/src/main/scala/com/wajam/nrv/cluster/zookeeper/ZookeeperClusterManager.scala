@@ -2,11 +2,12 @@ package com.wajam.nrv.cluster.zookeeper
 
 import com.wajam.nrv.cluster.{ServiceMemberVote, DynamicClusterManager}
 import com.wajam.nrv.service.{ServiceMember, Service}
-import com.wajam.nrv.cluster.zookeeper.ZookeeperClient.{ZookeeperExpired, ZookeeperDisconnected, NodeValueChanged, NodeChildrenChanged}
+import com.wajam.nrv.cluster.zookeeper.ZookeeperClient._
 import com.wajam.nrv.Logging
+import org.apache.zookeeper.CreateMode
 
 /**
- * Zookeeper cluster manager
+ * Dynamic cluster manager that uses zookeeper to keep a consistent view of the cluster among nodes
  */
 class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterManager with Logging {
 
@@ -15,12 +16,12 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
   zk.addObserver {
     case ZookeeperDisconnected(original) => {
       error("Lost connection with Zookeeper. Pausing the cluster")
-      // TODO: turn down all service members
+      this.forceClusterDown()
     }
 
     case ZookeeperExpired(original) => {
       error("Connection with Zookeeper expired. Pausing the cluster")
-      // TODO: turn down all service members
+      this.forceClusterDown()
     }
 
     case _ =>
@@ -37,15 +38,28 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     }))
   }
 
+  protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote) {
+    info("Voting for member {} in service {} to {}", vote.candidateMember, service, vote.statusVote)
+
+    try {
+      val path = zkMemberVotePath(service.name, vote.candidateMember.token, vote.voterMember.token)
+      if (zk.ensureExists(path, vote.toString, CreateMode.EPHEMERAL)) {
+        zk.set(path, vote.toString)
+      }
+    } catch {
+      case e: Exception => error("Got an exception voting for member {} in service {} to {}: {}", vote.candidateMember, service, vote.statusVote, e)
+    }
+  }
+
   private def getZkServiceMembers(service: Service, watch: Boolean): Seq[ServiceMember] = {
-    info("Getting service members for service {}", service)
+    debug("Getting service members for service {}", service)
 
     val callback = if (watch) Some((e: NodeChildrenChanged) => {
-      info("Service members within service {} changed", service)
+      debug("Service members within service {} changed", service)
       try {
         getZkServiceMembers(service, watch = true)
       } catch {
-        case _ =>
+        case e: Exception =>
       }
       syncZk(service, watch = false)
     })
@@ -58,14 +72,14 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
   }
 
   private def getZkMemberVotes(service: Service, serviceMember: ServiceMember, watch: Boolean): Seq[ServiceMemberVote] = {
-    info("Getting votes for {} in service {}", serviceMember, service)
+    debug("Getting votes for {} in service {}", serviceMember, service)
 
     val callback = if (watch) Some((e: NodeChildrenChanged) => {
-      info("Votes for {} in service {} changed", serviceMember, service)
+      debug("Votes for {} in service {} changed", serviceMember, service)
       try {
         getZkMemberVotes(service, serviceMember, watch = true)
       } catch {
-        case _ =>
+        case e: Exception =>
       }
       syncZk(service, watch = false)
     })
@@ -77,14 +91,14 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
   }
 
   private def getZkMemberVote(service: Service, candidateMember: ServiceMember, voterToken: Long, watch: Boolean): ServiceMemberVote = {
-    info("Getting vote for member {} by {} in service {}", candidateMember, voterToken, service)
+    debug("Getting vote for member {} by {} in service {}", candidateMember, voterToken, service)
 
     val callback = if (watch) Some((e: NodeValueChanged) => {
-      info("Vote for member {} by {} in service {} changed", candidateMember, voterToken, service)
+      debug("Vote for member {} by {} in service {} changed", candidateMember, voterToken, service)
       try {
         getZkMemberVote(service, candidateMember, voterToken, watch = true)
       } catch {
-        case _ =>
+        case e: Exception =>
       }
       syncZk(service, watch = false)
     })

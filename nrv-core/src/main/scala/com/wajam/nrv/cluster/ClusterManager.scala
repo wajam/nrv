@@ -2,7 +2,6 @@ package com.wajam.nrv.cluster
 
 import com.wajam.nrv.service.{ServiceMember, Service}
 
-
 /**
  * Cluster manager that is responsible of persisting and distributing services and nodes
  * membership across the cluster.
@@ -25,12 +24,9 @@ abstract class ClusterManager {
 
   protected def allServices = cluster.services.values
 
-  protected def allMembers = for ((_, service) <- cluster.services; member <- service.members) yield member
-
-
-  /*
-   * Members management
-   */
-  protected def addMember(service: Service, member: ServiceMember) = service.addMember(member)
+  protected def allMembers: Iterable[(Service, ServiceMember)] =
+    cluster.services.values.flatMap(service =>
+      service.members.map((service, _))
+    )
 
 }

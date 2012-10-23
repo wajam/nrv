@@ -66,7 +66,8 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
     assert(zClient.incrementCounter("/tests/counter", 10, 4) == 14)
     assert(zClient.getInt("/tests/counter") == 14)
 
-    assert(zClient.incrementCounter("/tests/counter", 1) == 15)
+    val v = zClient.incrementCounter("/tests/counter", 1)
+    assert(v == 15, v)
     assert(zClient.getInt("/tests/counter") == 15)
   }
 

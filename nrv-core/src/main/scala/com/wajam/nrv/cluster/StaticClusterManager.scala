@@ -14,15 +14,9 @@ class StaticClusterManager extends ClusterManager {
   }
 
   protected def initializeMembers() {
-    for (member <- allMembers)
-      member.setStatus(MemberStatus.Up, triggerEvent = false)
-  }
-
-  override def addMember(service: Service, member: ServiceMember): ServiceMember = {
-    if (this.started)
-      throw new Exception("Can't add member to a static cluster after started")
-
-    super.addMember(service, member)
+    allMembers.foreach {
+      case (service, member) => member.setStatus(MemberStatus.Up, triggerEvent = false)
+    }
   }
 
   /**
@@ -31,7 +25,7 @@ class StaticClusterManager extends ClusterManager {
    * @param members List of members, formatted like: token:node_host:service=port,service=port;token:...
    */
   def addMembers(service: Service, members: Iterable[String]) {
-    members.foreach(strMember => addMember(service, ServiceMember.fromString(strMember)))
+    members.foreach(strMember => service.addMember(ServiceMember.fromString(strMember)))
   }
 
 }

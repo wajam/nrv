@@ -44,6 +44,10 @@ class Service(val name: String,
     member
   }
 
+  def removeMember(member: ServiceMember) {
+    this.ring.delete(member.token)
+  }
+
   lazy val maximumReplica: Int = actions.foldLeft(0)((cur, action) =>
     if (action.resolver.replica > cur) action.resolver.replica else cur
   )
