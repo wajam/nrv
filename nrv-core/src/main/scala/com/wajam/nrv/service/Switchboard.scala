@@ -175,7 +175,7 @@ class Switchboard(val numExecutor: Int = 100)
 
   private class ReceivedMessageContext(val action: Action, val inMessage: InMessage)
 
-  protected object CheckTimeout
+  private object CheckTimeout
 
   private class SwitchboardExecutor extends Actor with Logging {
 

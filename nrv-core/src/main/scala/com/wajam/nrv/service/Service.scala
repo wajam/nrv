@@ -39,7 +39,7 @@ class Service(val name: String,
   def addMember(token: Long, node: Node): ServiceMember = addMember(new ServiceMember(token, node))
 
   def addMember(member: ServiceMember): ServiceMember = {
-    member.addParentObserver(this)
+    member.addParentObservable(this)
     this.ring.add(member.token, member)
     member
   }

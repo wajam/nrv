@@ -58,8 +58,8 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
   }
 
   test("ensureExists should create but doesn't throw if already exists") {
-    assert(!zClient.ensureExists("/tests/ext", "", CreateMode.PERSISTENT))
     assert(zClient.ensureExists("/tests/ext", "", CreateMode.PERSISTENT))
+    assert(!zClient.ensureExists("/tests/ext", "", CreateMode.PERSISTENT))
   }
 
   test("incrementing a counter should create it an increment it") {

@@ -4,7 +4,6 @@ import actors.Actor
 import com.wajam.nrv.utils.Scheduler
 import com.wajam.nrv.service.{Service, ServiceMember, MemberStatus}
 import com.wajam.nrv.Logging
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Manager of a cluster in which nodes can be added/removed and can go up and down. This manager uses
@@ -12,19 +11,21 @@ import java.util.concurrent.atomic.AtomicBoolean
  * uses the "syncServiceMembers" function to synchronise services members (addition/deletion/status change)
  */
 abstract class DynamicClusterManager extends ClusterManager with Logging {
-  private val started: AtomicBoolean = new AtomicBoolean(false)
   private val CLUSTER_CHECK_IN_MS = 1000
   private val CLUSTER_PRINT_IN_MS = 5000
 
-  override def start() {
-    super.start()
-    started.set(true)
-    OperationLoop.start()
+  override def start() = {
+    if (super.start()) {
+      OperationLoop.start()
+      true
+    } else false
   }
 
-  override def stop() {
-    super.stop()
-    OperationLoop.stop()
+  override def stop() = {
+    if (super.stop()) {
+      OperationLoop.stop()
+      true
+    } else false
   }
 
   def forceClusterCheck() {
@@ -37,7 +38,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
 
   protected def syncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) {
     // if cluster is not started, we sync directly without passing through actor
-    if (!started.get)
+    if (!started)
       syncServiceMembersImpl(service, members)
     else
       OperationLoop !? OperationLoop.SyncServiceMembers(service, members)
@@ -55,12 +56,12 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
   private def syncServiceMembersImpl(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) {
     debug("Syncing service members of {}", service)
 
-    val currentMembers = service.members
+    val currentMembers = service.members.toSeq
     val newMembers = members.map(_._1)
     val newMemberVotes = members.toMap
 
-    val added = newMembers.toList filterNot currentMembers.toList.contains
-    val removed = currentMembers.toList filterNot newMembers.toList.contains
+    val added = newMembers diff currentMembers
+    val removed = currentMembers diff newMembers
 
     // add new members
     added.foreach(newMember => {
@@ -119,13 +120,13 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
       checkScheduler.cancel()
     }
 
-    private def tryChangeLocalServiceMemberStatus(service: Service, member: ServiceMember, newStatus: MemberStatus) {
-      info("Trying to switch status of local member {} in service {} to {}", member, service, newStatus)
+    private def tryChangeServiceMemberStatus(service: Service, member: ServiceMember, newStatus: MemberStatus) {
+      info("Trying to switch status of member {} in service {} to {}", member, service, newStatus)
       member.trySetStatus(newStatus) match {
         case Some(event) =>
-          if (event.noVotes > 0) {
-            info("Attempt to switch status of {} in service {} to {} failed by vote (yea={}, no={})",
-              member, service, newStatus, event.yeaVotes, event.noVotes)
+          if (event.nayVotes > 0) {
+            info("Attempt to switch status of {} in service {} to {} failed by vote (yea={}, nay={})",
+              member, service, newStatus, event.yeaVotes, event.nayVotes)
           }
 
           voteServiceMemberStatus(service, new ServiceMemberVote(member, member, newStatus))
@@ -152,15 +153,17 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
                 case (service, member) =>
                   debug("Checking member {} in service {} with current status {}", member, service, member.status)
 
+                  // TODO: this implement currently only check for local nodes that could be promoted. Eventually, this
+                  // will check for "joining" nodes and promote them if votes from consistency managers are positives
                   member.status match {
                     case MemberStatus.Joining =>
                       if (cluster.isLocalNode(member.node)) {
-                        tryChangeLocalServiceMemberStatus(service, member, MemberStatus.Up)
+                        tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
                       }
 
                     case MemberStatus.Down =>
                       if (cluster.isLocalNode(member.node)) {
-                        tryChangeLocalServiceMemberStatus(service, member, MemberStatus.Joining)
+                        tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
                       }
 
                     case other =>

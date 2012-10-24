@@ -58,7 +58,7 @@ class Cluster(val localNode: Node,
 
   def registerService(service: Service): Service = {
     service.supportedBy(this)
-    service.addParentObserver(this)
+    service.addParentObservable(this)
     this.services += (service.name -> service)
     service
   }

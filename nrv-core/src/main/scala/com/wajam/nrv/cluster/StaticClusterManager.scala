@@ -6,12 +6,6 @@ import com.wajam.nrv.service.{ServiceMember, MemberStatus, Service}
  * Static cluster (fixed number of nodes, fixed address)
  */
 class StaticClusterManager extends ClusterManager {
-  protected var started = false
-
-  override def start() {
-    this.started = true
-    super.start()
-  }
 
   protected def initializeMembers() {
     allMembers.foreach {

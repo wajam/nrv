@@ -114,12 +114,12 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   def ensureExists(path: String, data: Array[Byte], createMode: CreateMode = CreateMode.PERSISTENT): Boolean = {
     try {
       this.create(path, data, createMode)
-      false
+      true
 
     } catch {
       case e: KeeperException =>
         if (e.code() == Code.NODEEXISTS) {
-          return true
+          return false
         }
 
         throw e
@@ -190,8 +190,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   }
 
   def deleteRecursive(path: String) {
-    var deleteCallback: (String => Unit) = null
-    deleteCallback = (curPath: String) => {
+    def deleteCallback(curPath: String) {
       try {
         getChildren(curPath).foreach(childName => {
           val childPath = curPath + "/" + childName

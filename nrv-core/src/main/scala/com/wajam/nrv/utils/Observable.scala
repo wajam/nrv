@@ -8,7 +8,7 @@ trait Observable {
   private var observers = List[Observer]()
   private var parents = List[Observable]()
 
-  def addParentObserver(parent: Observable) {
+  def addParentObservable(parent: Observable) {
     assert(parent != this)
     this.parents :+= parent
   }
@@ -27,11 +27,11 @@ class Event
 
 class VotableEvent extends Event {
   var yeaVotes = 0
-  var noVotes = 0
+  var nayVotes = 0
 
   def vote(pass: Boolean) = pass match {
     case true => yeaVotes += 1
-    case false => noVotes += 1
+    case false => nayVotes += 1
   }
 
 }

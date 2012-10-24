@@ -11,7 +11,7 @@ sealed class Node(val host: InetAddress, val ports: Map[String, Int]) extends Se
 
   def this(host: String, ports: Map[String, Int]) = this(InetAddress.getByName(host), ports)
 
-  def uniqueKey = "%s_%d".format(host.getHostName, ports("nrv"))
+  lazy val uniqueKey = "%s_%d".format(host.getHostName, ports("nrv"))
 
   override def hashCode(): Int = uniqueKey.hashCode
 

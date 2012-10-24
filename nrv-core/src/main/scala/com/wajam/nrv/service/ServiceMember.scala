@@ -50,10 +50,12 @@ sealed class ServiceMember(val token: Long,
     }
   }
 
-  override def hashCode(): Int = toString.hashCode
+  lazy val uniqueKey = "%d:%s".format(token, node.toString)
+
+  override def hashCode(): Int = uniqueKey.hashCode
 
   override def equals(that: Any) = that match {
-    case other: ServiceMember => this.toString.equalsIgnoreCase(other.toString)
+    case other: ServiceMember => this.uniqueKey.equalsIgnoreCase(other.uniqueKey)
     case _ => false
   }
 

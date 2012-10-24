@@ -68,10 +68,10 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
 
     def zkCreateServiceMember(service: Service, serviceMember: ServiceMember) {
       val path = ZookeeperClusterManager.zkMemberPath(service.name, serviceMember.token)
-      val exists = zk.ensureExists(path, serviceMember.toString, CreateMode.PERSISTENT)
+      val created = zk.ensureExists(path, serviceMember.toString, CreateMode.PERSISTENT)
 
       // if node existed, overwrite
-      if (exists)
+      if (created)
         zk.set(path, serviceMember.toString)
     }
 
@@ -83,10 +83,10 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
     def zkCastVote(service: Service, candidateMember: ServiceMember, voterMember: ServiceMember, votedStatus: MemberStatus) {
       val vote = new ServiceMemberVote(candidateMember, voterMember, votedStatus)
       val path = ZookeeperClusterManager.zkMemberVotePath(service.name, candidateMember.token, voterMember.token)
-      val exists = zk.ensureExists(path, vote.toString, CreateMode.PERSISTENT)
+      val created = zk.ensureExists(path, vote.toString, CreateMode.PERSISTENT)
 
       // if node existed, overwrite
-      if (exists)
+      if (created)
         zk.set(path, vote.toString)
     }
 

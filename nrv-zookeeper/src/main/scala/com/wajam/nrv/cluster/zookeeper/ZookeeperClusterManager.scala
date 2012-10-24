@@ -17,6 +17,11 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
 
   // watch global zookeeper events
   zk.addObserver {
+    case ZookeeperConnected(original) => {
+      info("Connection to zookeeper established")
+      syncServices(watch = true)
+    }
+
     case ZookeeperDisconnected(original) => {
       error("Lost connection with Zookeeper. Pausing the cluster")
       this.forceClusterDown()
@@ -31,10 +36,14 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
   }
 
   protected def initializeMembers() {
-    allServices.foreach(service => syncZk(service, watch = true))
+    syncServices(watch = true)
   }
 
-  private def syncZk(service: Service, watch: Boolean) {
+  private def syncServices(watch: Boolean) {
+    allServices.foreach(service => syncService(service, watch = watch))
+  }
+
+  private def syncService(service: Service, watch: Boolean) {
     syncServiceMembers(service, getZkServiceMembers(service, watch = watch).map(serviceMember => {
       val votes = getZkMemberVotes(service, serviceMember, watch = watch)
       (serviceMember, votes)
@@ -46,7 +55,8 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
 
     try {
       val path = zkMemberVotePath(service.name, vote.candidateMember.token, vote.voterMember.token)
-      if (zk.ensureExists(path, vote.toString, CreateMode.EPHEMERAL)) {
+      val created = zk.ensureExists(path, vote.toString, CreateMode.EPHEMERAL)
+      if (!created) {
         zk.set(path, vote.toString)
       }
     } catch {
@@ -64,7 +74,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
       } catch {
         case e: Exception =>
       }
-      syncZk(service, watch = false)
+      syncService(service, watch = false)
     })
     else None
 
@@ -84,7 +94,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
       } catch {
         case e: Exception =>
       }
-      syncZk(service, watch = false)
+      syncService(service, watch = false)
     })
     else None
 
@@ -103,7 +113,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
       } catch {
         case e: Exception =>
       }
-      syncZk(service, watch = false)
+      syncService(service, watch = false)
     })
     else None
 
