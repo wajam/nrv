@@ -89,26 +89,13 @@ trait ActionSupport {
                    protocol: Option[Protocol] = None, switchboard: Option[Switchboard] = None, tracer: Option[Tracer] = None,
                    consistency: Option[Consistency] = None) {
 
-    if (cluster != None)
-      this._cluster = cluster.get
-
-    if (service != None)
-      this._service = service.get
-
-    if (resolver != None)
-      this._resolver = resolver.get
-
-    if (protocol != None)
-      this._protocol = protocol.get
-
-    if (switchboard != None)
-      this._switchboard = switchboard.get
-
-    if (tracer != None)
-      this._tracer = tracer.get
-
-    if (consistency != None)
-      this._consistency = consistency.get
+    cluster.map(this._cluster = _)
+    service.map(this._service = _)
+    resolver.map(this._resolver = _)
+    protocol.map(this._protocol = _)
+    switchboard.map(this._switchboard = _)
+    tracer.map(this._tracer = _)
+    consistency.map(this._consistency = _)
   }
 
   def supportedBy(supporter: ActionSupport) {

@@ -7,12 +7,15 @@ import com.wajam.nrv.Logging
 import org.apache.zookeeper.CreateMode
 
 /**
- * Dynamic cluster manager that uses zookeeper to keep a consistent view of the cluster among nodes
+ * Dynamic cluster manager that uses Zookeeper to keep a consistent view of the cluster among nodes. It creates
+ * service members on startup, watch different corresponding nodes in Zookeeper and resynchronize members when
+ * something changes in Zookeeper.
  */
 class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterManager with Logging {
 
   import ZookeeperClusterManager._
 
+  // watch global zookeeper events
   zk.addObserver {
     case ZookeeperDisconnected(original) => {
       error("Lost connection with Zookeeper. Pausing the cluster")

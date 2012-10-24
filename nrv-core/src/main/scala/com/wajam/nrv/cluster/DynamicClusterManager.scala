@@ -7,7 +7,9 @@ import com.wajam.nrv.Logging
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Manager of a cluster in which nodes can be added/removed and can go up and down.
+ * Manager of a cluster in which nodes can be added/removed and can go up and down. This manager uses
+ * an actor to execute operations sequentially on the cluster. Concrete implementation of this class
+ * uses the "syncServiceMembers" function to synchronise services members (addition/deletion/status change)
  */
 abstract class DynamicClusterManager extends ClusterManager with Logging {
   private val started: AtomicBoolean = new AtomicBoolean(false)
@@ -17,20 +19,28 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
   override def start() {
     super.start()
     started.set(true)
-    EventLoop.start()
+    OperationLoop.start()
   }
 
   override def stop() {
     super.stop()
-    EventLoop.stop()
+    OperationLoop.stop()
   }
 
   def forceClusterCheck() {
-    EventLoop !? CheckCluster
+    OperationLoop !? OperationLoop.CheckCluster
   }
 
   def forceClusterDown() {
-    EventLoop !? ForceDown
+    OperationLoop !? OperationLoop.ForceDown
+  }
+
+  protected def syncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) {
+    // if cluster is not started, we sync directly without passing through actor
+    if (!started.get)
+      syncServiceMembersImpl(service, members)
+    else
+      OperationLoop !? OperationLoop.SyncServiceMembers(service, members)
   }
 
   private def compileVotes(candidateMember: ServiceMember, votes: Seq[ServiceMemberVote]): MemberStatus = {
@@ -40,13 +50,6 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
       case Some(vote) => vote.statusVote
       case None => MemberStatus.Down
     }
-  }
-
-  protected def syncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) {
-    if (started.get)
-      syncServiceMembersImpl(service, members)
-    else
-      EventLoop !? SyncServiceMembers(service, members)
   }
 
   private def syncServiceMembersImpl(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) {
@@ -86,18 +89,21 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
 
   protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote)
 
-  // Event loop events
-  private sealed class ClusterEvent
+  /**
+   * This actor receives operations and execute them sequentially on the cluster.
+   */
+  private object OperationLoop extends Actor {
 
-  private case object ForceDown extends ClusterEvent
+    // Operations
+    sealed class ClusterOperation
 
-  private case object CheckCluster extends ClusterEvent
+    case object ForceDown extends ClusterOperation
 
-  private case object PrintCluster extends ClusterEvent
+    case object CheckCluster extends ClusterOperation
 
-  private case class SyncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) extends ClusterEvent
+    case object PrintCluster extends ClusterOperation
 
-  object EventLoop extends Actor {
+    case class SyncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) extends ClusterOperation
 
     val checkScheduler = new Scheduler(this, CheckCluster, CLUSTER_CHECK_IN_MS, CLUSTER_CHECK_IN_MS, blockingMessage = true, autoStart = false)
     val printScheduler = new Scheduler(this, PrintCluster, CLUSTER_PRINT_IN_MS, CLUSTER_PRINT_IN_MS, blockingMessage = true, autoStart = false)
@@ -138,13 +144,14 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
               allServices.foreach(service => info("\nLocal node: {}\n{}", cluster.localNode, service.printService))
               sender ! true
 
-            case CheckCluster =>
+            case CheckCluster => // periodically executed, check local down nodes and try to promote them to better status
               val members = allMembers
               debug("Checking cluster for any pending changes ({} members)", members.size)
 
               members.foreach {
                 case (service, member) =>
                   debug("Checking member {} in service {} with current status {}", member, service, member.status)
+
                   member.status match {
                     case MemberStatus.Joining =>
                       if (cluster.isLocalNode(member.node)) {
@@ -162,15 +169,15 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
               }
               sender ! true
 
+            case SyncServiceMembers(service, members) => // synchronise received members in service (add/delete/status change)
+              syncServiceMembersImpl(service, members)
+              sender ! true
+
             case ForceDown =>
               info("Forcing the whole cluster down")
               allMembers.foreach {
                 case (service, member) => member.setStatus(MemberStatus.Down, triggerEvent = true)
               }
-              sender ! true
-
-            case SyncServiceMembers(service, members) =>
-              syncServiceMembersImpl(service, members)
               sender ! true
 
           }
