@@ -54,7 +54,7 @@ object TraceRecordFormatter {
 
       // Record
       //  timestamp (ISO8601 YYYY-MM-DDTHH:MM:SS.SSSZ)
-      f(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX").format(record.timestamp))
+      f(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(record.timestamp))
       //  duration
       f(record.duration.getOrElse("").toString)
       //  type

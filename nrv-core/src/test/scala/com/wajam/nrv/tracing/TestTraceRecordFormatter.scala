@@ -10,7 +10,7 @@ import java.net.{InetAddress, InetSocketAddress}
  */
 class TestTraceRecordFormatter extends FunSuite {
 
-  val expectedTime = "2012-10-01T16:57:27.992-04"
+  val expectedTime = "2012-10-01T16:57:27.992-0400"
   val time: Calendar = Calendar.getInstance(TimeZone.getTimeZone("EST"))
   time.clear()
   time.set(2012, 9, 01, 15, 57, 27)
