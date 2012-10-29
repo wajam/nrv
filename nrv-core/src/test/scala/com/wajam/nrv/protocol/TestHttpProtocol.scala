@@ -21,7 +21,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
   before {
     val localnode = new Node("localhost", Map("nrv" -> 19191, "test" -> 1909))
     val cluster = new Cluster(localnode, new StaticClusterManager)
-    protocol = new HttpProtocol("test", localnode, cluster)
+    protocol = new HttpProtocol("test", localnode)
   }
 
   test("should map HTTP query to message parameters") {
@@ -29,9 +29,9 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyRequest)
 
-    msg.parameters.size should equal (2)
-    msg.parameters("a") should equal ("1")
-    msg.parameters("b") should equal (Seq("2", "3"))
+    msg.parameters.size should equal(2)
+    msg.parameters("a") should equal("1")
+    msg.parameters("b") should equal(Seq("2", "3"))
   }
 
   test("should map HTTP header to message metadata in requests") {
@@ -40,8 +40,8 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyRequest)
 
-    msg.metadata.size should equal (1)
-    msg.metadata("HEADER") should equal ("value")
+    msg.metadata.size should equal(1)
+    msg.metadata("HEADER") should equal("value")
   }
 
   test("should map HTTP header to message metadata in responses") {
@@ -50,7 +50,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyresponse)
 
-    msg.metadata("HEADER") should equal ("value")
+    msg.metadata("HEADER") should equal("value")
   }
 
   test("should HTTP map status code to code") {
@@ -58,7 +58,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyresponse)
 
-    msg.code should equal (200)
+    msg.code should equal(200)
   }
 
   test("should map status code in special header to code") {
@@ -67,10 +67,10 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyRequest)
 
-    msg.code should equal (200)
+    msg.code should equal(200)
   }
 
-  test ("should set code to HTTP request special header") {
+  test("should set code to HTTP request special header") {
     val msg = new InMessage()
     msg.method = "GET"
     msg.code = 333
@@ -80,7 +80,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     assert(333 === req.getHeader(HttpProtocol.CODE_HEADER).toInt)
   }
 
-  test ("should use message code as status code") {
+  test("should use message code as status code") {
     val msg = new OutMessage()
     msg.code = 500
 
@@ -94,7 +94,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyRequest)
 
-    msg.method should equal (ActionMethod("GET"))
+    msg.method should equal(ActionMethod("GET"))
   }
 
   test("should map special method HTTP header to message method") {
@@ -103,10 +103,10 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyresponse)
 
-    msg.method should equal (ActionMethod.GET)
+    msg.method should equal(ActionMethod.GET)
   }
 
-  test ("should set method in special HTTP header on response") {
+  test("should set method in special HTTP header on response") {
     val msg = new OutMessage()
     msg.method = ActionMethod.GET
 
@@ -115,7 +115,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     assert("GET" === res.getHeader(HttpProtocol.METHOD_HEADER))
   }
 
-  test ("should set method in HTTP request") {
+  test("should set method in HTTP request") {
     val msg = new InMessage()
     msg.method = ActionMethod.GET
 
@@ -129,7 +129,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyRequest)
 
-    msg.path should equal ("path")
+    msg.path should equal("path")
   }
 
   test("should map special method HTTP header to message path") {
@@ -138,10 +138,10 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyresponse)
 
-    msg.path should equal ("path")
+    msg.path should equal("path")
   }
 
-  test ("should set path in special HTTP header on response") {
+  test("should set path in special HTTP header on response") {
     val msg = new OutMessage()
     msg.path = "path"
 
@@ -150,7 +150,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     assert("path" === res.getHeader(HttpProtocol.PATH_HEADER))
   }
 
-  test ("should set path in HTTP request") {
+  test("should set path in HTTP request") {
     val msg = new InMessage()
     msg.method = ActionMethod.GET
     msg.path = "path"

@@ -3,7 +3,7 @@ package com.wajam.nrv.service
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
 import com.wajam.nrv.tracing.{RpcName, TraceContext, Tracer, Annotation}
 import com.wajam.nrv.Logging
-import java.net.{Inet4Address, NetworkInterface, InetAddress, InetSocketAddress}
+import java.net.InetSocketAddress
 
 /**
  * Listen to incoming and and outgoing message and record trace information on the go
@@ -88,7 +88,7 @@ object TraceFilter extends MessageHandler with Logging {
 
     (traceId, spanId, parentId, sampled) match {
       case (Some(tid), Some(sid), pid, s) => Some(TraceContext(tid, sid, pid, s))
-      case (_, _, _, s) => Some(tracer.createContext(s))  // Support sampled header without any other header for debuging
+      case (_, _, _, s) => Some(tracer.createContext(s)) // Support sampled header without any other header for debuging
     }
   }
 
@@ -125,24 +125,9 @@ object TraceFilter extends MessageHandler with Logging {
 
   private def toInetSocketAddress(action: Action, message: Message): InetSocketAddress = {
     val node = action.cluster.localNode
-    val addr = if (!node.host.isAnyLocalAddress)
-      node.host
-    else
-      localInetAddress.getOrElse(node.host)
-
-    new InetSocketAddress(addr, node.ports.getOrElse(message.serviceName, node.ports(action.protocol.name)))
+    node.protocolsSocketAddress.getOrElse(message.serviceName, node.protocolsSocketAddress(action.protocol.name))
   }
 
-  lazy val localInetAddress = firstInetAddress
-
-  private def firstInetAddress: Option[InetAddress] = {
-    import scala.collection.JavaConversions._
-    val nic = NetworkInterface.getNetworkInterfaces.find(nic => !nic.isLoopback && nic.isUp)
-    nic match {
-      case Some(n) => n.getInetAddresses.find(_.isInstanceOf[Inet4Address])
-      case _ => None
-    }
-  }
 }
 
 object TraceHeader extends Enumeration {

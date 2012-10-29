@@ -20,7 +20,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     val notifier = new Object()
     var received: Message = null
 
-    val protocol = new NrvProtocol(cluster.localNode, cluster) {
+    val protocol = new NrvProtocol(cluster.localNode) {
 
       override def parse(message: AnyRef): Message = {
         val parsedMsg = super.parse(message)
@@ -54,7 +54,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
 
     val notifier = new Object()
     var received: Message = null
-    val protocol = new NrvProtocol(cluster.localNode, cluster) {
+    val protocol = new NrvProtocol(cluster.localNode) {
       override def handleIncoming(action: Action, message: InMessage) {
         received = message
 

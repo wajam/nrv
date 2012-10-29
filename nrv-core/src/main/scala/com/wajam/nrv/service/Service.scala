@@ -74,7 +74,6 @@ class Service(val name: String,
 
   def registerAction(action: Action): Action = {
     action.supportedBy(this)
-
     this.actions ::= action
     action
   }
@@ -84,7 +83,7 @@ class Service(val name: String,
     actions
   }
 
-  def findAction(path: ActionPath, method: String): Option[Action] = {
+  def findAction(path: ActionPath, method: ActionMethod): Option[Action] = {
     this.actions find {
       _.matches(path, method)
     }

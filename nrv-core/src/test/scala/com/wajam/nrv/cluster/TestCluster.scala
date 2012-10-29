@@ -5,8 +5,6 @@ import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
 import scala.Predef._
 import com.wajam.nrv.service._
-import com.wajam.nrv.data.InMessage
-import com.wajam.nrv.protocol.ListenerException
 
 @RunWith(classOf[JUnitRunner])
 class TestCluster extends FunSuite {
@@ -60,13 +58,5 @@ class TestCluster extends FunSuite {
   test("no action match with method") {
     val resolvedAct = cluster.getAction(new ActionURL(srv2.name, "/testabc"), ActionMethod("other"))
     assert(resolvedAct == null)
-  }
-
-  test("throw exception on routing error") {
-    val message = new InMessage()
-    message.path = "/pathdonotexists"
-    intercept[ListenerException] {
-      cluster.messageReceived(message)
-    }
   }
 }

@@ -2,11 +2,10 @@ package com.wajam.nrv.cluster
 
 import com.wajam.nrv.service._
 import com.wajam.nrv.service.{Action, Service}
-import com.wajam.nrv.data.InMessage
 import com.wajam.nrv.Logging
-import com.wajam.nrv.protocol.{ListenerException, ProtocolMessageListener, NrvProtocol, Protocol}
+import com.wajam.nrv.protocol.{ProtocolMessageListener, NrvProtocol, Protocol}
 import com.wajam.nrv.tracing.Tracer
-import com.wajam.nrv.consistency.{Consistency, NoConsistency}
+import com.wajam.nrv.consistency.{Consistency, ConsistencyOne}
 import com.wajam.nrv.utils.Observable
 
 /**
@@ -17,8 +16,8 @@ class Cluster(val localNode: Node,
               defaultSwitchboard: Switchboard = new Switchboard,
               defaultResolver: Resolver = new Resolver,
               defaultTracer: Tracer = new Tracer,
-              defaultConsistency: Consistency = new NoConsistency)
-  extends ActionSupport with ProtocolMessageListener with Logging with Observable {
+              defaultConsistency: Consistency = new ConsistencyOne)
+  extends ActionSupport with Logging with Observable {
 
   // assign default resolver, switchboard, etc.
   applySupport(cluster = Some(this), resolver = Some(defaultResolver), switchboard = Some(defaultSwitchboard),
@@ -33,24 +32,13 @@ class Cluster(val localNode: Node,
   def isLocalNode(node: Node) = node == localNode
 
   // register default protocol, which is nrv
-  this.registerProtocol(new NrvProtocol(this.localNode, this), true)
+  this.registerProtocol(new NrvProtocol(this.localNode), default = true)
 
   def registerProtocol(protocol: Protocol, default: Boolean = false) {
     this.protocols += (protocol.name -> protocol)
 
     if (default) {
       this.applySupport(protocol = Some(protocol))
-    }
-  }
-
-  def messageReceived(inMessage: InMessage) {
-    val action = cluster.getAction(inMessage.actionURL, inMessage.method)
-    if (action != null) {
-      trace("Received an incoming message for path {} with method {}.", inMessage.actionURL.toString, inMessage.method.toString)
-      action.callIncomingHandlers(inMessage)
-    } else {
-      warn("Received an incoming for path {}, but couldn't find action", inMessage.actionURL.toString)
-      throw new ListenerException("Route not found.")
     }
   }
 
