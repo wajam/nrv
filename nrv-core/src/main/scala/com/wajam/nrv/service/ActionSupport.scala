@@ -98,7 +98,17 @@ trait ActionSupport {
     consistency.map(this._consistency = _)
   }
 
+  def applySupportOptions(options: ActionSupportOptions) {
+    this.applySupport(options.cluster, options.service, options.resolver, options.protocol, options.switchboard,
+      options.tracer, options.consistency)
+  }
+
   def supportedBy(supporter: ActionSupport) {
     this.supporter = supporter
   }
+}
+
+class ActionSupportOptions(val cluster: Option[Cluster] = None, val service: Option[Service] = None, val resolver: Option[Resolver] = None,
+                           val protocol: Option[Protocol] = None, val switchboard: Option[Switchboard] = None, val tracer: Option[Tracer] = None,
+                           val consistency: Option[Consistency] = None) {
 }

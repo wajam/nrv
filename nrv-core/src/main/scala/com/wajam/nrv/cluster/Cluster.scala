@@ -1,27 +1,24 @@
 package com.wajam.nrv.cluster
 
 import com.wajam.nrv.service._
-import com.wajam.nrv.service.{Action, Service}
 import com.wajam.nrv.Logging
-import com.wajam.nrv.protocol.{ProtocolMessageListener, NrvProtocol, Protocol}
-import com.wajam.nrv.tracing.Tracer
-import com.wajam.nrv.consistency.{Consistency, ConsistencyOne}
 import com.wajam.nrv.utils.Observable
+import com.wajam.nrv.tracing.Tracer
+import com.wajam.nrv.consistency.ConsistencyOne
+import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
 
 /**
  * A cluster composed of services that are provided by nodes.
  */
 class Cluster(val localNode: Node,
               val clusterManager: ClusterManager,
-              defaultSwitchboard: Switchboard = new Switchboard,
-              defaultResolver: Resolver = new Resolver,
-              defaultTracer: Tracer = new Tracer,
-              defaultConsistency: Consistency = new ConsistencyOne)
+              actionSupportOptions: ActionSupportOptions = new ActionSupportOptions())
   extends ActionSupport with Logging with Observable {
 
   // assign default resolver, switchboard, etc.
-  applySupport(cluster = Some(this), resolver = Some(defaultResolver), switchboard = Some(defaultSwitchboard),
-    tracer = Some(defaultTracer), consistency = Some(defaultConsistency))
+  applySupport(cluster = Some(this), switchboard = Some(new Switchboard), resolver = Some(new Resolver),
+    tracer = Some(new Tracer), consistency = Some(new ConsistencyOne))
+  applySupportOptions(actionSupportOptions)
 
   var services = Map[String, Service]()
   var protocols = Map[String, Protocol]()

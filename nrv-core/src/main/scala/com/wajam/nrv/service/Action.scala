@@ -14,7 +14,8 @@ import scala.Some
  */
 class Action(val path: ActionPath,
              val implementation: ((InMessage) => Unit),
-             val method: ActionMethod = ActionMethod.ANY)
+             val method: ActionMethod = ActionMethod.ANY,
+             actionSupportOptions: ActionSupportOptions = new ActionSupportOptions())
   extends ActionSupport with Instrumented with Logging {
 
   lazy val fullPath = this.protocol.name + "://" + this.service.name + this.path
@@ -24,6 +25,9 @@ class Action(val path: ActionPath,
   private lazy val msgOutMeter = metrics.meter("message-out", "messages-out", metricsPath)
   private lazy val msgReplyTime = metrics.timer("reply-time", metricsPath)
   private lazy val executeTime = metrics.timer("execute-time", metricsPath)
+
+  // overrides defaults with passed options
+  applySupportOptions(actionSupportOptions)
 
   def call(params: Iterable[(String, Any)],
            meta: Iterable[(String, Any)],

@@ -19,7 +19,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
   before {
     cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
     cluster.registerProtocol(new DummyProtocol("dummy"), default = true)
-    service = cluster.registerService(new Service("test", defaultResolver = Some(new Resolver(1))))
+    service = cluster.registerService(new Service("test", new ActionSupportOptions(resolver = Some(new Resolver(1)))))
     val member = service.addMember(new ServiceMember(0, cluster.localNode))
     member.setStatus(MemberStatus.Up, triggerEvent = false)
   }
