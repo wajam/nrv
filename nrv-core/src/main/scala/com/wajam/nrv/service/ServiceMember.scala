@@ -36,10 +36,11 @@ sealed class ServiceMember(val token: Long,
 
   private[nrv] def setStatus(newStatus: MemberStatus, triggerEvent: Boolean): Option[StatusTransitionEvent] = {
     if (this._status != newStatus) {
+      val oldStatus = this._status
       this._status = newStatus
 
       if (triggerEvent) {
-        val event = new StatusTransitionEvent(this, this._status, newStatus)
+        val event = new StatusTransitionEvent(this, oldStatus, newStatus)
         this.notifyObservers(event)
         Some(event)
       } else {
