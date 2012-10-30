@@ -33,29 +33,23 @@ object NrvBuild extends Build {
     version := "0.1-SNAPSHOT"
   )
 
-  lazy val root = Project(
-    id = "nrv",
-    base = file("."),
-    settings = defaultSettings ++ Seq(
-      // some other
-    )
-  ) configs (IntegrationTest) aggregate(core, zookeeper)
+  lazy val root = Project("nrv", file("."))
+    .configs(IntegrationTest)
+    .settings(defaultSettings: _*)
+    .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
+    .aggregate(core, zookeeper)
 
-  // all keys at http://harrah.github.com/xsbt/latest/sxr/Keys.scala.html#295872
-  lazy val core = Project(
-    id = "nrv-core",
-    base = file("nrv-core"),
-    settings = defaultSettings ++ Seq(
-      // some other
-    )
-  ) configs (IntegrationTest)
+  lazy val core = Project("nrv-core", file("nrv-core"))
+    .configs(IntegrationTest)
+    .settings(defaultSettings: _*)
+    .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
 
-  lazy val zookeeper = Project(
-    id = "nrv-zookeeper",
-    base = file("nrv-zookeeper"),
-    settings = defaultSettings ++ Seq(
-      libraryDependencies ++= zookeeperDeps
-    )
-  ) configs (IntegrationTest) dependsOn (core)
+  lazy val zookeeper = Project("nrv-zookeeper", file("nrv-zookeeper"))
+    .dependsOn(core)
+    .configs(IntegrationTest)
+    .settings(defaultSettings: _*)
+    .settings(libraryDependencies ++= zookeeperDeps)
+    .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
+    .settings(parallelExecution in IntegrationTest := false)
 }
 
