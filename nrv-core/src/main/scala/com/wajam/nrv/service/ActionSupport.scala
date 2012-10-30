@@ -3,6 +3,7 @@ package com.wajam.nrv.service
 import com.wajam.nrv.protocol.Protocol
 import com.wajam.nrv.cluster.Cluster
 import com.wajam.nrv.tracing.Tracer
+import com.wajam.nrv.consistency.Consistency
 
 /**
  * Action support trait handles protocol/resolver/... switching
@@ -20,6 +21,7 @@ trait ActionSupport {
   protected var _protocol: Protocol = null
   protected var _switchboard: Switchboard = null
   protected var _tracer: Tracer = null
+  protected var _consistency: Consistency = null
 
   def cluster: Cluster =
     if (_cluster != null)
@@ -69,30 +71,31 @@ trait ActionSupport {
     else
       throw new UninitializedError
 
+  def consistency: Consistency =
+    if (_consistency != null)
+      this._consistency
+    else if (this.supporter != null)
+      this.supporter.consistency
+    else
+      throw new UninitializedError
+
   def checkSupported() {
-    if (this.cluster == null || this.service == null || this.protocol == null || this.resolver == null || this.switchboard == null || this.tracer == null)
+    if (this.cluster == null || this.service == null || this.protocol == null || this.resolver == null ||
+      this.switchboard == null || this.tracer == null || this.consistency == null)
       throw new UninitializedError
   }
 
-  def applySupport(cluster: Option[Cluster] = None, service: Option[Service] = None, resolver: Option[Resolver] = None, protocol: Option[Protocol] = None,
-                   switchboard: Option[Switchboard] = None, tracer: Option[Tracer] = None) {
-    if (cluster != None)
-      this._cluster = cluster.get
+  def applySupport(cluster: Option[Cluster] = None, service: Option[Service] = None, resolver: Option[Resolver] = None,
+                   protocol: Option[Protocol] = None, switchboard: Option[Switchboard] = None, tracer: Option[Tracer] = None,
+                   consistency: Option[Consistency] = None) {
 
-    if (service != None)
-      this._service = service.get
-
-    if (resolver != None)
-      this._resolver = resolver.get
-
-    if (protocol != None)
-      this._protocol = protocol.get
-
-    if (switchboard != None)
-      this._switchboard = switchboard.get
-
-    if (tracer != None)
-      this._tracer = tracer.get
+    cluster.map(this._cluster = _)
+    service.map(this._service = _)
+    resolver.map(this._resolver = _)
+    protocol.map(this._protocol = _)
+    switchboard.map(this._switchboard = _)
+    tracer.map(this._tracer = _)
+    consistency.map(this._consistency = _)
   }
 
   def supportedBy(supporter: ActionSupport) {

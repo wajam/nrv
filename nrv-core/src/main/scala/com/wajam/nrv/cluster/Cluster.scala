@@ -6,25 +6,31 @@ import com.wajam.nrv.data.InMessage
 import com.wajam.nrv.Logging
 import com.wajam.nrv.protocol.{ListenerException, ProtocolMessageListener, NrvProtocol, Protocol}
 import com.wajam.nrv.tracing.Tracer
+import com.wajam.nrv.consistency.{Consistency, NoConsistency}
+import com.wajam.nrv.utils.Observable
 
 /**
  * A cluster composed of services that are provided by nodes.
  */
-class Cluster(var localNode: Node,
-              var clusterManager: ClusterManager,
-              switchboard: Switchboard = new Switchboard,
-              resolver: Resolver = new Resolver,
-              tracer: Tracer = new Tracer)
-  extends ActionSupport with ProtocolMessageListener with Logging {
+class Cluster(val localNode: Node,
+              val clusterManager: ClusterManager,
+              defaultSwitchboard: Switchboard = new Switchboard,
+              defaultResolver: Resolver = new Resolver,
+              defaultTracer: Tracer = new Tracer,
+              defaultConsistency: Consistency = new NoConsistency)
+  extends ActionSupport with ProtocolMessageListener with Logging with Observable {
 
   // assign default resolver, switchboard, etc.
-  applySupport(cluster = Some(this), resolver = Some(resolver), switchboard = Some(switchboard), tracer = Some(tracer))
+  applySupport(cluster = Some(this), resolver = Some(defaultResolver), switchboard = Some(defaultSwitchboard),
+    tracer = Some(defaultTracer), consistency = Some(defaultConsistency))
 
   var services = Map[String, Service]()
   var protocols = Map[String, Protocol]()
 
   // initialize manager
   clusterManager.init(cluster)
+
+  def isLocalNode(node: Node) = node == localNode
 
   // register default protocol, which is nrv
   this.registerProtocol(new NrvProtocol(this.localNode, this), true)
@@ -52,6 +58,7 @@ class Cluster(var localNode: Node,
 
   def registerService(service: Service): Service = {
     service.supportedBy(this)
+    service.addParentObservable(this)
     this.services += (service.name -> service)
     service
   }

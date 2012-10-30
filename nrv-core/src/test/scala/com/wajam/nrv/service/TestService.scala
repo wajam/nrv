@@ -20,8 +20,8 @@ class TestService extends FunSuite with BeforeAndAfter {
   }
 
   test("add member") {
-    service.addMember(5, new Node("localhost", Map("nrv" -> 12345)))
-    service.addMember(9, new Node("localhost", Map("nrv" -> 12346)))
+    service.addMember(new ServiceMember(5, new Node("localhost", Map("nrv" -> 12345))))
+    service.addMember(new ServiceMember(9, new Node("localhost", Map("nrv" -> 12346))))
     assert(service.membersCount == 2)
   }
 

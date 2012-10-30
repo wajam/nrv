@@ -19,15 +19,15 @@ class TestResolver extends FunSuite with BeforeAndAfter {
 
   before {
     service = new Service("test")
-    memb5 = service.addMember(5, new Node("localhost", Map("nrv" -> 12345)))
-    memb7 = service.addMember(7, new Node("localhost", Map("nrv" -> 12346)))
-    memb9 = service.addMember(9, new Node("localhost", Map("nrv" -> 12346)))
-    memb12 = service.addMember(12, new Node("localhost", Map("nrv" -> 12346)))
-    memb20 = service.addMember(20, new Node("localhost", Map("nrv" -> 12346)))
-    memb30 = service.addMember(30, new Node("localhost", Map("nrv" -> 12346)))
+    memb5 = service.addMember(new ServiceMember(5, new Node("localhost", Map("nrv" -> 12345))))
+    memb7 = service.addMember(new ServiceMember(7, new Node("localhost", Map("nrv" -> 12346))))
+    memb9 = service.addMember(new ServiceMember(9, new Node("localhost", Map("nrv" -> 12346))))
+    memb12 = service.addMember(new ServiceMember(12, new Node("localhost", Map("nrv" -> 12346))))
+    memb20 = service.addMember(new ServiceMember(20, new Node("localhost", Map("nrv" -> 12346))))
+    memb30 = service.addMember(new ServiceMember(30, new Node("localhost", Map("nrv" -> 12346))))
 
     for (member <- service.members) {
-      member.status = MemberStatus.Up
+      member.setStatus(MemberStatus.Up, triggerEvent = false)
     }
   }
 
@@ -53,7 +53,7 @@ class TestResolver extends FunSuite with BeforeAndAfter {
   }
 
   test("resolver returns replicas even if they are not UP, but mark DOWNs as disabled") {
-    memb30.status = MemberStatus.Down
+    memb30.setStatus(MemberStatus.Down, triggerEvent = false)
 
     val resolver = new Resolver(replica = 3)
     val endsPoints = resolver.resolve(service, 19).shards(0).replicas
@@ -67,9 +67,9 @@ class TestResolver extends FunSuite with BeforeAndAfter {
     assert(resolver.resolve(service, 19).selectedReplicas.size == 2)
 
 
-    memb20.status = MemberStatus.Down
-    memb30.status = MemberStatus.Down
-    memb5.status = MemberStatus.Down
+    memb20.setStatus(MemberStatus.Down, triggerEvent = false)
+    memb30.setStatus(MemberStatus.Down, triggerEvent = false)
+    memb5.setStatus(MemberStatus.Down, triggerEvent = false)
     assert(resolver.resolve(service, 19).selectedReplicas.size == 0)
   }
 

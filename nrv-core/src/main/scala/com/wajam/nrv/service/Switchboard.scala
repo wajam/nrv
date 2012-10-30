@@ -3,27 +3,24 @@ package com.wajam.nrv.service
 import actors.Actor
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
-import java.util.TimerTask
 import com.wajam.nrv.{TimeoutException, Logging}
-import java.util
-import util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicBoolean
+import com.wajam.nrv.utils.Scheduler
 
 /**
  * Handle incoming messages and find matching outgoing messages, having same
  * rendez-vous number.
  */
-class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler with Logging with Instrumented {
-  private val TIMEOUT_CHECK_IN_MS = 100
+class Switchboard(val numExecutor: Int = 100)
+  extends Actor with MessageHandler with Logging with Instrumented {
 
+  private val TIMEOUT_CHECK_IN_MS = 100
   private val rendezvous = collection.mutable.HashMap[Int, SentMessageContext]()
-  private val timer = new util.Timer
   private var id = 0
+  private val started = new AtomicBoolean(false)
   private val executors = Array.fill(numExecutor) {
     new SwitchboardExecutor
   }
-
-  @volatile
-  private var started = new AtomicBoolean(false)
 
   // instrumentation
   private val received = metrics.meter("received", "received")
@@ -37,14 +34,14 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
     })
   }
 
+  // scheduled
+  val schdlr = new Scheduler(this, CheckTimeout, TIMEOUT_CHECK_IN_MS, TIMEOUT_CHECK_IN_MS, blockingMessage = true)
+
   override def start(): Actor = {
     if (started.compareAndSet(false, true)) {
       super.start()
-      timer.scheduleAtFixedRate(new TimerTask {
-        def run() {
-          checkTimeout()
-        }
-      }, 0, TIMEOUT_CHECK_IN_MS)
+      schdlr.start()
+
       for (e <- executors) {
         e.start()
       }
@@ -55,7 +52,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
 
   def stop() {
     if (started.compareAndSet(true, false)) {
-      this.timer.cancel()
+      this.schdlr.cancel()
     }
   }
 
@@ -89,7 +86,7 @@ class Switchboard(val numExecutor: Int = 100) extends Actor with MessageHandler 
   }
 
   protected[nrv] def checkTimeout() {
-    this !? CheckTimeout
+    this.schdlr.forceSchedule()
   }
 
   /**

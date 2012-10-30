@@ -16,6 +16,11 @@ trait Ring[T] {
 
   def nodes: Iterable[RingNode] = this.tree
 
+  def find(token: Long): Option[RingNode] = this.resolve(token, 1) match {
+    case Seq() => None
+    case Seq(node: RingNode) => if (node.token == token) Some(node) else None
+  }
+
   def resolve(token: Long, count: Int): Seq[RingNode] = this.resolve(token, count, _ => true)
 
   def resolve(token: Long, count: Int, filter: (RingNode => Boolean)): Seq[RingNode] = {
@@ -46,6 +51,7 @@ trait Ring[T] {
   }
 
   private class EmptyRingNode(token: Long) extends RingNode(token, null.asInstanceOf[T])
+
 }
 
 

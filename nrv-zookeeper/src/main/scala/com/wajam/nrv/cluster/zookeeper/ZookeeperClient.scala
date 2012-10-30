@@ -6,8 +6,10 @@ import org.apache.zookeeper.Watcher.Event.KeeperState
 import org.apache.zookeeper.ZooDefs.Ids
 import org.apache.zookeeper._
 import data.Stat
-import org.apache.zookeeper.KeeperException.Code
+import org.apache.zookeeper.KeeperException.{NoNodeException, Code}
+import scala.collection.JavaConversions._
 import com.yammer.metrics.scala.Instrumented
+import com.wajam.nrv.utils.{Event, Observable}
 
 object ZookeeperClient {
   implicit def string2bytes(value: String) = value.getBytes
@@ -15,32 +17,52 @@ object ZookeeperClient {
   implicit def int2bytes(value: Int) = value.toString.getBytes
 
   implicit def long2bytes(value: Long) = value.toString.getBytes
+
+  // observable events
+  case class ZookeeperConnected(originalEvent: WatchedEvent) extends Event
+
+  case class ZookeeperDisconnected(originalEvent: WatchedEvent) extends Event
+
+  case class ZookeeperExpired(originalEvent: WatchedEvent) extends Event
+
+  case class NodeChildrenChanged(path: String, originalEvent: WatchedEvent) extends Event
+
+  case class NodeValueChanged(path: String, originalEvent: WatchedEvent) extends Event
+
 }
 
-class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: String = "", watcher: Option[ZookeeperClient => Unit] = None) extends Logging with Instrumented {
-  @volatile private var zk: ZooKeeper = null
-  connect()
+/**
+ * Zookeeper client wrapper that wraps around zookeeper default client, implements more advanced
+ * operation and give a Scala zest to the client.
+ *
+ * @param servers
+ * @param sessionTimeout
+ */
+class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: Boolean = true)
+  extends Logging with Instrumented with Observable {
 
+  import ZookeeperClient._
+
+  @volatile private var zk: ZooKeeper = null
+
+  if (autoConnect)
+    this.connect()
+
+  // metrics
+  private lazy val metricsGetChildren = metrics.timer("get-children")
   private lazy val metricsGet = metrics.timer("get")
   private lazy val metricsCreate = metrics.timer("create")
   private lazy val metricsSet = metrics.timer("set")
   private lazy val metricsDelete = metrics.timer("delete")
   private lazy val metricsIncrement = metrics.timer("increment")
 
-  import ZookeeperClient._
-
   def getHandle: ZooKeeper = zk
 
-  /**
-   * connect() attaches to the remote zookeeper and sets an instance variable.
-   */
-  private def connect() {
+  def connect() {
     val connectionLatch = new CountDownLatch(1)
     val assignLatch = new CountDownLatch(1)
-    if (zk != null) {
-      zk.close()
-      zk = null
-    }
+
+    this.close()
     zk = new ZooKeeper(servers, sessionTimeout,
       new Watcher {
         def process(event: WatchedEvent) {
@@ -53,35 +75,36 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
   }
 
   def close() {
-    zk.close()
+    if (zk != null) {
+      zk.close()
+      zk = null
+    }
   }
 
-  def sessionEvent(assignLatch: CountDownLatch, connectionLatch: CountDownLatch, event: WatchedEvent) {
+  def connected = zk.getState == ZooKeeper.States.CONNECTED
+
+  private def sessionEvent(assignLatch: CountDownLatch, connectionLatch: CountDownLatch, event: WatchedEvent) {
     log.info("Zookeeper event: %s".format(event))
     assignLatch.await()
     event.getState match {
       case KeeperState.SyncConnected =>
-        try {
-          watcher.map(fn => fn(this))
-        } catch {
-          case e: Exception =>
-            log.error("Exception during zookeeper connection established callback")
-        }
         connectionLatch.countDown()
+        this.notifyObservers(new ZookeeperConnected(event))
+
+      case KeeperState.Disconnected =>
+        this.notifyObservers(new ZookeeperDisconnected(event))
 
       case KeeperState.Expired =>
-        // TODO: notify manager! probably need we are not reliable anymore, we need to resync
-        // Session was expired; create a new zookeeper connection
-        connect()
+        this.notifyObservers(new ZookeeperExpired(event))
 
-      case _ =>
-      // Disconnected -- zookeeper library will handle reconnects
+        // Session was expired; create a new zookeeper connection
+        this.connect()
+
+      case other =>
+        log.warn("Got a non-supported event in global event watcher: {}", event)
     }
   }
 
-  /**
-   * Create single path
-   */
   def create(path: String, data: Array[Byte], createMode: CreateMode): String = {
     this.metricsCreate.time {
       zk.create(path, data, Ids.OPEN_ACL_UNSAFE, createMode)
@@ -91,46 +114,94 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
   def ensureExists(path: String, data: Array[Byte], createMode: CreateMode = CreateMode.PERSISTENT): Boolean = {
     try {
       this.create(path, data, createMode)
-      return true
+      true
 
     } catch {
       case e: KeeperException =>
         if (e.code() == Code.NODEEXISTS) {
-          return true
+          return false
         }
 
         throw e
     }
   }
 
-  def get(path: String, stat: Stat = null): Array[Byte] = {
-    this.metricsGet.time {
-      zk.getData(makeNodePath(path), false, stat)
+  def exists(path: String): Boolean = {
+    val stat = zk.exists(path, false)
+    stat != null && stat.getVersion >= 0
+  }
+
+  def getChildren(path: String, watch: Option[(NodeChildrenChanged) => Unit] = None, stat: Option[Stat] = None): Seq[String] = {
+    this.metricsGetChildren.time {
+      watch match {
+        case Some(cb) =>
+          zk.getChildren(path, new Watcher {
+            def process(event: WatchedEvent) {
+              try {
+                cb(new NodeChildrenChanged(event.getPath, event))
+              } catch {
+                case e: Exception => error("Got an exception calling watcher callback: {}", e)
+              }
+            }
+          }, stat.getOrElse(null))
+
+        case None =>
+          zk.getChildren(path, false, stat.getOrElse(null))
+      }
     }
   }
 
-  def getString(path: String, stat: Stat = null): String = {
-    new String(zk.getData(makeNodePath(path), false, stat))
+  def get(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Array[Byte] = {
+    this.metricsGet.time {
+      watch match {
+        case Some(cb) =>
+          zk.getData(path, new Watcher {
+            def process(event: WatchedEvent) {
+              try {
+                cb(new NodeValueChanged(event.getPath, event))
+              } catch {
+                case e: Exception => error("Got an exception calling watcher callback: {}", e)
+              }
+            }
+          }, stat.getOrElse(null))
+
+        case None =>
+          zk.getData(path, false, stat.getOrElse(null))
+      }
+    }
   }
 
-  def getInt(path: String, stat: Stat = null): Int = {
-    getString(path, stat).toInt
-  }
+  def getString(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): String = new String(get(path, watch, stat))
 
-  def getLong(path: String, stat: Stat = null): Long = {
-    getString(path, stat).toLong
-  }
+  def getInt(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Int = getString(path, stat = stat).toInt
+
+  def getLong(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Long = getString(path, watch, stat).toLong
 
   def set(path: String, data: Array[Byte], version: Int = -1) {
     this.metricsSet.time {
-      zk.setData(makeNodePath(path), data, version)
+      zk.setData(path, data, version)
     }
   }
 
-  def delete(path: String, version: Int = -1) {
+  def delete(path: String) {
     this.metricsDelete.time {
-      zk.delete(makeNodePath(path), version)
+      zk.delete(path, -1)
     }
+  }
+
+  def deleteRecursive(path: String) {
+    def deleteCallback(curPath: String) {
+      try {
+        getChildren(curPath).foreach(childName => {
+          val childPath = curPath + "/" + childName
+          deleteCallback(childPath)
+        })
+        delete(curPath)
+      } catch {
+        case e: NoNodeException => /* nothing to see, keep moving on */
+      }
+    }
+    deleteCallback(path)
   }
 
   /**
@@ -146,7 +217,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
       while (true) {
         var data: Array[Byte] = null
         try {
-          data = this.get(path, stat)
+          data = this.get(path, stat = Some(stat))
         } catch {
           case e: Exception =>
         }
@@ -172,6 +243,4 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, basePath: Str
 
     current
   }
-
-  private def makeNodePath(path: String) = "%s/%s".format(basePath, path).replaceAll("//", "/")
 }
