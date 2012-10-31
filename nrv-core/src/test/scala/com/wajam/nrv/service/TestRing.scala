@@ -1,25 +1,26 @@
 package com.wajam.nrv.service
 
 import org.scalatest.FunSuite
+import org.scalatest.matchers.ShouldMatchers._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
 class TestRing extends FunSuite {
   test("should add nodes") {
-    val ring = new Object with Ring[Int];
-    ring.add(1, 1);
-    ring.add(4, 4);
-    ring.add(5, 5);
-    ring.add(8, 8);
+    val ring = new Object with Ring[Int]
+    ring.add(1, 1)
+    ring.add(4, 4)
+    ring.add(5, 5)
+    ring.add(8, 8)
     assert(ring.size == 4)
   }
 
   test("ring should be able to find a specific node") {
-    val ring = new Object with Ring[Int];
-    ring.add(1, 2);
-    ring.add(4, 5);
-    ring.add(5, 6);
+    val ring = new Object with Ring[Int]
+    ring.add(1, 2)
+    ring.add(4, 5)
+    ring.add(5, 6)
 
     val node = ring.find(5) match {
       case None => fail("Couldn't find element with token 5")
@@ -30,12 +31,35 @@ class TestRing extends FunSuite {
     assert(node.element == 6)
   }
 
+  test("ring should be able to find a specific node without overflow") {
+    val ring = new Object with Ring[Long]
+    ring.add(0, 2)
+    ring.add(4, 5)
+    ring.add(Int.MaxValue.toLong + 1, 6)
+
+    val node = ring.find(Int.MaxValue.toLong + 1) match {
+      case None => fail("Couldn't find element with token 5")
+      case Some(ringnode) => ringnode
+    }
+
+    assert(node.token == Int.MaxValue.toLong + 1)
+    assert(node.element == 6)
+  }
+
+  test("ring node compare should not overflow on int boundaries") {
+
+    val ring = new Object with Ring[Long]
+    new ring.RingNode(Int.MaxValue.toLong + 1, 0) should  be > new ring.RingNode(0, 0)
+    new ring.RingNode(0, 0) should  be < new ring.RingNode(Int.MaxValue.toLong + 2, 0)
+    assert(new ring.RingNode(0, 0).compareTo(new ring.RingNode(0, 0)) == 0)
+  }
+
   test("should resolve and returns given count") {
-    val ring = new Object with Ring[Int];
-    ring.add(1, 1);
-    ring.add(4, 4);
-    ring.add(5, 5);
-    ring.add(8, 8);
+    val ring = new Object with Ring[Int]
+    ring.add(1, 1)
+    ring.add(4, 4)
+    ring.add(5, 5)
+    ring.add(8, 8)
 
     var r = ring.resolve(4, 2)
     assert(r.size == 2)
@@ -47,11 +71,11 @@ class TestRing extends FunSuite {
   }
 
   test("should resolve and returns given count using filter") {
-    val ring = new Object with Ring[Int];
-    ring.add(1, 1);
-    ring.add(4, 4);
-    ring.add(5, 5);
-    ring.add(8, 8);
+    val ring = new Object with Ring[Int]
+    ring.add(1, 1)
+    ring.add(4, 4)
+    ring.add(5, 5)
+    ring.add(8, 8)
 
     var r = ring.resolve(4, 2, node => {
       node.token != 5
@@ -71,11 +95,11 @@ class TestRing extends FunSuite {
   }
 
   test("should delete nodes") {
-    val ring = new Object with Ring[Int];
-    ring.add(1, 1);
-    ring.add(4, 4);
-    ring.add(5, 5);
-    ring.add(8, 8);
+    val ring = new Object with Ring[Int]
+    ring.add(1, 1)
+    ring.add(4, 4)
+    ring.add(5, 5)
+    ring.add(8, 8)
 
     ring.delete(5)
     assert(ring.size == 3)
