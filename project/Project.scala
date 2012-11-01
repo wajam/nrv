@@ -8,7 +8,8 @@ object NrvBuild extends Build {
     "Scala-Tools" at "http://scala-tools.org/repo-releases/",
     "Sun GF Maven2 Repo" at "http://download.java.net/maven/glassfish",
     "Oracle Maven2 Repo" at "http://download.oracle.com/maven",
-    "Sonatype" at "http://oss.sonatype.org/content/repositories/release"
+    "Sonatype" at "http://oss.sonatype.org/content/repositories/release",
+    "Cloudera" at "https://repository.cloudera.com/artifactory/cloudera-repos/"
   )
 
   var commonDeps = Seq(
@@ -21,7 +22,7 @@ object NrvBuild extends Build {
   )
 
   var zookeeperDeps = Seq(
-    "org.apache.zookeeper" % "zookeeper" % "3.4.3" exclude("javax.jms", "jms") exclude("com.sun.jmx", "jmxri") exclude("com.sun.jdmk", "jmxtools")
+    "org.apache.zookeeper" % "zookeeper" % "3.4.3-cdh4.1.1" exclude("javax.jms", "jms") exclude("com.sun.jmx", "jmxri") exclude("com.sun.jdmk", "jmxtools")
   )
 
   val defaultSettings = Defaults.defaultSettings ++ Defaults.itSettings ++ Seq(
@@ -33,29 +34,26 @@ object NrvBuild extends Build {
     version := "0.1-SNAPSHOT"
   )
 
-  lazy val root = Project(
-    id = "nrv",
-    base = file("."),
-    settings = defaultSettings ++ Seq(
-      // some other
-    )
-  ) configs (IntegrationTest) aggregate(core, zookeeper)
+  lazy val root = Project("nrv", file("."))
+    .configs(IntegrationTest)
+    .settings(defaultSettings: _*)
+    .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
+    .settings(parallelExecution in IntegrationTest := false)
+    .aggregate(core)
+    .aggregate(zookeeper)
 
-  // all keys at http://harrah.github.com/xsbt/latest/sxr/Keys.scala.html#295872
-  lazy val core = Project(
-    id = "nrv-core",
-    base = file("nrv-core"),
-    settings = defaultSettings ++ Seq(
-      // some other
-    )
-  ) configs (IntegrationTest)
+  lazy val core = Project("nrv-core", file("nrv-core"))
+    .configs(IntegrationTest)
+    .settings(defaultSettings: _*)
+    .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
+    .settings(parallelExecution in IntegrationTest := false)
 
-  lazy val zookeeper = Project(
-    id = "nrv-zookeeper",
-    base = file("nrv-zookeeper"),
-    settings = defaultSettings ++ Seq(
-      libraryDependencies ++= zookeeperDeps
-    )
-  ) configs (IntegrationTest) dependsOn (core)
+  lazy val zookeeper = Project("nrv-zookeeper", file("nrv-zookeeper"))
+    .configs(IntegrationTest)
+    .settings(defaultSettings: _*)
+    .settings(libraryDependencies ++= zookeeperDeps)
+    .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
+    .settings(parallelExecution in IntegrationTest := false)
+    .dependsOn(core)
 }
 
