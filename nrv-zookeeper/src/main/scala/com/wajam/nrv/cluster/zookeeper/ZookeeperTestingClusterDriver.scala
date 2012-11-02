@@ -1,7 +1,7 @@
 package com.wajam.nrv.cluster.zookeeper
 
 import com.wajam.nrv.cluster._
-import com.wajam.nrv.service.{ServiceMember, Service}
+import com.wajam.nrv.service.{MemberStatus, ServiceMember, Service}
 import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.cluster.zookeeper.ZookeeperClient._
 
@@ -27,6 +27,10 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ClusterManag
       this.instances :+= instance
       this.zkClients :+= zkClient
     }
+
+    // Wait until all service members are up
+    waitForCondition[Boolean](
+      instances.flatMap(_.cluster.services.values.flatMap(_.members)).forall(_.status == MemberStatus.Up), _ == true)
   }
 
   def destroy() {
@@ -39,10 +43,6 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ClusterManag
 
   def execute(execute: (ZookeeperTestingClusterDriver, TestingClusterInstance) => Unit, fromSize: Int = 1, toSize: Int = 5) {
     this.init(toSize)
-
-    // TEMPORARY: hard coded sleep to ensure all nodes on clusters are up.
-    Thread.sleep(5000)
-
     for (i <- fromSize to toSize) {
       // TODO: execute on a random instance
       execute(this, this.instances(0))
@@ -67,6 +67,16 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ClusterManag
     // if node existed, overwrite
     if (created)
       zkClient.set(path, serviceMember.toString)
+  }
+
+  def waitForCondition[T](block: => T, condition: (T) => Boolean, sleepTimeInMs: Long = 250, timeoutInMs: Long = 10000) {
+    val startTime = System.currentTimeMillis()
+    while (!condition(block)) {
+      if ((System.currentTimeMillis() - startTime) > timeoutInMs) {
+        throw new RuntimeException("Timeout waiting for condition.")
+      }
+      Thread.sleep(sleepTimeInMs)
+    }
   }
 }
 
