@@ -173,7 +173,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
 
   def getString(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): String = new String(get(path, watch, stat))
 
-  def getInt(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Int = getString(path, stat = stat).toInt
+  def getInt(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Int = getString(path, watch, stat).toInt
 
   def getLong(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Long = getString(path, watch, stat).toLong
 
