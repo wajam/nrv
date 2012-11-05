@@ -113,7 +113,7 @@ class Switchboard(val numExecutor: Int = 100)
 
             for ((id, rdv) <- rendezvous) {
               val elaps = getTime() - rdv.outMessage.sentTime
-              if (elaps >= rdv.outMessage.timeoutTime) {
+              if (elaps >= rdv.outMessage.responseTimeout) {
                 var exceptionMessage = new InMessage
                 exceptionMessage.matchingOutMessage = Some(rdv.outMessage)
                 exceptionMessage.error = Some(rdv.enventualTimeoutException)

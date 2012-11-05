@@ -46,9 +46,8 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
   test("timeout") {
     val mockAction = mock[Action]
 
-    val outMessage = new OutMessage
+    val outMessage = new OutMessage(responseTimeout = 20)
     outMessage.sentTime = 0
-    outMessage.timeoutTime = 20
 
     switchboard.handleOutgoing(mockAction, outMessage)
     switchboard.getTime = () => {
