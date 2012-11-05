@@ -95,8 +95,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     action.start()
 
-    val req = new OutMessage(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _))
-    req.timeoutTime = 100
+    val req = new OutMessage(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _), timeoutTime = 100)
 
     action.tracer.trace() {
       action.call(req)
@@ -107,10 +106,66 @@ class TestAction extends FunSuite with BeforeAndAfter {
     }
     action.switchboard.checkTimeout()
 
+    val start = System.currentTimeMillis()
     intercept[TimeoutException] {
-      Future.blocking(syncResponse.future, 1000)
-      fail("Shouldn't be call because an exception occured")
+      Future.blocking(syncResponse.future, 10000)
     }
+    assert((System.currentTimeMillis() - start) < 500)
+
+    action.stop()
+  }
+
+  test("action default timeout") {
+    val syncResponse = Promise[InMessage]
+
+    val action = service.registerAction(new Action("/test_timeout", req => {
+      // no reply, make it timeout
+    }, defaultTimeout = 100))
+
+    action.start()
+
+    action.tracer.trace() {
+      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _))
+    }
+
+    action.switchboard.getTime = () => {
+      System.currentTimeMillis() + 100
+    }
+    action.switchboard.checkTimeout()
+
+    val start = System.currentTimeMillis()
+    intercept[TimeoutException] {
+      Future.blocking(syncResponse.future, 10000)
+    }
+    assert((System.currentTimeMillis() - start) < 500)
+
+    action.stop()
+  }
+
+  test("action call method timeout") {
+    val syncResponse = Promise[InMessage]
+
+    val action = service.registerAction(new Action("/test_timeout", req => {
+      // no reply, make it timeout
+    }))
+
+    action.start()
+
+    action.tracer.trace() {
+      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _), timeout = 100)
+    }
+
+    action.switchboard.getTime = () => {
+      System.currentTimeMillis() + 100
+    }
+    action.switchboard.checkTimeout()
+
+    val start = System.currentTimeMillis()
+    intercept[TimeoutException] {
+      Future.blocking(syncResponse.future, 10000)
+    }
+    assert((System.currentTimeMillis() - start) < 500)
+
     action.stop()
   }
 

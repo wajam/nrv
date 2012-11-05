@@ -16,7 +16,8 @@ import com.wajam.nrv.consistency.Consistency
 class Action(val path: ActionPath,
              val implementation: ((InMessage) => Unit),
              val method: ActionMethod = ActionMethod.ANY,
-             consistency: Option[Consistency] = None)
+             consistency: Option[Consistency] = None,
+             defaultTimeout: Long = 1000)
   extends ActionSupport with Instrumented with Logging {
 
   // override protocol, resolver if defined
@@ -33,16 +34,24 @@ class Action(val path: ActionPath,
   def call(params: Iterable[(String, Any)],
            meta: Iterable[(String, Any)],
            data: Any): Future[InMessage] = {
+    call(params, meta, data, defaultTimeout)
+  }
+
+  def call(params: Iterable[(String, Any)],
+           meta: Iterable[(String, Any)],
+           data: Any,
+           timeout: Long): Future[InMessage] = {
     val p = Promise[InMessage]
-    this.call(params, p.complete(_, _), meta, data)
+    this.call(params, p.complete(_, _), meta, data, timeout)
     p.future
   }
 
   def call(params: Iterable[(String, Any)],
            onReply: ((InMessage, Option[Exception]) => Unit),
            meta: Iterable[(String, Any)] = null,
-           data: Any = null) {
-    this.call(new OutMessage(params, meta, data, onReply = onReply))
+           data: Any = null,
+           timeout: Long = defaultTimeout) {
+    this.call(new OutMessage(params, meta, data, onReply = onReply, timeoutTime = timeout))
   }
 
   def call(message: OutMessage) {
