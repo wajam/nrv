@@ -17,7 +17,7 @@ class Action(val path: ActionPath,
              val implementation: ((InMessage) => Unit),
              val method: ActionMethod = ActionMethod.ANY,
              consistency: Option[Consistency] = None,
-             defaultTimeout: Long = 1000)
+             defaultResponseTimeout: Long = 1000)
   extends ActionSupport with Instrumented with Logging {
 
   // override protocol, resolver if defined
@@ -34,15 +34,15 @@ class Action(val path: ActionPath,
   def call(params: Iterable[(String, Any)],
            meta: Iterable[(String, Any)],
            data: Any): Future[InMessage] = {
-    call(params, meta, data, defaultTimeout)
+    call(params, meta, data, defaultResponseTimeout)
   }
 
   def call(params: Iterable[(String, Any)],
            meta: Iterable[(String, Any)],
            data: Any,
-           timeout: Long): Future[InMessage] = {
+           responseTimeout: Long): Future[InMessage] = {
     val p = Promise[InMessage]
-    this.call(params, p.complete(_, _), meta, data, timeout)
+    this.call(params, p.complete(_, _), meta, data, responseTimeout)
     p.future
   }
 
@@ -50,8 +50,8 @@ class Action(val path: ActionPath,
            onReply: ((InMessage, Option[Exception]) => Unit),
            meta: Iterable[(String, Any)] = null,
            data: Any = null,
-           timeout: Long = defaultTimeout) {
-    this.call(new OutMessage(params, meta, data, onReply = onReply, timeoutTime = timeout))
+           responseTimeout: Long = defaultResponseTimeout) {
+    this.call(new OutMessage(params, meta, data, onReply = onReply, responseTimeout = responseTimeout))
   }
 
   def call(message: OutMessage) {

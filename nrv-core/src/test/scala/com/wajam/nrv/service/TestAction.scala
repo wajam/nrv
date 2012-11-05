@@ -95,7 +95,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     action.start()
 
-    val req = new OutMessage(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _), timeoutTime = 100)
+    val req = new OutMessage(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _), responseTimeout = 100)
 
     action.tracer.trace() {
       action.call(req)
@@ -120,7 +120,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val action = service.registerAction(new Action("/test_timeout", req => {
       // no reply, make it timeout
-    }, defaultTimeout = 100))
+    }, defaultResponseTimeout = 100))
 
     action.start()
 
@@ -152,7 +152,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
     action.start()
 
     action.tracer.trace() {
-      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _), timeout = 100)
+      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _), responseTimeout = 100)
     }
 
     action.switchboard.getTime = () => {

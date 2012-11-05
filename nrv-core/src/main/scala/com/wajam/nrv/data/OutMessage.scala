@@ -8,7 +8,7 @@ class OutMessage(params: Iterable[(String, Any)] = null,
                  data: Any = null,
                  code: Int = 200,
                  onReply: (InMessage, Option[Exception]) => Unit = null,
-                 val timeoutTime: Long = 1000) extends Message(params, meta, data, code) {
+                 val responseTimeout: Long = 1000) extends Message(params, meta, data, code) {
 
   var sentTime:Long = 0
 
