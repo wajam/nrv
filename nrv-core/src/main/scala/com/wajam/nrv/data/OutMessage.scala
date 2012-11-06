@@ -7,9 +7,9 @@ class OutMessage(params: Iterable[(String, Any)] = null,
                  meta: Iterable[(String, Any)] = null,
                  data: Any = null,
                  code: Int = 200,
-                 onReply: (InMessage, Option[Exception]) => Unit = null) extends Message(params, meta, data, code) {
+                 onReply: (InMessage, Option[Exception]) => Unit = null,
+                 val responseTimeout: Long = 1000) extends Message(params, meta, data, code) {
 
-  var timeoutTime:Long = 1000
   var sentTime:Long = 0
 
   protected[nrv] def handleReply(message: InMessage) {
