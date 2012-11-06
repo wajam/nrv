@@ -5,7 +5,7 @@ import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
 import java.net.URI
 import scala.collection.JavaConverters._
-import com.wajam.nrv.cluster.Node
+import com.wajam.nrv.cluster.LocalNode
 import com.wajam.nrv.transport.http.HttpNettyTransport
 import scala.Array
 import com.wajam.nrv.data.{Message, InMessage, OutMessage}
@@ -14,13 +14,13 @@ import com.wajam.nrv.service.ActionMethod
 /**
  * Implementation of HTTP protocol.
  */
-class HttpProtocol(name: String, localNode: Node)
+class HttpProtocol(name: String, localNode: LocalNode)
   extends Protocol(name) {
 
   val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
   contentTypeCodecs += ("text/plain" -> new StringCodec())
 
-  override val transport = new HttpNettyTransport(localNode.host,
+  override val transport = new HttpNettyTransport(localNode.listenAddress,
     localNode.ports(name),
     this)
 

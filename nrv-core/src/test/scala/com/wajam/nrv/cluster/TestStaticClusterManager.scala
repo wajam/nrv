@@ -9,7 +9,7 @@ import com.wajam.nrv.service.{ServiceMember, Service}
 class TestStaticClusterManager extends FunSuite {
 
   test("add member to service") {
-    val node1 = new Node("127.0.0.1", Map("nrv" -> 12345))
+    val node1 = new LocalNode("127.0.0.1", Map("nrv" -> 12345))
     val node2 = new Node("127.0.0.2", Map("nrv" -> 12345))
     val node3 = new Node("127.0.0.3", Map("nrv" -> 12345))
 

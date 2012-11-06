@@ -8,7 +8,7 @@ import com.wajam.nrv.service._
 
 @RunWith(classOf[JUnitRunner])
 class TestCluster extends FunSuite {
-  val cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
+  val cluster = new Cluster(new LocalNode("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
 
   val method = "testmethod"
   val srv1 = cluster.registerService(new Service("test1"))

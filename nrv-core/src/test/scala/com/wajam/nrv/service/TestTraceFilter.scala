@@ -2,7 +2,7 @@ package com.wajam.nrv.service
 
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.mock.MockitoSugar
-import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
+import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.protocol.DummyProtocol
 import com.wajam.nrv.tracing._
 import com.wajam.nrv.utils.{Future, Promise, ControlableSequentialStringIdGenerator, ControlableCurrentTime}
@@ -33,7 +33,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
   def setupCluster(nodeHost: String = "127.0.0.1") {
     idGenerator.reset
     reset(mockRecorder)
-    cluster = new Cluster(new Node(nodeHost, Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager, new ActionSupportOptions(tracer = Some(tracer)))
+    cluster = new Cluster(new LocalNode(nodeHost, Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager, new ActionSupportOptions(tracer = Some(tracer)))
     cluster.registerProtocol(new DummyProtocol("dummy"), default = true)
     service = cluster.registerService(new Service("test", new ActionSupportOptions(resolver = Some(new Resolver(1)))))
     val member = service.addMember(new ServiceMember(0, cluster.localNode))

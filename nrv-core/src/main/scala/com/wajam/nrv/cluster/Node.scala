@@ -32,6 +32,13 @@ sealed class Node(val host: InetAddress, val ports: Map[String, Int]) extends Se
   override def toString: String = "%s:%s".format(host.getHostName, ports.map(t => "%s=%d".format(t._1, t._2)).mkString(","))
 }
 
+sealed class LocalNode(val listenAddress: InetAddress, ports: Map[String, Int])
+  extends Node(Node.listenAddressToHostAddress(listenAddress), ports) {
+
+  def this(listenAddress: String, ports: Map[String, Int]) = this(InetAddress.getByName(listenAddress), ports)
+  def this(ports: Map[String, Int]) = this("0.0.0.0", ports)
+}
+
 object Node {
 
   def fromString(nodeString: String): Node = {
@@ -46,13 +53,7 @@ object Node {
     new Node(strHost, mapPorts)
   }
 
-  def createLocal(ports: Map[String, Int]): Node = {
-    val host = InetUtils.firstInetAddress match {
-      case Some(host) => host
-      case None => sys.error("No non-loopback address found")
-    }
-
-    new Node(host, ports)
+  def listenAddressToHostAddress(listenAddress: InetAddress): InetAddress = {
+    if (listenAddress.isAnyLocalAddress) InetUtils.firstInetAddress.getOrElse(listenAddress) else listenAddress
   }
-
 }

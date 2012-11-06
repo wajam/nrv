@@ -4,7 +4,7 @@ import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
+import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import org.jboss.netty.handler.codec.http._
 import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.data.{OutMessage, InMessage}
@@ -19,7 +19,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
   var protocol: HttpProtocol = null
 
   before {
-    val localnode = new Node("localhost", Map("nrv" -> 19191, "test" -> 1909))
+    val localnode = new LocalNode("localhost", Map("nrv" -> 19191, "test" -> 1909))
     val cluster = new Cluster(localnode, new StaticClusterManager)
     protocol = new HttpProtocol("test", localnode)
   }

@@ -10,7 +10,7 @@ import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
 /**
  * A cluster composed of services that are provided by nodes.
  */
-class Cluster(val localNode: Node,
+class Cluster(val localNode: LocalNode,
               val clusterManager: ClusterManager,
               actionSupportOptions: ActionSupportOptions = new ActionSupportOptions())
   extends ActionSupport with Logging with Observable {
