@@ -7,7 +7,6 @@ import scala.Unit
 import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
 import com.wajam.nrv.data._
 import scala.Some
-import com.wajam.nrv.consistency.Consistency
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -16,12 +15,9 @@ import com.wajam.nrv.consistency.Consistency
 class Action(val path: ActionPath,
              val implementation: ((InMessage) => Unit),
              val method: ActionMethod = ActionMethod.ANY,
-             consistency: Option[Consistency] = None,
-             defaultResponseTimeout: Long = 1000)
+             defaultResponseTimeout: Long = 1000,
+             actionSupportOptions: ActionSupportOptions = new ActionSupportOptions())
   extends ActionSupport with Instrumented with Logging {
-
-  // override protocol, resolver if defined
-  applySupport(consistency = consistency)
 
   lazy val fullPath = this.protocol.name + "://" + this.service.name + this.path
   lazy val metricsPath = this.protocol.name + "-" + this.service.name + this.path.replace("/", "-").replace(":", "+")
@@ -30,6 +26,9 @@ class Action(val path: ActionPath,
   private lazy val msgOutMeter = metrics.meter("message-out", "messages-out", metricsPath)
   private lazy val msgReplyTime = metrics.timer("reply-time", metricsPath)
   private lazy val executeTime = metrics.timer("execute-time", metricsPath)
+
+  // overrides defaults with passed options
+  applySupportOptions(actionSupportOptions)
 
   def call(params: Iterable[(String, Any)],
            meta: Iterable[(String, Any)],
@@ -67,6 +66,7 @@ class Action(val path: ActionPath,
 
   protected[nrv] def start() {
     this.checkSupported()
+    this.protocol.bindAction(this)
     this.switchboard.start()
   }
 
@@ -99,9 +99,11 @@ class Action(val path: ActionPath,
       }
 
       this.switchboard.handleOutgoing(this, outMessage, _ => {
-        TraceFilter.handleOutgoing(this, outMessage, _ => {
-          this.protocol.handleOutgoing(this, outMessage, _ => {
-            outMessage.sentTime = System.currentTimeMillis()
+        this.consistency.handleOutgoing(this, outMessage, _ => {
+          TraceFilter.handleOutgoing(this, outMessage, _ => {
+            this.protocol.handleOutgoing(this, outMessage, _ => {
+              outMessage.sentTime = System.currentTimeMillis()
+            })
           })
         })
       })
@@ -118,52 +120,54 @@ class Action(val path: ActionPath,
 
     this.resolver.handleIncoming(this, fromMessage, _ => {
       this.switchboard.handleIncoming(this, fromMessage, _ => {
-        TraceFilter.handleIncoming(this, fromMessage, _ => {
-          fromMessage.function match {
+        this.consistency.handleIncoming(this, fromMessage, _ => {
+          TraceFilter.handleIncoming(this, fromMessage, _ => {
+            fromMessage.function match {
 
-            // function call
-            case MessageType.FUNCTION_CALL =>
-              // set the reply callback for this message
-              fromMessage.replyCallback = (intoMessage => {
-                this.generateResponseMessage(fromMessage, intoMessage)
-                this.callOutgoingHandlers(intoMessage)
-              })
+              // function call
+              case MessageType.FUNCTION_CALL =>
+                // set the reply callback for this message
+                fromMessage.replyCallback = (intoMessage => {
+                  this.generateResponseMessage(fromMessage, intoMessage)
+                  this.callOutgoingHandlers(intoMessage)
+                })
 
-              // handle the message, catch errors to throw them back to the caller
-              try {
-                this.executeTime.time {
-                  extractParamsFromPath(fromMessage, fromMessage.path)
-                  this.implementation(fromMessage)
-                }
-              } catch {
-                case ex: Exception => {
-                  warn("Got an exception calling implementation", ex)
-                  try {
-                    fromMessage.replyWithError(new RemoteException("Exception calling action implementation", ex))
-                  } catch {
-                    case e: Exception => log.error("Could not send error message back to caller.", e)
+                // handle the message, catch errors to throw them back to the caller
+                try {
+                  this.executeTime.time {
+                    extractParamsFromPath(fromMessage, fromMessage.path)
+                    this.implementation(fromMessage)
                   }
-                }
-              }
-
-
-            // it's a reply to a message
-            case MessageType.FUNCTION_RESPONSE =>
-              fromMessage.matchingOutMessage match {
-                // it's a reply to a message
-                case Some(originalMessage) =>
-                  this.msgReplyTime.update(System.currentTimeMillis() - originalMessage.sentTime, TimeUnit.MILLISECONDS)
-                  try {
-                    originalMessage.handleReply(fromMessage)
-                  } catch {
-                    case ex: Exception => {
-                      warn("Got an exception calling reply callback", ex)
+                } catch {
+                  case ex: Exception => {
+                    warn("Got an exception calling implementation", ex)
+                    try {
+                      fromMessage.replyWithError(new RemoteException("Exception calling action implementation", ex))
+                    } catch {
+                      case e: Exception => log.error("Could not send error message back to caller.", e)
                     }
                   }
-                case None =>
-                  warn("Response with no matching original message received")
-              }
-          }
+                }
+
+
+              // it's a reply to a message
+              case MessageType.FUNCTION_RESPONSE =>
+                fromMessage.matchingOutMessage match {
+                  // it's a reply to a message
+                  case Some(originalMessage) =>
+                    this.msgReplyTime.update(System.currentTimeMillis() - originalMessage.sentTime, TimeUnit.MILLISECONDS)
+                    try {
+                      originalMessage.handleReply(fromMessage)
+                    } catch {
+                      case ex: Exception => {
+                        warn("Got an exception calling reply callback", ex)
+                      }
+                    }
+                  case None =>
+                    warn("Response with no matching original message received")
+                }
+            }
+          })
         })
       })
     })

@@ -1,7 +1,7 @@
 package com.wajam.nrv.cluster.zookeeper
 
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import com.wajam.nrv.cluster.{ServiceMemberVote, Node, Cluster}
+import com.wajam.nrv.cluster.{LocalNode, ServiceMemberVote, Node, Cluster}
 import com.wajam.nrv.cluster.zookeeper.ZookeeperClient._
 import com.wajam.nrv.service.{MemberStatus, ServiceMember, Service}
 import org.apache.zookeeper.CreateMode
@@ -29,7 +29,7 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
   }
 
   class TestCluster(id: Int) {
-    val localNode = new Node("127.0.0.1", Map("nrv" -> (10010 + id)))
+    val localNode = new LocalNode("127.0.0.1", Map("nrv" -> (10010 + id)))
 
     // create a zookeeper chrooted on /tests/clustermanager
     val zk = new ZookeeperClient("127.0.0.1/tests/clustermanager")

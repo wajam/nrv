@@ -1,13 +1,12 @@
 package com.wajam.nrv.protocol
 
 import com.wajam.nrv.service.Action
-import com.wajam.nrv.cluster.Cluster
 import com.wajam.nrv.data.{OutMessage, Message, InMessage}
 
 /**
  * Loopback protocol that always send messages to local process
  */
-class DummyProtocol(name: String, messageRouter: ProtocolMessageListener) extends Protocol(name, messageRouter) {
+class DummyProtocol(name: String) extends Protocol(name) {
 
   override val transport = null
 
@@ -15,7 +14,7 @@ class DummyProtocol(name: String, messageRouter: ProtocolMessageListener) extend
     message.protocolName = name
     val newMessage = new InMessage()
     message.copyTo(newMessage)
-    messageRouter.messageReceived(newMessage)
+    this.handleIncoming(action, newMessage)
   }
 
   def start() {}

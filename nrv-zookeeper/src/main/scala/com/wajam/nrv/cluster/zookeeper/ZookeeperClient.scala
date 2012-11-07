@@ -10,6 +10,7 @@ import org.apache.zookeeper.KeeperException.{NoNodeException, Code}
 import scala.collection.JavaConversions._
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.utils.{Event, Observable}
+import java.text.SimpleDateFormat
 
 object ZookeeperClient {
   implicit def string2bytes(value: String) = value.getBytes
@@ -17,6 +18,12 @@ object ZookeeperClient {
   implicit def int2bytes(value: Int) = value.toString.getBytes
 
   implicit def long2bytes(value: Long) = value.toString.getBytes
+
+  def timestampFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+
+  def timestamp2string(value: Long) = timestampFormat.format(value)
+
+  def string2timestamp(value: String) = timestampFormat.parse(value).getTime
 
   // observable events
   case class ZookeeperConnected(originalEvent: WatchedEvent) extends Event
@@ -173,7 +180,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
 
   def getString(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): String = new String(get(path, watch, stat))
 
-  def getInt(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Int = getString(path, stat = stat).toInt
+  def getInt(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Int = getString(path, watch, stat).toInt
 
   def getLong(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Long = getString(path, watch, stat).toLong
 

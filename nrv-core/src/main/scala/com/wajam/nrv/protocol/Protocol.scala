@@ -1,8 +1,7 @@
 package com.wajam.nrv.protocol
 
-import com.wajam.nrv.Logging
-import com.wajam.nrv.service.{MessageHandler, Action}
-import java.net.InetSocketAddress
+import com.wajam.nrv.{RouteException, Logging}
+import com.wajam.nrv.service.{Service, MessageHandler, Action}
 import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.yammer.metrics.scala.Instrumented
@@ -10,10 +9,12 @@ import com.yammer.metrics.scala.Instrumented
 /**
  * Protocol used to send and receive messages to remote nodes over a network
  */
-abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener) extends MessageHandler with Logging with Instrumented {
+abstract class Protocol(var name: String) extends MessageHandler with Logging with Instrumented {
 
   private val sendingResponseFailure = metrics.meter("sendResponseFailure", "failure")
   val transport: Transport
+  var services = Map[String, Service]()
+
 
   /**
    * Start the protocol and the transport layer below it.
@@ -25,11 +26,34 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
    */
   def stop()
 
+  def bindAction(action: Action) {
+    services += (action.service.name -> action.service)
+  }
+
   override def handleIncoming(action: Action, message: InMessage) {
     try {
-      this.messageRouter.messageReceived(message)
+      val optAction: Option[Action] = services.get(message.serviceName) match {
+        case Some(service) =>
+          // a service by the name is found, use it directly
+          service.findAction(message.actionURL.path, message.method)
+
+        case None =>
+          // else we reduce services, finding the one with the action that can be called
+          services.values.foldLeft[Option[Action]](None)((current, service) => current match {
+            case Some(currentAction) => current
+            case None => service.findAction(message.actionURL.path, message.method)
+          })
+      }
+
+      optAction match {
+        case Some(foundAction) => foundAction.callIncomingHandlers(message)
+        case None =>
+          error("Couldn't find services/action for received message {}", message)
+          throw new RouteException("No route found for received message " + message.toString)
+      }
+
     } catch {
-      case e: ListenerException => {
+      case e: RouteException => {
         transport.sendResponse(message.attachments(Protocol.CONNECTION_KEY).asInstanceOf[Option[AnyRef]].get,
           generate(createErrorMessage(message, e, 404)),
           false)
@@ -61,7 +85,7 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
           val node = replica.node
           val request = generate(message)
 
-          transport.sendMessage(new InetSocketAddress(node.host, node.ports(name)),
+          transport.sendMessage(node.protocolsSocketAddress(name),
             request,
             message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
             (result: Option[Throwable]) => {
@@ -136,20 +160,6 @@ abstract class Protocol(var name: String, messageRouter: ProtocolMessageListener
 object Protocol {
   val CONNECTION_KEY = "connection"
   val CLOSE_AFTER = "close_after"
-}
-
-/**
- * Entity that will receive message from the protocol.
- */
-trait ProtocolMessageListener {
-
-  /**
-   * Route the received message
-   *
-   * @param inMessage The received message
-   */
-  @throws(classOf[ListenerException])
-  def messageReceived(inMessage: InMessage)
 }
 
 case class ParsingException(message: String, code: Int = 400) extends Exception(message)

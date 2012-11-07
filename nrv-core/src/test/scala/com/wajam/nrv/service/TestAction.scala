@@ -5,7 +5,7 @@ import com.wajam.nrv.protocol.DummyProtocol
 import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
 import java.lang.String
-import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
+import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.{TimeoutException, RemoteException, InvalidParameter}
 import com.wajam.nrv.data.{OutMessage, InMessage}
 import com.wajam.nrv.utils.{Future, Promise}
@@ -17,9 +17,9 @@ class TestAction extends FunSuite with BeforeAndAfter {
   var service: Service = null
 
   before {
-    cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
-    cluster.registerProtocol(new DummyProtocol("dummy", cluster), default = true)
-    service = cluster.registerService(new Service("test", defaultResolver = Some(new Resolver(1))))
+    cluster = new Cluster(new LocalNode("127.0.0.1", Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager)
+    cluster.registerProtocol(new DummyProtocol("dummy"), default = true)
+    service = cluster.registerService(new Service("test", new ActionSupportOptions(resolver = Some(new Resolver(1)))))
     val member = service.addMember(new ServiceMember(0, cluster.localNode))
     member.setStatus(MemberStatus.Up, triggerEvent = false)
   }

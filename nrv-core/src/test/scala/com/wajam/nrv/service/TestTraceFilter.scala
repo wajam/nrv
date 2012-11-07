@@ -2,7 +2,7 @@ package com.wajam.nrv.service
 
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.mock.MockitoSugar
-import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
+import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.protocol.DummyProtocol
 import com.wajam.nrv.tracing._
 import com.wajam.nrv.utils.{Future, Promise, ControlableSequentialStringIdGenerator, ControlableCurrentTime}
@@ -15,7 +15,7 @@ import org.hamcrest.Description
 import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.tracing.TraceContext
 import com.wajam.nrv.tracing.Record
-import java.net.{InetAddress, InetSocketAddress}
+import java.net.InetSocketAddress
 import java.text.SimpleDateFormat
 
 /**
@@ -33,9 +33,9 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
   def setupCluster(nodeHost: String = "127.0.0.1") {
     idGenerator.reset
     reset(mockRecorder)
-    cluster = new Cluster(new Node(nodeHost, Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager, defaultTracer = tracer)
-    cluster.registerProtocol(new DummyProtocol("dummy", cluster), default = true)
-    service = cluster.registerService(new Service("test", defaultResolver = Some(new Resolver(1))))
+    cluster = new Cluster(new LocalNode(nodeHost, Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager, new ActionSupportOptions(tracer = Some(tracer)))
+    cluster.registerProtocol(new DummyProtocol("dummy"), default = true)
+    service = cluster.registerService(new Service("test", new ActionSupportOptions(resolver = Some(new Resolver(1)))))
     val member = service.addMember(new ServiceMember(0, cluster.localNode))
     member.setStatus(MemberStatus.Up, triggerEvent = false)
   }
@@ -279,38 +279,6 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     called should be(true)
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv])))
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, expectedAddress))
-  }
-
-  test("Should record first local network address when local node address is 0.0.0.0") {
-
-    // Node host may be resolved in the future and not stay 'any local address' (i.e.'0.0.0.0') in the future but
-    // this is the current behavior and we currently have to deal with it
-    setupCluster("0.0.0.0")
-    cluster.localNode.host should be(InetAddress.getByName("0.0.0.0"))
-
-    val action = service.registerAction(new Action("/test1", (req) => Unit))
-    val message = new InMessage()
-    message.protocolName = "dummy"
-
-    var called = false
-    TraceFilter.handleIncoming(action, message, _ => called = true)
-
-    called should be(true)
-    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv])))
-    verify(mockRecorder).record(argThat(new ArgumentMatcher {
-      def matches(argument: Any) = {
-        val record = argument.asInstanceOf[Record]
-        if (record.annotation.isInstanceOf[ServerAddress]) {
-          val address = record.annotation.asInstanceOf[ServerAddress]
-          val hostAddress = address.addr.getAddress.getHostAddress
-          hostAddress should not be ("0.0.0.0")
-          hostAddress should fullyMatch regex """^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"""
-          true
-        } else {
-          false
-        }
-      }
-    }))
   }
 
   test("Should record nested calls/replies in proper trace context") {

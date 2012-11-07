@@ -38,7 +38,6 @@ object NrvBuild extends Build {
     .configs(IntegrationTest)
     .settings(defaultSettings: _*)
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
-    .settings(parallelExecution in IntegrationTest := false)
     .aggregate(core)
     .aggregate(zookeeper)
 
@@ -46,7 +45,6 @@ object NrvBuild extends Build {
     .configs(IntegrationTest)
     .settings(defaultSettings: _*)
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
-    .settings(parallelExecution in IntegrationTest := false)
 
   lazy val zookeeper = Project("nrv-zookeeper", file("nrv-zookeeper"))
     .configs(IntegrationTest)

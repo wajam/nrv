@@ -6,9 +6,9 @@ import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.jboss.netty.handler.codec.http._
 import java.net.{InetSocketAddress, InetAddress}
 import com.wajam.nrv.service.Action
-import com.wajam.nrv.data.{OutMessage, InMessage, Message}
+import com.wajam.nrv.data.{InMessage, Message}
 import scala.Predef._
-import com.wajam.nrv.protocol.{ListenerException, Protocol}
+import com.wajam.nrv.protocol.Protocol
 
 @RunWith(classOf[JUnitRunner])
 class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
@@ -20,7 +20,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
   var nettyTransport: HttpNettyTransport = null
   var mockProtocol: MockProtocol = null
 
-  class MockProtocol extends Protocol("test", null) {
+  class MockProtocol extends Protocol("test") {
     override val transport = null
     var receivedURI: String = null
 

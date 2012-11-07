@@ -6,8 +6,8 @@ import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.jboss.netty.handler.codec.string.{StringEncoder, StringDecoder}
 import org.jboss.netty.channel._
 import java.net.{InetSocketAddress, InetAddress}
-import com.wajam.nrv.data.{OutMessage, InMessage, Message}
-import com.wajam.nrv.protocol.{ListenerException, Protocol}
+import com.wajam.nrv.data.{InMessage, Message}
+import com.wajam.nrv.protocol.Protocol
 
 @RunWith(classOf[JUnitRunner])
 class TestNettyTransport extends FunSuite with BeforeAndAfter {
@@ -52,7 +52,7 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
     }
   }
 
-  class MockProtocol extends Protocol("test", null) {
+  class MockProtocol extends Protocol("test") {
 
     override val transport = null
     var receivedMessage: String = null
@@ -108,8 +108,8 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
         opResult match {
           case None => fail()
           case Some(t) => result = t
-      }
-    })
+        }
+      })
 
     assert(result.isInstanceOf[Throwable])
   }

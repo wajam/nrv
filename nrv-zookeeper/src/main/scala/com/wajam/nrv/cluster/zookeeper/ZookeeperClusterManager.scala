@@ -15,28 +15,46 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
 
   import ZookeeperClusterManager._
 
-  // watch global zookeeper events
-  zk.addObserver {
-    case ZookeeperConnected(original) => {
-      info("Connection to zookeeper established")
+  override def start():Boolean = {
+    if (super.start()) {
       syncServices(watch = true)
-    }
 
-    case ZookeeperDisconnected(original) => {
-      error("Lost connection with Zookeeper. Pausing the cluster")
-      this.forceClusterDown()
-    }
+      // watch global zookeeper events
+      addZkObserver()
 
-    case ZookeeperExpired(original) => {
-      error("Connection with Zookeeper expired. Pausing the cluster")
-      this.forceClusterDown()
-    }
+      true
+    } else false
+  }
 
-    case _ =>
+  private def addZkObserver() {
+    zk.addObserver {
+      case ZookeeperConnected(original) => {
+        info("Connection to zookeeper established")
+        syncServices(watch = true)
+      }
+
+      case ZookeeperDisconnected(original) => {
+        error("Lost connection with Zookeeper. Pausing the cluster")
+        this.forceClusterDown()
+      }
+
+      case ZookeeperExpired(original) => {
+        error("Connection with Zookeeper expired. Pausing the cluster")
+        this.forceClusterDown()
+      }
+
+      case _ =>
+    }
   }
 
   protected def initializeMembers() {
-    syncServices(watch = true)
+    syncServices(watch = false)
+  }
+
+  protected def syncMembers() {
+    if (zk.connected) {
+      syncServices(watch = false)
+    }
   }
 
   private def syncServices(watch: Boolean) {
@@ -72,7 +90,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
       try {
         getZkServiceMembers(service, watch = true)
       } catch {
-        case e: Exception =>
+        case e: Exception => debug("Got an exception getting service members in service {}: {}", service, e)
       }
       syncService(service, watch = false)
     })
@@ -92,7 +110,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
       try {
         getZkMemberVotes(service, serviceMember, watch = true)
       } catch {
-        case e: Exception =>
+        case e: Exception => debug("Got an exception getting votes for {} in service {}: {}", serviceMember, service, e)
       }
       syncService(service, watch = false)
     })
@@ -111,7 +129,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
       try {
         getZkMemberVote(service, candidateMember, voterToken, watch = true)
       } catch {
-        case e: Exception =>
+        case e: Exception => debug("Got an exception getting vote for member {} by {} in service {}: {}", candidateMember, voterToken, service, e)
       }
       syncService(service, watch = false)
     })

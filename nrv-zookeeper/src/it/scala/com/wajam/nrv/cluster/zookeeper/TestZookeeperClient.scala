@@ -6,6 +6,7 @@ import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.cluster.zookeeper.ZookeeperClient._
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.utils.{Future, Promise}
+import org.scalatest.matchers.ShouldMatchers._
 
 @RunWith(classOf[JUnitRunner])
 class TestZookeeperClient extends FunSuite with BeforeAndAfter {
@@ -146,4 +147,13 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
     assert(nbNotif == 4)
   }
 
+  test("should be able to convert timestamp to and from string") {
+    val currentTime = System.currentTimeMillis()
+    val currentTimeString = timestamp2string(currentTime)
+    string2timestamp(currentTimeString) should  be (currentTime)
+  }
+
+  test("same timestamp encoded in string with different timezones should be equals") {
+    string2timestamp("2012-11-05T17:25:52.946-0500") should be (string2timestamp("2012-11-06T03:25:52.946+0500"))
+  }
 }

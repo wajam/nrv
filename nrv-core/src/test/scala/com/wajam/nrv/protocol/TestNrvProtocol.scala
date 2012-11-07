@@ -4,7 +4,7 @@ import com.wajam.nrv.data._
 import com.wajam.nrv.service._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.cluster.{StaticClusterManager, Node, Cluster}
+import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import org.scalatest.{BeforeAndAfter, FunSuite}
 
 @RunWith(classOf[JUnitRunner])
@@ -13,14 +13,14 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
   var cluster: Cluster = null
 
   before {
-    cluster = new Cluster(new Node("127.0.0.1", Map("nrv" -> 12345, "test" -> 12346)), new StaticClusterManager)
+    cluster = new Cluster(new LocalNode("127.0.0.1", Map("nrv" -> 12345, "test" -> 12346)), new StaticClusterManager)
   }
 
   test("out-in") {
     val notifier = new Object()
     var received: Message = null
 
-    val protocol = new NrvProtocol(cluster.localNode, cluster) {
+    val protocol = new NrvProtocol(cluster.localNode) {
 
       override def parse(message: AnyRef): Message = {
         val parsedMsg = super.parse(message)
@@ -54,7 +54,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
 
     val notifier = new Object()
     var received: Message = null
-    val protocol = new NrvProtocol(cluster.localNode, cluster) {
+    val protocol = new NrvProtocol(cluster.localNode) {
       override def handleIncoming(action: Action, message: InMessage) {
         received = message
 

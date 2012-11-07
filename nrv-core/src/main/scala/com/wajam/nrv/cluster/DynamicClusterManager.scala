@@ -10,8 +10,9 @@ import com.wajam.nrv.Logging
  * an actor to execute operations sequentially on the cluster. Concrete implementation of this class
  * uses the "syncServiceMembers" function to synchronise services members (addition/deletion/status change)
  */
-abstract class DynamicClusterManager extends ClusterManager with Logging {
+abstract class DynamicClusterManager extends ClusterManager with Logging with ClusterLogging {
   private val CLUSTER_CHECK_IN_MS = 1000
+  private val CLUSTER_FORCESYNC_IN_MS = 3000
   private val CLUSTER_PRINT_IN_MS = 5000
 
   override def start() = {
@@ -38,11 +39,13 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
 
   protected def syncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) {
     // if cluster is not started, we sync directly without passing through actor
-    if (!started)
+    if (!started || OperationLoop.forceSync)
       syncServiceMembersImpl(service, members)
     else
       OperationLoop !? OperationLoop.SyncServiceMembers(service, members)
   }
+
+  protected def syncMembers()
 
   private def compileVotes(candidateMember: ServiceMember, votes: Seq[ServiceMemberVote]): MemberStatus = {
     // TODO: implement consensus, not just take the member vote
@@ -95,6 +98,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
    */
   private object OperationLoop extends Actor {
 
+    @volatile
+    private[cluster] var forceSync = false // Only updated in the actor but could be read from another thread
+
     // Operations
     sealed class ClusterOperation
 
@@ -104,19 +110,24 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
 
     case object PrintCluster extends ClusterOperation
 
+    case object ForceSync extends ClusterOperation
+
     case class SyncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) extends ClusterOperation
 
     val checkScheduler = new Scheduler(this, CheckCluster, CLUSTER_CHECK_IN_MS, CLUSTER_CHECK_IN_MS, blockingMessage = true, autoStart = false)
+    val syncScheduler = new Scheduler(this, ForceSync, CLUSTER_FORCESYNC_IN_MS, CLUSTER_FORCESYNC_IN_MS, blockingMessage = true, autoStart = false)
     val printScheduler = new Scheduler(this, PrintCluster, CLUSTER_PRINT_IN_MS, CLUSTER_PRINT_IN_MS, blockingMessage = true, autoStart = false)
 
     override def start(): Actor = {
       printScheduler.start()
+      syncScheduler.start()
       checkScheduler.start()
       super.start()
     }
 
     def stop() {
       printScheduler.cancel()
+      syncScheduler.cancel()
       checkScheduler.cancel()
     }
 
@@ -172,6 +183,16 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
               }
               sender ! true
 
+            case ForceSync => // periodically executed, force refresh of cluster nodes
+              debug("Forcing cluster sync")
+              try {
+                forceSync = true
+                syncMembers()
+              } finally {
+                forceSync = false
+              }
+              sender ! true
+
             case SyncServiceMembers(service, members) => // synchronise received members in service (add/delete/status change)
               syncServiceMembersImpl(service, members)
               sender ! true
@@ -190,7 +211,6 @@ abstract class DynamicClusterManager extends ClusterManager with Logging {
       }
     }
   }
-
 }
 
 class ServiceMemberVote(val candidateMember: ServiceMember, val voterMember: ServiceMember, val statusVote: MemberStatus) {
@@ -203,6 +223,40 @@ object ServiceMemberVote {
     val statusVote = MemberStatus.fromString(strStatusVote)
     val voterMember = ServiceMember.fromString(strVoterData)
     new ServiceMemberVote(candidateMember, voterMember, statusVote)
+  }
+}
+
+trait ClusterLogging extends Logging {
+  protected def cluster: Cluster
+
+  override def debug(msg: => String, params: Any*) {
+    if (log.isDebugEnabled) {
+      super.debug("[local=%s] %s".format(cluster.localNode, msg), params:_*)
+    }
+  }
+
+  override def trace(msg: => String, params: Any*) {
+    if (log.isTraceEnabled) {
+      super.trace("[local=%s] %s".format(cluster.localNode, msg), params:_*)
+    }
+  }
+
+  override def info(msg: => String, params: Any*) {
+    if (log.isInfoEnabled) {
+      super.info("[local=%s] %s".format(cluster.localNode, msg), params:_*)
+    }
+  }
+
+  override def warn(msg: => String, params: Any*) {
+    if (log.isWarnEnabled) {
+      super.warn("[local=%s] %s".format(cluster.localNode, msg), params:_*)
+    }
+  }
+
+  override def error(msg: => String, params: Any*) {
+    if (log.isErrorEnabled) {
+      super.error("[local=%s] %s".format(cluster.localNode, msg), params:_*)
+    }
   }
 }
 

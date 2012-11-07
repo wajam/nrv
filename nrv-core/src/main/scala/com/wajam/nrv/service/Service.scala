@@ -1,8 +1,6 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.protocol.Protocol
 import com.wajam.nrv.utils.Observable
-import com.wajam.nrv.consistency.Consistency
 import com.wajam.nrv.cluster.Node
 
 /**
@@ -13,17 +11,15 @@ import com.wajam.nrv.cluster.Node
  *
  * Members of the service are represented by a consistent hashing ring (@see Ring)
  */
-class Service(val name: String,
-              defaultProtocol: Option[Protocol] = None,
-              defaultResolver: Option[Resolver] = None,
-              defaultConsistency: Option[Consistency] = None)
+class Service(val name: String, actionSupportOptions: ActionSupportOptions = new ActionSupportOptions())
   extends ActionSupport with Observable {
 
   val ring = new Object with Ring[ServiceMember]
   var actions = List[Action]()
 
-  // override protocol, resolver if defined
-  applySupport(service = Some(this), protocol = defaultProtocol, resolver = defaultResolver, consistency = defaultConsistency)
+  // set defaults and overrides with passed options
+  applySupport(service = Some(this))
+  applySupportOptions(actionSupportOptions)
 
   override def toString: String = name
 
@@ -74,7 +70,6 @@ class Service(val name: String,
 
   def registerAction(action: Action): Action = {
     action.supportedBy(this)
-
     this.actions ::= action
     action
   }
@@ -84,7 +79,7 @@ class Service(val name: String,
     actions
   }
 
-  def findAction(path: ActionPath, method: String): Option[Action] = {
+  def findAction(path: ActionPath, method: ActionMethod): Option[Action] = {
     this.actions find {
       _.matches(path, method)
     }
