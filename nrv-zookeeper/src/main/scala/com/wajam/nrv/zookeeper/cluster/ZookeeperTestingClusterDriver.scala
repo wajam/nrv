@@ -1,16 +1,16 @@
-package com.wajam.nrv.cluster.zookeeper
+package com.wajam.nrv.zookeeper.cluster
 
 import com.wajam.nrv.cluster._
 import com.wajam.nrv.service.{MemberStatus, ServiceMember, Service}
 import org.apache.zookeeper.CreateMode
-import com.wajam.nrv.cluster.zookeeper.ZookeeperClient._
+import com.wajam.nrv.zookeeper.ZookeeperClient._
+import com.wajam.nrv.zookeeper.ZookeeperClient
 
 /**
  * Cluster driver used to drive integration tests
  */
-class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ClusterManager) => TestingClusterInstance) {
-  var instances = List[TestingClusterInstance]()
-  var zkClients = List[ZookeeperClient]()
+class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ZookeeperClusterManager) => TestingClusterInstance) {
+  var instances = List[ZookeeperTestingClusterInstance]()
 
   private def init(size: Int) {
     // create instances
@@ -24,8 +24,7 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ClusterManag
 
       zkClient.connect()
       instance.cluster.start()
-      this.instances :+= instance
-      this.zkClients :+= zkClient
+      this.instances :+= ZookeeperTestingClusterInstance(zkClient, instance)
     }
 
     // Wait until all service members are up
@@ -34,11 +33,11 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ClusterManag
   }
 
   def destroy() {
-    for (instance <- this.instances) instance.cluster.stop()
-    this.instances = List[TestingClusterInstance]()
-
-    for (zkClient <- this.zkClients) zkClient.close()
-    this.zkClients = List[ZookeeperClient]()
+    for (instance <- instances) {
+      instance.cluster.stop()
+      instance.zkClient.close()
+    }
+    instances = List[ZookeeperTestingClusterInstance]()
   }
 
   def execute(execute: (ZookeeperTestingClusterDriver, TestingClusterInstance) => Unit, fromSize: Int = 1, toSize: Int = 5) {
@@ -92,5 +91,25 @@ object ZookeeperTestingClusterDriver {
     zk.ensureExists("/tests", "")
     zk.ensureExists("/tests/clustermanager", "")
     zk.close()
+  }
+}
+
+class ZookeeperTestingClusterInstance(val zkClient: ZookeeperClient, cluster: Cluster, data: AnyRef = null)
+  extends TestingClusterInstance(cluster, data) {
+
+  def isUp: Boolean = {
+    cluster.services.values.flatMap(_.members.filter(_.node == cluster.localNode)).forall(_.status == MemberStatus.Up)
+  }
+}
+
+object ZookeeperTestingClusterInstance {
+  def apply(zkClient: ZookeeperClient, cluster: Cluster, data: AnyRef = null) =
+    new ZookeeperTestingClusterInstance(zkClient, cluster, data)
+
+  def apply(zkClient: ZookeeperClient, instance: TestingClusterInstance) = {
+    instance match {
+      case zkInstance: ZookeeperTestingClusterInstance => zkInstance
+      case _ => new ZookeeperTestingClusterInstance(zkClient, instance.cluster, instance.data)
+    }
   }
 }
