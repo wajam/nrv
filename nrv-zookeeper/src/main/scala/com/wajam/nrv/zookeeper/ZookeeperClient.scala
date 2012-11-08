@@ -1,4 +1,4 @@
-package com.wajam.nrv.cluster.zookeeper
+package com.wajam.nrv.zookeeper
 
 import com.wajam.nrv.Logging
 import java.util.concurrent.CountDownLatch
@@ -41,9 +41,6 @@ object ZookeeperClient {
 /**
  * Zookeeper client wrapper that wraps around zookeeper default client, implements more advanced
  * operation and give a Scala zest to the client.
- *
- * @param servers
- * @param sessionTimeout
  */
 class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: Boolean = true)
   extends Logging with Instrumented with Observable {
@@ -131,6 +128,19 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
 
         throw e
     }
+  }
+
+  def ensureAllExists(path: String, data: Array[Byte], createMode: CreateMode = CreateMode.PERSISTENT): Boolean = {
+    val splitPath = path.split("/")
+    if (splitPath.size > 1) {
+      splitPath.slice(0, splitPath.size - 1).reduceLeft((parent, component) => {
+        val path = "%s/%s".format(parent, component)
+        ensureExists(path, Array(), createMode)
+        path
+      })
+    }
+
+    ensureExists(path, data, createMode)
   }
 
   def exists(path: String): Boolean = {

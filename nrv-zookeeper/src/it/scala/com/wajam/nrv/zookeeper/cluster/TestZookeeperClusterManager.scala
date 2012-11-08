@@ -1,10 +1,11 @@
-package com.wajam.nrv.cluster.zookeeper
+package com.wajam.nrv.zookeeper.cluster
 
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.cluster.{LocalNode, ServiceMemberVote, Node, Cluster}
-import com.wajam.nrv.cluster.zookeeper.ZookeeperClient._
+import com.wajam.nrv.zookeeper.ZookeeperClient._
 import com.wajam.nrv.service.{MemberStatus, ServiceMember, Service}
 import org.apache.zookeeper.CreateMode
+import com.wajam.nrv.zookeeper.ZookeeperClient
 
 class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
 
@@ -63,16 +64,19 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
 
     def zkCreateService(service: Service) {
       val path = ZookeeperClusterManager.zkServicePath(service.name)
-      zk.ensureExists(path, service.name, CreateMode.PERSISTENT)
+      zk.ensureAllExists(path, service.name, CreateMode.PERSISTENT)
     }
 
     def zkCreateServiceMember(service: Service, serviceMember: ServiceMember) {
       val path = ZookeeperClusterManager.zkMemberPath(service.name, serviceMember.token)
-      val created = zk.ensureExists(path, serviceMember.toString, CreateMode.PERSISTENT)
+      val created = zk.ensureAllExists(path, serviceMember.toString, CreateMode.PERSISTENT)
 
       // if node existed, overwrite
       if (created)
         zk.set(path, serviceMember.toString)
+
+      val votePath = ZookeeperClusterManager.zkMemberVotesPath(service.name, serviceMember.token)
+      zk.ensureAllExists(votePath, "", CreateMode.PERSISTENT)
     }
 
     def zkDeleteServiceMember(service: Service, serviceMember: ServiceMember) {
@@ -83,7 +87,7 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
     def zkCastVote(service: Service, candidateMember: ServiceMember, voterMember: ServiceMember, votedStatus: MemberStatus) {
       val vote = new ServiceMemberVote(candidateMember, voterMember, votedStatus)
       val path = ZookeeperClusterManager.zkMemberVotePath(service.name, candidateMember.token, voterMember.token)
-      val created = zk.ensureExists(path, vote.toString, CreateMode.PERSISTENT)
+      val created = zk.ensureAllExists(path, vote.toString, CreateMode.PERSISTENT)
 
       // if node existed, overwrite
       if (created)
@@ -115,7 +119,7 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
     cluster
   }
 
-  def waitForCondition[T](block: => T, condition: (T) => Boolean, sleepTimeInMs: Long = 250, timeoutInMs: Long = 10000) {
+  def waitForCondition[T](block: => T, condition: (T) => Boolean, sleepTimeInMs: Long = 250, timeoutInMs: Long = 15000) {
     val startTime = System.currentTimeMillis()
     while (!condition(block)) {
       if ((System.currentTimeMillis() - startTime) > timeoutInMs) {

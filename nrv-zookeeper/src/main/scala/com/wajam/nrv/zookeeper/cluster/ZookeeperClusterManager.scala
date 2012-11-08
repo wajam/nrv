@@ -1,10 +1,12 @@
-package com.wajam.nrv.cluster.zookeeper
+package com.wajam.nrv.zookeeper.cluster
 
 import com.wajam.nrv.cluster.{ServiceMemberVote, DynamicClusterManager}
 import com.wajam.nrv.service.{ServiceMember, Service}
-import com.wajam.nrv.cluster.zookeeper.ZookeeperClient._
+import com.wajam.nrv.zookeeper.ZookeeperClient
+import com.wajam.nrv.zookeeper.ZookeeperClient._
 import com.wajam.nrv.Logging
 import org.apache.zookeeper.CreateMode
+import com.wajam.nrv.zookeeper.service.ZookeeperService
 
 /**
  * Dynamic cluster manager that uses Zookeeper to keep a consistent view of the cluster among nodes. It creates
@@ -96,7 +98,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     })
     else None
 
-    zk.getChildren(zkServicePath(service.name), callback).map(token => {
+    zk.getChildren(ZookeeperService.membersPath(service.name), callback).map(token => {
       val data = zk.getString(zkMemberPath(service.name, token.toLong))
       ServiceMember.fromString(data)
     })
@@ -116,7 +118,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     })
     else None
 
-    zk.getChildren(zkMemberPath(service.name, serviceMember.token), callback).map(voteMember => {
+    zk.getChildren(zkMemberVotesPath(service.name, serviceMember.token), callback).map(voteMember => {
       getZkMemberVote(service, serviceMember, voteMember.toLong, watch = watch)
     })
   }
@@ -142,10 +144,14 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
 }
 
 object ZookeeperClusterManager {
-  private[zookeeper] def zkServicePath(serviceName: String) = "/%s".format(serviceName)
+  private[zookeeper] def zkServicePath(serviceName: String) = ZookeeperService.path(serviceName)
 
-  private[zookeeper] def zkMemberPath(serviceName: String, token: Long) = "/%s/%d".format(serviceName, token)
+  private[zookeeper] def zkMemberPath(serviceName: String, token: Long) = ZookeeperService.memberPath(serviceName, token)
 
-  private[zookeeper] def zkMemberVotePath(serviceName: String, candidateToken: Long, voterToken: Long) = "/%s/%d/%d".format(serviceName, candidateToken, voterToken)
+  private[zookeeper] def zkMemberVotesPath(serviceName: String, candidateToken: Long) =
+    ZookeeperService.memberPath(serviceName, candidateToken) + "/votes"
+
+  private[zookeeper] def zkMemberVotePath(serviceName: String, candidateToken: Long, voterToken: Long) =
+    ZookeeperService.memberPath(serviceName, candidateToken) + "/votes/" + voterToken
 }
 

@@ -1,9 +1,9 @@
-package com.wajam.nrv.cluster.zookeeper
+package com.wajam.nrv.zookeeper
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.apache.zookeeper.CreateMode
-import com.wajam.nrv.cluster.zookeeper.ZookeeperClient._
+import com.wajam.nrv.zookeeper.ZookeeperClient._
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.utils.{Future, Promise}
 import org.scalatest.matchers.ShouldMatchers._
@@ -61,6 +61,25 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
   test("ensureExists should create but doesn't throw if already exists") {
     assert(zClient.ensureExists("/tests/ext", "", CreateMode.PERSISTENT))
     assert(!zClient.ensureExists("/tests/ext", "", CreateMode.PERSISTENT))
+  }
+
+  test("ensureAllExists should create all path components") {
+    zClient.exists("/tests/parent") should  be(false)
+    zClient.exists("/tests/parent/child") should  be(false)
+
+    zClient.ensureAllExists("/tests/parent/child", "data", CreateMode.PERSISTENT) should be(true)
+    zClient.ensureAllExists("/tests/parent/child", "", CreateMode.PERSISTENT) should be(false)
+
+    zClient.get("/tests/parent") should  be("".getBytes)
+    zClient.get("/tests/parent/child") should be("data".getBytes)
+  }
+
+  test("ensureAllExists should not fail with a single and more path components") {
+    zClient.ensureAllExists("/", "", CreateMode.PERSISTENT)
+    zClient.ensureAllExists("/tests", "", CreateMode.PERSISTENT)
+    zClient.ensureAllExists("/tests/parent", "", CreateMode.PERSISTENT)
+    zClient.ensureAllExists("/tests/parent/child", "", CreateMode.PERSISTENT)
+    zClient.ensureAllExists("/tests/parent/child/child", "", CreateMode.PERSISTENT)
   }
 
   test("incrementing a counter should create it an increment it") {
