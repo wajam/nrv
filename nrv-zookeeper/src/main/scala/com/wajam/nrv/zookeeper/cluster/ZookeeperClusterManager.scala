@@ -7,6 +7,7 @@ import com.wajam.nrv.zookeeper.ZookeeperClient._
 import com.wajam.nrv.Logging
 import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.service.ZookeeperService
+import org.apache.zookeeper.ZooKeeper.States
 
 /**
  * Dynamic cluster manager that uses Zookeeper to keep a consistent view of the cluster among nodes. It creates
@@ -108,13 +109,15 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     debug("Getting votes for {} in service {}", serviceMember, service)
 
     val callback = if (watch) Some((e: NodeChildrenChanged) => {
-      debug("Votes for {} in service {} changed", serviceMember, service)
-      try {
-        getZkMemberVotes(service, serviceMember, watch = true)
-      } catch {
-        case e: Exception => debug("Got an exception getting votes for {} in service {}: {}", serviceMember, service, e)
+      if (e.originalEvent.getState == States.CONNECTED) {
+        debug("Votes for {} in service {} changed", serviceMember, service)
+        try {
+          getZkMemberVotes(service, serviceMember, watch = true)
+        } catch {
+          case e: Exception => debug("Got an exception getting votes for {} in service {}: {}", serviceMember, service, e)
+        }
+        syncService(service, watch = false)
       }
-      syncService(service, watch = false)
     })
     else None
 
@@ -127,13 +130,15 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     debug("Getting vote for member {} by {} in service {}", candidateMember, voterToken, service)
 
     val callback = if (watch) Some((e: NodeValueChanged) => {
-      debug("Vote for member {} by {} in service {} changed", candidateMember, voterToken, service)
-      try {
-        getZkMemberVote(service, candidateMember, voterToken, watch = true)
-      } catch {
-        case e: Exception => debug("Got an exception getting vote for member {} by {} in service {}: {}", candidateMember, voterToken, service, e)
+      if (e.originalEvent.getState == States.CONNECTED) {
+        debug("Vote for member {} by {} in service {} changed", candidateMember, voterToken, service)
+        try {
+          getZkMemberVote(service, candidateMember, voterToken, watch = true)
+        } catch {
+          case e: Exception => debug("Got an exception getting vote for member {} by {} in service {}: {}", candidateMember, voterToken, service, e)
+        }
+        syncService(service, watch = false)
       }
-      syncService(service, watch = false)
     })
     else None
 

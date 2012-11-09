@@ -1,7 +1,7 @@
 package com.wajam.nrv.zookeeper.service
 
 /**
- * Compnion object to deal with zookeeper service paths
+ * Companion object to deal with zookeeper service paths
  */
 object ZookeeperService {
   /**

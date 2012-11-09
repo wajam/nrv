@@ -85,7 +85,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     }
   }
 
-  def connected = zk.getState == ZooKeeper.States.CONNECTED
+  def connected = zk != null && zk.getState == ZooKeeper.States.CONNECTED
 
   private def sessionEvent(assignLatch: CountDownLatch, connectionLatch: CountDownLatch, event: WatchedEvent) {
     log.info("Zookeeper event: %s".format(event))

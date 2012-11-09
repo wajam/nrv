@@ -12,8 +12,9 @@ import com.wajam.nrv.zookeeper.ZookeeperClient
 class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ZookeeperClusterManager) => TestingClusterInstance) {
   var instances = List[ZookeeperTestingClusterInstance]()
 
-  private def init(size: Int) {
-    // create instances
+  def init(size: Int) {
+
+    // Create instances
     for (i <- 1 to size) {
 
       val zkClient = new ZookeeperClient("127.0.0.1/tests/clustermanager", autoConnect = false)
@@ -23,9 +24,11 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ZookeeperClu
       for (service <- instance.cluster.services.values) zkCreateService(service)
 
       zkClient.connect()
-      instance.cluster.start()
       this.instances :+= ZookeeperTestingClusterInstance(zkClient, instance)
     }
+
+    // Start instances
+    instances.foreach(_.cluster.start())
 
     // Wait until all service members are up
     waitForCondition[Boolean](
@@ -40,18 +43,17 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ZookeeperClu
     instances = List[ZookeeperTestingClusterInstance]()
   }
 
-  def execute(execute: (ZookeeperTestingClusterDriver, TestingClusterInstance) => Unit, fromSize: Int = 1, toSize: Int = 5) {
-    this.init(toSize)
-    for (i <- fromSize to toSize) {
-      // TODO: execute on a random instance
-      execute(this, this.instances(0))
+  def execute(execute: (ZookeeperTestingClusterDriver, TestingClusterInstance) => Unit, size: Int = 5) {
+    this.init(size)
+    for (i <- 0 until size) {
+      execute(this, this.instances(i))
     }
   }
 
   def zkCreateService(service: Service) {
     val zkClient = new ZookeeperClient("127.0.0.1/tests/clustermanager")
     val path = ZookeeperClusterManager.zkServicePath(service.name)
-    zkClient.ensureExists(path, service.name, CreateMode.PERSISTENT)
+    zkClient.ensureAllExists(path, service.name, CreateMode.PERSISTENT)
 
     for (member <- service.members) {
       zkCreateServiceMember(zkClient, service, member)
@@ -61,11 +63,14 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ZookeeperClu
 
   def zkCreateServiceMember(zkClient: ZookeeperClient, service: Service, serviceMember: ServiceMember) {
     val path = ZookeeperClusterManager.zkMemberPath(service.name, serviceMember.token)
-    val created = zkClient.ensureExists(path, serviceMember.toString, CreateMode.PERSISTENT)
+    val created = zkClient.ensureAllExists(path, serviceMember.toString, CreateMode.PERSISTENT)
 
     // if node existed, overwrite
     if (created)
       zkClient.set(path, serviceMember.toString)
+
+    val votePath = ZookeeperClusterManager.zkMemberVotesPath(service.name, serviceMember.token)
+    zkClient.ensureAllExists(votePath, "", CreateMode.PERSISTENT)
   }
 
   def waitForCondition[T](block: => T, condition: (T) => Boolean, sleepTimeInMs: Long = 250, timeoutInMs: Long = 10000) {
