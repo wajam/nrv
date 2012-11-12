@@ -12,7 +12,7 @@ import com.wajam.nrv.Logging
  */
 abstract class DynamicClusterManager extends ClusterManager with Logging with ClusterLogging {
   private val CLUSTER_CHECK_IN_MS = 1000
-  private val CLUSTER_FORCESYNC_IN_MS = 3000
+  private val CLUSTER_FORCESYNC_IN_MS = 7500
   private val CLUSTER_PRINT_IN_MS = 5000
 
   override def start() = {
@@ -98,8 +98,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Cl
    */
   private object OperationLoop extends Actor {
 
+    // forceSync is only updated in the actor but could be read from another thread
     @volatile
-    private[cluster] var forceSync = false // Only updated in the actor but could be read from another thread
+    private[cluster] var forceSync = false
 
     // Operations
     sealed class ClusterOperation
@@ -149,66 +150,67 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Cl
 
     def act() {
       loop {
-        try {
-          react {
+        react {
 
-            case PrintCluster =>
-              allServices.foreach(service => info("\nLocal node: {}\n{}", cluster.localNode, service.printService))
-              sender ! true
+          case PrintCluster =>
+            allServices.foreach(service => info("\nLocal node: {}\n{}", cluster.localNode, service.printService))
+            sender ! true
 
-            case CheckCluster => // periodically executed, check local down nodes and try to promote them to better status
-              val members = allMembers
-              debug("Checking cluster for any pending changes ({} members)", members.size)
+          case CheckCluster => // periodically executed, check local down nodes and try to promote them to better status
+            val members = allMembers
+            debug("Checking cluster for any pending changes ({} members)", members.size)
 
-              members.foreach {
-                case (service, member) =>
-                  debug("Checking member {} in service {} with current status {}", member, service, member.status)
+            members.foreach {
+              case (service, member) =>
+                debug("Checking member {} in service {} with current status {}", member, service, member.status)
 
-                  // TODO: this implement currently only check for local nodes that could be promoted. Eventually, this
-                  // will check for "joining" nodes and promote them if votes from consistency managers are positives
-                  member.status match {
-                    case MemberStatus.Joining =>
-                      if (cluster.isLocalNode(member.node)) {
-                        tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
-                      }
+                // TODO: this implement currently only check for local nodes that could be promoted. Eventually, this
+                // will check for "joining" nodes and promote them if votes from consistency managers are positives
+                member.status match {
+                  case MemberStatus.Joining =>
+                    if (cluster.isLocalNode(member.node)) {
+                      tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
+                    }
 
-                    case MemberStatus.Down =>
-                      if (cluster.isLocalNode(member.node)) {
-                        tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
-                      }
+                  case MemberStatus.Down =>
+                    if (cluster.isLocalNode(member.node)) {
+                      tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
+                    }
 
-                    case other =>
-                    // don't do anything for the rest
-                  }
-              }
-              sender ! true
+                  case other =>
+                  // don't do anything for the rest
+                }
+            }
+            sender ! true
 
-            case ForceSync => // periodically executed, force refresh of cluster nodes
-              debug("Forcing cluster sync")
-              try {
-                forceSync = true
-                syncMembers()
-              } finally {
-                forceSync = false
-              }
-              sender ! true
+          case ForceSync => // periodically executed, force refresh of cluster nodes
+            debug("Forcing cluster sync")
+            try {
+              forceSync = true
+              syncMembers()
+            } catch {
+              case e: Exception => error("Got an exception when forcing cluster sync: ", e)
+            } finally {
+              forceSync = false
+            }
+            sender ! true
 
-            case SyncServiceMembers(service, members) => // synchronise received members in service (add/delete/status change)
-              syncServiceMembersImpl(service, members)
-              sender ! true
+          case SyncServiceMembers(service, members) => // synchronise received members in service (add/delete/status change)
+            syncServiceMembersImpl(service, members)
+            sender ! true
 
-            case ForceDown =>
-              info("Forcing the whole cluster down")
-              allMembers.foreach {
-                case (service, member) => member.setStatus(MemberStatus.Down, triggerEvent = true)
-              }
-              sender ! true
-
-          }
-        } catch {
-          case e: Exception => error("Got an exception in cluster manager event loop: {}", e)
+          case ForceDown =>
+            info("Forcing the whole cluster down")
+            allMembers.foreach {
+              case (service, member) => member.setStatus(MemberStatus.Down, triggerEvent = true)
+            }
+            sender ! true
         }
       }
+    }
+
+    override def exceptionHandler = {
+      case e: Exception => error("Got an exception in cluster manager event loop: ", e)
     }
   }
 }
@@ -231,31 +233,31 @@ trait ClusterLogging extends Logging {
 
   override def debug(msg: => String, params: Any*) {
     if (log.isDebugEnabled) {
-      super.debug("[local=%s] %s".format(cluster.localNode, msg), params:_*)
+      super.debug("[local=%s] %s".format(cluster.localNode, msg), params: _*)
     }
   }
 
   override def trace(msg: => String, params: Any*) {
     if (log.isTraceEnabled) {
-      super.trace("[local=%s] %s".format(cluster.localNode, msg), params:_*)
+      super.trace("[local=%s] %s".format(cluster.localNode, msg), params: _*)
     }
   }
 
   override def info(msg: => String, params: Any*) {
     if (log.isInfoEnabled) {
-      super.info("[local=%s] %s".format(cluster.localNode, msg), params:_*)
+      super.info("[local=%s] %s".format(cluster.localNode, msg), params: _*)
     }
   }
 
   override def warn(msg: => String, params: Any*) {
     if (log.isWarnEnabled) {
-      super.warn("[local=%s] %s".format(cluster.localNode, msg), params:_*)
+      super.warn("[local=%s] %s".format(cluster.localNode, msg), params: _*)
     }
   }
 
   override def error(msg: => String, params: Any*) {
     if (log.isErrorEnabled) {
-      super.error("[local=%s] %s".format(cluster.localNode, msg), params:_*)
+      super.error("[local=%s] %s".format(cluster.localNode, msg), params: _*)
     }
   }
 }

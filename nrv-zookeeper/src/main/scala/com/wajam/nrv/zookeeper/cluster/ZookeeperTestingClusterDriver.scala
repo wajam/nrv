@@ -41,6 +41,7 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ZookeeperClu
       instance.zkClient.close()
     }
     instances = List[ZookeeperTestingClusterInstance]()
+    Thread.sleep(500) // Avoid race condition
   }
 
   def execute(execute: (ZookeeperTestingClusterDriver, TestingClusterInstance) => Unit, size: Int = 5) {
