@@ -1,7 +1,7 @@
 package com.wajam.nrv.cluster
 
 import actors.Actor
-import com.wajam.nrv.utils.Scheduler
+import com.wajam.nrv.utils.{MessageFilterLogging, Scheduler}
 import com.wajam.nrv.service.{Service, ServiceMember, MemberStatus}
 import com.wajam.nrv.Logging
 
@@ -10,10 +10,13 @@ import com.wajam.nrv.Logging
  * an actor to execute operations sequentially on the cluster. Concrete implementation of this class
  * uses the "syncServiceMembers" function to synchronise services members (addition/deletion/status change)
  */
-abstract class DynamicClusterManager extends ClusterManager with Logging with ClusterLogging {
+abstract class DynamicClusterManager extends ClusterManager with Logging with MessageFilterLogging {
   private val CLUSTER_CHECK_IN_MS = 1000
   private val CLUSTER_FORCESYNC_IN_MS = 7500
   private val CLUSTER_PRINT_IN_MS = 5000
+
+  // Prepend local node info to all log messages
+  def filterLogMessage = (msg, params) => ("[local=%s] %s".format(cluster.localNode, msg), params)
 
   override def start() = {
     if (super.start()) {
@@ -154,7 +157,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Cl
 
           case PrintCluster =>
             try {
-              allServices.foreach(service => info("\nLocal node: {}\n{}", cluster.localNode, service.printService))
+              allServices.foreach(service => debug("\nLocal node: {}\n{}", cluster.localNode, service.printService))
             } catch {
               case e: Exception => error("Got an exception when printing cluster: ", e)
             }
@@ -247,38 +250,3 @@ object ServiceMemberVote {
     new ServiceMemberVote(candidateMember, voterMember, statusVote)
   }
 }
-
-trait ClusterLogging extends Logging {
-  protected def cluster: Cluster
-
-  override def debug(msg: => String, params: Any*) {
-    if (log.isDebugEnabled) {
-      super.debug("[local=%s] %s".format(cluster.localNode, msg), params: _*)
-    }
-  }
-
-  override def trace(msg: => String, params: Any*) {
-    if (log.isTraceEnabled) {
-      super.trace("[local=%s] %s".format(cluster.localNode, msg), params: _*)
-    }
-  }
-
-  override def info(msg: => String, params: Any*) {
-    if (log.isInfoEnabled) {
-      super.info("[local=%s] %s".format(cluster.localNode, msg), params: _*)
-    }
-  }
-
-  override def warn(msg: => String, params: Any*) {
-    if (log.isWarnEnabled) {
-      super.warn("[local=%s] %s".format(cluster.localNode, msg), params: _*)
-    }
-  }
-
-  override def error(msg: => String, params: Any*) {
-    if (log.isErrorEnabled) {
-      super.error("[local=%s] %s".format(cluster.localNode, msg), params: _*)
-    }
-  }
-}
-
