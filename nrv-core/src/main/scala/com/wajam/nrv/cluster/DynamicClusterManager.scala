@@ -153,33 +153,42 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Cl
         react {
 
           case PrintCluster =>
-            allServices.foreach(service => info("\nLocal node: {}\n{}", cluster.localNode, service.printService))
+            try {
+              allServices.foreach(service => info("\nLocal node: {}\n{}", cluster.localNode, service.printService))
+            } catch {
+              case e: Exception => error("Got an exception when printing cluster: ", e)
+            }
             sender ! true
 
           case CheckCluster => // periodically executed, check local down nodes and try to promote them to better status
-            val members = allMembers
-            debug("Checking cluster for any pending changes ({} members)", members.size)
+            try {
+              val members = allMembers
+              debug("Checking cluster for any pending changes ({} members)", members.size)
 
-            members.foreach {
-              case (service, member) =>
-                debug("Checking member {} in service {} with current status {}", member, service, member.status)
+              members.foreach {
+                case (service, member) =>
+                  debug("Checking member {} in service {} with current status {}", member, service, member.status)
 
-                // TODO: this implement currently only check for local nodes that could be promoted. Eventually, this
-                // will check for "joining" nodes and promote them if votes from consistency managers are positives
-                member.status match {
-                  case MemberStatus.Joining =>
-                    if (cluster.isLocalNode(member.node)) {
-                      tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
-                    }
+                  // TODO: this implement currently only check for local nodes that could be promoted. Eventually, this
+                  // will check for "joining" nodes and promote them if votes from consistency managers are positives
+                  member.status match {
+                    case MemberStatus.Joining =>
+                      if (cluster.isLocalNode(member.node)) {
+                        tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
+                      }
 
-                  case MemberStatus.Down =>
-                    if (cluster.isLocalNode(member.node)) {
-                      tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
-                    }
+                    case MemberStatus.Down =>
+                      if (cluster.isLocalNode(member.node)) {
+                        tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
+                      }
 
-                  case other =>
-                  // don't do anything for the rest
-                }
+                    case other =>
+                    // don't do anything for the rest
+                  }
+              }
+            } catch {
+              case e: Exception =>
+                error("Got an exception when checking cluster: ", e)
             }
             sender ! true
 
@@ -189,20 +198,31 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Cl
               forceSync = true
               syncMembers()
             } catch {
-              case e: Exception => error("Got an exception when forcing cluster sync: ", e)
+              case e: Exception =>
+                error("Got an exception when forcing cluster sync: ", e)
             } finally {
               forceSync = false
             }
             sender ! true
 
           case SyncServiceMembers(service, members) => // synchronise received members in service (add/delete/status change)
-            syncServiceMembersImpl(service, members)
+            try {
+              syncServiceMembersImpl(service, members)
+            } catch {
+              case e: Exception =>
+                error("Got an exception when syncing service members: ", e)
+            }
             sender ! true
 
           case ForceDown =>
             info("Forcing the whole cluster down")
-            allMembers.foreach {
-              case (service, member) => member.setStatus(MemberStatus.Down, triggerEvent = true)
+            try {
+              allMembers.foreach {
+                case (service, member) => member.setStatus(MemberStatus.Down, triggerEvent = true)
+              }
+            } catch {
+              case e: Exception =>
+                error("Got an exception when forcing the cluster down: ", e)
             }
             sender ! true
         }

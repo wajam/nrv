@@ -23,12 +23,14 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ZookeeperClu
       // Create minimal service structure in zookeeper
       for (service <- instance.cluster.services.values) zkCreateService(service)
 
-      zkClient.connect()
       this.instances :+= ZookeeperTestingClusterInstance(zkClient, instance)
     }
 
     // Start instances
-    instances.foreach(_.cluster.start())
+    for (instance <- instances) {
+      instance.zkClient.connect()
+      instance.cluster.start()
+    }
 
     // Wait until all service members are up
     waitForCondition[Boolean](

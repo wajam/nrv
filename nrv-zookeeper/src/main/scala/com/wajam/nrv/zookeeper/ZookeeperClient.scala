@@ -81,11 +81,10 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   def close() {
     if (zk != null) {
       zk.close()
-      zk = null
     }
   }
 
-  def connected = zk != null && zk.getState == ZooKeeper.States.CONNECTED
+  def connected = zk != null && zk.getState.isConnected
 
   private def sessionEvent(assignLatch: CountDownLatch, connectionLatch: CountDownLatch, event: WatchedEvent) {
     log.info("Zookeeper event: %s".format(event))
@@ -157,7 +156,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
               try {
                 cb(new NodeChildrenChanged(event.getPath, event))
               } catch {
-                case e: Exception => error("Got an exception calling watcher callback: {}", e)
+                case e: Exception => warn("Got an exception calling children watcher callback: {}", e)
               }
             }
           }, stat.getOrElse(null))
@@ -177,7 +176,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
               try {
                 cb(new NodeValueChanged(event.getPath, event))
               } catch {
-                case e: Exception => error("Got an exception calling watcher callback: {}", e)
+                case e: Exception => warn("Got an exception calling watcher callback: {}", e)
               }
             }
           }, stat.getOrElse(null))
