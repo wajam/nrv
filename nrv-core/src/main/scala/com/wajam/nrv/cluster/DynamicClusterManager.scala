@@ -160,8 +160,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
               allServices.foreach(service => debug("\nLocal node: {}\n{}", cluster.localNode, service.printService))
             } catch {
               case e: Exception => error("Got an exception when printing cluster: ", e)
+            } finally {
+              sender ! true
             }
-            sender ! true
 
           case CheckCluster => // periodically executed, check local down nodes and try to promote them to better status
             try {
@@ -192,8 +193,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
             } catch {
               case e: Exception =>
                 error("Got an exception when checking cluster: ", e)
+            } finally {
+              sender ! true
             }
-            sender ! true
 
           case ForceSync => // periodically executed, force refresh of cluster nodes
             debug("Forcing cluster sync")
@@ -205,8 +207,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
                 error("Got an exception when forcing cluster sync: ", e)
             } finally {
               forceSync = false
+              sender ! true
             }
-            sender ! true
 
           case SyncServiceMembers(service, members) => // synchronise received members in service (add/delete/status change)
             try {
@@ -214,8 +216,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
             } catch {
               case e: Exception =>
                 error("Got an exception when syncing service members: ", e)
+            } finally {
+              sender ! true
             }
-            sender ! true
 
           case ForceDown =>
             info("Forcing the whole cluster down")
@@ -226,8 +229,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
             } catch {
               case e: Exception =>
                 error("Got an exception when forcing the cluster down: ", e)
+            } finally {
+              sender ! true
             }
-            sender ! true
         }
       }
     }
