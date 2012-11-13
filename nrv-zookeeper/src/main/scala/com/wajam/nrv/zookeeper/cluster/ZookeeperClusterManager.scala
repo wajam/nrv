@@ -53,8 +53,12 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     syncServices(watch = false)
   }
 
+  private def connected = {
+    started && zk.connected
+  }
+
   protected def syncMembers() {
-    if (zk.connected) {
+    if (connected) {
       syncServices(watch = false)
     }
   }
@@ -64,10 +68,12 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
   }
 
   private def syncService(service: Service, watch: Boolean) {
-    syncServiceMembers(service, getZkServiceMembers(service, watch = watch).map(serviceMember => {
-      val votes = getZkMemberVotes(service, serviceMember, watch = watch)
-      (serviceMember, votes)
-    }))
+    if (connected) {
+      syncServiceMembers(service, getZkServiceMembers(service, watch = watch).map(serviceMember => {
+        val votes = getZkMemberVotes(service, serviceMember, watch = watch)
+        (serviceMember, votes)
+      }))
+    }
   }
 
   protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote) {
@@ -88,13 +94,15 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     debug("Getting service members for service {}", service)
 
     val callback = if (watch) Some((e: NodeChildrenChanged) => {
-      debug("Service members within service {} changed", service)
-      try {
-        getZkServiceMembers(service, watch = true)
-      } catch {
-        case e: Exception => debug("Got an exception getting service members in service {}: {}", service, e)
+      if (connected) {
+        debug("Service members within service {} changed", service)
+        try {
+          getZkServiceMembers(service, watch = true)
+        } catch {
+          case e: Exception => debug("Got an exception getting service members in service {}: {}", service, e)
+        }
+        syncService(service, watch = false)
       }
-      syncService(service, watch = false)
     })
     else None
 
@@ -108,13 +116,15 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     debug("Getting votes for {} in service {}", serviceMember, service)
 
     val callback = if (watch) Some((e: NodeChildrenChanged) => {
-      debug("Votes for {} in service {} changed", serviceMember, service)
-      try {
-        getZkMemberVotes(service, serviceMember, watch = true)
-      } catch {
-        case e: Exception => debug("Got an exception getting votes for {} in service {}: {}", serviceMember, service, e)
+      if (connected) {
+        debug("Votes for {} in service {} changed", serviceMember, service)
+        try {
+          getZkMemberVotes(service, serviceMember, watch = true)
+        } catch {
+          case e: Exception => debug("Got an exception getting votes for {} in service {}: {}", serviceMember, service, e)
+        }
+        syncService(service, watch = false)
       }
-      syncService(service, watch = false)
     })
     else None
 
@@ -127,13 +137,15 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     debug("Getting vote for member {} by {} in service {}", candidateMember, voterToken, service)
 
     val callback = if (watch) Some((e: NodeValueChanged) => {
-      debug("Vote for member {} by {} in service {} changed", candidateMember, voterToken, service)
-      try {
-        getZkMemberVote(service, candidateMember, voterToken, watch = true)
-      } catch {
-        case e: Exception => debug("Got an exception getting vote for member {} by {} in service {}: {}", candidateMember, voterToken, service, e)
+      if (connected) {
+        debug("Vote for member {} by {} in service {} changed", candidateMember, voterToken, service)
+        try {
+          getZkMemberVote(service, candidateMember, voterToken, watch = true)
+        } catch {
+          case e: Exception => debug("Got an exception getting vote for member {} by {} in service {}: {}", candidateMember, voterToken, service, e)
+        }
+        syncService(service, watch = false)
       }
-      syncService(service, watch = false)
     })
     else None
 

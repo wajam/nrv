@@ -239,4 +239,26 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
       cluster1.service2.getMemberAtToken(16).get.status
     }, _ == MemberStatus.Up)
   }
+
+  test("zookeeper connection loss should bring members down and they should come back once zookeeper reconnect") {
+    val cluster1 = createCluster(1).start()
+    var cluster2 = createCluster(2).start()
+
+    // wait to come up
+    waitForCondition[MemberStatus]({
+      cluster1.service2.getMemberAtToken(16).get.status
+    }, _ == MemberStatus.Up)
+
+    // stop cluster, wait to come down
+    cluster2.zk.close()
+    waitForCondition[MemberStatus]({
+      cluster1.service2.getMemberAtToken(16).get.status
+    }, _ == MemberStatus.Down)
+
+    // restart cluster, wait to come up
+    cluster2.zk.connect()
+    waitForCondition[MemberStatus]({
+      cluster1.service2.getMemberAtToken(16).get.status
+    }, _ == MemberStatus.Up)
+  }
 }
