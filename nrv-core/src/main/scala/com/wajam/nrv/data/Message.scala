@@ -74,7 +74,6 @@ abstract class Message(params: Iterable[(String, Any)] = null,
     other.function = this.function
     other.error = this.error
     other.source = this.source
-    other.method = this.method
     other.destination = this.destination // TODO: should be cloned
     other.token = this.token
   }

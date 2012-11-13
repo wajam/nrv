@@ -187,4 +187,22 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     action.stop()
   }
+
+  test("call() should add the action method in the OutMessage") {
+
+    val method = ActionMethod.POST
+    var interceptedOutMessage: OutMessage = null
+
+    val action = service.registerAction(new Action("/test/:param", req => {}, method) {
+
+      override protected[nrv] def callOutgoingHandlers(outMessage: OutMessage) {
+        interceptedOutMessage = outMessage
+      }
+    })
+    action.start()
+
+    action.call(new OutMessage(Map("call_key" -> "call_value")))
+
+    assert(method === interceptedOutMessage.method)
+  }
 }

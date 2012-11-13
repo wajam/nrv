@@ -56,6 +56,7 @@ class Action(val path: ActionPath,
   def call(message: OutMessage) {
     this.checkSupported()
 
+    message.method = method
     message.function = MessageType.FUNCTION_CALL
     this.callOutgoingHandlers(message)
   }
