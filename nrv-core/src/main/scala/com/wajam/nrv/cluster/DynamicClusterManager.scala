@@ -1,7 +1,7 @@
 package com.wajam.nrv.cluster
 
 import actors.Actor
-import com.wajam.nrv.utils.{MessageFilterLogging, Scheduler}
+import com.wajam.nrv.utils.{TransformLogging, Scheduler}
 import com.wajam.nrv.service.{Service, ServiceMember, MemberStatus}
 import com.wajam.nrv.Logging
 
@@ -10,13 +10,13 @@ import com.wajam.nrv.Logging
  * an actor to execute operations sequentially on the cluster. Concrete implementation of this class
  * uses the "syncServiceMembers" function to synchronise services members (addition/deletion/status change)
  */
-abstract class DynamicClusterManager extends ClusterManager with Logging with MessageFilterLogging {
+abstract class DynamicClusterManager extends ClusterManager with Logging with TransformLogging {
   private val CLUSTER_CHECK_IN_MS = 1000
   private val CLUSTER_FORCESYNC_IN_MS = 7500
   private val CLUSTER_PRINT_IN_MS = 5000
 
   // Prepend local node info to all log messages
-  def filterLogMessage = (msg, params) => ("[local=%s] %s".format(cluster.localNode, msg), params)
+  def transformLogMessage = (msg, params) => ("[local=%s] %s".format(cluster.localNode, msg), params)
 
   override def start() = {
     if (super.start()) {
