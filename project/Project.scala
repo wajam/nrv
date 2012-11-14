@@ -9,7 +9,8 @@ object NrvBuild extends Build {
     "Sun GF Maven2 Repo" at "http://download.java.net/maven/glassfish",
     "Oracle Maven2 Repo" at "http://download.oracle.com/maven",
     "Sonatype" at "http://oss.sonatype.org/content/repositories/release",
-    "Cloudera" at "https://repository.cloudera.com/artifactory/cloudera-repos/"
+    "Cloudera" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
+    "Scallop" at "http://mvnrepository.com/"
   )
 
   var commonDeps = Seq(
@@ -22,7 +23,8 @@ object NrvBuild extends Build {
   )
 
   var zookeeperDeps = Seq(
-    "org.apache.zookeeper" % "zookeeper" % "3.4.3-cdh4.1.1" exclude("javax.jms", "jms") exclude("com.sun.jmx", "jmxri") exclude("com.sun.jdmk", "jmxtools")
+    "org.apache.zookeeper" % "zookeeper" % "3.4.3-cdh4.1.1" exclude("javax.jms", "jms") exclude("com.sun.jmx", "jmxri") exclude("com.sun.jdmk", "jmxtools"),
+    "org.rogach" %% "scallop" % "0.6.0"
   )
 
   val defaultSettings = Defaults.defaultSettings ++ Defaults.itSettings ++ Seq(

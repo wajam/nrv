@@ -43,7 +43,6 @@ class ZookeeperTestingClusterDriver(var instanceCreator: (Int, Int, ZookeeperClu
       instance.zkClient.close()
     }
     instances = List[ZookeeperTestingClusterInstance]()
-    Thread.sleep(500) // Avoid race condition
   }
 
   def execute(execute: (ZookeeperTestingClusterDriver, TestingClusterInstance) => Unit, size: Int = 5) {
@@ -96,8 +95,7 @@ object ZookeeperTestingClusterDriver {
     } catch {
       case e: Exception =>
     }
-    zk.ensureExists("/tests", "")
-    zk.ensureExists("/tests/clustermanager", "")
+    zk.ensureAllExists("/tests/clustermanager", "")
     zk.close()
   }
 }

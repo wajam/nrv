@@ -5,6 +5,11 @@ package com.wajam.nrv.zookeeper.service
  */
 object ZookeeperService {
   /**
+   * Returns services root path
+   */
+  def rootPath = "/services"
+
+  /**
    * Returns specified service path
    */
   def path(serviceName: String) = "/services/%s".format(serviceName)
