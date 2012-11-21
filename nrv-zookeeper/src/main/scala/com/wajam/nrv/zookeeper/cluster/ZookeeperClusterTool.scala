@@ -12,9 +12,9 @@ object ZookeeperClusterTool extends App {
     banner(
       """Usage: ./nrv-zookeeper/target/start [OPTION] SERVERS [FILE]
         |List SERVERS cluster configuration or diff/update SERVERS with FILE cluster configuration.
-        |Examples: ./nrv-zookeeper/target/start -l 127.0.0.1:3000,127.0.0.1:3001/live
-        |          ./nrv-zookeeper/target/start -d 127.0.0.1/live cluster.conf
-        |          ./nrv-zookeeper/target/start -u 127.0.0.1/live cluster.conf
+        |Examples: ./nrv-zookeeper/target/start -l 127.0.0.1:3000,127.0.0.1:3001/local
+        |          ./nrv-zookeeper/target/start -d 127.0.0.1/local local.cluster
+        |          ./nrv-zookeeper/target/start -u 127.0.0.1/local local.cluster
         | """.stripMargin)
 
     val ls = opt[Boolean]("ls", default=Some(false),
@@ -131,6 +131,9 @@ object ZookeeperClusterTool extends App {
     println()
     println("Update")
     printLines(diff.updated)
+    println()
+    println("Ignore")
+    printLines(diff.ignored)
   }
 
   def updateDiff(diff: Diff) {
@@ -159,11 +162,22 @@ object ZookeeperClusterTool extends App {
       import com.wajam.nrv.zookeeper.ZookeeperClient._
       zkClient.set(path, value)
     }
+
+    println()
+    println("Ignore")
+    for ((path, value) <- diff.ignored) {
+      println(toString(path, value))
+    }
   }
 
   class Diff(current: Map[String, String], target: Map[String, String]) {
     val removed = current.keys.toSeq.diff(target.keys.toSeq).map(key => (key, current(key))).toList.sorted
     val added = target.keys.toSeq.diff(current.keys.toSeq).map(key => (key, target(key))).toList.sorted
-    val updated = current.keys.toSeq.intersect(target.keys.toSeq).map(key => (key, target(key))).toList.sorted
+    val updated = intersectKeys.filter(key => !current(key).equals(target(key))).map(key => (key, target(key))).toList.sorted
+    val ignored = intersectKeys.filter(key => current(key).equals(target(key))).map(key => (key, target(key))).toList.sorted
+
+    private def intersectKeys = {
+      current.keys.toSeq.intersect(target.keys.toSeq)
+    }
   }
 }
