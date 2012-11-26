@@ -5,7 +5,7 @@ import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.protocol.DummyProtocol
 import com.wajam.nrv.tracing._
-import com.wajam.nrv.utils.{Future, Promise, ControlableSequentialStringIdGenerator, ControlableCurrentTime}
+import com.wajam.nrv.utils._
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import com.wajam.nrv.data.{MessageType, InMessage, OutMessage}
@@ -17,6 +17,16 @@ import com.wajam.nrv.tracing.TraceContext
 import com.wajam.nrv.tracing.Record
 import java.net.InetSocketAddress
 import java.text.SimpleDateFormat
+import com.wajam.nrv.tracing.Annotation.ClientAddress
+import com.wajam.nrv.tracing.RpcName
+import com.wajam.nrv.tracing.TraceContext
+import com.wajam.nrv.tracing.Record
+import scala.Some
+import com.wajam.nrv.tracing.Annotation.ServerAddress
+import com.wajam.nrv.tracing.Annotation.ClientRecv
+import com.wajam.nrv.tracing.Annotation.ClientSend
+import com.wajam.nrv.tracing.Annotation.ServerRecv
+import com.wajam.nrv.tracing.Annotation.ServerSend
 
 /**
  *
@@ -274,7 +284,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     TraceFilter.handleIncoming(action, message, _ => called = true)
 
     val expectedContext: TraceContext = TraceContext("0", "1", None)
-    val expectedAddress = ServerAddress(new InetSocketAddress("127.0.0.1", 12346))
+    val expectedAddress = ServerAddress(new InetSocketAddress(InetUtils.firstInetAddress.get.getHostName, 12346))
 
     called should be(true)
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv])))

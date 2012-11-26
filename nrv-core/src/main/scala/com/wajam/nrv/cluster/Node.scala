@@ -10,7 +10,7 @@ import com.wajam.nrv.utils.InetUtils
  * @param ports Ports of each protocol running on the node
  */
 sealed class Node(val host: InetAddress, val ports: Map[String, Int]) extends Serializable {
-  def this(host: String, ports: Map[String, Int]) = this(InetAddress.getByName(host), ports)
+  def this(host: String, ports: Map[String, Int]) = this(Node.addressByName(host), ports)
 
   if (!ports.contains("nrv"))
     throw new UninitializedFieldError("Node must have at least a 'nrv' port defined")
@@ -35,7 +35,7 @@ sealed class Node(val host: InetAddress, val ports: Map[String, Int]) extends Se
 sealed class LocalNode(val listenAddress: InetAddress, ports: Map[String, Int])
   extends Node(Node.listenAddressToHostAddress(listenAddress), ports) {
 
-  def this(listenAddress: String, ports: Map[String, Int]) = this(InetAddress.getByName(listenAddress), ports)
+  def this(listenAddress: String, ports: Map[String, Int]) = this(Node.addressByName(listenAddress), ports)
   def this(ports: Map[String, Int]) = this("0.0.0.0", ports)
 }
 
@@ -55,5 +55,9 @@ object Node {
 
   def listenAddressToHostAddress(listenAddress: InetAddress): InetAddress = {
     if (listenAddress.isAnyLocalAddress) InetUtils.firstInetAddress.getOrElse(listenAddress) else listenAddress
+  }
+  def addressByName(name: String): InetAddress = {
+    val address = InetAddress.getByName(name)
+    if (address.isLoopbackAddress) InetUtils.firstInetAddress.getOrElse(address) else address
   }
 }
