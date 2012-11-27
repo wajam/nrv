@@ -80,7 +80,9 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
       connectionLatch.await()
     } catch {
       case e: Exception =>
-        metricsConnectError += 1
+        // Increment by 2 to work around the stupid nagios check_jmx limitation
+        // which prevent to set a critical value of 1
+        metricsConnectError += 2
         throw e
     }
   }
