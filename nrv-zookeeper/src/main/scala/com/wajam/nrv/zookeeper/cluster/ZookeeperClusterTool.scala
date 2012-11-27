@@ -19,11 +19,13 @@ object ZookeeperClusterTool extends App {
 
     val ls = opt[Boolean]("ls", default=Some(false),
       descr = "print the current SERVERS cluster configuration")
+    val all = opt[Boolean]("all", default=Some(false),
+      descr = "print the entire SERVERS content including data and ephemeral nodes")
     val diff = opt[Boolean]("diff", default=Some(false),
       descr = "print the differences between SERVERS and FILE cluster configuration")
     val update = opt[Boolean]("update", default=Some(false),
       descr = "update SERVERS with the FILE cluster configuration")
-    mutuallyExclusive(ls, diff, update)
+    mutuallyExclusive(ls, all, diff, update)
 
     val servers = trailArg[String]("SERVERS", required = true,
       descr = "comma separated host:port pairs, each corresponding to a zk server e.g. " +
@@ -47,17 +49,23 @@ object ZookeeperClusterTool extends App {
   }
 
   val zkClient = createZkClient(Conf.servers.apply())
-  val zkConfig = readZookeeperConfig
 
   if (Conf.ls.apply()) {
     // List
+    val zkConfig = readZookeeperConfig
     printLines(zkConfig)
+  } else if (Conf.all.apply()) {
+    // All
+    val zkContent = readZookeeperContent
+    printLines(zkContent)
   } else if (Conf.diff.apply()) {
     // Diff
+    val zkConfig = readZookeeperConfig
     val fileLines = readFileConfig(Conf.file.apply())
     printDiff(new Diff(zkConfig.toMap, fileLines.toMap))
   } else if (Conf.update.apply()) {
     // Update
+    val zkConfig = readZookeeperConfig
     val fileLines = readFileConfig(Conf.file.apply())
     updateDiff(new Diff(zkConfig.toMap, fileLines.toMap))
   }
@@ -168,6 +176,18 @@ object ZookeeperClusterTool extends App {
     for ((path, value) <- diff.ignored) {
       println(toString(path, value))
     }
+  }
+
+  def readZookeeperContent: List[(String, String)] = {
+    readZookeeperChildren("/", List[(String, String)]()).sorted
+  }
+
+  def readZookeeperChildren(path: String, lines: List[(String, String)]): List[(String, String)] = {
+    val children = zkClient.getChildren(path)
+    children.foldLeft((path, zkClient.getString(path)) :: lines)((l, c) => {
+      val childPath = if (path.endsWith("/")) path + c else path + "/" + c
+      readZookeeperChildren(childPath, l)
+    })
   }
 
   class Diff(current: Map[String, String], target: Map[String, String]) {
