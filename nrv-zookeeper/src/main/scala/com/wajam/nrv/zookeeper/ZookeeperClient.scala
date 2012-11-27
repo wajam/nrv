@@ -49,9 +49,6 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
 
   @volatile private var zk: ZooKeeper = null
 
-  if (autoConnect)
-    this.connect()
-
   // metrics
   private lazy val metricsGetChildren = metrics.timer("get-children")
   private lazy val metricsGet = metrics.timer("get")
@@ -59,6 +56,10 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   private lazy val metricsSet = metrics.timer("set")
   private lazy val metricsDelete = metrics.timer("delete")
   private lazy val metricsIncrement = metrics.timer("increment")
+  private val metricsConnectError = metrics.counter("connect-error")
+
+  if (autoConnect)
+    this.connect()
 
   def getHandle: ZooKeeper = zk
 
@@ -66,16 +67,24 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     val connectionLatch = new CountDownLatch(1)
     val assignLatch = new CountDownLatch(1)
 
-    this.close()
-    zk = new ZooKeeper(servers, sessionTimeout,
-      new Watcher {
-        def process(event: WatchedEvent) {
-          sessionEvent(assignLatch, connectionLatch, event)
-        }
-      })
-    assignLatch.countDown()
-    log.info("Attempting to connect to zookeeper servers %s".format(servers))
-    connectionLatch.await()
+    try {
+      this.close()
+      zk = new ZooKeeper(servers, sessionTimeout,
+        new Watcher {
+          def process(event: WatchedEvent) {
+            sessionEvent(assignLatch, connectionLatch, event)
+          }
+        })
+      assignLatch.countDown()
+      log.info("Attempting to connect to zookeeper servers %s".format(servers))
+      connectionLatch.await()
+    } catch {
+      case e: Exception =>
+        // Increment by 2 to work around the stupid nagios check_jmx limitation
+        // which prevent to set a critical value of 1
+        metricsConnectError += 2
+        throw e
+    }
   }
 
   def close() {

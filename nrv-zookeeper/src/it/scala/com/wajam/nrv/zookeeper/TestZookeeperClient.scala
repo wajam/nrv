@@ -7,6 +7,8 @@ import com.wajam.nrv.zookeeper.ZookeeperClient._
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.utils.{Future, Promise}
 import org.scalatest.matchers.ShouldMatchers._
+import java.io.IOException
+import com.yammer.metrics.scala.MetricsGroup
 
 @RunWith(classOf[JUnitRunner])
 class TestZookeeperClient extends FunSuite with BeforeAndAfter {
@@ -46,6 +48,26 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
     Future.blocking(pConnected.future, 1000)
 
     assert(pConnected.future.isCompleted)
+  }
+
+  test("client should increment error counter when not able to connect to host name") {
+    var connectErrorCounter = new MetricsGroup(classOf[ZookeeperClient]).counter("connect-error")
+    connectErrorCounter.count should be(0)
+
+    // Testing auto connect
+    evaluating {
+      new ZookeeperClient("unknownserveraddress")
+    } should produce [IOException]
+
+    connectErrorCounter.count should be(1)
+
+    // Testing without auto connect
+    val client = new ZookeeperClient("unknownserveraddress", autoConnect = false)
+    evaluating {
+      client.connect()
+    } should produce [IOException]
+
+    connectErrorCounter.count should be(2)
   }
 
   test("creating a node should create it (obviously...)") {
