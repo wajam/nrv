@@ -62,20 +62,6 @@ object Tracer {
   def currentTracer: Option[Tracer] = {
     localTracer.value
   }
-
-//  def future[T](body : => T) : scala.actors.Future[T] = {
-//    val savedContext = currentContext
-//    Futures.future {
-//      if (savedContext.isDefined) {
-//        trace(savedContext) {
-//          body
-//        }
-//      } else {
-//        body
-//      }
-//    }
-//  }
-
 }
 
 /**
