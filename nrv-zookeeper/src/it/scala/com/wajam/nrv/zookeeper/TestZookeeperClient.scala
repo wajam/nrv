@@ -59,7 +59,7 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
       new ZookeeperClient("unknownserveraddress")
     } should produce [IOException]
 
-    connectErrorCounter.count should be(1)
+    connectErrorCounter.count should be(2)
 
     // Testing without auto connect
     val client = new ZookeeperClient("unknownserveraddress", autoConnect = false)
@@ -67,7 +67,7 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
       client.connect()
     } should produce [IOException]
 
-    connectErrorCounter.count should be(2)
+    connectErrorCounter.count should be(4)
   }
 
   test("creating a node should create it (obviously...)") {
