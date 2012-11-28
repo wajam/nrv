@@ -9,7 +9,7 @@ class StaticClusterManager extends ClusterManager {
 
   protected def initializeMembers() {
     allMembers.foreach {
-      case (service, member) => member.setStatus(MemberStatus.Up, triggerEvent = false)
+      case (service, member) => member.setStatus(MemberStatus.Up, triggerEvent = true)
     }
   }
 
@@ -21,5 +21,4 @@ class StaticClusterManager extends ClusterManager {
   def addMembers(service: Service, members: Iterable[String]) {
     members.foreach(strMember => service.addMember(ServiceMember.fromString(strMember)))
   }
-
 }

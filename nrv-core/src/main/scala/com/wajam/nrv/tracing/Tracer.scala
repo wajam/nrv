@@ -2,8 +2,8 @@ package com.wajam.nrv.tracing
 
 import java.text.SimpleDateFormat
 import java.net.InetSocketAddress
+import com.wajam.nrv.utils._
 import com.wajam.nrv.tracing.Annotation.Message
-import com.wajam.nrv.utils.{ThreadLocalVariable, UuidStringGenerator, IdGenerator, CurrentTime}
 
 /**
  * Trace context information. All trace events initiated from a common ancestor call share the same TraceId.
@@ -103,7 +103,7 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
    * specified context become the current context. If no trace context is specified, a new one is created as a
    * subcontext of the current context or as a new root context if there is no current context.
    */
-  def trace[S](newContext: Option[TraceContext] = None)(block: => S) {
+  def trace[S](newContext: Option[TraceContext] = None)(block: => S): S = {
 
     val context: TraceContext = (currentContext, newContext) match {
       // No current or new context provided. Create a brand new one.
