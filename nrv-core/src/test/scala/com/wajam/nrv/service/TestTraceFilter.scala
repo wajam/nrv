@@ -9,24 +9,15 @@ import com.wajam.nrv.utils._
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import com.wajam.nrv.data.{MessageType, InMessage, OutMessage}
-import com.wajam.nrv.tracing.Annotation._
 import org.mockito.ArgumentMatcher
 import org.hamcrest.Description
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.tracing.TraceContext
-import com.wajam.nrv.tracing.Record
 import java.net.InetSocketAddress
 import java.text.SimpleDateFormat
-import com.wajam.nrv.tracing.Annotation.ClientAddress
+import com.wajam.nrv.tracing.Annotation._
 import com.wajam.nrv.tracing.RpcName
 import com.wajam.nrv.tracing.TraceContext
 import com.wajam.nrv.tracing.Record
-import scala.Some
-import com.wajam.nrv.tracing.Annotation.ServerAddress
-import com.wajam.nrv.tracing.Annotation.ClientRecv
-import com.wajam.nrv.tracing.Annotation.ClientSend
-import com.wajam.nrv.tracing.Annotation.ServerRecv
-import com.wajam.nrv.tracing.Annotation.ServerSend
 
 /**
  *
