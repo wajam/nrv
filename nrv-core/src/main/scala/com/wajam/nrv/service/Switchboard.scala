@@ -116,6 +116,7 @@ class Switchboard(val numExecutor: Int = 100)
               if (elaps >= rdv.outMessage.responseTimeout) {
                 var exceptionMessage = new InMessage
                 exceptionMessage.matchingOutMessage = Some(rdv.outMessage)
+                rdv.enventualTimeoutException.elapsed = Some(elaps)
                 exceptionMessage.error = Some(rdv.enventualTimeoutException)
                 rdv.action.generateResponseMessage(rdv.outMessage, exceptionMessage)
                 rdv.action.callIncomingHandlers(exceptionMessage)
