@@ -10,6 +10,7 @@ import com.wajam.nrv.transport.http.HttpNettyTransport
 import scala.Array
 import com.wajam.nrv.data.{Message, InMessage, OutMessage}
 import com.wajam.nrv.service.ActionMethod
+import com.wajam.nrv.RouteException
 
 /**
  * Implementation of HTTP protocol.
@@ -40,7 +41,6 @@ class HttpProtocol(name: String, localNode: LocalNode)
     val msg = new InMessage()
     message match {
       case req: HttpRequest => {
-        val uri = new URI(req.getUri)
         msg.protocolName = name
         msg.method = req.getMethod.getName
         msg.serviceName = HttpHeaders.getHost(req, "")
@@ -113,6 +113,14 @@ class HttpProtocol(name: String, localNode: LocalNode)
         response
       }
     }
+  }
+
+  override protected def handleIncomingMessageError(exception: Exception, connectionInfo: Option[AnyRef]) {
+    handleOutgoing(null, createErrorMessage(exception, exception match {
+      case pe: ParsingException => pe.code
+      case re: RouteException => 404
+      case _ => 500
+    }, connectionInfo))
   }
 
   private def mapHeaders(httpMessage: HttpMessage, message: Message) {
@@ -191,10 +199,10 @@ class HttpProtocol(name: String, localNode: LocalNode)
     var charset: String = HttpProtocol.DEFAULT_ENCODING
     for (part: String <- parts if !found) {
       if (part.trim().startsWith("charset=")) {
-        val vals = part.split("=");
+        val vals = part.split("=")
         if (vals.length > 1) {
-          charset = vals(1).trim();
-          charset = charset.replaceAll("\"", "").replaceAll("'", "");
+          charset = vals(1).trim()
+          charset = charset.replaceAll("\"", "").replaceAll("'", "")
           found = true
         }
       }
@@ -211,6 +219,15 @@ class HttpProtocol(name: String, localNode: LocalNode)
         case x => v
       }
     })
+  }
+
+  private def createErrorMessage(exception: Exception, code: Int, connectionInfo: Option[AnyRef]): OutMessage = {
+    val errorMessage = new OutMessage()
+    errorMessage.code = code
+    errorMessage.messageData = exception.getMessage
+    errorMessage.attachments(Protocol.CONNECTION_KEY) = connectionInfo
+    errorMessage.attachments(Protocol.CLOSE_AFTER) = true
+    errorMessage
   }
 }
 
