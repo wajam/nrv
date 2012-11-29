@@ -12,6 +12,10 @@ import com.yammer.metrics.scala.Instrumented
 abstract class Protocol(var name: String) extends MessageHandler with Logging with Instrumented {
 
   private val sendingResponseFailure = metrics.meter("sendResponseFailure", "failure")
+  private val parsingError = metrics.meter("parsing-error", "error")
+  private val routingError = metrics.meter("routing-error", "error")
+  private val receptionError = metrics.meter("reception-error", "error")
+
   val transport: Transport
   var services = Map[String, Service]()
 
@@ -54,9 +58,8 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
 
     } catch {
       case e: RouteException => {
-        transport.sendResponse(message.attachments(Protocol.CONNECTION_KEY).asInstanceOf[Option[AnyRef]].get,
-          generate(createErrorMessage(message, e, 404)),
-          false)
+        routingError.mark()
+        handleIncomingMessageError(e, message.attachments(Protocol.CONNECTION_KEY).asInstanceOf[Option[AnyRef]])
       }
     }
   }
@@ -115,15 +118,19 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
       handleIncoming(null, inMessage)
     } catch {
       case pe: ParsingException => {
+        parsingError.mark()
         warn("Parsing exception: {}", pe)
-        handleOutgoing(null, createErrorMessage(inMessage, pe, pe.code))
+        handleIncomingMessageError(pe, connectionInfo)
       }
       case e: Exception => {
+        receptionError.mark()
         warn("Exception caught while processing a message from transport", e)
-        handleOutgoing(null, createErrorMessage(inMessage, e, 500))
+        handleIncomingMessageError(e, connectionInfo)
       }
     }
   }
+
+  protected def handleIncomingMessageError(exception: Exception, connectionInfo: Option[AnyRef]) {}
 
   /**
    * Parse the received message and convert it to a standard Message object.
@@ -140,21 +147,6 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
    * @return The message to be sent of the network
    */
   def generate(message: Message): AnyRef
-
-  /**
-   * Create an Error message
-   *
-   * @param inMessage The message that triggered an error.
-   * @param exception The exception
-   * @return The error message to send
-   */
-  def createErrorMessage(inMessage: InMessage, exception: Exception, code: Int = 500): OutMessage = {
-    val errorMessage = new OutMessage()
-    inMessage.copyTo(errorMessage)
-    errorMessage.code = code
-    errorMessage.messageData = exception.getMessage
-    errorMessage
-  }
 }
 
 object Protocol {

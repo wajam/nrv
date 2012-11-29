@@ -74,6 +74,44 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     assert(received.error != None)
   }
 
+  test("test message reception failure") {
+
+    val protocol = new NrvProtocol(cluster.localNode) {
+      override def parse(message: AnyRef): Message = {
+        throw new RuntimeException
+      }
+
+      override def handleIncoming(action: Action, message: InMessage) {
+        fail("should not call handle incoming")
+      }
+
+      override def handleOutgoing(action: Action, message: OutMessage) {
+        fail("should not call handle outgoing")
+      }
+    }
+
+    protocol.transportMessageReceived("invalidmessage".getBytes, None)
+  }
+
+  test("test message parsing failure") {
+
+    val protocol = new NrvProtocol(cluster.localNode) {
+      override def parse(message: AnyRef): Message = {
+        throw new ParsingException("400")
+      }
+
+      override def handleIncoming(action: Action, message: InMessage) {
+        fail("should not call handle incoming")
+      }
+
+      override def handleOutgoing(action: Action, message: OutMessage) {
+        fail("should not call handle outgoing")
+      }
+    }
+
+    protocol.transportMessageReceived("invalidmessage".getBytes, None)
+  }
+
   after {
     cluster.stop()
   }
