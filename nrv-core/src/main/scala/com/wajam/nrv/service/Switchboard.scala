@@ -3,7 +3,7 @@ package com.wajam.nrv.service
 import actors.Actor
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
-import com.wajam.nrv.{TimeoutException, Logging}
+import com.wajam.nrv.{UnavailableException, TimeoutException, Logging}
 import java.util.concurrent.atomic.AtomicBoolean
 import com.wajam.nrv.utils.Scheduler
 
@@ -11,8 +11,11 @@ import com.wajam.nrv.utils.Scheduler
  * Handle incoming messages and find matching outgoing messages, having same
  * rendez-vous number.
  */
-class Switchboard(val numExecutor: Int = 100)
+class Switchboard(val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int = 50)
   extends Actor with MessageHandler with Logging with Instrumented {
+
+  require(numExecutor > 0)
+  require(maxTaskExecutorQueueSize > 0)
 
   private val TIMEOUT_CHECK_IN_MS = 100
   private val rendezvous = collection.mutable.HashMap[Int, SentMessageContext]()
@@ -28,6 +31,7 @@ class Switchboard(val numExecutor: Int = 100)
     rendezvous.size
   }
 
+  private val rejectedMessages = metrics.meter("rejected", "messages")
   private val executorQueueSize = metrics.gauge("executors-queue-size") {
     executors.foldLeft[Int](0)((sum: Int, actor: SwitchboardExecutor) => {
       sum + actor.queueSize
@@ -164,9 +168,33 @@ class Switchboard(val numExecutor: Int = 100)
 
   private def execute(action: Action, message: Message, next: (Unit => Unit)) {
     if (message.token >= 0) {
-      executors((message.token % numExecutor).toInt) ! next
+      val executor = executors((message.token % numExecutor).toInt)
+      if(!rejectMessageWhenOverloaded(action, message, executor)) {
+        executor ! next
+      }
     } else {
       throw new RuntimeException("Invalid token for message: " + message)
+    }
+  }
+
+  private def rejectMessageWhenOverloaded(action: Action, message: Message, executor: SwitchboardExecutor): Boolean = {
+    // Reject only incoming message that are function calls (i.e. request from other nodes/clients)
+    message match {
+      case inMessage: InMessage => {
+        val rejected = (inMessage.function == MessageType.FUNCTION_CALL
+          && executor.queueSize >= maxTaskExecutorQueueSize)
+        if (rejected) {
+          rejectedMessages.mark()
+          val rejectedMessage = new OutMessage()
+          action.generateResponseMessage(message, rejectedMessage)
+          rejectedMessage.error = Some(new UnavailableException)
+          rejectedMessage.code = 503
+
+          action.callOutgoingHandlers(rejectedMessage)
+        }
+        rejected
+      }
+      case _ => false
     }
   }
 
