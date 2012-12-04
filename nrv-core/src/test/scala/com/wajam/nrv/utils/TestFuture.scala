@@ -12,7 +12,7 @@ class TestFuture extends FunSuite {
     }
 
     assert(!f.isCompleted)
-    Thread.sleep(15)
+    Thread.sleep(100)
     assert(f.isCompleted)
 
     assert(Future.blocking(f, 1) == "done")
