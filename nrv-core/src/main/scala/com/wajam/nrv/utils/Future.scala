@@ -195,10 +195,11 @@ class PromiseImpl[T] extends Promise[T] with Future[T] {
     if (prvValue.isEmpty) {
       synchronized {
         if (prvValue.isEmpty) {
+          val start = System.currentTimeMillis()
           this.wait(atMost)
 
           if (prvValue.isEmpty)
-            throw new TimeoutException("Couldn't get future in time")
+            throw new TimeoutException("Couldn't get future in time", Some(System.currentTimeMillis() - start))
         }
       }
     }
