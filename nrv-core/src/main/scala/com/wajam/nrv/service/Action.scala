@@ -24,6 +24,7 @@ class Action(val path: ActionPath,
 
   private lazy val msgInMeter = metrics.meter("message-in", "messages-in", metricsPath)
   private lazy val msgOutMeter = metrics.meter("message-out", "messages-out", metricsPath)
+  private lazy val unexpectedResponses = metrics.meter("unexpected-responses", "unexpected-responses", metricsPath)
   private lazy val msgReplyTime = metrics.timer("reply-time", metricsPath)
   private lazy val executeTime = metrics.timer("execute-time", metricsPath)
 
@@ -164,8 +165,10 @@ class Action(val path: ActionPath,
                         warn("Got an exception calling reply callback", ex)
                       }
                     }
-                  case None =>
-                    warn("Response with no matching original message received")
+                  case None => {
+                    unexpectedResponses.mark()
+                    debug("Response with no matching original message received")
+                  }
                 }
             }
           })
