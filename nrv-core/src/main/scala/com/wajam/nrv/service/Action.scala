@@ -24,7 +24,12 @@ class Action(val path: ActionPath,
 
   private lazy val msgInMeter = metrics.meter("message-in", "messages-in", metricsPath)
   private lazy val msgOutMeter = metrics.meter("message-out", "messages-out", metricsPath)
-  private lazy val unexpectedResponses = metrics.meter("unexpected-responses", "unexpected-responses", metricsPath)
+  private lazy val msgOutUnavailableRecipient = metrics.meter("message-out-unavailable-recipient", "message-out-unavailable-recipient", metricsPath)
+
+  private lazy val responseInUnexpected = metrics.meter("response-in-unexpected", "response-in-unexpected", metricsPath)
+  private lazy val responseInProcessError = metrics.meter("response-in-process-error", "response-in-process-error", metricsPath)
+  private lazy val requestInProcessError = metrics.meter("request-in-process-error", "request-in-process-error", metricsPath)
+
   private lazy val msgReplyTime = metrics.timer("reply-time", metricsPath)
   private lazy val executeTime = metrics.timer("execute-time", metricsPath)
 
@@ -92,8 +97,10 @@ class Action(val path: ActionPath,
 
     // resolve endpoints
     this.resolver.handleOutgoing(this, outMessage, _ => {
-      if (outMessage.destination.selectedReplicas.size == 0)
+      if (outMessage.destination.selectedReplicas.size == 0) {
+        msgOutUnavailableRecipient.mark()
         throw new UnavailableException
+      }
 
       // Store current trace context in message attachment for the trace filter
       if (tracer.currentContext.isDefined) {
@@ -142,6 +149,7 @@ class Action(val path: ActionPath,
                   }
                 } catch {
                   case ex: Exception => {
+                    requestInProcessError.mark()
                     warn("Got an exception calling implementation", ex)
                     try {
                       fromMessage.replyWithError(new RemoteException("Exception calling action implementation", ex))
@@ -161,12 +169,17 @@ class Action(val path: ActionPath,
                     try {
                       originalMessage.handleReply(fromMessage)
                     } catch {
+                      case e: UnavailableException => {
+                        responseInProcessError.mark()
+                        debug("Got an UnavailableException calling reply callback", e)
+                      }
                       case ex: Exception => {
+                        responseInProcessError.mark()
                         warn("Got an exception calling reply callback", ex)
                       }
                     }
                   case None => {
-                    unexpectedResponses.mark()
+                    responseInUnexpected.mark()
                     debug("Response with no matching original message received")
                   }
                 }
