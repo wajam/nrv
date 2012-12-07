@@ -32,6 +32,7 @@ class Switchboard(val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int 
   }
 
   private val rejectedMessages = metrics.meter("rejected", "messages")
+  private val unexpectedResponses = metrics.meter("unexpected", "responses")
   private val executorQueueSize = metrics.gauge("executors-queue-size") {
     executors.foldLeft[Int](0)((sum: Int, actor: SwitchboardExecutor) => {
       sum + actor.queueSize
@@ -152,7 +153,8 @@ class Switchboard(val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int 
                   receiving.inMessage.matchingOutMessage = Some(rdv.outMessage)
 
                 case None =>
-                  warn("Received a incoming message with a rendez-vous, but with no matching outgoing message: {}",
+                  unexpectedResponses.mark()
+                  debug("Received a incoming message with a rendez-vous, but with no matching outgoing message: {}",
                     receiving.inMessage)
 
               }
