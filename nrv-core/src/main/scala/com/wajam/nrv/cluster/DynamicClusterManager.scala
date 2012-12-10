@@ -88,7 +88,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
       service.getMemberAtToken(newMember.token).map(currentMember => {
         val votedStatus = compileVotes(currentMember, newMemberVotes(currentMember))
         currentMember.setStatus(votedStatus, triggerEvent = true).map(event =>
-          info("Member {} of service {} changed status to {}", currentMember, service, votedStatus)
+          info("Member {} of service {} changed status from {} to {}", currentMember, service, event.from, event.to)
         )
       })
     })
