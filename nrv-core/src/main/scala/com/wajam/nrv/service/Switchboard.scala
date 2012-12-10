@@ -111,9 +111,9 @@ class Switchboard(val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int 
 
   def act() {
     while (true) {
-      try {
-        receive {
-          case CheckTimeout =>
+      receive {
+        case CheckTimeout => {
+          try {
             var toRemove = List[Int]()
 
             for ((id, rdv) <- rendezvous) {
@@ -135,16 +135,24 @@ class Switchboard(val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int 
             }
 
             sender ! true
-
-          case (sending: SentMessageContext, next: (Unit => Unit)) =>
+          } catch {
+            case e: Exception => error("Error in switchboard processing CheckTimeout: {}", e)
+          }
+        }
+        case (sending: SentMessageContext, next: (Unit => Unit)) => {
+          try {
             received.mark()
 
             sending.outMessage.rendezvousId = nextId
             rendezvous += (sending.outMessage.rendezvousId -> sending)
 
             execute(sending.action, sending.outMessage, next)
-
-          case (receiving: ReceivedMessageContext, next: (Unit => Unit)) =>
+          } catch {
+            case e: Exception => error("Error in switchboard processing SentMessageContext: {}", e)
+          }
+        }
+        case (receiving: ReceivedMessageContext, next: (Unit => Unit)) => {
+          try {
             // check for rendez-vous
             if (receiving.inMessage.function == MessageType.FUNCTION_RESPONSE) {
               val optRdv = rendezvous.remove(receiving.inMessage.rendezvousId)
@@ -159,11 +167,11 @@ class Switchboard(val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int 
 
               }
             }
-
             execute(receiving.action, receiving.inMessage, next)
+          } catch {
+            case e: Exception => error("Error in switchboard processing ReceivedMessageContext: {}", e)
+          }
         }
-      } catch {
-        case e: Exception => error("Catched an exception in switchboard! Should never happen!", e)
       }
     }
   }
@@ -214,12 +222,13 @@ class Switchboard(val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int 
 
     def act() {
       loop {
-        try {
-          react {
-            case next: (Unit => Unit) => next()
+        react {
+          case next: (Unit => Unit) =>
+          try {
+            next()
+          } catch {
+            case e: Exception => error("Got an error in SwitchboardExecutor: ", e)
           }
-        } catch {
-          case e: Exception => error("Catched an exception in switchboard! Should never happen!", e)
         }
       }
     }
