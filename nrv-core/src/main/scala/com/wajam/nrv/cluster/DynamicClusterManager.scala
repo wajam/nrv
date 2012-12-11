@@ -112,7 +112,11 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
 
     case object CheckCluster extends ClusterOperation
 
-    case object PrintCluster extends ClusterOperation
+    case object PrintCluster extends ClusterOperation with Logging {
+      def print() {
+        allServices.foreach(service => debug("\nLocal node: {}\n{}", cluster.localNode, service.printService))
+      }
+    }
 
     case object ForceSync extends ClusterOperation
 
@@ -157,7 +161,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
 
           case PrintCluster =>
             try {
-              allServices.foreach(service => debug("\nLocal node: {}\n{}", cluster.localNode, service.printService))
+              PrintCluster.print()
             } catch {
               case e: Exception => error("Got an exception when printing cluster: ", e)
             } finally {
