@@ -11,7 +11,7 @@ import com.wajam.nrv.utils.Scheduler
  * Handle incoming messages and find matching outgoing messages, having same
  * rendez-vous number.
  */
-class Switchboard(val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int = 50)
+class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int = 50)
   extends Actor with MessageHandler with Logging with Instrumented {
 
   require(numExecutor > 0)
@@ -26,14 +26,15 @@ class Switchboard(val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int 
   }
 
   // instrumentation
-  private val received = metrics.meter("received", "received")
-  private val pending = metrics.gauge("pending") {
+  private def metricName = if (name.isEmpty) null else name
+  private val received = metrics.meter("received", "received", metricName)
+  private val pending = metrics.gauge("pending", metricName) {
     rendezvous.size
   }
 
-  private val rejectedMessages = metrics.meter("rejected", "messages")
-  private val unexpectedResponses = metrics.meter("unexpected", "responses")
-  private val executorQueueSize = metrics.gauge("executors-queue-size") {
+  private val rejectedMessages = metrics.meter("rejected", "messages", metricName)
+  private val unexpectedResponses = metrics.meter("unexpected", "responses", metricName)
+  private val executorQueueSize = metrics.gauge("executors-queue-size", metricName) {
     executors.foldLeft[Int](0)((sum: Int, actor: SwitchboardExecutor) => {
       sum + actor.queueSize
     })
