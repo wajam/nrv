@@ -77,7 +77,7 @@ case class StatusTransitionAttemptEvent(member: ServiceMember, from: MemberStatu
 
 case class StatusTransitionEvent(member: ServiceMember, from: MemberStatus, to: MemberStatus) extends Event
 
-sealed trait MemberStatus extends Serializable;
+sealed trait MemberStatus extends Serializable
 
 object MemberStatus {
 
