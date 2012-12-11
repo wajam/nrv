@@ -28,6 +28,8 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
   // instrumentation
   private def metricName = if (name.isEmpty) null else name
   private val received = metrics.meter("received", "received", metricName)
+  private val sent = metrics.meter("sent", "sent", metricName)
+  private val timeout = metrics.meter("timeout", "timeout", metricName)
   private val pending = metrics.gauge("pending", metricName) {
     rendezvous.size
   }
@@ -120,6 +122,8 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
             for ((id, rdv) <- rendezvous) {
               val elaps = getTime() - rdv.outMessage.sentTime
               if (elaps >= rdv.outMessage.responseTimeout) {
+                timeout.mark()
+
                 var exceptionMessage = new InMessage
                 exceptionMessage.matchingOutMessage = Some(rdv.outMessage)
                 rdv.enventualTimeoutException.elapsed = Some(elaps)
@@ -142,7 +146,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
         }
         case (sending: SentMessageContext, next: (Unit => Unit)) => {
           try {
-            received.mark()
+            sent.mark()
 
             sending.outMessage.rendezvousId = nextId
             rendezvous += (sending.outMessage.rendezvousId -> sending)
@@ -154,6 +158,8 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
         }
         case (receiving: ReceivedMessageContext, next: (Unit => Unit)) => {
           try {
+            received.mark()
+
             // check for rendez-vous
             if (receiving.inMessage.function == MessageType.FUNCTION_RESPONSE) {
               val optRdv = rendezvous.remove(receiving.inMessage.rendezvousId)
