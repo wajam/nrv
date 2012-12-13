@@ -22,6 +22,7 @@ trait ActionSupport {
   protected var _switchboard: Switchboard = null
   protected var _tracer: Tracer = null
   protected var _consistency: Consistency = null
+  protected var _responseTimeout: Option[Long] = None
 
   def cluster: Cluster =
     if (_cluster != null)
@@ -79,15 +80,33 @@ trait ActionSupport {
     else
       throw new UninitializedError
 
+  def responseTimeout: Long = {
+    _responseTimeout match {
+      case Some(timeout) => timeout
+      case None => {
+        if (this.supporter != null) {
+          this.supporter.responseTimeout
+        } else {
+          throw new UninitializedError
+        }
+      }
+    }
+  }
+
   def checkSupported() {
-    if (this.cluster == null || this.service == null || this.protocol == null || this.resolver == null ||
-      this.switchboard == null || this.tracer == null || this.consistency == null)
-      throw new UninitializedError
+    this.cluster
+    this.service
+    this.protocol
+    this.resolver
+    this.switchboard
+    this.tracer
+    this.consistency
+    this.responseTimeout
   }
 
   def applySupport(cluster: Option[Cluster] = None, service: Option[Service] = None, resolver: Option[Resolver] = None,
                    protocol: Option[Protocol] = None, switchboard: Option[Switchboard] = None, tracer: Option[Tracer] = None,
-                   consistency: Option[Consistency] = None) {
+                   consistency: Option[Consistency] = None, responseTimeout: Option[Long] = None) {
 
     cluster.map(this._cluster = _)
     service.map(this._service = _)
@@ -96,11 +115,12 @@ trait ActionSupport {
     switchboard.map(this._switchboard = _)
     tracer.map(this._tracer = _)
     consistency.map(this._consistency = _)
+    responseTimeout.map(timeout => this._responseTimeout = Some(timeout))
   }
 
   def applySupportOptions(options: ActionSupportOptions) {
     this.applySupport(options.cluster, options.service, options.resolver, options.protocol, options.switchboard,
-      options.tracer, options.consistency)
+      options.tracer, options.consistency, options.responseTimeout)
   }
 
   def supportedBy(supporter: ActionSupport) {
@@ -110,5 +130,5 @@ trait ActionSupport {
 
 class ActionSupportOptions(val cluster: Option[Cluster] = None, val service: Option[Service] = None, val resolver: Option[Resolver] = None,
                            val protocol: Option[Protocol] = None, val switchboard: Option[Switchboard] = None, val tracer: Option[Tracer] = None,
-                           val consistency: Option[Consistency] = None) {
+                           val consistency: Option[Consistency] = None, val responseTimeout: Option[Long] = None) {
 }

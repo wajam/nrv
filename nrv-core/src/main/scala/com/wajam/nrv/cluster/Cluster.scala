@@ -17,7 +17,7 @@ class Cluster(val localNode: LocalNode,
 
   // assign default resolver, switchboard, etc.
   applySupport(cluster = Some(this), switchboard = Some(new Switchboard), resolver = Some(new Resolver),
-    tracer = Some(new Tracer), consistency = Some(new ConsistencyOne))
+    tracer = Some(new Tracer), consistency = Some(new ConsistencyOne), responseTimeout = Some(1000L))
   applySupportOptions(actionSupportOptions)
 
   var services = Map[String, Service]()
