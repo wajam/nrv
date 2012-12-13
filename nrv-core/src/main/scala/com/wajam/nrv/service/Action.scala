@@ -15,7 +15,6 @@ import scala.Some
 class Action(val path: ActionPath,
              val implementation: ((InMessage) => Unit),
              val method: ActionMethod = ActionMethod.ANY,
-             defaultResponseTimeout: Long = 1000,
              actionSupportOptions: ActionSupportOptions = new ActionSupportOptions())
   extends ActionSupport with Instrumented with Logging {
 
@@ -39,7 +38,7 @@ class Action(val path: ActionPath,
   def call(params: Iterable[(String, Any)],
            meta: Iterable[(String, Any)],
            data: Any): Future[InMessage] = {
-    call(params, meta, data, defaultResponseTimeout)
+    call(params, meta, data, responseTimeout)
   }
 
   def call(params: Iterable[(String, Any)],
@@ -55,7 +54,7 @@ class Action(val path: ActionPath,
            onReply: ((InMessage, Option[Exception]) => Unit),
            meta: Iterable[(String, Any)] = null,
            data: Any = null,
-           responseTimeout: Long = defaultResponseTimeout) {
+           responseTimeout: Long = responseTimeout) {
     this.call(new OutMessage(params, meta, data, onReply = onReply, responseTimeout = responseTimeout))
   }
 

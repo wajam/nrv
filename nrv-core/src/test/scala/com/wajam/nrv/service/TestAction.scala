@@ -120,7 +120,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val action = service.registerAction(new Action("/test_timeout", req => {
       // no reply, make it timeout
-    }, defaultResponseTimeout = 100))
+    }, actionSupportOptions = new ActionSupportOptions(responseTimeout = Some(100L))))
 
     action.start()
 
