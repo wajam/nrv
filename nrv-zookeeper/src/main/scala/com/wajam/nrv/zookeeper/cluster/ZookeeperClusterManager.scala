@@ -5,7 +5,7 @@ import com.wajam.nrv.service.{ServiceMember, Service}
 import com.wajam.nrv.zookeeper.ZookeeperClient
 import com.wajam.nrv.zookeeper.ZookeeperClient._
 import com.wajam.nrv.Logging
-import org.apache.zookeeper.CreateMode
+import org.apache.zookeeper.{KeeperException, CreateMode}
 import com.wajam.nrv.zookeeper.service.ZookeeperService
 import collection.mutable
 import org.apache.zookeeper.Watcher.Event.{EventType, KeeperState}
@@ -112,10 +112,20 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
       })
     } else None
 
-    zk.getChildren(path, callback).map(token => {
-      val data = zk.getString(zkMemberPath(service.name, token.toLong))
-      ServiceMember.fromString(data)
-    })
+    try {
+      zk.getChildren(path, callback).map(token => {
+        val data = zk.getString(zkMemberPath(service.name, token.toLong))
+        ServiceMember.fromString(data)
+      })
+    } catch {
+      case e: KeeperException => {
+        if (path == e.getPath) {
+          // Fail to get path children, we are not really watching it
+          watchedPath.remove(path)
+        }
+        throw e
+      }
+    }
   }
 
   private def getZkMemberVotes(service: Service, serviceMember: ServiceMember): Seq[ServiceMemberVote] = {
@@ -136,9 +146,19 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
       })
     } else None
 
-    zk.getChildren(path, callback).map(voteMember => {
-      getZkMemberVote(service, serviceMember, voteMember.toLong)
-    })
+    try {
+      zk.getChildren(path, callback).map(voteMember => {
+        getZkMemberVote(service, serviceMember, voteMember.toLong)
+      })
+    } catch {
+      case e: KeeperException => {
+        if (path == e.getPath) {
+          // Fail to get path children, we are not really watching it
+          watchedPath.remove(path)
+        }
+        throw e
+      }
+    }
   }
 
   private def getZkMemberVote(service: Service, candidateMember: ServiceMember, voterToken: Long): ServiceMemberVote = {
@@ -159,8 +179,18 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
       })
     } else None
 
-    val data = zk.getString(path, callback)
-    ServiceMemberVote.fromString(candidateMember, data)
+    try {
+      val data = zk.getString(path, callback)
+      ServiceMemberVote.fromString(candidateMember, data)
+    } catch {
+      case e: KeeperException => {
+        if (path == e.getPath) {
+          // Fail to get path value, we are not really watching it
+          watchedPath.remove(path)
+        }
+        throw e
+      }
+    }
   }
 
 }
