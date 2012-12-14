@@ -217,6 +217,38 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
     }, _ == MemberStatus.Up)
   }
 
+  test("a service member migration to another node should be kind of seamless") {
+    val cluster1 = createCluster(1).start()
+    val cluster2 = createCluster(2).start()
+
+    val newMember1 = new ServiceMember(72, cluster1.localNode)
+    cluster1.zkCreateServiceMember(cluster1.service1, newMember1)
+
+    // wait to be added
+    waitForCondition[Option[ServiceMember]]({
+      cluster1.service1.getMemberAtToken(72)
+    }, _ == Some(newMember1))
+
+    // wait to come up
+    waitForCondition[MemberStatus]({
+      cluster1.service1.getMemberAtToken(72).get.status
+    }, _ == MemberStatus.Up)
+
+    // Change service member from node cluster1 to cluster2
+    val newMember2 = new ServiceMember(72, cluster2.localNode)
+    cluster1.zkCreateServiceMember(cluster1.service1, newMember2)
+
+    // wait to come up on cluster2
+    waitForCondition[MemberStatus]({
+      cluster2.service1.getMemberAtToken(72).get.status
+    }, _ == MemberStatus.Up)
+
+    // wait to be removed on cluster1
+    waitForCondition[Option[ServiceMember]]({
+      cluster1.service1.getMemberAtToken(72)
+    }, _ == None)
+  }
+
   test("members of a crashed cluster should become down and come back up when rejoining") {
     val cluster1 = createCluster(1).start()
     var cluster2 = createCluster(2).start()
