@@ -4,16 +4,20 @@ import actors.Actor
 import com.wajam.nrv.utils.{TransformLogging, Scheduler}
 import com.wajam.nrv.service.{Service, ServiceMember, MemberStatus}
 import com.wajam.nrv.Logging
+import com.yammer.metrics.scala.Instrumented
 
 /**
  * Manager of a cluster in which nodes can be added/removed and can go up and down. This manager uses
  * an actor to execute operations sequentially on the cluster. Concrete implementation of this class
  * uses the "syncServiceMembers" function to synchronise services members (addition/deletion/status change)
  */
-abstract class DynamicClusterManager extends ClusterManager with Logging with TransformLogging {
+abstract class DynamicClusterManager extends ClusterManager with Logging with Instrumented with TransformLogging {
   private val CLUSTER_CHECK_IN_MS = 1000
   private val CLUSTER_FORCESYNC_IN_MS = 7500
   private val CLUSTER_PRINT_IN_MS = 5000
+
+  private val allServicesMetrics = new ServiceMetrics("all")
+  private var servicesMetrics = Map[Service, ServiceMetrics]()
 
   // Prepend local node info to all log messages
   def transformLogMessage = (msg, params) => ("[local=%s] %s".format(cluster.localNode, msg), params)
@@ -96,6 +100,39 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
 
   protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote)
 
+  private class ServiceMetrics(name: String) {
+    private val serviceMemberCounter = metrics.counter("service-members", name)
+    private val serviceMemberUpCounter = metrics.counter("service-members-up", name)
+    private val serviceMemberDownCounter = metrics.counter("service-members-down", name)
+    private val serviceMemberJoiningCounter = metrics.counter("service-members-joining", name)
+
+    def update(members: Iterable[ServiceMember]) {
+      serviceMemberCounter += members.size - serviceMemberCounter.count
+      serviceMemberUpCounter += members.count(_.status == MemberStatus.Up) - serviceMemberUpCounter.count
+      serviceMemberDownCounter += members.count(_.status == MemberStatus.Down) - serviceMemberDownCounter.count
+      serviceMemberJoiningCounter += members.count(_.status == MemberStatus.Joining) - serviceMemberJoiningCounter.count
+    }
+  }
+
+  /**
+   * This method is not thread safe and must always be called from a single thread
+   */
+  private def updateServicesMetrics() {
+    allServicesMetrics.update(allMembers.map(_._2))
+
+    for (service <- allServices) {
+      val stats = servicesMetrics.get(service) match {
+        case Some(s) => s
+        case None => {
+          val stats = new ServiceMetrics(service.name)
+          servicesMetrics += (service -> stats)
+          stats
+        }
+      }
+      stats.update(service.members)
+    }
+  }
+
   /**
    * This actor receives operations and execute them sequentially on the cluster.
    */
@@ -168,7 +205,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
               sender ! true
             }
 
-          case CheckCluster => // periodically executed, check local down nodes and try to promote them to better status
+          case CheckCluster => {
+            // periodically executed, check local down nodes and try to promote them to better status
             try {
               val members = allMembers
               debug("Checking cluster for any pending changes ({} members)", members.size)
@@ -194,12 +232,16 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with Tr
                     // don't do anything for the rest
                   }
               }
+
+              // Update service statistics
+              updateServicesMetrics()
             } catch {
               case e: Exception =>
                 error("Got an exception when checking cluster: ", e)
             } finally {
               sender ! true
             }
+          }
 
           case ForceSync => // periodically executed, force refresh of cluster nodes
             debug("Forcing cluster sync")
