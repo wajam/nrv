@@ -101,16 +101,29 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
   protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote)
 
   private class ServiceMetrics(name: String) {
-    private val serviceMemberCounter = metrics.counter("service-members", name)
-    private val serviceMemberUpCounter = metrics.counter("service-members-up", name)
-    private val serviceMemberDownCounter = metrics.counter("service-members-down", name)
-    private val serviceMemberJoiningCounter = metrics.counter("service-members-joining", name)
+    @volatile private var serviceMemberCount = 0L
+    @volatile private var serviceMemberUpCount = 0L
+    @volatile private var serviceMemberDownCount = 0L
+    @volatile private var serviceMemberJoiningCount = 0L
+
+    private val serviceMemberGauge = metrics.gauge("service-members", name) {
+      serviceMemberCount
+    }
+    private val serviceMemberUpGauge = metrics.gauge("service-members-up", name) {
+      serviceMemberUpCount
+    }
+    private val serviceMemberDownGauge = metrics.gauge("service-members-down", name) {
+      serviceMemberDownCount
+    }
+    private val serviceMemberJoiningGauge = metrics.gauge("service-members-joining", name) {
+      serviceMemberJoiningCount
+    }
 
     def update(members: Iterable[ServiceMember]) {
-      serviceMemberCounter += members.size - serviceMemberCounter.count
-      serviceMemberUpCounter += members.count(_.status == MemberStatus.Up) - serviceMemberUpCounter.count
-      serviceMemberDownCounter += members.count(_.status == MemberStatus.Down) - serviceMemberDownCounter.count
-      serviceMemberJoiningCounter += members.count(_.status == MemberStatus.Joining) - serviceMemberJoiningCounter.count
+      serviceMemberCount = members.size
+      serviceMemberUpCount = members.count(_.status == MemberStatus.Up)
+      serviceMemberDownCount = members.count(_.status == MemberStatus.Down)
+      serviceMemberJoiningCount = members.count(_.status == MemberStatus.Joining)
     }
   }
 
