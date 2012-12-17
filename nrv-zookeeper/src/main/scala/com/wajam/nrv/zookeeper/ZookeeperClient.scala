@@ -12,8 +12,6 @@ import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.utils.{Event, Observable}
 import java.text.SimpleDateFormat
 import com.google.common.cache.CacheBuilder
-import java.io.{FileOutputStream, File, PrintWriter}
-import scala.Some
 
 object ZookeeperClient {
   implicit def string2bytes(value: String) = value.getBytes
