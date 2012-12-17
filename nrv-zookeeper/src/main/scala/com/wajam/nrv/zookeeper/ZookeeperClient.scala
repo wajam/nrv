@@ -1,16 +1,19 @@
 package com.wajam.nrv.zookeeper
 
 import com.wajam.nrv.Logging
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.{Callable, CountDownLatch}
 import org.apache.zookeeper.Watcher.Event.KeeperState
 import org.apache.zookeeper.ZooDefs.Ids
 import org.apache.zookeeper._
-import data.Stat
+import org.apache.zookeeper.data.Stat
 import org.apache.zookeeper.KeeperException.{NoNodeException, Code}
 import scala.collection.JavaConversions._
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.utils.{Event, Observable}
 import java.text.SimpleDateFormat
+import com.google.common.cache.CacheBuilder
+import java.io.{FileOutputStream, File, PrintWriter}
+import scala.Some
 
 object ZookeeperClient {
   implicit def string2bytes(value: String) = value.getBytes
@@ -48,6 +51,9 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   import ZookeeperClient._
 
   @volatile private var zk: ZooKeeper = null
+
+  private val dataWatches = CacheBuilder.newBuilder().weakValues.build[Function1[NodeValueChanged, Unit], Watcher]
+  private val childWatches = CacheBuilder.newBuilder().weakValues.build[Function1[NodeChildrenChanged, Unit], Watcher]
 
   // metrics
   private lazy val metricsGetChildren = metrics.timer("get-children")
@@ -159,19 +165,24 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   def getChildren(path: String, watch: Option[(NodeChildrenChanged) => Unit] = None, stat: Option[Stat] = None): Seq[String] = {
     this.metricsGetChildren.time {
       watch match {
-        case Some(cb) =>
-          zk.getChildren(path, new Watcher {
-            def process(event: WatchedEvent) {
-              try {
-                cb(new NodeChildrenChanged(event.getPath, event))
-              } catch {
-                case e: Exception => warn("Got an exception calling children watcher callback: {}", e)
+        case Some(cb) => {
+          val watcher: Watcher = childWatches.get(cb, new Callable[Watcher] {
+            def call() = new Watcher {
+              def process(event: WatchedEvent) {
+                try {
+                  cb(new NodeChildrenChanged(event.getPath, event))
+                } catch {
+                  case e: Exception => warn("Got an exception calling children watcher callback: {}", e)
+                }
               }
             }
-          }, stat.getOrElse(null))
+          })
+          zk.getChildren(path, watcher, stat.getOrElse(null))
+        }
 
-        case None =>
+        case None => {
           zk.getChildren(path, false, stat.getOrElse(null))
+        }
       }
     }
   }
@@ -179,19 +190,23 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   def get(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Array[Byte] = {
     this.metricsGet.time {
       watch match {
-        case Some(cb) =>
-          zk.getData(path, new Watcher {
-            def process(event: WatchedEvent) {
-              try {
-                cb(new NodeValueChanged(event.getPath, event))
-              } catch {
-                case e: Exception => warn("Got an exception calling watcher callback: {}", e)
+        case Some(cb) => {
+          val watcher: Watcher = dataWatches.get(cb, new Callable[Watcher] {
+            def call() = new Watcher {
+              def process(event: WatchedEvent) {
+                try {
+                  cb(new NodeValueChanged(event.getPath, event))
+                } catch {
+                  case e: Exception => warn("Got an exception calling watcher callback: {}", e)
+                }
               }
             }
-          }, stat.getOrElse(null))
-
-        case None =>
+          })
+          zk.getData(path, watcher, stat.getOrElse(null))
+        }
+        case None => {
           zk.getData(path, false, stat.getOrElse(null))
+        }
       }
     }
   }

@@ -24,6 +24,7 @@ object NrvBuild extends Build {
 
   var zookeeperDeps = Seq(
     "org.apache.zookeeper" % "zookeeper" % "3.4.3-cdh4.1.1" exclude("javax.jms", "jms") exclude("com.sun.jmx", "jmxri") exclude("com.sun.jdmk", "jmxtools"),
+    "com.google.guava" % "guava" % "12.0",
     "org.rogach" %% "scallop" % "0.6.0"
   )
 

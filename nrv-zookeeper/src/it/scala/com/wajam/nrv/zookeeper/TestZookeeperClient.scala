@@ -9,6 +9,8 @@ import com.wajam.nrv.utils.{Future, Promise}
 import org.scalatest.matchers.ShouldMatchers._
 import java.io.IOException
 import com.yammer.metrics.scala.MetricsGroup
+import org.apache.zookeeper.Watcher.Event.{EventType, KeeperState}
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(classOf[JUnitRunner])
 class TestZookeeperClient extends FunSuite with BeforeAndAfter {
@@ -196,5 +198,70 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
 
   test("same timestamp encoded in string with different timezones should be equals") {
     string2timestamp("2012-11-05T17:25:52.946-0500") should be (string2timestamp("2012-11-06T03:25:52.946+0500"))
+  }
+
+  test("watch should be called once when watching multiple times with same watch function instance") {
+    zClient.create("/tests/getmultiwatch", "value1", CreateMode.PERSISTENT)
+
+    var dataCount = new AtomicInteger(0)
+    var watchData: (NodeValueChanged) => Unit = (e: NodeValueChanged) => {
+      dataCount.getAndIncrement
+    }
+
+    var childrenCount = new AtomicInteger(0)
+    var watchChildren: (NodeChildrenChanged) => Unit = (e: NodeChildrenChanged) => {
+      childrenCount.getAndIncrement
+    }
+
+    // Setup multiple watch using the same function instance
+    zClient.get("/tests/getmultiwatch", Some(watchData))
+    zClient.get("/tests/getmultiwatch", Some(watchData))
+    zClient.get("/tests/getmultiwatch", Some(watchData))
+    zClient.getChildren("/tests/getmultiwatch", Some(watchChildren))
+    zClient.getChildren("/tests/getmultiwatch", Some(watchChildren))
+    zClient.getChildren("/tests/getmultiwatch", Some(watchChildren))
+
+    // Change data
+    zClient.set("/tests/getmultiwatch", "value2")
+    Thread.sleep(200)
+    dataCount.get() should be(1)
+    childrenCount.get() should be(0)
+
+    // Add a child
+    zClient.create("/tests/getmultiwatch/child", "", CreateMode.PERSISTENT)
+    Thread.sleep(200)
+    dataCount.get() should be(1)
+    childrenCount.get() should be(1)
+
+    // Force GC and change data again
+    System.gc()
+    System.gc()
+    System.gc()
+    zClient.get("/tests/getmultiwatch", Some(watchData))
+    zClient.getChildren("/tests/getmultiwatch", Some(watchChildren))
+    zClient.set("/tests/getmultiwatch", "value3")
+    Thread.sleep(200)
+    dataCount.get() should be(2)
+    childrenCount.get() should be(1)
+
+    // Two different data watches
+    zClient.get("/tests/getmultiwatch", Some((e: NodeValueChanged) => {
+      dataCount.getAndIncrement
+    }))
+    zClient.get("/tests/getmultiwatch", Some(watchData))
+    zClient.set("/tests/getmultiwatch", "value4")
+    Thread.sleep(200)
+    dataCount.get() should be(4)
+    childrenCount.get() should be(1)
+
+    // Two different child watches
+    zClient.getChildren("/tests/getmultiwatch", Some((e: NodeChildrenChanged) => {
+      childrenCount.getAndIncrement
+    }))
+    zClient.getChildren("/tests/getmultiwatch", Some(watchChildren))
+    zClient.create("/tests/getmultiwatch/child2", "", CreateMode.PERSISTENT)
+    Thread.sleep(200)
+    dataCount.get() should be(4)
+    childrenCount.get() should be(3)
   }
 }
