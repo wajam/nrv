@@ -19,7 +19,10 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
 
   import ZookeeperClusterManager._
 
-  private val watchedPath = new mutable.HashMap[String, Boolean] with mutable.SynchronizedMap[String, Boolean]
+  private val dataWatches = new mutable.HashMap[String, Function1[NodeValueChanged, Unit]] with
+    mutable.SynchronizedMap[String, Function1[NodeValueChanged, Unit]]
+  private val childWatches = new mutable.HashMap[String, Function1[NodeChildrenChanged, Unit]] with
+    mutable.SynchronizedMap[String, Function1[NodeChildrenChanged, Unit]]
 
   override def start(): Boolean = {
     if (super.start()) {
@@ -98,99 +101,48 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     debug("Getting service members for service {}", service)
 
     val path = ZookeeperService.membersPath(service.name)
-    val callback = if (watchedPath.put(path, true).isEmpty) {
-      Some((e: NodeChildrenChanged) => {
-        // zookeeper calls the callback on connection lost, we don't remove the watch in that case
-        if (e.originalEvent.getState == KeeperState.SyncConnected && e.originalEvent.getType != EventType.None) {
-          watchedPath.remove(path)
-        }
-
-        if (connected) {
-          debug("Service members within service {} changed", service)
-          syncService(service)
-        }
-      })
-    } else None
-
-    try {
-      zk.getChildren(path, callback).map(token => {
-        val data = zk.getString(zkMemberPath(service.name, token.toLong))
-        ServiceMember.fromString(data)
-      })
-    } catch {
-      case e: KeeperException => {
-        if (path == e.getPath) {
-          // Fail to get path children, we are not really watching it
-          watchedPath.remove(path)
-        }
-        throw e
+    val callback = childWatches.getOrElseUpdate(path, (e: NodeChildrenChanged) => {
+      if (connected) {
+        debug("Service members within service {} changed", service)
+        syncService(service)
       }
-    }
+    })
+
+    zk.getChildren(path, Some(callback)).map(token => {
+      val data = zk.getString(zkMemberPath(service.name, token.toLong))
+      ServiceMember.fromString(data)
+    })
   }
 
   private def getZkMemberVotes(service: Service, serviceMember: ServiceMember): Seq[ServiceMemberVote] = {
     debug("Getting votes for {} in service {}", serviceMember, service)
 
     val path = zkMemberVotesPath(service.name, serviceMember.token)
-    val callback = if (watchedPath.put(path, true).isEmpty) {
-      Some((e: NodeChildrenChanged) => {
-        // zookeeper calls the callback on connection lost, we don't remove the watch in that case
-        if (e.originalEvent.getState == KeeperState.SyncConnected && e.originalEvent.getType != EventType.None) {
-          watchedPath.remove(path)
-        }
-
-        if (connected) {
-          debug("Votes for {} in service {} changed", serviceMember, service)
-          syncService(service)
-        }
-      })
-    } else None
-
-    try {
-      zk.getChildren(path, callback).map(voteMember => {
-        getZkMemberVote(service, serviceMember, voteMember.toLong)
-      })
-    } catch {
-      case e: KeeperException => {
-        if (path == e.getPath) {
-          // Fail to get path children, we are not really watching it
-          watchedPath.remove(path)
-        }
-        throw e
+    val callback = childWatches.getOrElseUpdate(path, (e: NodeChildrenChanged) => {
+      if (connected) {
+        debug("Votes for {} in service {} changed", serviceMember, service)
+        syncService(service)
       }
-    }
+    })
+
+    zk.getChildren(path, Some(callback)).map(voteMember => {
+      getZkMemberVote(service, serviceMember, voteMember.toLong)
+    })
   }
 
   private def getZkMemberVote(service: Service, candidateMember: ServiceMember, voterToken: Long): ServiceMemberVote = {
     debug("Getting vote for member {} by {} in service {}", candidateMember, voterToken, service)
 
     val path = zkMemberVotePath(service.name, candidateMember.token, voterToken)
-    val callback = if (watchedPath.put(path, true).isEmpty) {
-      Some((e: NodeValueChanged) => {
-        // zookeeper calls the callback on connection lost, we don't remove the watch in that case
-        if (e.originalEvent.getState == KeeperState.SyncConnected && e.originalEvent.getType != EventType.None) {
-          watchedPath.remove(path)
-        }
-
-        if (connected) {
-          info("Vote for member {} by {} in service {} changed", candidateMember, voterToken, service)
-          syncService(service)
-        }
-      })
-    } else None
-
-    try {
-      val data = zk.getString(path, callback)
-      ServiceMemberVote.fromString(candidateMember, data)
-    } catch {
-      case e: KeeperException => {
-        if (path == e.getPath) {
-          // Fail to get path value, we are not really watching it
-          watchedPath.remove(path)
-        }
-        throw e
+    val callback = dataWatches.getOrElseUpdate(path, (e: NodeValueChanged) => {
+      if (connected) {
+        info("Vote for member {} by {} in service {} changed", candidateMember, voterToken, service)
+        syncService(service)
       }
-    }
+    })
+
+    val data = zk.getString(path, Some(callback))
+    ServiceMemberVote.fromString(candidateMember, data)
   }
 
 }
