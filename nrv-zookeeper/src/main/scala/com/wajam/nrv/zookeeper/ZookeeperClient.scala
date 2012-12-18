@@ -50,6 +50,12 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
 
   @volatile private var zk: ZooKeeper = null
 
+  // Caches watch function Watcher wrapper object using weak reference. Each watch function instance is garanteed to be
+  // wrapped by a single Watcher object at a single time even in case of multiple registerations.
+  // This result in a single change event per path/function instance.
+  //
+  // A Watcher object wrapper can be GC after the corresponding change event is fired because it is cached using weak
+  // reference. It cannot be GC before because ZooKeeper keeps a hard reference to the Watcher object.
   private val dataWatches = CacheBuilder.newBuilder().weakValues.build[Function1[NodeValueChanged, Unit], Watcher]
   private val childWatches = CacheBuilder.newBuilder().weakValues.build[Function1[NodeChildrenChanged, Unit], Watcher]
 
