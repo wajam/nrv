@@ -21,7 +21,7 @@ message Message {
     repeated bytes messageData = 12;
 }
 
-message Endpoint {
+message Endpoints {
 
     repeated Shard shards = 1;
 
