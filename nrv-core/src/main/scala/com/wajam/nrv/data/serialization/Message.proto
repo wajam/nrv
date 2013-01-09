@@ -1,0 +1,60 @@
+package com.wajam.nrv.data.serialization;
+
+message ProtoBufMessage {
+
+    optional string protocolName = 1;
+    optional string serviceName = 2;
+    optional int32 method = 3;
+    optional string path = 4;
+    optional int32 rendezVousId = 5;
+
+    optional bytes error = 6; // Serialized with Java
+
+    optional int32 function = 7;
+
+    optional Node source = 13;
+    optional Endpoint destination = 8;
+    optional int64 token = 9;
+
+    repeated StringPair parameters = 10;
+    repeated StringPair metadata = 11;
+    repeated bytes messageData = 12;
+}
+
+message Endpoint {
+
+    repeated Shard shards = 1;
+
+    message Shard {
+        optional int64 token = 1;
+        repeated Replica replicas = 2;
+    }
+
+    message Replica {
+        optional int64 token = 1;
+        optional Node node = 2;
+        optional bool selected = 3 [default = true];
+    }
+}
+
+message Node {
+    optional bytes inetAddress = 1;
+    repeated Int32Pair ports = 2;
+}
+
+/* Used to emulate a map */
+
+message Int32Pair {
+    required string key = 1;
+    required int32 value = 2;
+}
+
+message StringPair {
+    required string key = 1;
+    required string value = 2;
+}
+
+message AnyPair {
+    required string key = 1;
+    required bytes value = 2; // Serialized with Java
+}
