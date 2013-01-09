@@ -1,6 +1,6 @@
 package com.wajam.nrv.data.serialization;
 
-message ProtoBufMessage {
+message Message {
 
     optional string protocolName = 1;
     optional string serviceName = 2;
