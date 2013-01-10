@@ -4,7 +4,7 @@ message Message {
 
     optional string protocolName = 1;
     optional string serviceName = 2;
-    optional int32 method = 3;
+    optional string method = 3;
     optional string path = 4;
     optional int32 rendezVousId = 5;
 
@@ -13,12 +13,12 @@ message Message {
     optional int32 function = 7;
 
     optional Node source = 13;
-    optional Endpoint destination = 8;
+    optional Endpoints destination = 8;
     optional int64 token = 9;
 
     repeated StringPair parameters = 10;
     repeated StringPair metadata = 11;
-    repeated bytes messageData = 12;
+    optional bytes messageData = 12;
 }
 
 message Endpoints {

@@ -19,9 +19,9 @@ public final class NRVProtos {
     boolean hasServiceName();
     String getServiceName();
     
-    // optional int32 method = 3;
+    // optional string method = 3;
     boolean hasMethod();
-    int getMethod();
+    String getMethod();
     
     // optional string path = 4;
     boolean hasPath();
@@ -44,10 +44,10 @@ public final class NRVProtos {
     com.wajam.nrv.data.serialization.NRVProtos.Node getSource();
     com.wajam.nrv.data.serialization.NRVProtos.NodeOrBuilder getSourceOrBuilder();
     
-    // optional .com.wajam.nrv.data.serialization.Endpoint destination = 8;
+    // optional .com.wajam.nrv.data.serialization.Endpoints destination = 8;
     boolean hasDestination();
-    com.wajam.nrv.data.serialization.NRVProtos.Endpoint getDestination();
-    com.wajam.nrv.data.serialization.NRVProtos.EndpointOrBuilder getDestinationOrBuilder();
+    com.wajam.nrv.data.serialization.NRVProtos.Endpoints getDestination();
+    com.wajam.nrv.data.serialization.NRVProtos.EndpointsOrBuilder getDestinationOrBuilder();
     
     // optional int64 token = 9;
     boolean hasToken();
@@ -73,10 +73,9 @@ public final class NRVProtos {
     com.wajam.nrv.data.serialization.NRVProtos.StringPairOrBuilder getMetadataOrBuilder(
         int index);
     
-    // repeated bytes messageData = 12;
-    java.util.List<com.google.protobuf.ByteString> getMessageDataList();
-    int getMessageDataCount();
-    com.google.protobuf.ByteString getMessageData(int index);
+    // optional bytes messageData = 12;
+    boolean hasMessageData();
+    com.google.protobuf.ByteString getMessageData();
   }
   public static final class Message extends
       com.google.protobuf.GeneratedMessage
@@ -171,14 +170,36 @@ public final class NRVProtos {
       }
     }
     
-    // optional int32 method = 3;
+    // optional string method = 3;
     public static final int METHOD_FIELD_NUMBER = 3;
-    private int method_;
+    private java.lang.Object method_;
     public boolean hasMethod() {
       return ((bitField0_ & 0x00000004) == 0x00000004);
     }
-    public int getMethod() {
-      return method_;
+    public String getMethod() {
+      java.lang.Object ref = method_;
+      if (ref instanceof String) {
+        return (String) ref;
+      } else {
+        com.google.protobuf.ByteString bs = 
+            (com.google.protobuf.ByteString) ref;
+        String s = bs.toStringUtf8();
+        if (com.google.protobuf.Internal.isValidUtf8(bs)) {
+          method_ = s;
+        }
+        return s;
+      }
+    }
+    private com.google.protobuf.ByteString getMethodBytes() {
+      java.lang.Object ref = method_;
+      if (ref instanceof String) {
+        com.google.protobuf.ByteString b = 
+            com.google.protobuf.ByteString.copyFromUtf8((String) ref);
+        method_ = b;
+        return b;
+      } else {
+        return (com.google.protobuf.ByteString) ref;
+      }
     }
     
     // optional string path = 4;
@@ -256,16 +277,16 @@ public final class NRVProtos {
       return source_;
     }
     
-    // optional .com.wajam.nrv.data.serialization.Endpoint destination = 8;
+    // optional .com.wajam.nrv.data.serialization.Endpoints destination = 8;
     public static final int DESTINATION_FIELD_NUMBER = 8;
-    private com.wajam.nrv.data.serialization.NRVProtos.Endpoint destination_;
+    private com.wajam.nrv.data.serialization.NRVProtos.Endpoints destination_;
     public boolean hasDestination() {
       return ((bitField0_ & 0x00000100) == 0x00000100);
     }
-    public com.wajam.nrv.data.serialization.NRVProtos.Endpoint getDestination() {
+    public com.wajam.nrv.data.serialization.NRVProtos.Endpoints getDestination() {
       return destination_;
     }
-    public com.wajam.nrv.data.serialization.NRVProtos.EndpointOrBuilder getDestinationOrBuilder() {
+    public com.wajam.nrv.data.serialization.NRVProtos.EndpointsOrBuilder getDestinationOrBuilder() {
       return destination_;
     }
     
@@ -321,34 +342,30 @@ public final class NRVProtos {
       return metadata_.get(index);
     }
     
-    // repeated bytes messageData = 12;
+    // optional bytes messageData = 12;
     public static final int MESSAGEDATA_FIELD_NUMBER = 12;
-    private java.util.List<com.google.protobuf.ByteString> messageData_;
-    public java.util.List<com.google.protobuf.ByteString>
-        getMessageDataList() {
+    private com.google.protobuf.ByteString messageData_;
+    public boolean hasMessageData() {
+      return ((bitField0_ & 0x00000400) == 0x00000400);
+    }
+    public com.google.protobuf.ByteString getMessageData() {
       return messageData_;
-    }
-    public int getMessageDataCount() {
-      return messageData_.size();
-    }
-    public com.google.protobuf.ByteString getMessageData(int index) {
-      return messageData_.get(index);
     }
     
     private void initFields() {
       protocolName_ = "";
       serviceName_ = "";
-      method_ = 0;
+      method_ = "";
       path_ = "";
       rendezVousId_ = 0;
       error_ = com.google.protobuf.ByteString.EMPTY;
       function_ = 0;
       source_ = com.wajam.nrv.data.serialization.NRVProtos.Node.getDefaultInstance();
-      destination_ = com.wajam.nrv.data.serialization.NRVProtos.Endpoint.getDefaultInstance();
+      destination_ = com.wajam.nrv.data.serialization.NRVProtos.Endpoints.getDefaultInstance();
       token_ = 0L;
       parameters_ = java.util.Collections.emptyList();
       metadata_ = java.util.Collections.emptyList();
-      messageData_ = java.util.Collections.emptyList();;
+      messageData_ = com.google.protobuf.ByteString.EMPTY;
     }
     private byte memoizedIsInitialized = -1;
     public final boolean isInitialized() {
@@ -393,7 +410,7 @@ public final class NRVProtos {
         output.writeBytes(2, getServiceNameBytes());
       }
       if (((bitField0_ & 0x00000004) == 0x00000004)) {
-        output.writeInt32(3, method_);
+        output.writeBytes(3, getMethodBytes());
       }
       if (((bitField0_ & 0x00000008) == 0x00000008)) {
         output.writeBytes(4, getPathBytes());
@@ -419,8 +436,8 @@ public final class NRVProtos {
       for (int i = 0; i < metadata_.size(); i++) {
         output.writeMessage(11, metadata_.get(i));
       }
-      for (int i = 0; i < messageData_.size(); i++) {
-        output.writeBytes(12, messageData_.get(i));
+      if (((bitField0_ & 0x00000400) == 0x00000400)) {
+        output.writeBytes(12, messageData_);
       }
       if (((bitField0_ & 0x00000080) == 0x00000080)) {
         output.writeMessage(13, source_);
@@ -444,7 +461,7 @@ public final class NRVProtos {
       }
       if (((bitField0_ & 0x00000004) == 0x00000004)) {
         size += com.google.protobuf.CodedOutputStream
-          .computeInt32Size(3, method_);
+          .computeBytesSize(3, getMethodBytes());
       }
       if (((bitField0_ & 0x00000008) == 0x00000008)) {
         size += com.google.protobuf.CodedOutputStream
@@ -478,14 +495,9 @@ public final class NRVProtos {
         size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(11, metadata_.get(i));
       }
-      {
-        int dataSize = 0;
-        for (int i = 0; i < messageData_.size(); i++) {
-          dataSize += com.google.protobuf.CodedOutputStream
-            .computeBytesSizeNoTag(messageData_.get(i));
-        }
-        size += dataSize;
-        size += 1 * getMessageDataList().size();
+      if (((bitField0_ & 0x00000400) == 0x00000400)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBytesSize(12, messageData_);
       }
       if (((bitField0_ & 0x00000080) == 0x00000080)) {
         size += com.google.protobuf.CodedOutputStream
@@ -623,7 +635,7 @@ public final class NRVProtos {
         bitField0_ = (bitField0_ & ~0x00000001);
         serviceName_ = "";
         bitField0_ = (bitField0_ & ~0x00000002);
-        method_ = 0;
+        method_ = "";
         bitField0_ = (bitField0_ & ~0x00000004);
         path_ = "";
         bitField0_ = (bitField0_ & ~0x00000008);
@@ -640,7 +652,7 @@ public final class NRVProtos {
         }
         bitField0_ = (bitField0_ & ~0x00000080);
         if (destinationBuilder_ == null) {
-          destination_ = com.wajam.nrv.data.serialization.NRVProtos.Endpoint.getDefaultInstance();
+          destination_ = com.wajam.nrv.data.serialization.NRVProtos.Endpoints.getDefaultInstance();
         } else {
           destinationBuilder_.clear();
         }
@@ -659,7 +671,7 @@ public final class NRVProtos {
         } else {
           metadataBuilder_.clear();
         }
-        messageData_ = java.util.Collections.emptyList();;
+        messageData_ = com.google.protobuf.ByteString.EMPTY;
         bitField0_ = (bitField0_ & ~0x00001000);
         return this;
       }
@@ -765,9 +777,8 @@ public final class NRVProtos {
         } else {
           result.metadata_ = metadataBuilder_.build();
         }
-        if (((bitField0_ & 0x00001000) == 0x00001000)) {
-          messageData_ = java.util.Collections.unmodifiableList(messageData_);
-          bitField0_ = (bitField0_ & ~0x00001000);
+        if (((from_bitField0_ & 0x00001000) == 0x00001000)) {
+          to_bitField0_ |= 0x00000400;
         }
         result.messageData_ = messageData_;
         result.bitField0_ = to_bitField0_;
@@ -868,15 +879,8 @@ public final class NRVProtos {
             }
           }
         }
-        if (!other.messageData_.isEmpty()) {
-          if (messageData_.isEmpty()) {
-            messageData_ = other.messageData_;
-            bitField0_ = (bitField0_ & ~0x00001000);
-          } else {
-            ensureMessageDataIsMutable();
-            messageData_.addAll(other.messageData_);
-          }
-          onChanged();
+        if (other.hasMessageData()) {
+          setMessageData(other.getMessageData());
         }
         this.mergeUnknownFields(other.getUnknownFields());
         return this;
@@ -943,9 +947,9 @@ public final class NRVProtos {
               serviceName_ = input.readBytes();
               break;
             }
-            case 24: {
+            case 26: {
               bitField0_ |= 0x00000004;
-              method_ = input.readInt32();
+              method_ = input.readBytes();
               break;
             }
             case 34: {
@@ -969,7 +973,7 @@ public final class NRVProtos {
               break;
             }
             case 66: {
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Builder subBuilder = com.wajam.nrv.data.serialization.NRVProtos.Endpoint.newBuilder();
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Builder subBuilder = com.wajam.nrv.data.serialization.NRVProtos.Endpoints.newBuilder();
               if (hasDestination()) {
                 subBuilder.mergeFrom(getDestination());
               }
@@ -995,8 +999,8 @@ public final class NRVProtos {
               break;
             }
             case 98: {
-              ensureMessageDataIsMutable();
-              messageData_.add(input.readBytes());
+              bitField0_ |= 0x00001000;
+              messageData_ = input.readBytes();
               break;
             }
             case 106: {
@@ -1086,25 +1090,40 @@ public final class NRVProtos {
         onChanged();
       }
       
-      // optional int32 method = 3;
-      private int method_ ;
+      // optional string method = 3;
+      private java.lang.Object method_ = "";
       public boolean hasMethod() {
         return ((bitField0_ & 0x00000004) == 0x00000004);
       }
-      public int getMethod() {
-        return method_;
+      public String getMethod() {
+        java.lang.Object ref = method_;
+        if (!(ref instanceof String)) {
+          String s = ((com.google.protobuf.ByteString) ref).toStringUtf8();
+          method_ = s;
+          return s;
+        } else {
+          return (String) ref;
+        }
       }
-      public Builder setMethod(int value) {
-        bitField0_ |= 0x00000004;
+      public Builder setMethod(String value) {
+        if (value == null) {
+    throw new NullPointerException();
+  }
+  bitField0_ |= 0x00000004;
         method_ = value;
         onChanged();
         return this;
       }
       public Builder clearMethod() {
         bitField0_ = (bitField0_ & ~0x00000004);
-        method_ = 0;
+        method_ = getDefaultInstance().getMethod();
         onChanged();
         return this;
+      }
+      void setMethod(com.google.protobuf.ByteString value) {
+        bitField0_ |= 0x00000004;
+        method_ = value;
+        onChanged();
       }
       
       // optional string path = 4;
@@ -1299,21 +1318,21 @@ public final class NRVProtos {
         return sourceBuilder_;
       }
       
-      // optional .com.wajam.nrv.data.serialization.Endpoint destination = 8;
-      private com.wajam.nrv.data.serialization.NRVProtos.Endpoint destination_ = com.wajam.nrv.data.serialization.NRVProtos.Endpoint.getDefaultInstance();
+      // optional .com.wajam.nrv.data.serialization.Endpoints destination = 8;
+      private com.wajam.nrv.data.serialization.NRVProtos.Endpoints destination_ = com.wajam.nrv.data.serialization.NRVProtos.Endpoints.getDefaultInstance();
       private com.google.protobuf.SingleFieldBuilder<
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Builder, com.wajam.nrv.data.serialization.NRVProtos.EndpointOrBuilder> destinationBuilder_;
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Builder, com.wajam.nrv.data.serialization.NRVProtos.EndpointsOrBuilder> destinationBuilder_;
       public boolean hasDestination() {
         return ((bitField0_ & 0x00000100) == 0x00000100);
       }
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint getDestination() {
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints getDestination() {
         if (destinationBuilder_ == null) {
           return destination_;
         } else {
           return destinationBuilder_.getMessage();
         }
       }
-      public Builder setDestination(com.wajam.nrv.data.serialization.NRVProtos.Endpoint value) {
+      public Builder setDestination(com.wajam.nrv.data.serialization.NRVProtos.Endpoints value) {
         if (destinationBuilder_ == null) {
           if (value == null) {
             throw new NullPointerException();
@@ -1327,7 +1346,7 @@ public final class NRVProtos {
         return this;
       }
       public Builder setDestination(
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Builder builderForValue) {
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Builder builderForValue) {
         if (destinationBuilder_ == null) {
           destination_ = builderForValue.build();
           onChanged();
@@ -1337,12 +1356,12 @@ public final class NRVProtos {
         bitField0_ |= 0x00000100;
         return this;
       }
-      public Builder mergeDestination(com.wajam.nrv.data.serialization.NRVProtos.Endpoint value) {
+      public Builder mergeDestination(com.wajam.nrv.data.serialization.NRVProtos.Endpoints value) {
         if (destinationBuilder_ == null) {
           if (((bitField0_ & 0x00000100) == 0x00000100) &&
-              destination_ != com.wajam.nrv.data.serialization.NRVProtos.Endpoint.getDefaultInstance()) {
+              destination_ != com.wajam.nrv.data.serialization.NRVProtos.Endpoints.getDefaultInstance()) {
             destination_ =
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.newBuilder(destination_).mergeFrom(value).buildPartial();
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.newBuilder(destination_).mergeFrom(value).buildPartial();
           } else {
             destination_ = value;
           }
@@ -1355,7 +1374,7 @@ public final class NRVProtos {
       }
       public Builder clearDestination() {
         if (destinationBuilder_ == null) {
-          destination_ = com.wajam.nrv.data.serialization.NRVProtos.Endpoint.getDefaultInstance();
+          destination_ = com.wajam.nrv.data.serialization.NRVProtos.Endpoints.getDefaultInstance();
           onChanged();
         } else {
           destinationBuilder_.clear();
@@ -1363,12 +1382,12 @@ public final class NRVProtos {
         bitField0_ = (bitField0_ & ~0x00000100);
         return this;
       }
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Builder getDestinationBuilder() {
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Builder getDestinationBuilder() {
         bitField0_ |= 0x00000100;
         onChanged();
         return getDestinationFieldBuilder().getBuilder();
       }
-      public com.wajam.nrv.data.serialization.NRVProtos.EndpointOrBuilder getDestinationOrBuilder() {
+      public com.wajam.nrv.data.serialization.NRVProtos.EndpointsOrBuilder getDestinationOrBuilder() {
         if (destinationBuilder_ != null) {
           return destinationBuilder_.getMessageOrBuilder();
         } else {
@@ -1376,11 +1395,11 @@ public final class NRVProtos {
         }
       }
       private com.google.protobuf.SingleFieldBuilder<
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Builder, com.wajam.nrv.data.serialization.NRVProtos.EndpointOrBuilder> 
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Builder, com.wajam.nrv.data.serialization.NRVProtos.EndpointsOrBuilder> 
           getDestinationFieldBuilder() {
         if (destinationBuilder_ == null) {
           destinationBuilder_ = new com.google.protobuf.SingleFieldBuilder<
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Builder, com.wajam.nrv.data.serialization.NRVProtos.EndpointOrBuilder>(
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Builder, com.wajam.nrv.data.serialization.NRVProtos.EndpointsOrBuilder>(
                   destination_,
                   getParentForChildren(),
                   isClean());
@@ -1782,53 +1801,26 @@ public final class NRVProtos {
         return metadataBuilder_;
       }
       
-      // repeated bytes messageData = 12;
-      private java.util.List<com.google.protobuf.ByteString> messageData_ = java.util.Collections.emptyList();;
-      private void ensureMessageDataIsMutable() {
-        if (!((bitField0_ & 0x00001000) == 0x00001000)) {
-          messageData_ = new java.util.ArrayList<com.google.protobuf.ByteString>(messageData_);
-          bitField0_ |= 0x00001000;
-         }
+      // optional bytes messageData = 12;
+      private com.google.protobuf.ByteString messageData_ = com.google.protobuf.ByteString.EMPTY;
+      public boolean hasMessageData() {
+        return ((bitField0_ & 0x00001000) == 0x00001000);
       }
-      public java.util.List<com.google.protobuf.ByteString>
-          getMessageDataList() {
-        return java.util.Collections.unmodifiableList(messageData_);
+      public com.google.protobuf.ByteString getMessageData() {
+        return messageData_;
       }
-      public int getMessageDataCount() {
-        return messageData_.size();
-      }
-      public com.google.protobuf.ByteString getMessageData(int index) {
-        return messageData_.get(index);
-      }
-      public Builder setMessageData(
-          int index, com.google.protobuf.ByteString value) {
+      public Builder setMessageData(com.google.protobuf.ByteString value) {
         if (value == null) {
     throw new NullPointerException();
   }
-  ensureMessageDataIsMutable();
-        messageData_.set(index, value);
-        onChanged();
-        return this;
-      }
-      public Builder addMessageData(com.google.protobuf.ByteString value) {
-        if (value == null) {
-    throw new NullPointerException();
-  }
-  ensureMessageDataIsMutable();
-        messageData_.add(value);
-        onChanged();
-        return this;
-      }
-      public Builder addAllMessageData(
-          java.lang.Iterable<? extends com.google.protobuf.ByteString> values) {
-        ensureMessageDataIsMutable();
-        super.addAll(values, messageData_);
+  bitField0_ |= 0x00001000;
+        messageData_ = value;
         onChanged();
         return this;
       }
       public Builder clearMessageData() {
-        messageData_ = java.util.Collections.emptyList();;
         bitField0_ = (bitField0_ & ~0x00001000);
+        messageData_ = getDefaultInstance().getMessageData();
         onChanged();
         return this;
       }
@@ -1844,45 +1836,45 @@ public final class NRVProtos {
     // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.Message)
   }
   
-  public interface EndpointOrBuilder
+  public interface EndpointsOrBuilder
       extends com.google.protobuf.MessageOrBuilder {
     
-    // repeated .com.wajam.nrv.data.serialization.Endpoint.Shard shards = 1;
-    java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard> 
+    // repeated .com.wajam.nrv.data.serialization.Endpoints.Shard shards = 1;
+    java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard> 
         getShardsList();
-    com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard getShards(int index);
+    com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard getShards(int index);
     int getShardsCount();
-    java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ShardOrBuilder> 
+    java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ShardOrBuilder> 
         getShardsOrBuilderList();
-    com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ShardOrBuilder getShardsOrBuilder(
+    com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ShardOrBuilder getShardsOrBuilder(
         int index);
   }
-  public static final class Endpoint extends
+  public static final class Endpoints extends
       com.google.protobuf.GeneratedMessage
-      implements EndpointOrBuilder {
-    // Use Endpoint.newBuilder() to construct.
-    private Endpoint(Builder builder) {
+      implements EndpointsOrBuilder {
+    // Use Endpoints.newBuilder() to construct.
+    private Endpoints(Builder builder) {
       super(builder);
     }
-    private Endpoint(boolean noInit) {}
+    private Endpoints(boolean noInit) {}
     
-    private static final Endpoint defaultInstance;
-    public static Endpoint getDefaultInstance() {
+    private static final Endpoints defaultInstance;
+    public static Endpoints getDefaultInstance() {
       return defaultInstance;
     }
     
-    public Endpoint getDefaultInstanceForType() {
+    public Endpoints getDefaultInstanceForType() {
       return defaultInstance;
     }
     
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_descriptor;
+      return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_descriptor;
     }
     
     protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_fieldAccessorTable;
+      return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_fieldAccessorTable;
     }
     
     public interface ShardOrBuilder
@@ -1892,14 +1884,14 @@ public final class NRVProtos {
       boolean hasToken();
       long getToken();
       
-      // repeated .com.wajam.nrv.data.serialization.Endpoint.Replica replicas = 2;
-      java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica> 
+      // repeated .com.wajam.nrv.data.serialization.Endpoints.Replica replicas = 2;
+      java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica> 
           getReplicasList();
-      com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica getReplicas(int index);
+      com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica getReplicas(int index);
       int getReplicasCount();
-      java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ReplicaOrBuilder> 
+      java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ReplicaOrBuilder> 
           getReplicasOrBuilderList();
-      com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ReplicaOrBuilder getReplicasOrBuilder(
+      com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ReplicaOrBuilder getReplicasOrBuilder(
           int index);
     }
     public static final class Shard extends
@@ -1922,12 +1914,12 @@ public final class NRVProtos {
       
       public static final com.google.protobuf.Descriptors.Descriptor
           getDescriptor() {
-        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_Shard_descriptor;
+        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_Shard_descriptor;
       }
       
       protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
           internalGetFieldAccessorTable() {
-        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_Shard_fieldAccessorTable;
+        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_Shard_fieldAccessorTable;
       }
       
       private int bitField0_;
@@ -1941,23 +1933,23 @@ public final class NRVProtos {
         return token_;
       }
       
-      // repeated .com.wajam.nrv.data.serialization.Endpoint.Replica replicas = 2;
+      // repeated .com.wajam.nrv.data.serialization.Endpoints.Replica replicas = 2;
       public static final int REPLICAS_FIELD_NUMBER = 2;
-      private java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica> replicas_;
-      public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica> getReplicasList() {
+      private java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica> replicas_;
+      public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica> getReplicasList() {
         return replicas_;
       }
-      public java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ReplicaOrBuilder> 
+      public java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ReplicaOrBuilder> 
           getReplicasOrBuilderList() {
         return replicas_;
       }
       public int getReplicasCount() {
         return replicas_.size();
       }
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica getReplicas(int index) {
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica getReplicas(int index) {
         return replicas_.get(index);
       }
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ReplicaOrBuilder getReplicasOrBuilder(
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ReplicaOrBuilder getReplicasOrBuilder(
           int index) {
         return replicas_.get(index);
       }
@@ -2019,41 +2011,41 @@ public final class NRVProtos {
         return super.writeReplace();
       }
       
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard parseFrom(
           com.google.protobuf.ByteString data)
           throws com.google.protobuf.InvalidProtocolBufferException {
         return newBuilder().mergeFrom(data).buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard parseFrom(
           com.google.protobuf.ByteString data,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws com.google.protobuf.InvalidProtocolBufferException {
         return newBuilder().mergeFrom(data, extensionRegistry)
                  .buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard parseFrom(byte[] data)
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard parseFrom(byte[] data)
           throws com.google.protobuf.InvalidProtocolBufferException {
         return newBuilder().mergeFrom(data).buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard parseFrom(
           byte[] data,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws com.google.protobuf.InvalidProtocolBufferException {
         return newBuilder().mergeFrom(data, extensionRegistry)
                  .buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard parseFrom(java.io.InputStream input)
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard parseFrom(java.io.InputStream input)
           throws java.io.IOException {
         return newBuilder().mergeFrom(input).buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard parseFrom(
           java.io.InputStream input,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws java.io.IOException {
         return newBuilder().mergeFrom(input, extensionRegistry)
                  .buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard parseDelimitedFrom(java.io.InputStream input)
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard parseDelimitedFrom(java.io.InputStream input)
           throws java.io.IOException {
         Builder builder = newBuilder();
         if (builder.mergeDelimitedFrom(input)) {
@@ -2062,7 +2054,7 @@ public final class NRVProtos {
           return null;
         }
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard parseDelimitedFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard parseDelimitedFrom(
           java.io.InputStream input,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws java.io.IOException {
@@ -2073,12 +2065,12 @@ public final class NRVProtos {
           return null;
         }
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard parseFrom(
           com.google.protobuf.CodedInputStream input)
           throws java.io.IOException {
         return newBuilder().mergeFrom(input).buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard parseFrom(
           com.google.protobuf.CodedInputStream input,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws java.io.IOException {
@@ -2088,7 +2080,7 @@ public final class NRVProtos {
       
       public static Builder newBuilder() { return Builder.create(); }
       public Builder newBuilderForType() { return newBuilder(); }
-      public static Builder newBuilder(com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard prototype) {
+      public static Builder newBuilder(com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard prototype) {
         return newBuilder().mergeFrom(prototype);
       }
       public Builder toBuilder() { return newBuilder(this); }
@@ -2101,18 +2093,18 @@ public final class NRVProtos {
       }
       public static final class Builder extends
           com.google.protobuf.GeneratedMessage.Builder<Builder>
-         implements com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ShardOrBuilder {
+         implements com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ShardOrBuilder {
         public static final com.google.protobuf.Descriptors.Descriptor
             getDescriptor() {
-          return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_Shard_descriptor;
+          return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_Shard_descriptor;
         }
         
         protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
             internalGetFieldAccessorTable() {
-          return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_Shard_fieldAccessorTable;
+          return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_Shard_fieldAccessorTable;
         }
         
-        // Construct using com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.newBuilder()
+        // Construct using com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.newBuilder()
         private Builder() {
           maybeForceBuilderInitialization();
         }
@@ -2149,24 +2141,24 @@ public final class NRVProtos {
         
         public com.google.protobuf.Descriptors.Descriptor
             getDescriptorForType() {
-          return com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.getDescriptor();
+          return com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.getDescriptor();
         }
         
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard getDefaultInstanceForType() {
-          return com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.getDefaultInstance();
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard getDefaultInstanceForType() {
+          return com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.getDefaultInstance();
         }
         
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard build() {
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard result = buildPartial();
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard build() {
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard result = buildPartial();
           if (!result.isInitialized()) {
             throw newUninitializedMessageException(result);
           }
           return result;
         }
         
-        private com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard buildParsed()
+        private com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard buildParsed()
             throws com.google.protobuf.InvalidProtocolBufferException {
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard result = buildPartial();
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard result = buildPartial();
           if (!result.isInitialized()) {
             throw newUninitializedMessageException(
               result).asInvalidProtocolBufferException();
@@ -2174,8 +2166,8 @@ public final class NRVProtos {
           return result;
         }
         
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard buildPartial() {
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard result = new com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard(this);
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard buildPartial() {
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard result = new com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard(this);
           int from_bitField0_ = bitField0_;
           int to_bitField0_ = 0;
           if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
@@ -2197,16 +2189,16 @@ public final class NRVProtos {
         }
         
         public Builder mergeFrom(com.google.protobuf.Message other) {
-          if (other instanceof com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard) {
-            return mergeFrom((com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard)other);
+          if (other instanceof com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard) {
+            return mergeFrom((com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard)other);
           } else {
             super.mergeFrom(other);
             return this;
           }
         }
         
-        public Builder mergeFrom(com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard other) {
-          if (other == com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.getDefaultInstance()) return this;
+        public Builder mergeFrom(com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard other) {
+          if (other == com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.getDefaultInstance()) return this;
           if (other.hasToken()) {
             setToken(other.getToken());
           }
@@ -2279,7 +2271,7 @@ public final class NRVProtos {
                 break;
               }
               case 18: {
-                com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder subBuilder = com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.newBuilder();
+                com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder subBuilder = com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.newBuilder();
                 input.readMessage(subBuilder, extensionRegistry);
                 addReplicas(subBuilder.buildPartial());
                 break;
@@ -2311,20 +2303,20 @@ public final class NRVProtos {
           return this;
         }
         
-        // repeated .com.wajam.nrv.data.serialization.Endpoint.Replica replicas = 2;
-        private java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica> replicas_ =
+        // repeated .com.wajam.nrv.data.serialization.Endpoints.Replica replicas = 2;
+        private java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica> replicas_ =
           java.util.Collections.emptyList();
         private void ensureReplicasIsMutable() {
           if (!((bitField0_ & 0x00000002) == 0x00000002)) {
-            replicas_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica>(replicas_);
+            replicas_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica>(replicas_);
             bitField0_ |= 0x00000002;
            }
         }
         
         private com.google.protobuf.RepeatedFieldBuilder<
-            com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ReplicaOrBuilder> replicasBuilder_;
+            com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ReplicaOrBuilder> replicasBuilder_;
         
-        public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica> getReplicasList() {
+        public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica> getReplicasList() {
           if (replicasBuilder_ == null) {
             return java.util.Collections.unmodifiableList(replicas_);
           } else {
@@ -2338,7 +2330,7 @@ public final class NRVProtos {
             return replicasBuilder_.getCount();
           }
         }
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica getReplicas(int index) {
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica getReplicas(int index) {
           if (replicasBuilder_ == null) {
             return replicas_.get(index);
           } else {
@@ -2346,7 +2338,7 @@ public final class NRVProtos {
           }
         }
         public Builder setReplicas(
-            int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica value) {
+            int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica value) {
           if (replicasBuilder_ == null) {
             if (value == null) {
               throw new NullPointerException();
@@ -2360,7 +2352,7 @@ public final class NRVProtos {
           return this;
         }
         public Builder setReplicas(
-            int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder builderForValue) {
+            int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder builderForValue) {
           if (replicasBuilder_ == null) {
             ensureReplicasIsMutable();
             replicas_.set(index, builderForValue.build());
@@ -2370,7 +2362,7 @@ public final class NRVProtos {
           }
           return this;
         }
-        public Builder addReplicas(com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica value) {
+        public Builder addReplicas(com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica value) {
           if (replicasBuilder_ == null) {
             if (value == null) {
               throw new NullPointerException();
@@ -2384,7 +2376,7 @@ public final class NRVProtos {
           return this;
         }
         public Builder addReplicas(
-            int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica value) {
+            int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica value) {
           if (replicasBuilder_ == null) {
             if (value == null) {
               throw new NullPointerException();
@@ -2398,7 +2390,7 @@ public final class NRVProtos {
           return this;
         }
         public Builder addReplicas(
-            com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder builderForValue) {
+            com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder builderForValue) {
           if (replicasBuilder_ == null) {
             ensureReplicasIsMutable();
             replicas_.add(builderForValue.build());
@@ -2409,7 +2401,7 @@ public final class NRVProtos {
           return this;
         }
         public Builder addReplicas(
-            int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder builderForValue) {
+            int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder builderForValue) {
           if (replicasBuilder_ == null) {
             ensureReplicasIsMutable();
             replicas_.add(index, builderForValue.build());
@@ -2420,7 +2412,7 @@ public final class NRVProtos {
           return this;
         }
         public Builder addAllReplicas(
-            java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica> values) {
+            java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica> values) {
           if (replicasBuilder_ == null) {
             ensureReplicasIsMutable();
             super.addAll(values, replicas_);
@@ -2450,18 +2442,18 @@ public final class NRVProtos {
           }
           return this;
         }
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder getReplicasBuilder(
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder getReplicasBuilder(
             int index) {
           return getReplicasFieldBuilder().getBuilder(index);
         }
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ReplicaOrBuilder getReplicasOrBuilder(
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ReplicaOrBuilder getReplicasOrBuilder(
             int index) {
           if (replicasBuilder_ == null) {
             return replicas_.get(index);  } else {
             return replicasBuilder_.getMessageOrBuilder(index);
           }
         }
-        public java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ReplicaOrBuilder> 
+        public java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ReplicaOrBuilder> 
              getReplicasOrBuilderList() {
           if (replicasBuilder_ != null) {
             return replicasBuilder_.getMessageOrBuilderList();
@@ -2469,25 +2461,25 @@ public final class NRVProtos {
             return java.util.Collections.unmodifiableList(replicas_);
           }
         }
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder addReplicasBuilder() {
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder addReplicasBuilder() {
           return getReplicasFieldBuilder().addBuilder(
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.getDefaultInstance());
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.getDefaultInstance());
         }
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder addReplicasBuilder(
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder addReplicasBuilder(
             int index) {
           return getReplicasFieldBuilder().addBuilder(
-              index, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.getDefaultInstance());
+              index, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.getDefaultInstance());
         }
-        public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder> 
+        public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder> 
              getReplicasBuilderList() {
           return getReplicasFieldBuilder().getBuilderList();
         }
         private com.google.protobuf.RepeatedFieldBuilder<
-            com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ReplicaOrBuilder> 
+            com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ReplicaOrBuilder> 
             getReplicasFieldBuilder() {
           if (replicasBuilder_ == null) {
             replicasBuilder_ = new com.google.protobuf.RepeatedFieldBuilder<
-                com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ReplicaOrBuilder>(
+                com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ReplicaOrBuilder>(
                     replicas_,
                     ((bitField0_ & 0x00000002) == 0x00000002),
                     getParentForChildren(),
@@ -2497,7 +2489,7 @@ public final class NRVProtos {
           return replicasBuilder_;
         }
         
-        // @@protoc_insertion_point(builder_scope:com.wajam.nrv.data.serialization.Endpoint.Shard)
+        // @@protoc_insertion_point(builder_scope:com.wajam.nrv.data.serialization.Endpoints.Shard)
       }
       
       static {
@@ -2505,7 +2497,7 @@ public final class NRVProtos {
         defaultInstance.initFields();
       }
       
-      // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.Endpoint.Shard)
+      // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.Endpoints.Shard)
     }
     
     public interface ReplicaOrBuilder
@@ -2544,12 +2536,12 @@ public final class NRVProtos {
       
       public static final com.google.protobuf.Descriptors.Descriptor
           getDescriptor() {
-        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_Replica_descriptor;
+        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_Replica_descriptor;
       }
       
       protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
           internalGetFieldAccessorTable() {
-        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_Replica_fieldAccessorTable;
+        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_Replica_fieldAccessorTable;
       }
       
       private int bitField0_;
@@ -2651,41 +2643,41 @@ public final class NRVProtos {
         return super.writeReplace();
       }
       
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica parseFrom(
           com.google.protobuf.ByteString data)
           throws com.google.protobuf.InvalidProtocolBufferException {
         return newBuilder().mergeFrom(data).buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica parseFrom(
           com.google.protobuf.ByteString data,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws com.google.protobuf.InvalidProtocolBufferException {
         return newBuilder().mergeFrom(data, extensionRegistry)
                  .buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica parseFrom(byte[] data)
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica parseFrom(byte[] data)
           throws com.google.protobuf.InvalidProtocolBufferException {
         return newBuilder().mergeFrom(data).buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica parseFrom(
           byte[] data,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws com.google.protobuf.InvalidProtocolBufferException {
         return newBuilder().mergeFrom(data, extensionRegistry)
                  .buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica parseFrom(java.io.InputStream input)
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica parseFrom(java.io.InputStream input)
           throws java.io.IOException {
         return newBuilder().mergeFrom(input).buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica parseFrom(
           java.io.InputStream input,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws java.io.IOException {
         return newBuilder().mergeFrom(input, extensionRegistry)
                  .buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica parseDelimitedFrom(java.io.InputStream input)
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica parseDelimitedFrom(java.io.InputStream input)
           throws java.io.IOException {
         Builder builder = newBuilder();
         if (builder.mergeDelimitedFrom(input)) {
@@ -2694,7 +2686,7 @@ public final class NRVProtos {
           return null;
         }
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica parseDelimitedFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica parseDelimitedFrom(
           java.io.InputStream input,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws java.io.IOException {
@@ -2705,12 +2697,12 @@ public final class NRVProtos {
           return null;
         }
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica parseFrom(
           com.google.protobuf.CodedInputStream input)
           throws java.io.IOException {
         return newBuilder().mergeFrom(input).buildParsed();
       }
-      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica parseFrom(
+      public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica parseFrom(
           com.google.protobuf.CodedInputStream input,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws java.io.IOException {
@@ -2720,7 +2712,7 @@ public final class NRVProtos {
       
       public static Builder newBuilder() { return Builder.create(); }
       public Builder newBuilderForType() { return newBuilder(); }
-      public static Builder newBuilder(com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica prototype) {
+      public static Builder newBuilder(com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica prototype) {
         return newBuilder().mergeFrom(prototype);
       }
       public Builder toBuilder() { return newBuilder(this); }
@@ -2733,18 +2725,18 @@ public final class NRVProtos {
       }
       public static final class Builder extends
           com.google.protobuf.GeneratedMessage.Builder<Builder>
-         implements com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ReplicaOrBuilder {
+         implements com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ReplicaOrBuilder {
         public static final com.google.protobuf.Descriptors.Descriptor
             getDescriptor() {
-          return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_Replica_descriptor;
+          return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_Replica_descriptor;
         }
         
         protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
             internalGetFieldAccessorTable() {
-          return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_Replica_fieldAccessorTable;
+          return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_Replica_fieldAccessorTable;
         }
         
-        // Construct using com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.newBuilder()
+        // Construct using com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.newBuilder()
         private Builder() {
           maybeForceBuilderInitialization();
         }
@@ -2783,24 +2775,24 @@ public final class NRVProtos {
         
         public com.google.protobuf.Descriptors.Descriptor
             getDescriptorForType() {
-          return com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.getDescriptor();
+          return com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.getDescriptor();
         }
         
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica getDefaultInstanceForType() {
-          return com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.getDefaultInstance();
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica getDefaultInstanceForType() {
+          return com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.getDefaultInstance();
         }
         
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica build() {
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica result = buildPartial();
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica build() {
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica result = buildPartial();
           if (!result.isInitialized()) {
             throw newUninitializedMessageException(result);
           }
           return result;
         }
         
-        private com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica buildParsed()
+        private com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica buildParsed()
             throws com.google.protobuf.InvalidProtocolBufferException {
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica result = buildPartial();
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica result = buildPartial();
           if (!result.isInitialized()) {
             throw newUninitializedMessageException(
               result).asInvalidProtocolBufferException();
@@ -2808,8 +2800,8 @@ public final class NRVProtos {
           return result;
         }
         
-        public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica buildPartial() {
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica result = new com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica(this);
+        public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica buildPartial() {
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica result = new com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica(this);
           int from_bitField0_ = bitField0_;
           int to_bitField0_ = 0;
           if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
@@ -2834,16 +2826,16 @@ public final class NRVProtos {
         }
         
         public Builder mergeFrom(com.google.protobuf.Message other) {
-          if (other instanceof com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica) {
-            return mergeFrom((com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica)other);
+          if (other instanceof com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica) {
+            return mergeFrom((com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica)other);
           } else {
             super.mergeFrom(other);
             return this;
           }
         }
         
-        public Builder mergeFrom(com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica other) {
-          if (other == com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.getDefaultInstance()) return this;
+        public Builder mergeFrom(com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica other) {
+          if (other == com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.getDefaultInstance()) return this;
           if (other.hasToken()) {
             setToken(other.getToken());
           }
@@ -3047,7 +3039,7 @@ public final class NRVProtos {
           return this;
         }
         
-        // @@protoc_insertion_point(builder_scope:com.wajam.nrv.data.serialization.Endpoint.Replica)
+        // @@protoc_insertion_point(builder_scope:com.wajam.nrv.data.serialization.Endpoints.Replica)
       }
       
       static {
@@ -3055,26 +3047,26 @@ public final class NRVProtos {
         defaultInstance.initFields();
       }
       
-      // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.Endpoint.Replica)
+      // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.Endpoints.Replica)
     }
     
-    // repeated .com.wajam.nrv.data.serialization.Endpoint.Shard shards = 1;
+    // repeated .com.wajam.nrv.data.serialization.Endpoints.Shard shards = 1;
     public static final int SHARDS_FIELD_NUMBER = 1;
-    private java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard> shards_;
-    public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard> getShardsList() {
+    private java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard> shards_;
+    public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard> getShardsList() {
       return shards_;
     }
-    public java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ShardOrBuilder> 
+    public java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ShardOrBuilder> 
         getShardsOrBuilderList() {
       return shards_;
     }
     public int getShardsCount() {
       return shards_.size();
     }
-    public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard getShards(int index) {
+    public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard getShards(int index) {
       return shards_.get(index);
     }
-    public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ShardOrBuilder getShardsOrBuilder(
+    public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ShardOrBuilder getShardsOrBuilder(
         int index) {
       return shards_.get(index);
     }
@@ -3128,41 +3120,41 @@ public final class NRVProtos {
       return super.writeReplace();
     }
     
-    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint parseFrom(
+    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints parseFrom(
         com.google.protobuf.ByteString data)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return newBuilder().mergeFrom(data).buildParsed();
     }
-    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint parseFrom(
+    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints parseFrom(
         com.google.protobuf.ByteString data,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return newBuilder().mergeFrom(data, extensionRegistry)
                .buildParsed();
     }
-    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint parseFrom(byte[] data)
+    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints parseFrom(byte[] data)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return newBuilder().mergeFrom(data).buildParsed();
     }
-    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint parseFrom(
+    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints parseFrom(
         byte[] data,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return newBuilder().mergeFrom(data, extensionRegistry)
                .buildParsed();
     }
-    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint parseFrom(java.io.InputStream input)
+    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints parseFrom(java.io.InputStream input)
         throws java.io.IOException {
       return newBuilder().mergeFrom(input).buildParsed();
     }
-    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint parseFrom(
+    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints parseFrom(
         java.io.InputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
       return newBuilder().mergeFrom(input, extensionRegistry)
                .buildParsed();
     }
-    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint parseDelimitedFrom(java.io.InputStream input)
+    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints parseDelimitedFrom(java.io.InputStream input)
         throws java.io.IOException {
       Builder builder = newBuilder();
       if (builder.mergeDelimitedFrom(input)) {
@@ -3171,7 +3163,7 @@ public final class NRVProtos {
         return null;
       }
     }
-    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint parseDelimitedFrom(
+    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints parseDelimitedFrom(
         java.io.InputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
@@ -3182,12 +3174,12 @@ public final class NRVProtos {
         return null;
       }
     }
-    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint parseFrom(
+    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints parseFrom(
         com.google.protobuf.CodedInputStream input)
         throws java.io.IOException {
       return newBuilder().mergeFrom(input).buildParsed();
     }
-    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoint parseFrom(
+    public static com.wajam.nrv.data.serialization.NRVProtos.Endpoints parseFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
@@ -3197,7 +3189,7 @@ public final class NRVProtos {
     
     public static Builder newBuilder() { return Builder.create(); }
     public Builder newBuilderForType() { return newBuilder(); }
-    public static Builder newBuilder(com.wajam.nrv.data.serialization.NRVProtos.Endpoint prototype) {
+    public static Builder newBuilder(com.wajam.nrv.data.serialization.NRVProtos.Endpoints prototype) {
       return newBuilder().mergeFrom(prototype);
     }
     public Builder toBuilder() { return newBuilder(this); }
@@ -3210,18 +3202,18 @@ public final class NRVProtos {
     }
     public static final class Builder extends
         com.google.protobuf.GeneratedMessage.Builder<Builder>
-       implements com.wajam.nrv.data.serialization.NRVProtos.EndpointOrBuilder {
+       implements com.wajam.nrv.data.serialization.NRVProtos.EndpointsOrBuilder {
       public static final com.google.protobuf.Descriptors.Descriptor
           getDescriptor() {
-        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_descriptor;
+        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_descriptor;
       }
       
       protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
           internalGetFieldAccessorTable() {
-        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoint_fieldAccessorTable;
+        return com.wajam.nrv.data.serialization.NRVProtos.internal_static_com_wajam_nrv_data_serialization_Endpoints_fieldAccessorTable;
       }
       
-      // Construct using com.wajam.nrv.data.serialization.NRVProtos.Endpoint.newBuilder()
+      // Construct using com.wajam.nrv.data.serialization.NRVProtos.Endpoints.newBuilder()
       private Builder() {
         maybeForceBuilderInitialization();
       }
@@ -3256,24 +3248,24 @@ public final class NRVProtos {
       
       public com.google.protobuf.Descriptors.Descriptor
           getDescriptorForType() {
-        return com.wajam.nrv.data.serialization.NRVProtos.Endpoint.getDescriptor();
+        return com.wajam.nrv.data.serialization.NRVProtos.Endpoints.getDescriptor();
       }
       
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint getDefaultInstanceForType() {
-        return com.wajam.nrv.data.serialization.NRVProtos.Endpoint.getDefaultInstance();
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints getDefaultInstanceForType() {
+        return com.wajam.nrv.data.serialization.NRVProtos.Endpoints.getDefaultInstance();
       }
       
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint build() {
-        com.wajam.nrv.data.serialization.NRVProtos.Endpoint result = buildPartial();
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints build() {
+        com.wajam.nrv.data.serialization.NRVProtos.Endpoints result = buildPartial();
         if (!result.isInitialized()) {
           throw newUninitializedMessageException(result);
         }
         return result;
       }
       
-      private com.wajam.nrv.data.serialization.NRVProtos.Endpoint buildParsed()
+      private com.wajam.nrv.data.serialization.NRVProtos.Endpoints buildParsed()
           throws com.google.protobuf.InvalidProtocolBufferException {
-        com.wajam.nrv.data.serialization.NRVProtos.Endpoint result = buildPartial();
+        com.wajam.nrv.data.serialization.NRVProtos.Endpoints result = buildPartial();
         if (!result.isInitialized()) {
           throw newUninitializedMessageException(
             result).asInvalidProtocolBufferException();
@@ -3281,8 +3273,8 @@ public final class NRVProtos {
         return result;
       }
       
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint buildPartial() {
-        com.wajam.nrv.data.serialization.NRVProtos.Endpoint result = new com.wajam.nrv.data.serialization.NRVProtos.Endpoint(this);
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints buildPartial() {
+        com.wajam.nrv.data.serialization.NRVProtos.Endpoints result = new com.wajam.nrv.data.serialization.NRVProtos.Endpoints(this);
         int from_bitField0_ = bitField0_;
         if (shardsBuilder_ == null) {
           if (((bitField0_ & 0x00000001) == 0x00000001)) {
@@ -3298,16 +3290,16 @@ public final class NRVProtos {
       }
       
       public Builder mergeFrom(com.google.protobuf.Message other) {
-        if (other instanceof com.wajam.nrv.data.serialization.NRVProtos.Endpoint) {
-          return mergeFrom((com.wajam.nrv.data.serialization.NRVProtos.Endpoint)other);
+        if (other instanceof com.wajam.nrv.data.serialization.NRVProtos.Endpoints) {
+          return mergeFrom((com.wajam.nrv.data.serialization.NRVProtos.Endpoints)other);
         } else {
           super.mergeFrom(other);
           return this;
         }
       }
       
-      public Builder mergeFrom(com.wajam.nrv.data.serialization.NRVProtos.Endpoint other) {
-        if (other == com.wajam.nrv.data.serialization.NRVProtos.Endpoint.getDefaultInstance()) return this;
+      public Builder mergeFrom(com.wajam.nrv.data.serialization.NRVProtos.Endpoints other) {
+        if (other == com.wajam.nrv.data.serialization.NRVProtos.Endpoints.getDefaultInstance()) return this;
         if (shardsBuilder_ == null) {
           if (!other.shards_.isEmpty()) {
             if (shards_.isEmpty()) {
@@ -3372,7 +3364,7 @@ public final class NRVProtos {
               break;
             }
             case 10: {
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder subBuilder = com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.newBuilder();
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder subBuilder = com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.newBuilder();
               input.readMessage(subBuilder, extensionRegistry);
               addShards(subBuilder.buildPartial());
               break;
@@ -3383,20 +3375,20 @@ public final class NRVProtos {
       
       private int bitField0_;
       
-      // repeated .com.wajam.nrv.data.serialization.Endpoint.Shard shards = 1;
-      private java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard> shards_ =
+      // repeated .com.wajam.nrv.data.serialization.Endpoints.Shard shards = 1;
+      private java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard> shards_ =
         java.util.Collections.emptyList();
       private void ensureShardsIsMutable() {
         if (!((bitField0_ & 0x00000001) == 0x00000001)) {
-          shards_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard>(shards_);
+          shards_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard>(shards_);
           bitField0_ |= 0x00000001;
          }
       }
       
       private com.google.protobuf.RepeatedFieldBuilder<
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ShardOrBuilder> shardsBuilder_;
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ShardOrBuilder> shardsBuilder_;
       
-      public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard> getShardsList() {
+      public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard> getShardsList() {
         if (shardsBuilder_ == null) {
           return java.util.Collections.unmodifiableList(shards_);
         } else {
@@ -3410,7 +3402,7 @@ public final class NRVProtos {
           return shardsBuilder_.getCount();
         }
       }
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard getShards(int index) {
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard getShards(int index) {
         if (shardsBuilder_ == null) {
           return shards_.get(index);
         } else {
@@ -3418,7 +3410,7 @@ public final class NRVProtos {
         }
       }
       public Builder setShards(
-          int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard value) {
+          int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard value) {
         if (shardsBuilder_ == null) {
           if (value == null) {
             throw new NullPointerException();
@@ -3432,7 +3424,7 @@ public final class NRVProtos {
         return this;
       }
       public Builder setShards(
-          int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder builderForValue) {
+          int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder builderForValue) {
         if (shardsBuilder_ == null) {
           ensureShardsIsMutable();
           shards_.set(index, builderForValue.build());
@@ -3442,7 +3434,7 @@ public final class NRVProtos {
         }
         return this;
       }
-      public Builder addShards(com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard value) {
+      public Builder addShards(com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard value) {
         if (shardsBuilder_ == null) {
           if (value == null) {
             throw new NullPointerException();
@@ -3456,7 +3448,7 @@ public final class NRVProtos {
         return this;
       }
       public Builder addShards(
-          int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard value) {
+          int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard value) {
         if (shardsBuilder_ == null) {
           if (value == null) {
             throw new NullPointerException();
@@ -3470,7 +3462,7 @@ public final class NRVProtos {
         return this;
       }
       public Builder addShards(
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder builderForValue) {
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder builderForValue) {
         if (shardsBuilder_ == null) {
           ensureShardsIsMutable();
           shards_.add(builderForValue.build());
@@ -3481,7 +3473,7 @@ public final class NRVProtos {
         return this;
       }
       public Builder addShards(
-          int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder builderForValue) {
+          int index, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder builderForValue) {
         if (shardsBuilder_ == null) {
           ensureShardsIsMutable();
           shards_.add(index, builderForValue.build());
@@ -3492,7 +3484,7 @@ public final class NRVProtos {
         return this;
       }
       public Builder addAllShards(
-          java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard> values) {
+          java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard> values) {
         if (shardsBuilder_ == null) {
           ensureShardsIsMutable();
           super.addAll(values, shards_);
@@ -3522,18 +3514,18 @@ public final class NRVProtos {
         }
         return this;
       }
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder getShardsBuilder(
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder getShardsBuilder(
           int index) {
         return getShardsFieldBuilder().getBuilder(index);
       }
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ShardOrBuilder getShardsOrBuilder(
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ShardOrBuilder getShardsOrBuilder(
           int index) {
         if (shardsBuilder_ == null) {
           return shards_.get(index);  } else {
           return shardsBuilder_.getMessageOrBuilder(index);
         }
       }
-      public java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ShardOrBuilder> 
+      public java.util.List<? extends com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ShardOrBuilder> 
            getShardsOrBuilderList() {
         if (shardsBuilder_ != null) {
           return shardsBuilder_.getMessageOrBuilderList();
@@ -3541,25 +3533,25 @@ public final class NRVProtos {
           return java.util.Collections.unmodifiableList(shards_);
         }
       }
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder addShardsBuilder() {
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder addShardsBuilder() {
         return getShardsFieldBuilder().addBuilder(
-            com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.getDefaultInstance());
+            com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.getDefaultInstance());
       }
-      public com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder addShardsBuilder(
+      public com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder addShardsBuilder(
           int index) {
         return getShardsFieldBuilder().addBuilder(
-            index, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.getDefaultInstance());
+            index, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.getDefaultInstance());
       }
-      public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder> 
+      public java.util.List<com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder> 
            getShardsBuilderList() {
         return getShardsFieldBuilder().getBuilderList();
       }
       private com.google.protobuf.RepeatedFieldBuilder<
-          com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ShardOrBuilder> 
+          com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ShardOrBuilder> 
           getShardsFieldBuilder() {
         if (shardsBuilder_ == null) {
           shardsBuilder_ = new com.google.protobuf.RepeatedFieldBuilder<
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoint.ShardOrBuilder>(
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder, com.wajam.nrv.data.serialization.NRVProtos.Endpoints.ShardOrBuilder>(
                   shards_,
                   ((bitField0_ & 0x00000001) == 0x00000001),
                   getParentForChildren(),
@@ -3569,15 +3561,15 @@ public final class NRVProtos {
         return shardsBuilder_;
       }
       
-      // @@protoc_insertion_point(builder_scope:com.wajam.nrv.data.serialization.Endpoint)
+      // @@protoc_insertion_point(builder_scope:com.wajam.nrv.data.serialization.Endpoints)
     }
     
     static {
-      defaultInstance = new Endpoint(true);
+      defaultInstance = new Endpoints(true);
       defaultInstance.initFields();
     }
     
-    // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.Endpoint)
+    // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.Endpoints)
   }
   
   public interface NodeOrBuilder
@@ -5596,20 +5588,20 @@ public final class NRVProtos {
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
       internal_static_com_wajam_nrv_data_serialization_Message_fieldAccessorTable;
   private static com.google.protobuf.Descriptors.Descriptor
-    internal_static_com_wajam_nrv_data_serialization_Endpoint_descriptor;
+    internal_static_com_wajam_nrv_data_serialization_Endpoints_descriptor;
   private static
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
-      internal_static_com_wajam_nrv_data_serialization_Endpoint_fieldAccessorTable;
+      internal_static_com_wajam_nrv_data_serialization_Endpoints_fieldAccessorTable;
   private static com.google.protobuf.Descriptors.Descriptor
-    internal_static_com_wajam_nrv_data_serialization_Endpoint_Shard_descriptor;
+    internal_static_com_wajam_nrv_data_serialization_Endpoints_Shard_descriptor;
   private static
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
-      internal_static_com_wajam_nrv_data_serialization_Endpoint_Shard_fieldAccessorTable;
+      internal_static_com_wajam_nrv_data_serialization_Endpoints_Shard_fieldAccessorTable;
   private static com.google.protobuf.Descriptors.Descriptor
-    internal_static_com_wajam_nrv_data_serialization_Endpoint_Replica_descriptor;
+    internal_static_com_wajam_nrv_data_serialization_Endpoints_Replica_descriptor;
   private static
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
-      internal_static_com_wajam_nrv_data_serialization_Endpoint_Replica_fieldAccessorTable;
+      internal_static_com_wajam_nrv_data_serialization_Endpoints_Replica_fieldAccessorTable;
   private static com.google.protobuf.Descriptors.Descriptor
     internal_static_com_wajam_nrv_data_serialization_Node_descriptor;
   private static
@@ -5641,30 +5633,30 @@ public final class NRVProtos {
     java.lang.String[] descriptorData = {
       "\n6scala/com/wajam/nrv/data/serialization" +
       "/NRVProtos.proto\022 com.wajam.nrv.data.ser" +
-      "ialization\"\250\003\n\007Message\022\024\n\014protocolName\030\001" +
+      "ialization\"\251\003\n\007Message\022\024\n\014protocolName\030\001" +
       " \001(\t\022\023\n\013serviceName\030\002 \001(\t\022\016\n\006method\030\003 \001(" +
-      "\005\022\014\n\004path\030\004 \001(\t\022\024\n\014rendezVousId\030\005 \001(\005\022\r\n" +
+      "\t\022\014\n\004path\030\004 \001(\t\022\024\n\014rendezVousId\030\005 \001(\005\022\r\n" +
       "\005error\030\006 \001(\014\022\020\n\010function\030\007 \001(\005\0226\n\006source" +
       "\030\r \001(\0132&.com.wajam.nrv.data.serializatio" +
-      "n.Node\022?\n\013destination\030\010 \001(\0132*.com.wajam." +
-      "nrv.data.serialization.Endpoint\022\r\n\005token" +
-      "\030\t \001(\003\022@\n\nparameters\030\n \003(\0132,.com.wajam.n",
-      "rv.data.serialization.StringPair\022>\n\010meta" +
-      "data\030\013 \003(\0132,.com.wajam.nrv.data.serializ" +
-      "ation.StringPair\022\023\n\013messageData\030\014 \003(\014\"\222\002" +
-      "\n\010Endpoint\022@\n\006shards\030\001 \003(\01320.com.wajam.n" +
-      "rv.data.serialization.Endpoint.Shard\032\\\n\005" +
-      "Shard\022\r\n\005token\030\001 \001(\003\022D\n\010replicas\030\002 \003(\01322" +
-      ".com.wajam.nrv.data.serialization.Endpoi" +
-      "nt.Replica\032f\n\007Replica\022\r\n\005token\030\001 \001(\003\0224\n\004" +
-      "node\030\002 \001(\0132&.com.wajam.nrv.data.serializ" +
-      "ation.Node\022\026\n\010selected\030\003 \001(\010:\004true\"W\n\004No",
-      "de\022\023\n\013inetAddress\030\001 \001(\014\022:\n\005ports\030\002 \003(\0132+" +
-      ".com.wajam.nrv.data.serialization.Int32P" +
-      "air\"\'\n\tInt32Pair\022\013\n\003key\030\001 \002(\t\022\r\n\005value\030\002" +
-      " \002(\005\"(\n\nStringPair\022\013\n\003key\030\001 \002(\t\022\r\n\005value" +
-      "\030\002 \002(\t\"%\n\007AnyPair\022\013\n\003key\030\001 \002(\t\022\r\n\005value\030" +
-      "\002 \002(\014"
+      "n.Node\022@\n\013destination\030\010 \001(\0132+.com.wajam." +
+      "nrv.data.serialization.Endpoints\022\r\n\005toke" +
+      "n\030\t \001(\003\022@\n\nparameters\030\n \003(\0132,.com.wajam.",
+      "nrv.data.serialization.StringPair\022>\n\010met" +
+      "adata\030\013 \003(\0132,.com.wajam.nrv.data.seriali" +
+      "zation.StringPair\022\023\n\013messageData\030\014 \001(\014\"\225" +
+      "\002\n\tEndpoints\022A\n\006shards\030\001 \003(\01321.com.wajam" +
+      ".nrv.data.serialization.Endpoints.Shard\032" +
+      "]\n\005Shard\022\r\n\005token\030\001 \001(\003\022E\n\010replicas\030\002 \003(" +
+      "\01323.com.wajam.nrv.data.serialization.End" +
+      "points.Replica\032f\n\007Replica\022\r\n\005token\030\001 \001(\003" +
+      "\0224\n\004node\030\002 \001(\0132&.com.wajam.nrv.data.seri" +
+      "alization.Node\022\026\n\010selected\030\003 \001(\010:\004true\"W",
+      "\n\004Node\022\023\n\013inetAddress\030\001 \001(\014\022:\n\005ports\030\002 \003" +
+      "(\0132+.com.wajam.nrv.data.serialization.In" +
+      "t32Pair\"\'\n\tInt32Pair\022\013\n\003key\030\001 \002(\t\022\r\n\005val" +
+      "ue\030\002 \002(\005\"(\n\nStringPair\022\013\n\003key\030\001 \002(\t\022\r\n\005v" +
+      "alue\030\002 \002(\t\"%\n\007AnyPair\022\013\n\003key\030\001 \002(\t\022\r\n\005va" +
+      "lue\030\002 \002(\014"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -5679,30 +5671,30 @@ public final class NRVProtos {
               new java.lang.String[] { "ProtocolName", "ServiceName", "Method", "Path", "RendezVousId", "Error", "Function", "Source", "Destination", "Token", "Parameters", "Metadata", "MessageData", },
               com.wajam.nrv.data.serialization.NRVProtos.Message.class,
               com.wajam.nrv.data.serialization.NRVProtos.Message.Builder.class);
-          internal_static_com_wajam_nrv_data_serialization_Endpoint_descriptor =
+          internal_static_com_wajam_nrv_data_serialization_Endpoints_descriptor =
             getDescriptor().getMessageTypes().get(1);
-          internal_static_com_wajam_nrv_data_serialization_Endpoint_fieldAccessorTable = new
+          internal_static_com_wajam_nrv_data_serialization_Endpoints_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
-              internal_static_com_wajam_nrv_data_serialization_Endpoint_descriptor,
+              internal_static_com_wajam_nrv_data_serialization_Endpoints_descriptor,
               new java.lang.String[] { "Shards", },
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.class,
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Builder.class);
-          internal_static_com_wajam_nrv_data_serialization_Endpoint_Shard_descriptor =
-            internal_static_com_wajam_nrv_data_serialization_Endpoint_descriptor.getNestedTypes().get(0);
-          internal_static_com_wajam_nrv_data_serialization_Endpoint_Shard_fieldAccessorTable = new
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.class,
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Builder.class);
+          internal_static_com_wajam_nrv_data_serialization_Endpoints_Shard_descriptor =
+            internal_static_com_wajam_nrv_data_serialization_Endpoints_descriptor.getNestedTypes().get(0);
+          internal_static_com_wajam_nrv_data_serialization_Endpoints_Shard_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
-              internal_static_com_wajam_nrv_data_serialization_Endpoint_Shard_descriptor,
+              internal_static_com_wajam_nrv_data_serialization_Endpoints_Shard_descriptor,
               new java.lang.String[] { "Token", "Replicas", },
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.class,
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Shard.Builder.class);
-          internal_static_com_wajam_nrv_data_serialization_Endpoint_Replica_descriptor =
-            internal_static_com_wajam_nrv_data_serialization_Endpoint_descriptor.getNestedTypes().get(1);
-          internal_static_com_wajam_nrv_data_serialization_Endpoint_Replica_fieldAccessorTable = new
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.class,
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Shard.Builder.class);
+          internal_static_com_wajam_nrv_data_serialization_Endpoints_Replica_descriptor =
+            internal_static_com_wajam_nrv_data_serialization_Endpoints_descriptor.getNestedTypes().get(1);
+          internal_static_com_wajam_nrv_data_serialization_Endpoints_Replica_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
-              internal_static_com_wajam_nrv_data_serialization_Endpoint_Replica_descriptor,
+              internal_static_com_wajam_nrv_data_serialization_Endpoints_Replica_descriptor,
               new java.lang.String[] { "Token", "Node", "Selected", },
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.class,
-              com.wajam.nrv.data.serialization.NRVProtos.Endpoint.Replica.Builder.class);
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.class,
+              com.wajam.nrv.data.serialization.NRVProtos.Endpoints.Replica.Builder.class);
           internal_static_com_wajam_nrv_data_serialization_Node_descriptor =
             getDescriptor().getMessageTypes().get(2);
           internal_static_com_wajam_nrv_data_serialization_Node_fieldAccessorTable = new
