@@ -38,7 +38,7 @@ message Endpoints {
 }
 
 message Node {
-    optional bytes inetAddress = 1;
+    optional bytes host = 1;
     repeated Int32Pair ports = 2;
 }
 

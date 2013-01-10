@@ -4,7 +4,7 @@ import com.wajam.nrv.data.Message
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Shard, Endpoints}
-import com.wajam.nrv.protocol.codec.JavaSerializeCodec
+import com.wajam.nrv.protocol.codec.{Codec, JavaSerializeCodec}
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
@@ -13,9 +13,9 @@ class NrvProtosCodec {
 
   val javaSerialize = new JavaSerializeCodec
 
-  def encodeMessage(message: Message) : NRVProtos.Message = {
+  def encodeMessage(message: Message, messageDataCodec: Codec): NrvProtos.Message = {
 
-    val protoMessage = NRVProtos.Message.newBuilder()
+    val protoMessage = NrvProtos.Message.newBuilder()
 
     protoMessage.setProtocolName(message.protocolName)
     protoMessage.setServiceName(message.serviceName)
@@ -37,42 +37,56 @@ class NrvProtosCodec {
 
     message.parameters.foreach{
       case (key, value) =>
-        protoMessage.addParameters(NRVProtos.StringPair.newBuilder().setKey(key).setValue(value.toString))}
+        protoMessage.addParameters(NrvProtos.StringPair.newBuilder().setKey(key).setValue(value.toString))}
 
     message.metadata.foreach{
       case (key, value) =>
-        protoMessage.addMetadata(NRVProtos.StringPair.newBuilder().setKey(key).setValue(value.toString))}
+        protoMessage.addMetadata(NrvProtos.StringPair.newBuilder().setKey(key).setValue(value.toString))}
 
-    protoMessage.setMessageData(ByteString.copyFrom(encodeUsingCodec(message.messageData)))
+    protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))
 
     protoMessage.build()
   }
 
-  def decodeMessage(data: Array[Byte]) : Message = {
+  def decodeMessage(data: Array[Byte]): Message = {
     sys.error("unimplemented")
   }
 
-  def encodeNode(node: Node): NRVProtos.Node = {
+  def encodeNode(node: Node): NrvProtos.Node = {
+    val protoNode = NrvProtos.Node.newBuilder()
+
+    protoNode.setHost(ByteString.copyFrom(node.host.getAddress))
+
+    node.ports.foreach{
+      case (key, value) =>
+        protoNode.addPorts(NrvProtos.Int32Pair.newBuilder().setKey(key).setValue(value))}
+
+    protoNode.build()
+  }
+
+  def decodeNode(node: NrvProtos.Node): Node = {
     sys.error("unimplemented")
   }
 
-  def decodeNode(node: NRVProtos.Node): Node = {
+  def encodeEndpoints(endpoints: Endpoints): NrvProtos.Endpoints = {
+    val protoEndpoint = NrvProtos.Endpoints.newBuilder()
+
+    endpoints.shards.foreach{
+      case (shard) =>
+        protoEndpoint.addShards(encodeShard(shard))}
+
+    protoEndpoint.build()
+  }
+
+  def decodeEndpoints(node: NrvProtos.Endpoints) = {
     sys.error("unimplemented")
   }
 
-  def encodeEndpoints(endpoint: Endpoints) : NRVProtos.Endpoints = {
+  def encodeShard(shard: Shard): NrvProtos.Endpoints.Shard = {
     sys.error("unimplemented")
   }
 
-  def decodeEndpoints(node: NRVProtos.Endpoints) = {
-    sys.error("unimplemented")
-  }
-
-  def encodeShard(shard: Shard) = {
-    sys.error("unimplemented")
-  }
-
-  def decodeShard(node: NRVProtos.Endpoints.Shard) = {
+  def decodeShard(node: NrvProtos.Endpoints.Shard) = {
     sys.error("unimplemented")
   }
 
@@ -84,7 +98,7 @@ class NrvProtosCodec {
     sys.error("unimplemented")
   }
 
-  def serializeToBytes(entity: AnyRef) : Array[Byte] = {
+  def serializeToBytes(entity: AnyRef): Array[Byte] = {
     javaSerialize.encodeAny(entity)
   }
 

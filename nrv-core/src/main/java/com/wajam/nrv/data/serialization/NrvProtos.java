@@ -3575,9 +3575,9 @@ public final class NrvProtos {
   public interface NodeOrBuilder
       extends com.google.protobuf.MessageOrBuilder {
     
-    // optional bytes inetAddress = 1;
-    boolean hasInetAddress();
-    com.google.protobuf.ByteString getInetAddress();
+    // optional bytes host = 1;
+    boolean hasHost();
+    com.google.protobuf.ByteString getHost();
     
     // repeated .com.wajam.nrv.data.serialization.Int32Pair ports = 2;
     java.util.List<com.wajam.nrv.data.serialization.NrvProtos.Int32Pair> 
@@ -3618,14 +3618,14 @@ public final class NrvProtos {
     }
     
     private int bitField0_;
-    // optional bytes inetAddress = 1;
-    public static final int INETADDRESS_FIELD_NUMBER = 1;
-    private com.google.protobuf.ByteString inetAddress_;
-    public boolean hasInetAddress() {
+    // optional bytes host = 1;
+    public static final int HOST_FIELD_NUMBER = 1;
+    private com.google.protobuf.ByteString host_;
+    public boolean hasHost() {
       return ((bitField0_ & 0x00000001) == 0x00000001);
     }
-    public com.google.protobuf.ByteString getInetAddress() {
-      return inetAddress_;
+    public com.google.protobuf.ByteString getHost() {
+      return host_;
     }
     
     // repeated .com.wajam.nrv.data.serialization.Int32Pair ports = 2;
@@ -3650,7 +3650,7 @@ public final class NrvProtos {
     }
     
     private void initFields() {
-      inetAddress_ = com.google.protobuf.ByteString.EMPTY;
+      host_ = com.google.protobuf.ByteString.EMPTY;
       ports_ = java.util.Collections.emptyList();
     }
     private byte memoizedIsInitialized = -1;
@@ -3672,7 +3672,7 @@ public final class NrvProtos {
                         throws java.io.IOException {
       getSerializedSize();
       if (((bitField0_ & 0x00000001) == 0x00000001)) {
-        output.writeBytes(1, inetAddress_);
+        output.writeBytes(1, host_);
       }
       for (int i = 0; i < ports_.size(); i++) {
         output.writeMessage(2, ports_.get(i));
@@ -3688,7 +3688,7 @@ public final class NrvProtos {
       size = 0;
       if (((bitField0_ & 0x00000001) == 0x00000001)) {
         size += com.google.protobuf.CodedOutputStream
-          .computeBytesSize(1, inetAddress_);
+          .computeBytesSize(1, host_);
       }
       for (int i = 0; i < ports_.size(); i++) {
         size += com.google.protobuf.CodedOutputStream
@@ -3819,7 +3819,7 @@ public final class NrvProtos {
       
       public Builder clear() {
         super.clear();
-        inetAddress_ = com.google.protobuf.ByteString.EMPTY;
+        host_ = com.google.protobuf.ByteString.EMPTY;
         bitField0_ = (bitField0_ & ~0x00000001);
         if (portsBuilder_ == null) {
           ports_ = java.util.Collections.emptyList();
@@ -3868,7 +3868,7 @@ public final class NrvProtos {
         if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
           to_bitField0_ |= 0x00000001;
         }
-        result.inetAddress_ = inetAddress_;
+        result.host_ = host_;
         if (portsBuilder_ == null) {
           if (((bitField0_ & 0x00000002) == 0x00000002)) {
             ports_ = java.util.Collections.unmodifiableList(ports_);
@@ -3894,8 +3894,8 @@ public final class NrvProtos {
       
       public Builder mergeFrom(com.wajam.nrv.data.serialization.NrvProtos.Node other) {
         if (other == com.wajam.nrv.data.serialization.NrvProtos.Node.getDefaultInstance()) return this;
-        if (other.hasInetAddress()) {
-          setInetAddress(other.getInetAddress());
+        if (other.hasHost()) {
+          setHost(other.getHost());
         }
         if (portsBuilder_ == null) {
           if (!other.ports_.isEmpty()) {
@@ -3962,7 +3962,7 @@ public final class NrvProtos {
             }
             case 10: {
               bitField0_ |= 0x00000001;
-              inetAddress_ = input.readBytes();
+              host_ = input.readBytes();
               break;
             }
             case 18: {
@@ -3977,26 +3977,26 @@ public final class NrvProtos {
       
       private int bitField0_;
       
-      // optional bytes inetAddress = 1;
-      private com.google.protobuf.ByteString inetAddress_ = com.google.protobuf.ByteString.EMPTY;
-      public boolean hasInetAddress() {
+      // optional bytes host = 1;
+      private com.google.protobuf.ByteString host_ = com.google.protobuf.ByteString.EMPTY;
+      public boolean hasHost() {
         return ((bitField0_ & 0x00000001) == 0x00000001);
       }
-      public com.google.protobuf.ByteString getInetAddress() {
-        return inetAddress_;
+      public com.google.protobuf.ByteString getHost() {
+        return host_;
       }
-      public Builder setInetAddress(com.google.protobuf.ByteString value) {
+      public Builder setHost(com.google.protobuf.ByteString value) {
         if (value == null) {
     throw new NullPointerException();
   }
   bitField0_ |= 0x00000001;
-        inetAddress_ = value;
+        host_ = value;
         onChanged();
         return this;
       }
-      public Builder clearInetAddress() {
+      public Builder clearHost() {
         bitField0_ = (bitField0_ & ~0x00000001);
-        inetAddress_ = getDefaultInstance().getInetAddress();
+        host_ = getDefaultInstance().getHost();
         onChanged();
         return this;
       }
@@ -5650,13 +5650,13 @@ public final class NrvProtos {
       "\01323.com.wajam.nrv.data.serialization.End" +
       "points.Replica\032f\n\007Replica\022\r\n\005token\030\001 \001(\003" +
       "\0224\n\004node\030\002 \001(\0132&.com.wajam.nrv.data.seri" +
-      "alization.Node\022\026\n\010selected\030\003 \001(\010:\004true\"W",
-      "\n\004Node\022\023\n\013inetAddress\030\001 \001(\014\022:\n\005ports\030\002 \003" +
-      "(\0132+.com.wajam.nrv.data.serialization.In" +
-      "t32Pair\"\'\n\tInt32Pair\022\013\n\003key\030\001 \002(\t\022\r\n\005val" +
-      "ue\030\002 \002(\005\"(\n\nStringPair\022\013\n\003key\030\001 \002(\t\022\r\n\005v" +
-      "alue\030\002 \002(\t\"%\n\007AnyPair\022\013\n\003key\030\001 \002(\t\022\r\n\005va" +
-      "lue\030\002 \002(\014"
+      "alization.Node\022\026\n\010selected\030\003 \001(\010:\004true\"P",
+      "\n\004Node\022\014\n\004host\030\001 \001(\014\022:\n\005ports\030\002 \003(\0132+.co" +
+      "m.wajam.nrv.data.serialization.Int32Pair" +
+      "\"\'\n\tInt32Pair\022\013\n\003key\030\001 \002(\t\022\r\n\005value\030\002 \002(" +
+      "\005\"(\n\nStringPair\022\013\n\003key\030\001 \002(\t\022\r\n\005value\030\002 " +
+      "\002(\t\"%\n\007AnyPair\022\013\n\003key\030\001 \002(\t\022\r\n\005value\030\002 \002" +
+      "(\014"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -5700,7 +5700,7 @@ public final class NrvProtos {
           internal_static_com_wajam_nrv_data_serialization_Node_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_com_wajam_nrv_data_serialization_Node_descriptor,
-              new java.lang.String[] { "InetAddress", "Ports", },
+              new java.lang.String[] { "Host", "Ports", },
               com.wajam.nrv.data.serialization.NrvProtos.Node.class,
               com.wajam.nrv.data.serialization.NrvProtos.Node.Builder.class);
           internal_static_com_wajam_nrv_data_serialization_Int32Pair_descriptor =
