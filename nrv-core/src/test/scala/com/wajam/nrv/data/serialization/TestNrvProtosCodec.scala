@@ -6,7 +6,7 @@ import org.scalatest.FunSuite
 import org.scalatest.matchers.ShouldMatchers._
 
 @RunWith(classOf[JUnitRunner])
-class TestNRVProtosCodec extends FunSuite {
+class TestNrvProtosCodec extends FunSuite {
 
   test("can encode message") {
     sys.error("unimplemented")
@@ -64,7 +64,7 @@ class TestNRVProtosCodec extends FunSuite {
 
   test("can serialize exception") {
 
-    val codec = new NRVProtosCodec()
+    val codec = new NrvProtosCodec()
 
     val bytes = codec.serializeToBytes(generateException())
 
@@ -73,7 +73,7 @@ class TestNRVProtosCodec extends FunSuite {
 
   test("can deserialize exception") {
 
-    val codec = new NRVProtosCodec()
+    val codec = new NrvProtosCodec()
 
     val bytes = codec.serializeToBytes(generateException())
     val exception = codec.serializeFromBytes(bytes)

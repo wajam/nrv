@@ -9,7 +9,7 @@ import com.wajam.nrv.protocol.codec.JavaSerializeCodec
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
  */
-class NRVProtosCodec {
+class NrvProtosCodec {
 
   val javaSerialize = new JavaSerializeCodec
 
