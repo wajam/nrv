@@ -1,12 +1,17 @@
 package com.wajam.nrv.data.serialization
 
 import com.wajam.nrv.data.Message
-import java.nio.ByteBuffer
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Shard, Endpoints}
+import com.wajam.nrv.protocol.codec.JavaSerializeCodec
 
+/**
+ * Convert NRV principal objects to their Protobuf equivalent back and forth
+ */
 class NRVProtosCodec {
+
+  val javaSerialize = new JavaSerializeCodec
 
   def encodeMessage(message: Message) : NRVProtos.Message = {
 
@@ -79,12 +84,12 @@ class NRVProtosCodec {
     sys.error("unimplemented")
   }
 
-  protected def serializeToBytes(entity: Any) : Array[Byte] = {
-    sys.error("unimplemented")
+  def serializeToBytes(entity: AnyRef) : Array[Byte] = {
+    javaSerialize.encodeAny(entity)
   }
 
-  protected def serializeFromBytes(bytes: Array[Byte]) = {
-    sys.error("unimplemented")
+  def serializeFromBytes(bytes: Array[Byte]) = {
+    javaSerialize.decodeAny(bytes)
   }
 }
 
