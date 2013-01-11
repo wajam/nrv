@@ -9,7 +9,7 @@ import com.wajam.nrv.data.InMessage
 import com.wajam.nrv.service.{Shard, Replica, Endpoints, ActionMethod}
 import com.wajam.nrv.cluster.Node
 import java.net.InetAddress
-import com.wajam.nrv.protocol.codec.JavaSerializeCodec
+import com.wajam.nrv.protocol.codec._
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtosCodec extends FunSuite {
@@ -27,7 +27,7 @@ class TestNrvProtosCodec extends FunSuite {
 
     message.function = MessageType.FUNCTION_CALL
 
-    val localhost = InetAddress.getLocalHost()
+    val localhost = InetAddress.getLocalHost
 
     message.source = new Node(localhost, Map(("nrv", 1024)))
 
@@ -50,7 +50,7 @@ class TestNrvProtosCodec extends FunSuite {
 
   test("can encode message") {
     val codec = new NrvProtosCodec()
-    val messageDataCodec = new JavaSerializeCodec()
+    val messageDataCodec = new GenericJavaSerializeCodec()
 
     val message1 = getMessage()
 

@@ -4,14 +4,14 @@ import com.wajam.nrv.data.Message
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Shard, Endpoints}
-import com.wajam.nrv.protocol.codec.{Codec, JavaSerializeCodec}
+import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
  */
 class NrvProtosCodec {
 
-  val javaSerialize = new JavaSerializeCodec
+  val javaSerialize = new GenericJavaSerializeCodec()
 
   def encodeMessage(message: Message, messageDataCodec: Codec): NrvProtos.Message = {
 
