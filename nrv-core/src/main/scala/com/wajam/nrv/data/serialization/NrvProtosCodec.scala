@@ -29,7 +29,8 @@ class NrvProtosCodec {
     protoMessage.setPath(message.path)
     protoMessage.setRendezVousId(message.rendezvousId)
 
-    protoMessage.setError(ByteString.copyFrom(serializeToBytes(message.error.get)))
+    if (message.error.isDefined)
+      protoMessage.setError(ByteString.copyFrom(serializeToBytes(message.error.get)))
 
     protoMessage.setFunction(message.function)
 
@@ -69,7 +70,10 @@ class NrvProtosCodec {
     message.path = protoMessage.getPath
     message.rendezvousId = protoMessage.getRendezVousId
 
-    message.error = Some(serializeFromBytes(protoMessage.getError.toByteArray).asInstanceOf[Exception])
+    val error = protoMessage.getError
+
+    if (error.size() != 0)
+      message.error = Some(serializeFromBytes(protoMessage.getError.toByteArray).asInstanceOf[Exception])
 
     message.function = protoMessage.getFunction
 

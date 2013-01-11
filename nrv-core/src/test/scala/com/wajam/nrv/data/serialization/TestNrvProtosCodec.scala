@@ -71,9 +71,20 @@ class TestNrvProtosCodec extends FunSuite {
 
   def exceptionIsEqual(ex1: Option[Exception], ex2: Option[Exception]): Boolean = {
 
-    // Is this all we need?
-    (ex1.get.getMessage == ex2.get.getMessage) &&
-    (ex1.get.getStackTraceString == ex2.get.getStackTraceString)
+    if (ex1.isEmpty && ex2.isEmpty)
+    {
+      true
+    }
+    else if (ex1.isDefined && ex2.isDefined)  {
+
+      // Is this all we need?
+      (ex1.get.getMessage == ex2.get.getMessage) &&
+      (ex1.get.getStackTraceString == ex2.get.getStackTraceString)
+    }
+    else
+    {
+      false
+    }
   }
 
   def messageIsEqual(message1: Message, message2: Message): Boolean = {
@@ -108,7 +119,17 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   test("can encode/decode a message with no error in it") {
-    sys.error("not implemented")
+    val codec = new NrvProtosCodec()
+    val messageDataCodec = new GenericJavaSerializeCodec()
+
+    val entity1 = getMessage()
+
+    entity1.error = None
+
+    val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
+    val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
+
+    assert(messageIsEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
   }
 
   test("can encode/decode node") {
