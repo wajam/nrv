@@ -5,6 +5,7 @@ import org.scalatest.junit.JUnitRunner
 import org.scalatest.FunSuite
 import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.data.MessageType
+import com.wajam.nrv.data.Message
 import com.wajam.nrv.data.InMessage
 import com.wajam.nrv.service.{Shard, Replica, Endpoints, ActionMethod}
 import com.wajam.nrv.cluster.Node
@@ -39,13 +40,54 @@ class TestNrvProtosCodec extends FunSuite {
 
     message.token = 1024
 
-    message.parameters += "Key" -> "Value"
+    message.metadata += "Key" -> "Value"
     message.metadata += "CONTENT-TYPE" -> "text/plain"
     message.messageData = "Blob Of Data"
 
     // Here you go a message with possible value set (attachments is not serialized)
 
     message
+  }
+
+  // TODO: Override .equals on every objects?
+
+  def replicaIsEqual(replica1: Replica, replica2: Replica): Boolean = {
+    (replica1.token == replica2.token) &&
+    (nodeIsEqual(replica1.node, replica2.node)) &&
+    (replica1.selected && replica2.selected)
+  }
+
+  def shardIsEqual(shard1: Shard, shard2: Shard): Boolean = {
+    (shard1.token == shard2.token) &&
+    shard1.replicas.forall( sd1 => shard2.replicas.exists(sd2 => replicaIsEqual(sd1, sd2)))
+  }
+
+  def endpointsAreEqual(endpoints1: Endpoints, endpoints2: Endpoints): Boolean = {
+    endpoints1.shards.forall(sd1 => endpoints2.shards.exists(sd2 => shardIsEqual(sd1, sd2)))
+  }
+
+  def nodeIsEqual(node1: Node, node2: Node): Boolean = {
+    (node1.host == node2.host) &&
+    node1.ports.forall( kv1 => node2.ports.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2))
+  }
+
+  def messageIsEqual(message1: Message, message2: Message): Boolean = {
+    val message = new InMessage()
+
+    (message1.protocolName == message2.protocolName) &&
+    (message1.serviceName == message2.serviceName) &&
+    (message1.method == message2.method) &&
+    (message1.path == message2.path) &&
+    (message1.rendezvousId == message2.rendezvousId) &&
+    (message1.error == message2.error) &&
+    (message1.function == message2.function) &&
+    (message1.token == message2.token) &&
+    (message1.code == message2.code) &&
+    nodeIsEqual(message1.source, message2.source) &&
+    endpointsAreEqual(message1.destination, message2.destination) &&
+    message1.parameters.forall( kv1 => message2.parameters.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2)) &&
+    message1.metadata.forall( kv1 => message2.metadata.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2)) &&
+    message1.messageData == message2.messageData
   }
 
   test("can encode message") {
