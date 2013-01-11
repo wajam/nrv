@@ -1,14 +1,12 @@
 package com.wajam.nrv.data.serialization
 
 import scala.collection.JavaConverters._
-import com.wajam.nrv.data.Message
+import com.wajam.nrv.data.{SerializableMessage, InMessage, Message}
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
 import java.net.InetAddress
-import com.wajam.nrv.data.serialization.NrvProtos.Int32Pair
-import collection.parallel.mutable
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
@@ -52,8 +50,32 @@ class NrvProtosCodec {
     protoMessage.build()
   }
 
-  def decodeMessage(data: Array[Byte]): Message = {
-    sys.error("unimplemented")
+  def decodeMessage(protoMessage: NrvProtos.Message, messageDataCodec: Codec): Message = {
+    val parameters = for(p <- protoMessage.getParametersList.asScala.toList) yield ((p.getKey, p.getValue))
+    val metadata = for(p <- protoMessage.getMetadataList.asScala.toList) yield ((p.getKey, p.getValue))
+    val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
+
+    val destination = decodeEndpoints(protoMessage.getDestination)
+
+    val message = new SerializableMessage(parameters, metadata, messageData)
+
+    message.code = protoMessage.getCode
+
+    message.protocolName = protoMessage.getProtocolName
+    message.serviceName = protoMessage.getProtocolName
+    message.method = protoMessage.getMethod
+    message.path = protoMessage.getPath
+    message.rendezvousId = protoMessage.getRendezVousId
+
+    message.error = Some(serializeFromBytes(protoMessage.getError.toByteArray).asInstanceOf[Exception])
+
+    message.function = protoMessage.getFunction
+
+    message.source = decodeNode(protoMessage.getSource)
+    message.destination = destination
+    message.token = protoMessage.getToken
+
+    message
   }
 
   def encodeNode(node: Node): NrvProtos.Node = {
@@ -84,8 +106,10 @@ class NrvProtosCodec {
     protoEndpoint.build()
   }
 
-  def decodeEndpoints(node: NrvProtos.Endpoints): Endpoints = {
-    sys.error("unimplemented")
+  def decodeEndpoints(protoEndpoints: NrvProtos.Endpoints): Endpoints = {
+    val protoShardSeq = protoEndpoints.getShardsList.asScala.toSeq
+    val shardSeq = for(shard <- protoShardSeq) yield (decodeShard(shard))
+    new Endpoints(shardSeq)
   }
 
   def encodeShard(shard: Shard): NrvProtos.Endpoints.Shard = {

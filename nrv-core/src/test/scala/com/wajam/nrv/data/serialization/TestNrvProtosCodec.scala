@@ -4,9 +4,7 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.FunSuite
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.data.MessageType
-import com.wajam.nrv.data.Message
-import com.wajam.nrv.data.InMessage
+import com.wajam.nrv.data.{SerializableMessage, MessageType, Message, InMessage}
 import com.wajam.nrv.service.{Shard, Replica, Endpoints, ActionMethod}
 import com.wajam.nrv.cluster.Node
 import java.net.InetAddress
@@ -16,7 +14,7 @@ import com.wajam.nrv.protocol.codec._
 class TestNrvProtosCodec extends FunSuite {
 
   def getMessage() = {
-    val message = new InMessage()
+    val message = new SerializableMessage()
 
     message.protocolName = "Nrv"
     message.serviceName = "Nrv"
@@ -94,11 +92,16 @@ class TestNrvProtosCodec extends FunSuite {
     val codec = new NrvProtosCodec()
     val messageDataCodec = new GenericJavaSerializeCodec()
 
-    val message1 = getMessage()
+    val entity1 = getMessage()
 
-    val bytes = codec.encodeMessage(message1, messageDataCodec)
+    val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
+    val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
 
-    sys.error("not asserted yet")
+    assert(messageIsEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
+  }
+
+  test("can encode/decode a message with no error in it") {
+    sys.error("not implemented")
   }
 
   test("can encode/decode node") {
@@ -114,7 +117,15 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   test("can encode/decode endpoints") {
-    sys.error("unimplemented")
+    val codec = new NrvProtosCodec()
+
+    val message = getMessage()
+    val entity1 = message.destination
+
+    val protoBufTransport = codec.encodeEndpoints(entity1)
+    val entity2 = codec.decodeEndpoints(protoBufTransport)
+
+    assert(endpointsAreEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
   }
 
   test("can encode/decode shards") {
