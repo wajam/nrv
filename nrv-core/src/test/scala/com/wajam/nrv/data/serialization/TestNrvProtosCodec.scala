@@ -69,6 +69,13 @@ class TestNrvProtosCodec extends FunSuite {
     node1.ports.forall( kv1 => node2.ports.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2))
   }
 
+  def exceptionIsEqual(ex1: Option[Exception], ex2: Option[Exception]): Boolean = {
+
+    // Is this all we need?
+    (ex1.get.getMessage == ex2.get.getMessage) &&
+    (ex1.get.getStackTraceString == ex2.get.getStackTraceString)
+  }
+
   def messageIsEqual(message1: Message, message2: Message): Boolean = {
     val message = new InMessage()
 
@@ -77,7 +84,7 @@ class TestNrvProtosCodec extends FunSuite {
     (message1.method == message2.method) &&
     (message1.path == message2.path) &&
     (message1.rendezvousId == message2.rendezvousId) &&
-    (message1.error == message2.error) &&
+    (exceptionIsEqual(message1.error, message2.error)) &&
     (message1.function == message2.function) &&
     (message1.token == message2.token) &&
     (message1.code == message2.code) &&

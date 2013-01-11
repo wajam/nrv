@@ -1,7 +1,7 @@
 package com.wajam.nrv.data.serialization
 
 import scala.collection.JavaConverters._
-import com.wajam.nrv.data.{SerializableMessage, InMessage, Message}
+import com.wajam.nrv.data.{SerializableMessage,  Message}
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
@@ -19,6 +19,8 @@ class NrvProtosCodec {
 
     val protoMessage = NrvProtos.Message.newBuilder()
 
+    protoMessage.setCode(message.code)
+
     protoMessage.setProtocolName(message.protocolName)
     protoMessage.setServiceName(message.serviceName)
 
@@ -27,7 +29,7 @@ class NrvProtosCodec {
     protoMessage.setPath(message.path)
     protoMessage.setRendezVousId(message.rendezvousId)
 
-    protoMessage.setError(ByteString.copyFrom(serializeToBytes(message.error)))
+    protoMessage.setError(ByteString.copyFrom(serializeToBytes(message.error.get)))
 
     protoMessage.setFunction(message.function)
 
