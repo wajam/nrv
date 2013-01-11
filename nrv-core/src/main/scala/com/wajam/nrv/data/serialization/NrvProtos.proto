@@ -46,7 +46,7 @@ message Endpoints {
     message Replica {
         optional int64 token = 1;
         optional Node node = 2;
-        optional bool selected = 3 [default = true];
+        optional bool selected = 3;
     }
 }
 

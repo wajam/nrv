@@ -2569,7 +2569,7 @@ public final class NrvProtos {
       com.wajam.nrv.data.serialization.NrvProtos.Node getNode();
       com.wajam.nrv.data.serialization.NrvProtos.NodeOrBuilder getNodeOrBuilder();
       
-      // optional bool selected = 3 [default = true];
+      // optional bool selected = 3;
       boolean hasSelected();
       boolean getSelected();
     }
@@ -2625,7 +2625,7 @@ public final class NrvProtos {
         return node_;
       }
       
-      // optional bool selected = 3 [default = true];
+      // optional bool selected = 3;
       public static final int SELECTED_FIELD_NUMBER = 3;
       private boolean selected_;
       public boolean hasSelected() {
@@ -2638,7 +2638,7 @@ public final class NrvProtos {
       private void initFields() {
         token_ = 0L;
         node_ = com.wajam.nrv.data.serialization.NrvProtos.Node.getDefaultInstance();
-        selected_ = true;
+        selected_ = false;
       }
       private byte memoizedIsInitialized = -1;
       public final boolean isInitialized() {
@@ -2821,7 +2821,7 @@ public final class NrvProtos {
             nodeBuilder_.clear();
           }
           bitField0_ = (bitField0_ & ~0x00000002);
-          selected_ = true;
+          selected_ = false;
           bitField0_ = (bitField0_ & ~0x00000004);
           return this;
         }
@@ -3075,8 +3075,8 @@ public final class NrvProtos {
           return nodeBuilder_;
         }
         
-        // optional bool selected = 3 [default = true];
-        private boolean selected_ = true;
+        // optional bool selected = 3;
+        private boolean selected_ ;
         public boolean hasSelected() {
           return ((bitField0_ & 0x00000004) == 0x00000004);
         }
@@ -3091,7 +3091,7 @@ public final class NrvProtos {
         }
         public Builder clearSelected() {
           bitField0_ = (bitField0_ & ~0x00000004);
-          selected_ = true;
+          selected_ = false;
           onChanged();
           return this;
         }
@@ -5701,19 +5701,19 @@ public final class NrvProtos {
       "\0132,.com.wajam.nrv.data.serialization.Str" +
       "ingPair\022>\n\010metadata\030\r \003(\0132,.com.wajam.nr" +
       "v.data.serialization.StringPair\022\023\n\013messa" +
-      "geData\030\016 \001(\014\"\225\002\n\tEndpoints\022A\n\006shards\030\001 \003" +
+      "geData\030\016 \001(\014\"\217\002\n\tEndpoints\022A\n\006shards\030\001 \003" +
       "(\01321.com.wajam.nrv.data.serialization.En" +
       "dpoints.Shard\032]\n\005Shard\022\r\n\005token\030\001 \001(\003\022E\n" +
       "\010replicas\030\002 \003(\01323.com.wajam.nrv.data.ser" +
-      "ialization.Endpoints.Replica\032f\n\007Replica\022" +
+      "ialization.Endpoints.Replica\032`\n\007Replica\022" +
       "\r\n\005token\030\001 \001(\003\0224\n\004node\030\002 \001(\0132&.com.wajam" +
-      ".nrv.data.serialization.Node\022\026\n\010selected",
-      "\030\003 \001(\010:\004true\"P\n\004Node\022\014\n\004host\030\001 \001(\014\022:\n\005po" +
-      "rts\030\002 \003(\0132+.com.wajam.nrv.data.serializa" +
-      "tion.Int32Pair\"\'\n\tInt32Pair\022\013\n\003key\030\001 \002(\t" +
-      "\022\r\n\005value\030\002 \002(\005\"(\n\nStringPair\022\013\n\003key\030\001 \002" +
-      "(\t\022\r\n\005value\030\002 \002(\t\"%\n\007AnyPair\022\013\n\003key\030\001 \002(" +
-      "\t\022\r\n\005value\030\002 \002(\014"
+      ".nrv.data.serialization.Node\022\020\n\010selected",
+      "\030\003 \001(\010\"P\n\004Node\022\014\n\004host\030\001 \001(\014\022:\n\005ports\030\002 " +
+      "\003(\0132+.com.wajam.nrv.data.serialization.I" +
+      "nt32Pair\"\'\n\tInt32Pair\022\013\n\003key\030\001 \002(\t\022\r\n\005va" +
+      "lue\030\002 \002(\005\"(\n\nStringPair\022\013\n\003key\030\001 \002(\t\022\r\n\005" +
+      "value\030\002 \002(\t\"%\n\007AnyPair\022\013\n\003key\030\001 \002(\t\022\r\n\005v" +
+      "alue\030\002 \002(\014"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {

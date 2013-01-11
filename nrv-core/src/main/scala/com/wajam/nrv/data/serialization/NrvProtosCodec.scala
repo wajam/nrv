@@ -1,10 +1,14 @@
 package com.wajam.nrv.data.serialization
 
+import scala.collection.JavaConverters._
 import com.wajam.nrv.data.Message
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
-import com.wajam.nrv.service.{Shard, Endpoints}
+import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
+import java.net.InetAddress
+import com.wajam.nrv.data.serialization.NrvProtos.Int32Pair
+import collection.parallel.mutable
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
@@ -64,8 +68,10 @@ class NrvProtosCodec {
     protoNode.build()
   }
 
-  def decodeNode(node: NrvProtos.Node): Node = {
-    sys.error("unimplemented")
+  def decodeNode(protoNode: NrvProtos.Node): Node = {
+    val portList = protoNode.getPortsList.asScala.toList
+    val portMap = for(p <- portList) yield ((p.getKey, p.getValue))
+    new Node(InetAddress.getByAddress(protoNode.getHost().toByteArray), portMap.toMap)
   }
 
   def encodeEndpoints(endpoints: Endpoints): NrvProtos.Endpoints = {
@@ -78,7 +84,7 @@ class NrvProtosCodec {
     protoEndpoint.build()
   }
 
-  def decodeEndpoints(node: NrvProtos.Endpoints) = {
+  def decodeEndpoints(node: NrvProtos.Endpoints): Endpoints = {
     sys.error("unimplemented")
   }
 
@@ -86,8 +92,23 @@ class NrvProtosCodec {
     sys.error("unimplemented")
   }
 
-  def decodeShard(node: NrvProtos.Endpoints.Shard) = {
+  def decodeShard(shard: NrvProtos.Endpoints.Shard) = {
     sys.error("unimplemented")
+  }
+
+  def encodeReplica(replica: Replica): NrvProtos.Endpoints.Replica = {
+    val proto = NrvProtos.Endpoints.Replica.newBuilder()
+
+    proto.setToken(replica.token)
+    proto.setSelected(replica.selected)
+    proto.setNode(encodeNode(replica.node))
+
+    proto.build()
+  }
+
+  def decodeReplica(proto: NrvProtos.Endpoints.Replica): Replica = {
+
+    new Replica(proto.getToken, decodeNode(proto.getNode), proto.getSelected)
   }
 
   def encodeUsingCodec(messageData: Any): Array[Byte] = {

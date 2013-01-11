@@ -36,7 +36,7 @@ class TestNrvProtosCodec extends FunSuite {
 
     val shard1 = new Shard(1024, Seq(replica1))
 
-    message.destination.shards :+ shard1
+    message.destination = new Endpoints(Seq(shard1))
 
     message.token = 1024
 
@@ -90,7 +90,7 @@ class TestNrvProtosCodec extends FunSuite {
     message1.messageData == message2.messageData
   }
 
-  test("can encode message") {
+  test("can encode/decode message") {
     val codec = new NrvProtosCodec()
     val messageDataCodec = new GenericJavaSerializeCodec()
 
@@ -98,44 +98,31 @@ class TestNrvProtosCodec extends FunSuite {
 
     val bytes = codec.encodeMessage(message1, messageDataCodec)
 
-    // Not empty and did not crash
-    assert(bytes != Array(Byte), "The serialization was empty")
+    sys.error("not asserted yet")
   }
 
-  test("can decode message") {
+  test("can encode/decode node") {
     sys.error("unimplemented")
   }
 
-  test("can encode node") {
+  test("can encode/decode endpoints") {
     sys.error("unimplemented")
   }
 
-  test("can decode node") {
+  test("can encode/decode shards") {
     sys.error("unimplemented")
   }
 
-  test("can encode endpoints") {
-    sys.error("unimplemented")
-  }
+  test("can encode/decode replica") {
+    val codec = new NrvProtosCodec()
 
-  test("can decode endpoints") {
-    sys.error("unimplemented")
-  }
+    val message = getMessage()
+    val entity1 = message.destination.shards(0).replicas(0)
 
-  test("can encode shards") {
-    sys.error("unimplemented")
-  }
+    val protoBufTransport = codec.encodeReplica(entity1)
+    val entity2 = codec.decodeReplica(protoBufTransport)
 
-  test("can decode shards") {
-    sys.error("unimplemented")
-  }
-
-  test("can encode using codec") {
-    sys.error("unimplemented")
-  }
-
-  test("can decode using codec") {
-    sys.error("unimplemented")
+    assert(entity1 == entity2, "The encode/decode failed, old and new entity are not the same")
   }
 
   def generateException() = {
