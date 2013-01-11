@@ -89,11 +89,19 @@ class NrvProtosCodec {
   }
 
   def encodeShard(shard: Shard): NrvProtos.Endpoints.Shard = {
-    sys.error("unimplemented")
+    val proto = NrvProtos.Endpoints.Shard.newBuilder()
+
+    proto.setToken(shard.token)
+    shard.replicas.foreach(r => proto.addReplicas(encodeReplica(r)))
+
+    proto.build()
   }
 
-  def decodeShard(shard: NrvProtos.Endpoints.Shard) = {
-    sys.error("unimplemented")
+  def decodeShard(protoShard: NrvProtos.Endpoints.Shard): Shard = {
+
+    val protoReplicaSeq = protoShard.getReplicasList.asScala.toSeq
+    val replicaSeq = for(replica <- protoReplicaSeq) yield (decodeReplica(replica))
+    new Shard(protoShard.getToken(), replicaSeq)
   }
 
   def encodeReplica(replica: Replica): NrvProtos.Endpoints.Replica = {

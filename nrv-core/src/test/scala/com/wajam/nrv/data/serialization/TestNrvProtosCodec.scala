@@ -102,7 +102,15 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   test("can encode/decode node") {
-    sys.error("unimplemented")
+    val codec = new NrvProtosCodec()
+
+    val message = getMessage()
+    val entity1 = message.source
+
+    val protoBufTransport = codec.encodeNode(entity1)
+    val entity2 = codec.decodeNode(protoBufTransport)
+
+    assert(nodeIsEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
   }
 
   test("can encode/decode endpoints") {
@@ -110,7 +118,15 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   test("can encode/decode shards") {
-    sys.error("unimplemented")
+    val codec = new NrvProtosCodec()
+
+    val message = getMessage()
+    val entity1 = message.destination.shards(0)
+
+    val protoBufTransport = codec.encodeShard(entity1)
+    val entity2 = codec.decodeShard(protoBufTransport)
+
+    assert(shardIsEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
   }
 
   test("can encode/decode replica") {
@@ -122,7 +138,7 @@ class TestNrvProtosCodec extends FunSuite {
     val protoBufTransport = codec.encodeReplica(entity1)
     val entity2 = codec.decodeReplica(protoBufTransport)
 
-    assert(entity1 == entity2, "The encode/decode failed, old and new entity are not the same")
+    assert(replicaIsEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
   }
 
   def generateException() = {
