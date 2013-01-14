@@ -29,13 +29,19 @@ object NrvBuild extends Build {
     "org.rogach" %% "scallop" % "0.6.0"
   )
 
-  val defaultSettings = Defaults.defaultSettings ++ Defaults.itSettings ++ Seq(
+  val defaultSettings = Defaults.defaultSettings ++ Defaults.itSettings  ++ Seq(
     libraryDependencies ++= commonDeps,
     resolvers ++= commonResolvers,
     retrieveManaged := true,
     publishMavenStyle := true,
     organization := "com.wajam",
     version := "0.1-SNAPSHOT"
+  )
+
+  import sbtprotobuf.{ProtobufPlugin => PB}
+
+  val protobufSettings = PB.protobufSettings ++ Seq(
+    javaSource in PB.protobufConfig <<= (sourceDirectory in Compile)(_ / "java")
   )
 
   lazy val root = Project("nrv", file("."))
@@ -48,7 +54,9 @@ object NrvBuild extends Build {
   lazy val core = Project("nrv-core", file("nrv-core"))
     .configs(IntegrationTest)
     .settings(defaultSettings: _*)
+    .settings(protobufSettings: _*)
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
+
 
   lazy val zookeeper = Project("nrv-zookeeper", file("nrv-zookeeper"))
     .configs(IntegrationTest)
