@@ -153,14 +153,6 @@ class NrvProtosCodec {
     new Replica(proto.getToken, decodeNode(proto.getNode), proto.getSelected)
   }
 
-  def encodeUsingCodec(messageData: Any): Array[Byte] = {
-    sys.error("unimplemented")
-  }
-
-  def decodeUsingCodec(messageRawData: Array[Byte]): Any = {
-    sys.error("unimplemented")
-  }
-
   def serializeToBytes(entity: AnyRef): Array[Byte] = {
     javaSerialize.encodeAny(entity)
   }
