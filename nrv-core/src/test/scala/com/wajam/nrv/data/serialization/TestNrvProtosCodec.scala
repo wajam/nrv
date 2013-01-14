@@ -181,17 +181,15 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   def generateException() = {
-    var exception: Exception = null
 
     try {
       val x, y = 0
-      val z = x / y
+      x / y
+      null
     }
     catch {
-      case ex:Exception => exception = ex
+      case ex:Exception => ex
     }
-
-    exception
   }
 
   test("can serialize exception") {
