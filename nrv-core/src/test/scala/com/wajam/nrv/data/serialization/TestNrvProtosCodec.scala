@@ -13,7 +13,7 @@ import com.wajam.nrv.protocol.codec._
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtosCodec extends FunSuite {
 
-  def getMessage() = {
+  def makeMessage() = {
     val message = new SerializableMessage()
 
     message.protocolName = "Nrv"
@@ -38,7 +38,7 @@ class TestNrvProtosCodec extends FunSuite {
 
     message.token = 1024
 
-    message.metadata += "Key" -> "Value"
+    message.parameters += "Key" -> "Value"
     message.metadata += "CONTENT-TYPE" -> "text/plain"
     message.messageData = "Blob Of Data"
 
@@ -110,7 +110,7 @@ class TestNrvProtosCodec extends FunSuite {
     val codec = new NrvProtosCodec()
     val messageDataCodec = new GenericJavaSerializeCodec()
 
-    val entity1 = getMessage()
+    val entity1 = makeMessage()
 
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
@@ -122,7 +122,7 @@ class TestNrvProtosCodec extends FunSuite {
     val codec = new NrvProtosCodec()
     val messageDataCodec = new GenericJavaSerializeCodec()
 
-    val entity1 = getMessage()
+    val entity1 = makeMessage()
 
     entity1.error = None
 
@@ -135,7 +135,7 @@ class TestNrvProtosCodec extends FunSuite {
   test("can encode/decode node") {
     val codec = new NrvProtosCodec()
 
-    val message = getMessage()
+    val message = makeMessage()
     val entity1 = message.source
 
     val protoBufTransport = codec.encodeNode(entity1)
@@ -147,7 +147,7 @@ class TestNrvProtosCodec extends FunSuite {
   test("can encode/decode endpoints") {
     val codec = new NrvProtosCodec()
 
-    val message = getMessage()
+    val message = makeMessage()
     val entity1 = message.destination
 
     val protoBufTransport = codec.encodeEndpoints(entity1)
@@ -159,7 +159,7 @@ class TestNrvProtosCodec extends FunSuite {
   test("can encode/decode shards") {
     val codec = new NrvProtosCodec()
 
-    val message = getMessage()
+    val message = makeMessage()
     val entity1 = message.destination.shards(0)
 
     val protoBufTransport = codec.encodeShard(entity1)
@@ -171,7 +171,7 @@ class TestNrvProtosCodec extends FunSuite {
   test("can encode/decode replica") {
     val codec = new NrvProtosCodec()
 
-    val message = getMessage()
+    val message = makeMessage()
     val entity1 = message.destination.shards(0).replicas(0)
 
     val protoBufTransport = codec.encodeReplica(entity1)

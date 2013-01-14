@@ -42,11 +42,11 @@ class NrvProtosCodec {
 
     message.parameters.foreach{
       case (key, value) =>
-        protoMessage.addParameters(NrvProtos.StringPair.newBuilder().setKey(key).setValue(value.toString))}
+        protoMessage.addParameters(NrvProtos.StringPair.newBuilder().setKey(key).setValue(value.asInstanceOf[String]))}
 
     message.metadata.foreach{
       case (key, value) =>
-        protoMessage.addMetadata(NrvProtos.StringPair.newBuilder().setKey(key).setValue(value.toString))}
+        protoMessage.addMetadata(NrvProtos.StringPair.newBuilder().setKey(key).setValue(value.asInstanceOf[String]))}
 
     protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))
 
@@ -99,7 +99,7 @@ class NrvProtosCodec {
   def decodeNode(protoNode: NrvProtos.Node): Node = {
     val portList = protoNode.getPortsList.asScala.toList
     val portMap = for(p <- portList) yield ((p.getKey, p.getValue))
-    new Node(InetAddress.getByAddress(protoNode.getHost().toByteArray), portMap.toMap)
+    new Node(InetAddress.getByAddress(protoNode.getHost.toByteArray), portMap.toMap)
   }
 
   def encodeEndpoints(endpoints: Endpoints): NrvProtos.Endpoints = {
@@ -131,7 +131,7 @@ class NrvProtosCodec {
 
     val protoReplicaSeq = protoShard.getReplicasList.asScala.toSeq
     val replicaSeq = for(replica <- protoReplicaSeq) yield (decodeReplica(replica))
-    new Shard(protoShard.getToken(), replicaSeq)
+    new Shard(protoShard.getToken, replicaSeq)
   }
 
   def encodeReplica(replica: Replica): NrvProtos.Endpoints.Replica = {
