@@ -78,7 +78,7 @@ object ZookeeperClusterTool extends App {
       zkClient.ensureAllExists(servers.substring(pos), Array())
       zkClient.close()
     }
-    new ZookeeperClient(servers)
+    new ZookeeperClient(servers, sessionTimeout = 30000)
   }
 
   def readZookeeperConfig: List[(String, String)] = {

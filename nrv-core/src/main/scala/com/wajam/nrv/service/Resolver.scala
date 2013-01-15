@@ -57,7 +57,7 @@ class Resolver(val replica: Int = 1,
 }
 
 object Resolver {
-  def MAX_TOKEN = Int.MaxValue.toLong * 2
+  def MAX_TOKEN = TokenRange.MaxToken
 
   def TOKEN_FULLPATH = (actionPath: ActionPath, path: String) => hashData(path)
 
