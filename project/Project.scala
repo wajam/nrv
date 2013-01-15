@@ -1,5 +1,6 @@
 import sbt._
 import Keys._
+import com.typesafe.startscript.StartScriptPlugin
 
 object NrvBuild extends Build {
   var commonResolvers = Seq(
@@ -41,6 +42,7 @@ object NrvBuild extends Build {
     .configs(IntegrationTest)
     .settings(defaultSettings: _*)
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
+    .settings(StartScriptPlugin.startScriptForClassesSettings: _*)
     .aggregate(core)
     .aggregate(zookeeper)
 
@@ -55,6 +57,7 @@ object NrvBuild extends Build {
     .settings(libraryDependencies ++= zookeeperDeps)
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
     .settings(parallelExecution in IntegrationTest := false)
+    .settings(StartScriptPlugin.startScriptForClassesSettings: _*)
     .dependsOn(core)
 }
 
