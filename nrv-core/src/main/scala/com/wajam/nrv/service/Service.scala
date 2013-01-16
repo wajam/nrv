@@ -93,4 +93,30 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
       members.map(member => "%d\t\t%s\t\t%s".format(member.token, member.node, member.status))
       ).mkString("\n")
   }
+
+  /**
+   * Returns list of token ranges handled by the specified service member.
+   */
+  def getMemberTokenRanges(member: ServiceMember): List[TokenRange] = {
+    val ring = members.map(_.token).toList.sorted
+    if (ring.size == 1) {
+      List(TokenRange.All)
+    } else {
+      ring.indexOf(member.token) match {
+        case -1 => {
+          throw new IllegalArgumentException("Member not found %s".format(member))
+        }
+        case 0 if ring.last == TokenRange.MaxToken => {
+          List(TokenRange(0, member.token))
+        }
+        case 0 => {
+          List(TokenRange(0, member.token), TokenRange(ring.last + 1, TokenRange.MaxToken))
+        }
+        case index => {
+          List(TokenRange(ring(index - 1) + 1, member.token))
+        }
+      }
+    }
+  }
+
 }
