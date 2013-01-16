@@ -107,9 +107,9 @@ class Action(val path: ActionPath,
       }
 
       this.switchboard.handleOutgoing(this, outMessage, _ => {
-          TraceFilter.handleOutgoing(this, outMessage, _ => {
-            this.consistency.handleOutgoing(this, outMessage, _ => {
-              this.protocol.handleOutgoing(this, outMessage, _ => {
+        TraceFilter.handleOutgoing(this, outMessage, _ => {
+          this.consistency.handleOutgoing(this, outMessage, _ => {
+            this.protocol.handleOutgoing(this, outMessage, _ => {
               outMessage.sentTime = System.currentTimeMillis()
             })
           })
@@ -128,9 +128,9 @@ class Action(val path: ActionPath,
 
     this.resolver.handleIncoming(this, fromMessage, _ => {
       this.switchboard.handleIncoming(this, fromMessage, _ => {
-          TraceFilter.handleIncoming(this, fromMessage, _ => {
-            this.consistency.handleIncoming(this, fromMessage, _ => {
-              fromMessage.function match {
+        TraceFilter.handleIncoming(this, fromMessage, _ => {
+          this.consistency.handleIncoming(this, fromMessage, _ => {
+            fromMessage.function match {
 
               // function call
               case MessageType.FUNCTION_CALL =>

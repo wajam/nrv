@@ -14,9 +14,7 @@ trait Timestamp extends Serializable with Ordered[Timestamp] {
 
   override def equals(other: Any): Boolean =
     other match {
-      case that: Timestamp =>
-        (that canEqual this) &&
-          value == that.value
+      case that: Timestamp => (that canEqual this) && value == that.value
       case _ => false
     }
 
