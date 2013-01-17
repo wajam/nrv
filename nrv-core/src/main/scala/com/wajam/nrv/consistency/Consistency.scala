@@ -28,6 +28,7 @@ abstract class Consistency extends MessageHandler {
     event match {
       case ve: VotableEvent =>
         ve.vote(pass = true)
+      case _ =>
     }
   }
 
