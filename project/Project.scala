@@ -67,7 +67,7 @@ object NrvBuild extends Build {
     .settings(defaultSettings: _*)
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
 
-  lazy val ext = Project(PROJECT_NAME + "-ext", file(PROJECT_NAME + "-ext"))
+  lazy val ext = Project(PROJECT_NAME + "-extension", file(PROJECT_NAME + "-extension"))
     .configs(IntegrationTest)
     .settings(defaultSettings: _*)
     .settings(libraryDependencies ++= extDeps)
