@@ -1,5 +1,6 @@
 import sbt._
 import Keys._
+import com.typesafe.startscript.StartScriptPlugin
 
 object NrvBuild extends Build {
   val PROJECT_NAME = "nrv"
@@ -95,5 +96,17 @@ object NrvBuild extends Build {
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
     .settings(parallelExecution in IntegrationTest := false)
     .dependsOn(core)
+
+  import sbtprotobuf.{ProtobufPlugin => PB}
+
+  val protobufSettings = PB.protobufSettings ++ Seq(
+    javaSource in PB.protobufConfig <<= (sourceDirectory in Compile)(_ / "java")
+  )
+
+  // We keep it as a separate projet, to avoid a dependency on protoc
+  // The protobuf file are under version control, so no need to generate them everytime.
+  // To generate them run sbt shell them run ";project nrv-protobuf ;protobuf:generate"
+  lazy val protobuf = Project(PROJECT_NAME +  "-protobuf", file("nrv-core"))
+    .settings(protobufSettings: _*)
 }
 
