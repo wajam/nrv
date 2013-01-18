@@ -13,7 +13,7 @@ import com.wajam.nrv.protocol.codec._
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtobufSerializer extends FunSuite {
 
-  def makeMessage() = {
+  private def makeMessage() = {
     val message = new SerializableMessage()
 
     message.protocolName = "Nrv"
@@ -47,27 +47,27 @@ class TestNrvProtobufSerializer extends FunSuite {
     message
   }
 
-  def replicaIsEqual(replica1: Replica, replica2: Replica): Boolean = {
+  private def replicaIsEqual(replica1: Replica, replica2: Replica): Boolean = {
     replica1.token == replica2.token
     nodeIsEqual(replica1.node, replica2.node)
     replica1.selected == replica2.selected
   }
 
-  def shardIsEqual(shard1: Shard, shard2: Shard): Boolean = {
+  private def shardIsEqual(shard1: Shard, shard2: Shard): Boolean = {
     assert(shard1.token == shard2.token)
     shard1.replicas.forall(sd1 => shard2.replicas.exists(sd2 => replicaIsEqual(sd1, sd2)))
   }
 
-  def endpointsAreEqual(endpoints1: Endpoints, endpoints2: Endpoints): Boolean = {
+  private def endpointsAreEqual(endpoints1: Endpoints, endpoints2: Endpoints): Boolean = {
     endpoints1.shards.forall(sd1 => endpoints2.shards.exists(sd2 => shardIsEqual(sd1, sd2)))
   }
 
-  def nodeIsEqual(node1: Node, node2: Node): Boolean = {
+  private def nodeIsEqual(node1: Node, node2: Node): Boolean = {
     (node1.host == node2.host) &&
     node1.ports.forall( kv1 => node2.ports.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2))
   }
 
-  def exceptionIsEqual(ex1: Option[Exception], ex2: Option[Exception]): Boolean = {
+  private def exceptionIsEqual(ex1: Option[Exception], ex2: Option[Exception]): Boolean = {
 
     if (ex1.isEmpty && ex2.isEmpty)
     {
@@ -85,7 +85,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     }
   }
 
-  def assertMessage(message1: Message, message2: Message) = {
+  private def assertMessageEqual(message1: Message, message2: Message) = {
 
     assert(message1.protocolName === message2.protocolName)
     assert(message1.serviceName === message2.serviceName)
@@ -112,7 +112,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val contents = codec.serializeMessage(entity1, messageDataCodec)
     val entity2 = codec.deserializeMessage(contents, messageDataCodec)
 
-    assertMessage(entity1, entity2)
+    assertMessageEqual(entity1, entity2)
   }
 
   test("can encode/decode message") {
@@ -124,7 +124,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
 
-    assertMessage(entity1, entity2)
+    assertMessageEqual(entity1, entity2)
   }
 
   test("can encode/decode a message with no error in it") {
@@ -138,7 +138,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
 
-    assertMessage(entity1, entity2)
+    assertMessageEqual(entity1, entity2)
   }
 
   test("can encode/decode node") {
