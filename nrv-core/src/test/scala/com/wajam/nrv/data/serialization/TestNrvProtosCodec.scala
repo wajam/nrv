@@ -107,7 +107,7 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   test("can encode/decode message") {
-    val codec = new NrvProtosCodec()
+    val codec = new NrvProtobufSerializer()
     val messageDataCodec = new GenericJavaSerializeCodec()
 
     val entity1 = makeMessage()
@@ -119,7 +119,7 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   test("can encode/decode a message with no error in it") {
-    val codec = new NrvProtosCodec()
+    val codec = new NrvProtobufSerializer()
     val messageDataCodec = new GenericJavaSerializeCodec()
 
     val entity1 = makeMessage()
@@ -133,7 +133,7 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   test("can encode/decode node") {
-    val codec = new NrvProtosCodec()
+    val codec = new NrvProtobufSerializer()
 
     val message = makeMessage()
     val entity1 = message.source
@@ -145,7 +145,7 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   test("can encode/decode endpoints") {
-    val codec = new NrvProtosCodec()
+    val codec = new NrvProtobufSerializer()
 
     val message = makeMessage()
     val entity1 = message.destination
@@ -157,7 +157,7 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   test("can encode/decode shards") {
-    val codec = new NrvProtosCodec()
+    val codec = new NrvProtobufSerializer()
 
     val message = makeMessage()
     val entity1 = message.destination.shards(0)
@@ -169,7 +169,7 @@ class TestNrvProtosCodec extends FunSuite {
   }
 
   test("can encode/decode replica") {
-    val codec = new NrvProtosCodec()
+    val codec = new NrvProtobufSerializer()
 
     val message = makeMessage()
     val entity1 = message.destination.shards(0).replicas(0)
@@ -194,7 +194,7 @@ class TestNrvProtosCodec extends FunSuite {
 
   test("can serialize exception") {
 
-    val codec = new NrvProtosCodec()
+    val codec = new NrvProtobufSerializer()
 
     val bytes = codec.serializeToBytes(generateException())
 
@@ -203,7 +203,7 @@ class TestNrvProtosCodec extends FunSuite {
 
   test("can deserialize exception") {
 
-    val codec = new NrvProtosCodec()
+    val codec = new NrvProtobufSerializer()
 
     val bytes = codec.serializeToBytes(generateException())
     val exception = codec.serializeFromBytes(bytes)

@@ -11,7 +11,7 @@ import java.net.InetAddress
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
  */
-class NrvProtosCodec {
+class NrvProtobufSerializer {
 
   val javaSerialize = new GenericJavaSerializeCodec()
 
