@@ -11,7 +11,7 @@ import java.net.InetAddress
 import com.wajam.nrv.protocol.codec._
 
 @RunWith(classOf[JUnitRunner])
-class TestNrvProtosCodec extends FunSuite {
+class TestNrvProtobufSerializer extends FunSuite {
 
   def makeMessage() = {
     val message = new SerializableMessage()
@@ -46,8 +46,6 @@ class TestNrvProtosCodec extends FunSuite {
 
     message
   }
-
-  // TODO: Override .equals on every objects?
 
   def replicaIsEqual(replica1: Replica, replica2: Replica): Boolean = {
     (replica1.token == replica2.token) &&
@@ -104,6 +102,18 @@ class TestNrvProtosCodec extends FunSuite {
     message1.parameters.forall( kv1 => message2.parameters.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2)) &&
     message1.metadata.forall( kv1 => message2.metadata.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2)) &&
     message1.messageData == message2.messageData
+  }
+
+  test("can serialize/deserialize message") {
+    val codec = new NrvProtobufSerializer()
+    val messageDataCodec = new GenericJavaSerializeCodec()
+
+    val entity1 = makeMessage()
+
+    val contents = codec.serializeMessage(entity1, messageDataCodec)
+    val entity2 = codec.deserializeMessage(contents, messageDataCodec)
+
+    assert(messageIsEqual(entity1, entity2), "The serialize/deserialize failed, old and new entity are not the same")
   }
 
   test("can encode/decode message") {

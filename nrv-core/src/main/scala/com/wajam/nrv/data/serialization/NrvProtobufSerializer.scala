@@ -1,12 +1,13 @@
 package com.wajam.nrv.data.serialization
 
 import scala.collection.JavaConverters._
-import com.wajam.nrv.data.{SerializableMessage, Message}
+import com.wajam.nrv.data.{Message, SerializableMessage}
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
 import java.net.InetAddress
+import scala.Array
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
@@ -15,7 +16,15 @@ class NrvProtobufSerializer {
 
   val javaSerialize = new GenericJavaSerializeCodec()
 
-  def encodeMessage(message: Message, messageDataCodec: Codec): NrvProtobuf.Message = {
+  def serializeMessage(message: Message, messageDataCodec: Codec): Array[Byte] = {
+    encodeMessage(message, messageDataCodec).toByteArray
+  }
+
+  def deserializeMessage(bytes: Array[Byte], messageDataCodec: Codec): Message = {
+    decodeMessage(NrvProtobuf.Message.parseFrom(bytes), messageDataCodec)
+  }
+
+  private[serialization] def encodeMessage(message: Message, messageDataCodec: Codec): NrvProtobuf.Message = {
 
     val protoMessage = NrvProtobuf.Message.newBuilder()
 
@@ -55,7 +64,7 @@ class NrvProtobufSerializer {
     protoMessage.build()
   }
 
-  def decodeMessage(protoMessage: NrvProtobuf.Message, messageDataCodec: Codec): Message = {
+  private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message, messageDataCodec: Codec): Message = {
     val parameters = for (p <- protoMessage.getParametersList.asScala.toList) yield ((p.getKey, p.getValue))
     val metadata = for (p <- protoMessage.getMetadataList.asScala.toList) yield ((p.getKey, p.getValue))
     val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
@@ -88,7 +97,7 @@ class NrvProtobufSerializer {
     message
   }
 
-  def encodeNode(node: Node): NrvProtobuf.Node = {
+  private[serialization] def encodeNode(node: Node): NrvProtobuf.Node = {
     val protoNode = NrvProtobuf.Node.newBuilder()
 
     protoNode.setHost(ByteString.copyFrom(node.host.getAddress))
@@ -101,13 +110,13 @@ class NrvProtobufSerializer {
     protoNode.build()
   }
 
-  def decodeNode(protoNode: NrvProtobuf.Node): Node = {
+  private[serialization] def decodeNode(protoNode: NrvProtobuf.Node): Node = {
     val portList = protoNode.getPortsList.asScala.toSeq
     val portMap = for (p <- portList) yield ((p.getKey, p.getValue))
     new Node(InetAddress.getByAddress(protoNode.getHost.toByteArray), portMap.toMap)
   }
 
-  def encodeEndpoints(endpoints: Endpoints): NrvProtobuf.Endpoints = {
+  private[serialization] def encodeEndpoints(endpoints: Endpoints): NrvProtobuf.Endpoints = {
     val protoEndpoint = NrvProtobuf.Endpoints.newBuilder()
 
     endpoints.shards.foreach {
@@ -118,13 +127,13 @@ class NrvProtobufSerializer {
     protoEndpoint.build()
   }
 
-  def decodeEndpoints(protoEndpoints: NrvProtobuf.Endpoints): Endpoints = {
+  private[serialization] def decodeEndpoints(protoEndpoints: NrvProtobuf.Endpoints): Endpoints = {
     val protoShardSeq = protoEndpoints.getShardsList.asScala.toSeq
     val shardSeq = for (shard <- protoShardSeq) yield (decodeShard(shard))
     new Endpoints(shardSeq)
   }
 
-  def encodeShard(shard: Shard): NrvProtobuf.Endpoints.Shard = {
+  private[serialization] def encodeShard(shard: Shard): NrvProtobuf.Endpoints.Shard = {
     val proto = NrvProtobuf.Endpoints.Shard.newBuilder()
 
     proto.setToken(shard.token)
@@ -133,14 +142,14 @@ class NrvProtobufSerializer {
     proto.build()
   }
 
-  def decodeShard(protoShard: NrvProtobuf.Endpoints.Shard): Shard = {
+  private[serialization] def decodeShard(protoShard: NrvProtobuf.Endpoints.Shard): Shard = {
 
     val protoReplicaSeq = protoShard.getReplicasList.asScala.toSeq
     val replicaSeq = for (replica <- protoReplicaSeq) yield (decodeReplica(replica))
     new Shard(protoShard.getToken, replicaSeq)
   }
 
-  def encodeReplica(replica: Replica): NrvProtobuf.Endpoints.Replica = {
+  private[serialization] def encodeReplica(replica: Replica): NrvProtobuf.Endpoints.Replica = {
     val proto = NrvProtobuf.Endpoints.Replica.newBuilder()
 
     proto.setToken(replica.token)
@@ -150,16 +159,16 @@ class NrvProtobufSerializer {
     proto.build()
   }
 
-  def decodeReplica(proto: NrvProtobuf.Endpoints.Replica): Replica = {
+  private[serialization] def decodeReplica(proto: NrvProtobuf.Endpoints.Replica): Replica = {
 
     new Replica(proto.getToken, decodeNode(proto.getNode), proto.getSelected)
   }
 
-  def serializeToBytes(entity: AnyRef): Array[Byte] = {
+  private[serialization] def serializeToBytes(entity: AnyRef): Array[Byte] = {
     javaSerialize.encodeAny(entity)
   }
 
-  def serializeFromBytes(bytes: Array[Byte]) = {
+  private[serialization] def serializeFromBytes(bytes: Array[Byte]) = {
     javaSerialize.decodeAny(bytes)
   }
 }
