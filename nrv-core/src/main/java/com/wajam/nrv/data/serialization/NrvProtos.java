@@ -27,9 +27,9 @@ public final class NrvProtos {
     boolean hasPath();
     String getPath();
     
-    // optional int32 rendezVousId = 5;
+    // optional int64 rendezVousId = 5;
     boolean hasRendezVousId();
-    int getRendezVousId();
+    long getRendezVousId();
     
     // optional int32 code = 6;
     boolean hasCode();
@@ -238,13 +238,13 @@ public final class NrvProtos {
       }
     }
     
-    // optional int32 rendezVousId = 5;
+    // optional int64 rendezVousId = 5;
     public static final int RENDEZVOUSID_FIELD_NUMBER = 5;
-    private int rendezVousId_;
+    private long rendezVousId_;
     public boolean hasRendezVousId() {
       return ((bitField0_ & 0x00000010) == 0x00000010);
     }
-    public int getRendezVousId() {
+    public long getRendezVousId() {
       return rendezVousId_;
     }
     
@@ -371,7 +371,7 @@ public final class NrvProtos {
       serviceName_ = "";
       method_ = "";
       path_ = "";
-      rendezVousId_ = 0;
+      rendezVousId_ = 0L;
       code_ = 0;
       error_ = com.google.protobuf.ByteString.EMPTY;
       function_ = 0;
@@ -431,7 +431,7 @@ public final class NrvProtos {
         output.writeBytes(4, getPathBytes());
       }
       if (((bitField0_ & 0x00000010) == 0x00000010)) {
-        output.writeInt32(5, rendezVousId_);
+        output.writeInt64(5, rendezVousId_);
       }
       if (((bitField0_ & 0x00000020) == 0x00000020)) {
         output.writeInt32(6, code_);
@@ -487,7 +487,7 @@ public final class NrvProtos {
       }
       if (((bitField0_ & 0x00000010) == 0x00000010)) {
         size += com.google.protobuf.CodedOutputStream
-          .computeInt32Size(5, rendezVousId_);
+          .computeInt64Size(5, rendezVousId_);
       }
       if (((bitField0_ & 0x00000020) == 0x00000020)) {
         size += com.google.protobuf.CodedOutputStream
@@ -661,7 +661,7 @@ public final class NrvProtos {
         bitField0_ = (bitField0_ & ~0x00000004);
         path_ = "";
         bitField0_ = (bitField0_ & ~0x00000008);
-        rendezVousId_ = 0;
+        rendezVousId_ = 0L;
         bitField0_ = (bitField0_ & ~0x00000010);
         code_ = 0;
         bitField0_ = (bitField0_ & ~0x00000020);
@@ -990,7 +990,7 @@ public final class NrvProtos {
             }
             case 40: {
               bitField0_ |= 0x00000010;
-              rendezVousId_ = input.readInt32();
+              rendezVousId_ = input.readInt64();
               break;
             }
             case 48: {
@@ -1198,15 +1198,15 @@ public final class NrvProtos {
         onChanged();
       }
       
-      // optional int32 rendezVousId = 5;
-      private int rendezVousId_ ;
+      // optional int64 rendezVousId = 5;
+      private long rendezVousId_ ;
       public boolean hasRendezVousId() {
         return ((bitField0_ & 0x00000010) == 0x00000010);
       }
-      public int getRendezVousId() {
+      public long getRendezVousId() {
         return rendezVousId_;
       }
-      public Builder setRendezVousId(int value) {
+      public Builder setRendezVousId(long value) {
         bitField0_ |= 0x00000010;
         rendezVousId_ = value;
         onChanged();
@@ -1214,7 +1214,7 @@ public final class NrvProtos {
       }
       public Builder clearRendezVousId() {
         bitField0_ = (bitField0_ & ~0x00000010);
-        rendezVousId_ = 0;
+        rendezVousId_ = 0L;
         onChanged();
         return this;
       }
@@ -5235,7 +5235,7 @@ public final class NrvProtos {
       "\n\017NrvProtos.proto\022 com.wajam.nrv.data.se" +
       "rialization\"\267\003\n\007Message\022\024\n\014protocolName\030" +
       "\001 \001(\t\022\023\n\013serviceName\030\002 \001(\t\022\016\n\006method\030\003 \001" +
-      "(\t\022\014\n\004path\030\004 \001(\t\022\024\n\014rendezVousId\030\005 \001(\005\022\014" +
+      "(\t\022\014\n\004path\030\004 \001(\t\022\024\n\014rendezVousId\030\005 \001(\003\022\014" +
       "\n\004code\030\006 \001(\005\022\r\n\005error\030\007 \001(\014\022\020\n\010function\030" +
       "\010 \001(\005\0226\n\006source\030\t \001(\0132&.com.wajam.nrv.da" +
       "ta.serialization.Node\022@\n\013destination\030\n \001" +

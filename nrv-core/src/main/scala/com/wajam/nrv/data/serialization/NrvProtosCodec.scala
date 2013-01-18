@@ -70,7 +70,9 @@ class NrvProtosCodec {
     message.serviceName = protoMessage.getProtocolName
     message.method = protoMessage.getMethod
     message.path = protoMessage.getPath
-    message.rendezvousId = protoMessage.getRendezVousId
+
+    //TODO: Modify message.rendezvousId when we won't use JavaSerialization anymore to use a long
+    message.rendezvousId = protoMessage.getRendezVousId.asInstanceOf[Int]
 
     val error = protoMessage.getError
 

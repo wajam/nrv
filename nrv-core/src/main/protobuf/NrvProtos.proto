@@ -18,7 +18,7 @@ message Message {
     optional string serviceName = 2;
     optional string method = 3;
     optional string path = 4;
-    optional int32 rendezVousId = 5;
+    optional int64 rendezVousId = 5;
     optional int32 code = 6;
 
     optional bytes error = 7; // Serialized with Java
