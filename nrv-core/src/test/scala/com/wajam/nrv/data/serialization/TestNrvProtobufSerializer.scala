@@ -48,14 +48,14 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   def replicaIsEqual(replica1: Replica, replica2: Replica): Boolean = {
-    (replica1.token == replica2.token) &&
-    (nodeIsEqual(replica1.node, replica2.node)) &&
-    (replica1.selected && replica2.selected)
+    replica1.token == replica2.token
+    nodeIsEqual(replica1.node, replica2.node)
+    replica1.selected == replica2.selected
   }
 
   def shardIsEqual(shard1: Shard, shard2: Shard): Boolean = {
-    (shard1.token == shard2.token) &&
-    shard1.replicas.forall( sd1 => shard2.replicas.exists(sd2 => replicaIsEqual(sd1, sd2)))
+    assert(shard1.token == shard2.token)
+    shard1.replicas.forall(sd1 => shard2.replicas.exists(sd2 => replicaIsEqual(sd1, sd2)))
   }
 
   def endpointsAreEqual(endpoints1: Endpoints, endpoints2: Endpoints): Boolean = {
@@ -85,23 +85,22 @@ class TestNrvProtobufSerializer extends FunSuite {
     }
   }
 
-  def messageIsEqual(message1: Message, message2: Message): Boolean = {
-    val message = new InMessage()
+  def assertMessage(message1: Message, message2: Message) = {
 
-    (message1.protocolName == message2.protocolName) &&
-    (message1.serviceName == message2.serviceName) &&
-    (message1.method == message2.method) &&
-    (message1.path == message2.path) &&
-    (message1.rendezvousId == message2.rendezvousId) &&
-    (exceptionIsEqual(message1.error, message2.error)) &&
-    (message1.function == message2.function) &&
-    (message1.token == message2.token) &&
-    (message1.code == message2.code) &&
-    nodeIsEqual(message1.source, message2.source) &&
-    endpointsAreEqual(message1.destination, message2.destination) &&
-    message1.parameters.forall( kv1 => message2.parameters.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2)) &&
-    message1.metadata.forall( kv1 => message2.metadata.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2)) &&
-    message1.messageData == message2.messageData
+    assert(message1.protocolName === message2.protocolName)
+    assert(message1.serviceName === message2.serviceName)
+    assert(message1.method === message2.method)
+    assert(message1.path === message2.path)
+    assert(message1.rendezvousId === message2.rendezvousId)
+    assert(exceptionIsEqual(message1.error, message2.error))
+    assert(message1.function === message2.function)
+    assert(message1.token === message2.token)
+    assert(message1.code === message2.code)
+    assert(nodeIsEqual(message1.source, message2.source))
+    assert(endpointsAreEqual(message1.destination, message2.destination))
+    assert(message1.parameters.forall( kv1 => message2.parameters.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2)))
+    assert(message1.metadata.forall( kv1 => message2.metadata.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2)))
+    assert(message1.messageData === message2.messageData)
   }
 
   test("can serialize/deserialize message") {
@@ -113,7 +112,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val contents = codec.serializeMessage(entity1, messageDataCodec)
     val entity2 = codec.deserializeMessage(contents, messageDataCodec)
 
-    assert(messageIsEqual(entity1, entity2), "The serialize/deserialize failed, old and new entity are not the same")
+    assertMessage(entity1, entity2)
   }
 
   test("can encode/decode message") {
@@ -125,7 +124,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
 
-    assert(messageIsEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
+    assertMessage(entity1, entity2)
   }
 
   test("can encode/decode a message with no error in it") {
@@ -139,7 +138,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
 
-    assert(messageIsEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
+    assertMessage(entity1, entity2)
   }
 
   test("can encode/decode node") {
@@ -163,7 +162,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val protoBufTransport = codec.encodeEndpoints(entity1)
     val entity2 = codec.decodeEndpoints(protoBufTransport)
 
-    assert(endpointsAreEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
+    endpointsAreEqual(entity1, entity2)
   }
 
   test("can encode/decode shards") {
@@ -175,7 +174,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val protoBufTransport = codec.encodeShard(entity1)
     val entity2 = codec.decodeShard(protoBufTransport)
 
-    assert(shardIsEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
+    shardIsEqual(entity1, entity2)
   }
 
   test("can encode/decode replica") {
@@ -187,7 +186,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val protoBufTransport = codec.encodeReplica(entity1)
     val entity2 = codec.decodeReplica(protoBufTransport)
 
-    assert(replicaIsEqual(entity1, entity2), "The encode/decode failed, old and new entity are not the same")
+    replicaIsEqual(entity1, entity2)
   }
 
   def generateException() = {
