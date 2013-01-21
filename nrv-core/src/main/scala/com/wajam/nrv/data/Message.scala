@@ -62,20 +62,25 @@ abstract class Message(params: Iterable[(String, Any)] = null,
 
   def copyBaseMessageData(other: Message) {
 
-    other.parameters ++= this.parameters
-    other.metadata ++= this.metadata
-    other.messageData = this.messageData
+    other.code = this.code
+
     other.protocolName = this.protocolName
     other.serviceName = this.serviceName
     other.method = this.method
     other.path = this.path
-    other.code = this.code
     other.rendezvousId = this.rendezvousId
-    other.function = this.function
+
     other.error = this.error
+
+    other.function = this.function
+
     other.source = this.source
     other.destination = this.destination // TODO: should be cloned
     other.token = this.token
+
+    other.parameters ++= this.parameters
+    other.metadata ++= this.metadata
+    other.messageData = this.messageData
   }
 
   override def toString = {

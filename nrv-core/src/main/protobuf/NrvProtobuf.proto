@@ -1,0 +1,68 @@
+// Protobuf specification for Nrv serializable class
+
+// --Remainder: Extending a protocol buffer--
+
+// * you must not change the tag numbers of any existing fields.
+// * you must not add or delete any required fields.
+// * you may delete optional or repeated fields.
+// * you may add new optional or repeated fields but you must use fresh tag numbers
+//   (i.e. tag numbers that were never used in this protocol buffer, not even by deleted fields).
+
+// More at: https://developers.google.com/protocol-buffers/docs/javatutorial
+
+package com.wajam.nrv.data.serialization;
+
+message Message {
+
+    optional string protocolName = 1;
+    optional string serviceName = 2;
+    optional string method = 3;
+    optional string path = 4;
+    optional int64 rendezVousId = 5;
+    optional int32 code = 6;
+
+    optional bytes error = 7; // Serialized with Java
+
+    optional int32 function = 8;
+
+    optional Node source = 9;
+    optional Endpoints destination = 10;
+    optional int64 token = 11;
+
+    repeated StringPair parameters = 12;
+    repeated StringPair metadata = 13;
+    optional bytes messageData = 14;
+}
+
+message Endpoints {
+
+    repeated Shard shards = 1;
+
+    message Shard {
+        optional int64 token = 1;
+        repeated Replica replicas = 2;
+    }
+
+    message Replica {
+        optional int64 token = 1;
+        optional Node node = 2;
+        optional bool selected = 3;
+    }
+}
+
+message Node {
+    optional bytes host = 1;
+    repeated Int32Pair ports = 2;
+}
+
+/* Used to emulate a map */
+
+message Int32Pair {
+    required string key = 1;
+    required int32 value = 2;
+}
+
+message StringPair {
+    required string key = 1;
+    required string value = 2;
+}

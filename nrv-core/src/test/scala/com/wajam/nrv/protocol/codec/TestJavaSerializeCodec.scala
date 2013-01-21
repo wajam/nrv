@@ -10,7 +10,7 @@ import com.wajam.nrv.service.{Replica, Endpoints, Shard}
 @RunWith(classOf[JUnitRunner])
 class TestJavaSerializeCodec extends FunSuite {
   test("serialize, unserialize") {
-    val codec = new JavaSerializeCodec()
+    val codec = new MessageJavaSerializeCodec()
 
     val req = new OutMessage(Map("test" -> "someval"))
     req.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, new Node("127.0.0.1", Map("nrv" -> 12345)))))))
