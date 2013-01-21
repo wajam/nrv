@@ -38,8 +38,8 @@ class NrvProtobufSerializer {
     protoMessage.setPath(message.path)
     protoMessage.setRendezVousId(message.rendezvousId)
 
-    if (message.error.isDefined)
-      protoMessage.setError(ByteString.copyFrom(serializeToBytes(message.error.get)))
+    for (error <- message.error)
+      protoMessage.setError(ByteString.copyFrom(serializeToBytes(error)))
 
     protoMessage.setFunction(message.function)
 
