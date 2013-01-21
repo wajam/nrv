@@ -11,10 +11,13 @@ import com.wajam.nrv.tracing.Annotation.Message
 trait Traced extends Instrumented {
 
   def tracedTimer(name: String, scope: String = null,
-                  durationUnit: TimeUnit = TimeUnit.MILLISECONDS, rateUnit: TimeUnit = TimeUnit.SECONDS) = {
-    new TracedTimer(metrics.timer(name, scope, durationUnit, rateUnit, metrics.metricsRegistry),
-      new MetricName(getClass, name, scope))
+                  durationUnit: TimeUnit = TimeUnit.MILLISECONDS, rateUnit: TimeUnit = TimeUnit.SECONDS,
+                  tracedClass: Option[Class[_]] = None) = {
+    new TracedTimer(new Timer(metrics.metricsRegistry.newTimer(tracedClass.getOrElse(getTracedClass),
+      name, scope, durationUnit, rateUnit)), new MetricName(tracedClass.getOrElse(getTracedClass), name, scope))
   }
+
+  protected def getTracedClass: Class[_] = getClass
 }
 
 /**
