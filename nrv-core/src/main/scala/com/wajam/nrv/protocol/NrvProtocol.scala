@@ -6,6 +6,7 @@ import com.wajam.nrv.data.Message
 import com.wajam.nrv.transport.nrv.NrvNettyTransport
 import com.wajam.nrv.cluster.LocalNode
 import com.wajam.nrv.UnsupportedProtocolException
+import com.wajam.nrv.data.serialization.NrvProtobufSerializer
 
 /**
  * Default protocol used by NRV. All nodes must have this protocol, since it's
@@ -15,6 +16,8 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
   extends Protocol("nrv") {
 
   override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name), this)
+
+  val protobufSerializer = new NrvProtobufSerializer()
 
   def start() {
     transport.start()
@@ -48,11 +51,30 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
   }
 
   private def parseV2(message: Array[Byte]): Message = {
-    throw new UnsupportedOperationException("Not implemented yet")
+
+    val messageLength = message.length - 1
+
+    val bytes = new Array[Byte](messageLength)
+
+    // Get bytes without the magic byte
+    ByteBuffer.wrap(message).get(bytes, 1, messageLength)
+
+    protobufSerializer.deserializeMessage(bytes)
   }
 
   private def generateV2(message: Message): Array[Byte] = {
-    throw new UnsupportedOperationException("Not implemented yet")
+
+    val bytes = protobufSerializer.serializeMessage(message)
+
+    val messageLength = bytes.length + 1
+
+    val buffer = ByteBuffer.allocate(messageLength)
+
+    buffer.put(NrvProtocol.V2MagicByte)
+
+    buffer.put(bytes)
+
+    buffer.array()
   }
 
   private def parseV1(message: Array[Byte]): Message = {
@@ -76,6 +98,7 @@ object NrvProtocolVersion extends Enumeration {
   // Old serialized message
   val V1 = Value(1)
 
-  // Protobuf serialization for Message, excepted for Any type in it, and errors. Codec for message data.
+  // Protobuf serialization for Message, except for Any object in parameters, metadata
+  // and errors which are Java serialized. Codec for message data.
   val V2 = Value(2)
 }

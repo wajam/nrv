@@ -16,11 +16,11 @@ class NrvProtobufSerializer {
 
   val javaSerialize = new GenericJavaSerializeCodec()
 
-  def serializeMessage(message: Message, messageDataCodec: Codec): Array[Byte] = {
+  def serializeMessage(message: Message, messageDataCodec: Codec = javaSerialize): Array[Byte] = {
     encodeMessage(message, messageDataCodec).toByteArray
   }
 
-  def deserializeMessage(bytes: Array[Byte], messageDataCodec: Codec): Message = {
+  def deserializeMessage(bytes: Array[Byte], messageDataCodec: Codec = javaSerialize): Message = {
     decodeMessage(NrvProtobuf.Message.parseFrom(bytes), messageDataCodec)
   }
 
