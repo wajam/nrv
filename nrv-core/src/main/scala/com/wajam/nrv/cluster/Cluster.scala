@@ -12,8 +12,8 @@ import com.wajam.nrv.protocol.{NrvProtocolVersion, NrvProtocol, Protocol}
  */
 class Cluster(val localNode: LocalNode,
               val clusterManager: ClusterManager,
-              val nrvProtocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V1,
-              actionSupportOptions: ActionSupportOptions = new ActionSupportOptions())
+              actionSupportOptions: ActionSupportOptions = new ActionSupportOptions(),
+              val nrvProtocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V1)
   extends ActionSupport with Logging with Observable {
 
   // assign default resolver, switchboard, etc.
@@ -30,7 +30,7 @@ class Cluster(val localNode: LocalNode,
   def isLocalNode(node: Node) = node == localNode
 
   // register default protocol, which is nrv
-  this.registerProtocol(new NrvProtocol(this.localNode), default = true)
+  this.registerProtocol(new NrvProtocol(this.localNode, protocolVersion = nrvProtocolVersion), default = true)
 
   def registerProtocol(protocol: Protocol, default: Boolean = false) {
     this.protocols += (protocol.name -> protocol)
