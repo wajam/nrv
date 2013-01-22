@@ -14,6 +14,7 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
 
   override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name), this)
 
+
   def start() {
     transport.start()
   }
@@ -29,6 +30,13 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
   def generate(message: Message): AnyRef = {
     codec.encode(message)
   }
+}
+
+object NrvProtocol{
+  // Source: http://docs.oracle.com/javase/6/docs/platform/serialization/spec/protocol.html
+  private val JavaSerializeMagicByte : Short = (0xACED).toShort
+
+  private val V2MagicByte : Byte = (0xF2).toByte
 }
 
 object NrvProtocolVersion extends Enumeration {
