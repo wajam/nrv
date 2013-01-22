@@ -24,11 +24,13 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
     assert(usersAction === matcher.matchPath(usersPath, ActionMethod.GET).get)
   }
 
-  test("should match simple path to action1") {
+  test("/users should match /users, users/, users") {
     val usersPath = "/users/"
     val usersAction = new Action(usersPath, (_) => {})
     matcher.registerAction(usersAction)
-    assert(usersAction === matcher.matchPath("users", ActionMethod.GET).get)
+    assert(usersAction === matcher.matchPath("/users/", ActionMethod.GET).get)
+    assert(usersAction === matcher.matchPath("/users", ActionMethod.GET).get)
+    assert(usersAction === matcher.matchPath("users/", ActionMethod.GET).get)
   }
 
   test("should match simple path to action with method") {
