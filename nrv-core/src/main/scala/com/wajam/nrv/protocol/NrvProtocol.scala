@@ -39,7 +39,12 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
   }
 
   def generate(message: Message): AnyRef = {
-    throw new UnsupportedOperationException("Not implemented yet")
+    if (protocolVersion == NrvProtocolVersion.V1)
+      generateV1(message)
+    else if (protocolVersion == NrvProtocolVersion.V2)
+      generateV2(message)
+    else
+      throw new UnsupportedProtocolException("The provided version number is invalid.")
   }
 
   private def parseV2(message: Array[Byte]): Message = {
