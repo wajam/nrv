@@ -67,16 +67,16 @@ class ActionPathMatcher {
 }
 
 class PathMatchingNode() {
-  private val actionMap = new mutable.HashMap[ActionMethod, Action]()
+  private val actionMap = new mutable.HashMap[String, Action]()
   private val next = new mutable.HashMap[String, PathMatchingNode]()
   private var defaultNext: Option[PathMatchingNode] = None
 
   def registerAction(method: ActionMethod, action: Action) {
-    actionMap.put(method, action)
+    actionMap.put(method.toLowerCase, action)
   }
 
   def matchingActionFor(method: ActionMethod): Option[Action] = {
-    actionMap.get(method) match {
+    actionMap.get(method.toLowerCase) match {
       case None => actionMap.get(ActionMethod.ANY)
       case Some(action) => Some(action)
     }

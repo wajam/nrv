@@ -24,11 +24,32 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
     assert(usersAction === matcher.matchPath(usersPath, ActionMethod.GET).get)
   }
 
+  test("should match simple path to action1") {
+    val usersPath = "/users/"
+    val usersAction = new Action(usersPath, (_) => {})
+    matcher.registerAction(usersAction)
+    assert(usersAction === matcher.matchPath("users", ActionMethod.GET).get)
+  }
+
   test("should match simple path to action with method") {
     val usersPath = "/users/"
     val usersAction = new Action(usersPath, (_) => {}, ActionMethod.POST)
     matcher.registerAction(usersAction)
     assert(usersAction === matcher.matchPath(usersPath, ActionMethod.POST).get)
+  }
+
+  test("should match simple path to action with not conventional method") {
+    val usersPath = "/users/"
+    val usersAction = new Action(usersPath, (_) => {}, "othermethod")
+    matcher.registerAction(usersAction)
+    assert(usersAction === matcher.matchPath(usersPath, "othermethod").get)
+  }
+
+  test("should match simple path to action with not conventional method (different case)") {
+    val usersPath = "/users/"
+    val usersAction = new Action(usersPath, (_) => {}, "othermethod")
+    matcher.registerAction(usersAction)
+    assert(usersAction === matcher.matchPath(usersPath, "OtherMethod").get)
   }
 
   test("should not match action with wrong method") {
