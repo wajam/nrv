@@ -9,7 +9,7 @@ import com.wajam.nrv.cluster.LocalNode
  * Default protocol used by NRV. All nodes must have this protocol, since it's
  * used for cluster management.
  */
-class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeCodec)
+class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeCodec, protocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V1)
   extends Protocol("nrv") {
 
   override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name), this)
@@ -29,4 +29,9 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
   def generate(message: Message): AnyRef = {
     codec.encode(message)
   }
+}
+
+object NrvProtocolVersion extends Enumeration {
+  val V1 = Value(1)
+  val V2 = Value(2)
 }

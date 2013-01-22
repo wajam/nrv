@@ -5,13 +5,14 @@ import com.wajam.nrv.Logging
 import com.wajam.nrv.utils.Observable
 import com.wajam.nrv.tracing.Tracer
 import com.wajam.nrv.consistency.ConsistencyOne
-import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
+import com.wajam.nrv.protocol.{NrvProtocolVersion, NrvProtocol, Protocol}
 
 /**
  * A cluster composed of services that are provided by nodes.
  */
 class Cluster(val localNode: LocalNode,
               val clusterManager: ClusterManager,
+              val nrvProtocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V1,
               actionSupportOptions: ActionSupportOptions = new ActionSupportOptions())
   extends ActionSupport with Logging with Observable {
 
