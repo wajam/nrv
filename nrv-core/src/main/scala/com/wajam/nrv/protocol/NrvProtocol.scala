@@ -32,6 +32,10 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
 }
 
 object NrvProtocolVersion extends Enumeration {
+
+  // Old serialized message
   val V1 = Value(1)
+
+  // Protobuf serialization for Message, excepted for Any type in it, and errors. Codec for message data.
   val V2 = Value(2)
 }
