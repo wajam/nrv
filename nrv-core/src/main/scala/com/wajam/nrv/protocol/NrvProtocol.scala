@@ -30,12 +30,12 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
   def parse(message: AnyRef): Message = {
     val bytes = message.asInstanceOf[Array[Byte]]
 
-    val magicShort = ByteBuffer.wrap(bytes, 0, 2).getInt()
-    val magicByte = bytes(0)
+    val magicShort: Int = ((bytes(0) & 0xFF) << 8) | (bytes(1) & 0xFF)
+    val magicByte: Int = bytes(0)
 
-    if (magicShort == NrvProtocol.JavaSerializeMagicByte)
+    if (magicShort == (NrvProtocol.JavaSerializeMagicShort & 0xFFFF))
       parseV1(bytes)
-    else if (magicByte == NrvProtocol.V2MagicByte)
+    else if (magicByte == (NrvProtocol.V2MagicByte & 0xFF))
       parseV2(bytes)
     else
       throw new UnsupportedProtocolException("The magic byte was not recognized.")
@@ -88,7 +88,7 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
 
 object NrvProtocol {
   // Source: http://docs.oracle.com/javase/6/docs/platform/serialization/spec/protocol.html
-  private val JavaSerializeMagicByte : Short = (0xACED).toShort
+  private val JavaSerializeMagicShort : Short = (0xACED).toShort
 
   private val V2MagicByte : Byte = (0xF2).toByte
 }
