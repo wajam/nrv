@@ -43,7 +43,8 @@ class NrvProtobufSerializer {
 
     protoMessage.setFunction(message.function)
 
-    protoMessage.setSource(encodeNode(message.source))
+    if (message.source != null)
+      protoMessage.setSource(encodeNode(message.source))
 
     protoMessage.setDestination(encodeEndpoints(message.destination))
 
@@ -90,7 +91,9 @@ class NrvProtobufSerializer {
 
     message.function = protoMessage.getFunction
 
-    message.source = decodeNode(protoMessage.getSource)
+    if (protoMessage.hasSource)
+      message.source = decodeNode(protoMessage.getSource)
+
     message.destination = destination
     message.token = protoMessage.getToken
 

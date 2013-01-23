@@ -53,12 +53,17 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
 
   private def parseV2(message: Array[Byte]): Message = {
 
+    if (message.length < 1)
+      throw new IllegalArgumentException("message needs at least one byte of data")
+
     val messageLength = message.length - 1
 
     val bytes = new Array[Byte](messageLength)
 
     // Get bytes without the magic byte
-    ByteBuffer.wrap(message).get(bytes, 1, messageLength)
+    val buffer = ByteBuffer.wrap(message)
+    buffer.get()
+    buffer.get(bytes)
 
     protobufSerializer.deserializeMessage(bytes)
   }

@@ -63,6 +63,8 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   private def nodeIsEqual(node1: Node, node2: Node): Boolean = {
+
+    (node1 == null && node2 == null) ||
     (node1.host == node2.host) &&
     node1.ports.forall( kv1 => node2.ports.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2))
   }
@@ -120,6 +122,18 @@ class TestNrvProtobufSerializer extends FunSuite {
     val messageDataCodec = new GenericJavaSerializeCodec()
 
     val entity1 = makeMessage()
+
+    val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
+    val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
+
+    assertMessageEqual(entity1, entity2)
+  }
+
+  test("can encode/decode empty message") {
+    val codec = new NrvProtobufSerializer()
+    val messageDataCodec = new GenericJavaSerializeCodec()
+
+    val entity1 = new SerializableMessage()
 
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
