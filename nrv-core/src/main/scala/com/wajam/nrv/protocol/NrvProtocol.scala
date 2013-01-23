@@ -31,7 +31,6 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
   def parse(message: AnyRef): Message = {
     val bytes = message.asInstanceOf[Array[Byte]]
 
-
     val magicShort: Int = Shorts.fromByteArray(bytes) & 0xFFFF
     val magicByte: Int = UnsignedBytes.toInt(bytes(0))
 
