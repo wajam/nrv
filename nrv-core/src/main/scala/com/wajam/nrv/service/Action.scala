@@ -128,17 +128,18 @@ class Action(val path: ActionPath,
 
     this.resolver.handleIncoming(this, fromMessage, _ => {
       this.switchboard.handleIncoming(this, fromMessage, _ => {
-        fromMessage.function match {
-          case MessageType.FUNCTION_CALL =>
-            // set the reply callback for this message
-            fromMessage.replyCallback = (intoMessage => {
-              this.generateResponseMessage(fromMessage, intoMessage)
-              this.callOutgoingHandlers(intoMessage)
-            })
-          case _ =>
-        }
-
         TraceFilter.handleIncoming(this, fromMessage, _ => {
+
+          fromMessage.function match {
+            case MessageType.FUNCTION_CALL =>
+              // set the reply callback for this message
+              fromMessage.replyCallback = (intoMessage => {
+                this.generateResponseMessage(fromMessage, intoMessage)
+                this.callOutgoingHandlers(intoMessage)
+              })
+            case _ =>
+          }
+
           this.consistency.handleIncoming(this, fromMessage, _ => {
             fromMessage.function match {
               case MessageType.FUNCTION_CALL =>
