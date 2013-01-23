@@ -1,5 +1,6 @@
 package com.wajam.nrv.protocol
 
+import codec.MessageJavaSerializeCodec
 import com.wajam.nrv.data._
 import com.wajam.nrv.service._
 import org.junit.runner.RunWith
@@ -28,20 +29,54 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     assert(message.rendezvousId === decodedMessage.rendezvousId)
   }
 
-  test("can encode using v1 and can decode v1") {
+  test("can encode using v1 and can decode using v1") {
     compareTwoProtocols(NrvProtocolVersion.V1, NrvProtocolVersion.V2)
   }
 
-  test("can encode using v1 and can decode v2") {
+  test("can encode using v1 and can decode using v2") {
     compareTwoProtocols(NrvProtocolVersion.V1, NrvProtocolVersion.V2)
   }
 
-  test("can encode using v2 and can decode v1") {
+  test("can encode using v2 and can decode using v1") {
     compareTwoProtocols(NrvProtocolVersion.V2, NrvProtocolVersion.V1)
   }
 
-  test("can encode using v2 and can decode v2") {
+  test("can encode using v2 and can decode using v2") {
     compareTwoProtocols(NrvProtocolVersion.V2, NrvProtocolVersion.V2)
+  }
+
+  test("encode w/ plain java serialization and can decode v1") {
+    val message = new SerializableMessage()
+
+    message.rendezvousId = 1234
+
+    val nodeA: LocalNode = new LocalNode("127.0.0.1", Map("nrv" -> 12345))
+
+    val protocolV1A = new NrvProtocol(nodeA, protocolVersion = NrvProtocolVersion.V1)
+
+    val javaSerializer = new MessageJavaSerializeCodec()
+
+    val bytes = javaSerializer.encode(message)
+    val decodedMessage = protocolV1A.parse(bytes)
+
+    assert(message.rendezvousId === decodedMessage.rendezvousId)
+  }
+
+  test("encode w/ v1 and decode plain java serialization") {
+    val message = new SerializableMessage()
+
+    message.rendezvousId = 1234
+
+    val nodeA: LocalNode = new LocalNode("127.0.0.1", Map("nrv" -> 12345))
+
+    val protocolV1A = new NrvProtocol(nodeA, protocolVersion = NrvProtocolVersion.V1)
+
+    val javaSerializer = new MessageJavaSerializeCodec()
+
+    val bytes = protocolV1A.generate(message).asInstanceOf[Array[Byte]]
+    val decodedMessage = javaSerializer.decode(bytes).asInstanceOf[Message]
+
+    assert(message.rendezvousId === decodedMessage.rendezvousId)
   }
 }
 
