@@ -7,6 +7,7 @@ import com.wajam.nrv.transport.nrv.NrvNettyTransport
 import com.wajam.nrv.cluster.LocalNode
 import com.wajam.nrv.UnsupportedProtocolException
 import com.wajam.nrv.data.serialization.NrvProtobufSerializer
+import com.google.common.primitives.{Shorts, UnsignedBytes}
 
 /**
  * Default protocol used by NRV. All nodes must have this protocol, since it's
@@ -30,12 +31,13 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
   def parse(message: AnyRef): Message = {
     val bytes = message.asInstanceOf[Array[Byte]]
 
-    val magicShort: Int = ((bytes(0) & 0xFF) << 8) | (bytes(1) & 0xFF)
-    val magicByte: Int = bytes(0)
+
+    val magicShort: Int = Shorts.fromByteArray(bytes) & 0xFFFF
+    val magicByte: Int = UnsignedBytes.toInt(bytes(0))
 
     if (magicShort == (NrvProtocol.JavaSerializeMagicShort & 0xFFFF))
       parseV1(bytes)
-    else if (magicByte == (NrvProtocol.V2MagicByte & 0xFF))
+    else if (magicByte == (UnsignedBytes.toInt(NrvProtocol.V2MagicByte)))
       parseV2(bytes)
     else
       throw new UnsupportedProtocolException("The magic byte was not recognized.")
