@@ -28,30 +28,30 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
     val usersPath = "/users/"
     val usersAction = new Action(usersPath, (_) => {})
     matcher.registerAction(usersAction)
-    assert(usersAction === matcher.matchPath("/users/", ActionMethod.GET).get)
-    assert(usersAction === matcher.matchPath("/users", ActionMethod.GET).get)
-    assert(usersAction === matcher.matchPath("users/", ActionMethod.GET).get)
+    assert(Some(usersAction) === matcher.matchPath("/users/", ActionMethod.GET))
+    assert(Some(usersAction) === matcher.matchPath("/users", ActionMethod.GET))
+    assert(Some(usersAction) === matcher.matchPath("users/", ActionMethod.GET))
   }
 
   test("should match simple path to action with method") {
     val usersPath = "/users/"
     val usersAction = new Action(usersPath, (_) => {}, ActionMethod.POST)
     matcher.registerAction(usersAction)
-    assert(usersAction === matcher.matchPath(usersPath, ActionMethod.POST).get)
+    assert(Some(usersAction) === matcher.matchPath(usersPath, ActionMethod.POST))
   }
 
   test("should match simple path to action with not conventional method") {
     val usersPath = "/users/"
     val usersAction = new Action(usersPath, (_) => {}, "othermethod")
     matcher.registerAction(usersAction)
-    assert(usersAction === matcher.matchPath(usersPath, "othermethod").get)
+    assert(Some(usersAction) === matcher.matchPath(usersPath, "othermethod"))
   }
 
   test("should match simple path to action with not conventional method (different case)") {
     val usersPath = "/users/"
     val usersAction = new Action(usersPath, (_) => {}, "othermethod")
     matcher.registerAction(usersAction)
-    assert(usersAction === matcher.matchPath(usersPath, "OtherMethod").get)
+    assert(Some(usersAction) === matcher.matchPath(usersPath, "OtherMethod"))
   }
 
   test("should not match action with wrong method") {
@@ -64,15 +64,15 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
   test("should match empty path to action") {
     val rootAction = new Action("", (_) => {})
     matcher.registerAction(rootAction)
-    assert(rootAction === matcher.matchPath("/", ActionMethod.GET).get)
-    assert(rootAction === matcher.matchPath("", ActionMethod.GET).get)
+    assert(Some(rootAction) === matcher.matchPath("/", ActionMethod.GET))
+    assert(Some(rootAction) === matcher.matchPath("", ActionMethod.GET))
   }
 
   test("should match empty path to action with method") {
     val rootAction = new Action("", (_) => {}, ActionMethod.POST)
     matcher.registerAction(rootAction)
     assert(None === matcher.matchPath("/", ActionMethod.GET))
-    assert(rootAction === matcher.matchPath("", ActionMethod.POST).get)
+    assert(Some(rootAction) === matcher.matchPath("", ActionMethod.POST))
   }
 
   test("should match complete path") {
@@ -83,8 +83,8 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
     matcher.registerAction(usersAction)
     matcher.registerAction(usersFolloweesAction)
 
-    assert(usersAction === matcher.matchPath(usersPath, ActionMethod.GET).get)
-    assert(usersFolloweesAction === matcher.matchPath(usersFolloweesPath, ActionMethod.GET).get)
+    assert(Some(usersAction) === matcher.matchPath(usersPath, ActionMethod.GET))
+    assert(Some(usersFolloweesAction) === matcher.matchPath(usersFolloweesPath, ActionMethod.GET))
     assert(None === matcher.matchPath("/users/followees/profiles", ActionMethod.GET))
   }
 
@@ -101,7 +101,7 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
     val usersAction = new Action(usersPath, (_) => {})
     matcher.registerAction(usersAction)
 
-    assert(usersAction === matcher.matchPath("/users/12345", ActionMethod.GET).get)
+    assert(Some(usersAction) === matcher.matchPath("/users/12345", ActionMethod.GET))
   }
 
   test("should match path with variables only if another path is more strict") {
@@ -112,7 +112,7 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
     matcher.registerAction(usersAction)
     matcher.registerAction(usersFolloweesAction)
 
-    assert(usersFolloweesAction === matcher.matchPath(usersFolloweesPath, ActionMethod.GET).get)
+    assert(Some(usersFolloweesAction) === matcher.matchPath(usersFolloweesPath, ActionMethod.GET))
   }
 
   test("should override with the last registered action") {
@@ -122,7 +122,7 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
     matcher.registerAction(usersActionOld)
     matcher.registerAction(usersActionNew)
 
-    assert(usersActionNew === matcher.matchPath(usersPath, ActionMethod.GET).get)
+    assert(Some(usersActionNew) === matcher.matchPath(usersPath, ActionMethod.GET))
   }
 
   test("should allow to register more specific paths") {
@@ -133,8 +133,8 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
     matcher.registerAction(usersActionWithId)
     matcher.registerAction(usersActionMe)
 
-    assert(usersActionMe === matcher.matchPath(usersFolloweesMePath, ActionMethod.GET).get)
-    assert(usersActionWithId === matcher.matchPath("/users/12345/followees", ActionMethod.GET).get)
+    assert(Some(usersActionMe) === matcher.matchPath(usersFolloweesMePath, ActionMethod.GET))
+    assert(Some(usersActionWithId) === matcher.matchPath("/users/12345/followees", ActionMethod.GET))
   }
 
   test("should allow to override path with variables") {
@@ -145,7 +145,7 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
     matcher.registerAction(usersActionWithId)
     matcher.registerAction(usersActionWithName)
 
-    assert(usersActionWithName === matcher.matchPath("/users/12345/followees", ActionMethod.GET).get)
+    assert(Some(usersActionWithName) === matcher.matchPath("/users/12345/followees", ActionMethod.GET))
   }
 
   test("should allow many path after a variable") {
@@ -156,7 +156,7 @@ class TestActionPathMatcher extends FunSuite with BeforeAndAfter {
     matcher.registerAction(usersFolloweesAction)
     matcher.registerAction(usersProfilesAction)
 
-    assert(usersFolloweesAction === matcher.matchPath("/users/12345/followees", ActionMethod.GET).get)
-    assert(usersProfilesAction === matcher.matchPath("/users/12345/profiles", ActionMethod.GET).get)
+    assert(Some(usersFolloweesAction) === matcher.matchPath("/users/12345/followees", ActionMethod.GET))
+    assert(Some(usersProfilesAction) === matcher.matchPath("/users/12345/profiles", ActionMethod.GET))
   }
 }

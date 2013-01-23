@@ -9,8 +9,6 @@ class ActionPath(var path: String) {
 
   //normalize the path
   path = path.trim
-  if (path == "")
-    path = "/"
   if (!path.startsWith("/"))
     path = "/" + path
 
