@@ -193,6 +193,7 @@ class Action(val path: ActionPath,
     intoMessage.source = this.cluster.localNode
     intoMessage.serviceName = this.service.name
     intoMessage.path = fromMessage.path
+    intoMessage.method = fromMessage.method
     intoMessage.function = MessageType.FUNCTION_RESPONSE
     intoMessage.rendezvousId = fromMessage.rendezvousId
     intoMessage.attachments ++= fromMessage.attachments
