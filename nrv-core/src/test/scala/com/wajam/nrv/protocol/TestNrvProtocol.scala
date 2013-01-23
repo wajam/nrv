@@ -20,11 +20,11 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     val nodeA: LocalNode = new LocalNode("127.0.0.1", Map("nrv" -> 12345))
     val nodeB: LocalNode = new LocalNode("127.0.0.1", Map("nrv" -> 12346))
 
-    val protocolV1A = new NrvProtocol(nodeA, protocolVersion = vA)
-    val protocolV1B = new NrvProtocol(nodeB, protocolVersion = vB)
+    val protocolVA = new NrvProtocol(nodeA, protocolVersion = vA)
+    val protocolVB = new NrvProtocol(nodeB, protocolVersion = vB)
 
-    val bytes = protocolV1A.generate(message)
-    val decodedMessage = protocolV1B.parse(bytes)
+    val bytes = protocolVA.generate(message)
+    val decodedMessage = protocolVB.parse(bytes)
 
     assert(message.rendezvousId === decodedMessage.rendezvousId)
   }
@@ -69,11 +69,11 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
 
     val nodeA: LocalNode = new LocalNode("127.0.0.1", Map("nrv" -> 12345))
 
-    val protocolV1A = new NrvProtocol(nodeA, protocolVersion = NrvProtocolVersion.V1)
+    val protocol = new NrvProtocol(nodeA, protocolVersion = NrvProtocolVersion.V1)
 
     val javaSerializer = new MessageJavaSerializeCodec()
 
-    val bytes = protocolV1A.generate(message).asInstanceOf[Array[Byte]]
+    val bytes = protocol.generate(message).asInstanceOf[Array[Byte]]
     val decodedMessage = javaSerializer.decode(bytes).asInstanceOf[Message]
 
     assert(message.rendezvousId === decodedMessage.rendezvousId)
