@@ -10,6 +10,7 @@ import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.data._
 import scala.Array
 
+// TODO: Remove after initial test
 @RunWith(classOf[JUnitRunner])
 class BenchmarkNrvProtocol extends FunSuite with BeforeAndAfter  {
 
