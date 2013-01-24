@@ -8,6 +8,7 @@ import com.wajam.nrv.data.{SerializableMessage, MessageType, Message, InMessage}
 import com.wajam.nrv.service.{Shard, Replica, Endpoints, ActionMethod}
 import com.wajam.nrv.cluster.Node
 import java.net.InetAddress
+import java.nio.ByteBuffer
 import com.wajam.nrv.protocol.codec._
 
 @RunWith(classOf[JUnitRunner])
@@ -100,8 +101,8 @@ class TestNrvProtobufSerializer extends FunSuite {
     assert(message1.code === message2.code)
     assert(nodeIsEqual(message1.source, message2.source))
     assert(endpointsAreEqual(message1.destination, message2.destination))
-    assert(message1.parameters.forall( kv1 => message2.parameters.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2)))
-    assert(message1.metadata.forall( kv1 => message2.metadata.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv1._2)))
+    assert(message1.parameters.forall( kv1 => message2.parameters.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
+    assert(message1.metadata.forall( kv1 => message2.metadata.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
     assert(message1.messageData === message2.messageData)
   }
 
@@ -122,6 +123,27 @@ class TestNrvProtobufSerializer extends FunSuite {
     val messageDataCodec = new GenericJavaSerializeCodec()
 
     val entity1 = makeMessage()
+
+    val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
+    val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
+
+    assertMessageEqual(entity1, entity2)
+  }
+
+  test("can handle Any in parameters and metadata") {
+    val codec = new NrvProtobufSerializer()
+    val messageDataCodec = new GenericJavaSerializeCodec()
+
+    val entity1 = makeMessage()
+
+    entity1.metadata += "Key1" -> 1
+    entity1.parameters += "Key1" -> 1
+
+    entity1.metadata += "Key2" -> 1.0
+    entity1.parameters += "Key2" -> 1.0
+
+    entity1.metadata += "Key3" -> new Pair("A", 1)
+    entity1.parameters += "Key3" -> new Pair("A", 1)
 
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)

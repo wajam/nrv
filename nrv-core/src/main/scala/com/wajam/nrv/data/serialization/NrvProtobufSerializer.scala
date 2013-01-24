@@ -52,12 +52,12 @@ class NrvProtobufSerializer {
 
     message.parameters.foreach {
       case (key, value) =>
-        protoMessage.addParameters(NrvProtobuf.StringPair.newBuilder().setKey(key).setValue(value.asInstanceOf[String]))
+        protoMessage.addParameters(NrvProtobuf.StringPair.newBuilder().setKey(key).setValue(value.toString()))
     }
 
     message.metadata.foreach {
       case (key, value) =>
-        protoMessage.addMetadata(NrvProtobuf.StringPair.newBuilder().setKey(key).setValue(value.asInstanceOf[String]))
+        protoMessage.addMetadata(NrvProtobuf.StringPair.newBuilder().setKey(key).setValue(value.toString()))
     }
 
     protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))
