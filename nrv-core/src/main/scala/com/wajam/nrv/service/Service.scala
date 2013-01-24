@@ -16,6 +16,7 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
 
   val ring = new Object with Ring[ServiceMember]
   var actions = List[Action]()
+  val pathMatcher = new ActionPathMatcher
 
   // set defaults and overrides with passed options
   applySupport(service = Some(this))
@@ -71,6 +72,7 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
   def registerAction(action: Action): Action = {
     action.supportedBy(this)
     this.actions ::= action
+    pathMatcher.registerAction(action)
     action
   }
 
@@ -80,9 +82,7 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
   }
 
   def findAction(path: ActionPath, method: ActionMethod): Option[Action] = {
-    this.actions find {
-      _.matches(path, method)
-    }
+    pathMatcher.matchPath(path, method)
   }
 
   def printService: String = {

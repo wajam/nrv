@@ -6,9 +6,11 @@ import com.wajam.nrv.InvalidParameter
  * Path used in NRV to represent an action and part of the ActionPath
  */
 class ActionPath(var path: String) {
+
+  //normalize the path
   path = path.trim
-  if (path == "")
-    path = "/"
+  if (!path.startsWith("/"))
+    path = "/" + path
 
   val pathFragments = path.split("/")
 

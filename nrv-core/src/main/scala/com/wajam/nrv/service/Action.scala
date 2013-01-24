@@ -129,17 +129,20 @@ class Action(val path: ActionPath,
     this.resolver.handleIncoming(this, fromMessage, _ => {
       this.switchboard.handleIncoming(this, fromMessage, _ => {
         TraceFilter.handleIncoming(this, fromMessage, _ => {
+
+          fromMessage.function match {
+            case MessageType.FUNCTION_CALL =>
+              // set the reply callback for this message
+              fromMessage.replyCallback = (intoMessage => {
+                this.generateResponseMessage(fromMessage, intoMessage)
+                this.callOutgoingHandlers(intoMessage)
+              })
+            case _ =>
+          }
+
           this.consistency.handleIncoming(this, fromMessage, _ => {
             fromMessage.function match {
-
-              // function call
               case MessageType.FUNCTION_CALL =>
-                // set the reply callback for this message
-                fromMessage.replyCallback = (intoMessage => {
-                  this.generateResponseMessage(fromMessage, intoMessage)
-                  this.callOutgoingHandlers(intoMessage)
-                })
-
                 // handle the message, catch errors to throw them back to the caller
                 try {
                   this.executeTime.time {
@@ -158,8 +161,6 @@ class Action(val path: ActionPath,
                   }
                 }
 
-
-              // it's a reply to a message
               case MessageType.FUNCTION_RESPONSE =>
                 fromMessage.matchingOutMessage match {
                   // it's a reply to a message
@@ -193,6 +194,7 @@ class Action(val path: ActionPath,
     intoMessage.source = this.cluster.localNode
     intoMessage.serviceName = this.service.name
     intoMessage.path = fromMessage.path
+    intoMessage.method = fromMessage.method
     intoMessage.function = MessageType.FUNCTION_RESPONSE
     intoMessage.rendezvousId = fromMessage.rendezvousId
     intoMessage.attachments ++= fromMessage.attachments

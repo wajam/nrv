@@ -58,7 +58,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator) extends
     timestampGenerator.fetchTimestamps(req.serviceName, (timestamps: Seq[Timestamp], optException) => {
       try {
         if (optException.isDefined) {
-          info("Exception while fetching timestamps.", optException.get)
+          info("Exception while fetching timestamps.", optException.get.toString)
           throw optException.get
         }
         val timestamp = timestamps(0)
