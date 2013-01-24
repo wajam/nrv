@@ -77,6 +77,26 @@ public final class NrvProtobuf {
     com.wajam.nrv.data.serialization.NrvProtobuf.StringPairOrBuilder getMetadataOrBuilder(
         int index);
     
+    // repeated .com.wajam.nrv.data.serialization.AnyPair parametersAny = 100;
+    java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> 
+        getParametersAnyList();
+    com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getParametersAny(int index);
+    int getParametersAnyCount();
+    java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> 
+        getParametersAnyOrBuilderList();
+    com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder getParametersAnyOrBuilder(
+        int index);
+    
+    // repeated .com.wajam.nrv.data.serialization.AnyPair metadataAny = 101;
+    java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> 
+        getMetadataAnyList();
+    com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getMetadataAny(int index);
+    int getMetadataAnyCount();
+    java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> 
+        getMetadataAnyOrBuilderList();
+    com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder getMetadataAnyOrBuilder(
+        int index);
+    
     // optional bytes messageData = 14;
     boolean hasMessageData();
     com.google.protobuf.ByteString getMessageData();
@@ -356,6 +376,48 @@ public final class NrvProtobuf {
       return metadata_.get(index);
     }
     
+    // repeated .com.wajam.nrv.data.serialization.AnyPair parametersAny = 100;
+    public static final int PARAMETERSANY_FIELD_NUMBER = 100;
+    private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> parametersAny_;
+    public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> getParametersAnyList() {
+      return parametersAny_;
+    }
+    public java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> 
+        getParametersAnyOrBuilderList() {
+      return parametersAny_;
+    }
+    public int getParametersAnyCount() {
+      return parametersAny_.size();
+    }
+    public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getParametersAny(int index) {
+      return parametersAny_.get(index);
+    }
+    public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder getParametersAnyOrBuilder(
+        int index) {
+      return parametersAny_.get(index);
+    }
+    
+    // repeated .com.wajam.nrv.data.serialization.AnyPair metadataAny = 101;
+    public static final int METADATAANY_FIELD_NUMBER = 101;
+    private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> metadataAny_;
+    public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> getMetadataAnyList() {
+      return metadataAny_;
+    }
+    public java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> 
+        getMetadataAnyOrBuilderList() {
+      return metadataAny_;
+    }
+    public int getMetadataAnyCount() {
+      return metadataAny_.size();
+    }
+    public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getMetadataAny(int index) {
+      return metadataAny_.get(index);
+    }
+    public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder getMetadataAnyOrBuilder(
+        int index) {
+      return metadataAny_.get(index);
+    }
+    
     // optional bytes messageData = 14;
     public static final int MESSAGEDATA_FIELD_NUMBER = 14;
     private com.google.protobuf.ByteString messageData_;
@@ -380,6 +442,8 @@ public final class NrvProtobuf {
       token_ = 0L;
       parameters_ = java.util.Collections.emptyList();
       metadata_ = java.util.Collections.emptyList();
+      parametersAny_ = java.util.Collections.emptyList();
+      metadataAny_ = java.util.Collections.emptyList();
       messageData_ = com.google.protobuf.ByteString.EMPTY;
     }
     private byte memoizedIsInitialized = -1;
@@ -407,6 +471,18 @@ public final class NrvProtobuf {
       }
       for (int i = 0; i < getMetadataCount(); i++) {
         if (!getMetadata(i).isInitialized()) {
+          memoizedIsInitialized = 0;
+          return false;
+        }
+      }
+      for (int i = 0; i < getParametersAnyCount(); i++) {
+        if (!getParametersAny(i).isInitialized()) {
+          memoizedIsInitialized = 0;
+          return false;
+        }
+      }
+      for (int i = 0; i < getMetadataAnyCount(); i++) {
+        if (!getMetadataAny(i).isInitialized()) {
           memoizedIsInitialized = 0;
           return false;
         }
@@ -459,6 +535,12 @@ public final class NrvProtobuf {
       }
       if (((bitField0_ & 0x00000800) == 0x00000800)) {
         output.writeBytes(14, messageData_);
+      }
+      for (int i = 0; i < parametersAny_.size(); i++) {
+        output.writeMessage(100, parametersAny_.get(i));
+      }
+      for (int i = 0; i < metadataAny_.size(); i++) {
+        output.writeMessage(101, metadataAny_.get(i));
       }
       getUnknownFields().writeTo(output);
     }
@@ -524,6 +606,14 @@ public final class NrvProtobuf {
       if (((bitField0_ & 0x00000800) == 0x00000800)) {
         size += com.google.protobuf.CodedOutputStream
           .computeBytesSize(14, messageData_);
+      }
+      for (int i = 0; i < parametersAny_.size(); i++) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(100, parametersAny_.get(i));
+      }
+      for (int i = 0; i < metadataAny_.size(); i++) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(101, metadataAny_.get(i));
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSerializedSize = size;
@@ -645,6 +735,8 @@ public final class NrvProtobuf {
           getDestinationFieldBuilder();
           getParametersFieldBuilder();
           getMetadataFieldBuilder();
+          getParametersAnyFieldBuilder();
+          getMetadataAnyFieldBuilder();
         }
       }
       private static Builder create() {
@@ -695,8 +787,20 @@ public final class NrvProtobuf {
         } else {
           metadataBuilder_.clear();
         }
+        if (parametersAnyBuilder_ == null) {
+          parametersAny_ = java.util.Collections.emptyList();
+          bitField0_ = (bitField0_ & ~0x00002000);
+        } else {
+          parametersAnyBuilder_.clear();
+        }
+        if (metadataAnyBuilder_ == null) {
+          metadataAny_ = java.util.Collections.emptyList();
+          bitField0_ = (bitField0_ & ~0x00004000);
+        } else {
+          metadataAnyBuilder_.clear();
+        }
         messageData_ = com.google.protobuf.ByteString.EMPTY;
-        bitField0_ = (bitField0_ & ~0x00002000);
+        bitField0_ = (bitField0_ & ~0x00008000);
         return this;
       }
       
@@ -805,7 +909,25 @@ public final class NrvProtobuf {
         } else {
           result.metadata_ = metadataBuilder_.build();
         }
-        if (((from_bitField0_ & 0x00002000) == 0x00002000)) {
+        if (parametersAnyBuilder_ == null) {
+          if (((bitField0_ & 0x00002000) == 0x00002000)) {
+            parametersAny_ = java.util.Collections.unmodifiableList(parametersAny_);
+            bitField0_ = (bitField0_ & ~0x00002000);
+          }
+          result.parametersAny_ = parametersAny_;
+        } else {
+          result.parametersAny_ = parametersAnyBuilder_.build();
+        }
+        if (metadataAnyBuilder_ == null) {
+          if (((bitField0_ & 0x00004000) == 0x00004000)) {
+            metadataAny_ = java.util.Collections.unmodifiableList(metadataAny_);
+            bitField0_ = (bitField0_ & ~0x00004000);
+          }
+          result.metadataAny_ = metadataAny_;
+        } else {
+          result.metadataAny_ = metadataAnyBuilder_.build();
+        }
+        if (((from_bitField0_ & 0x00008000) == 0x00008000)) {
           to_bitField0_ |= 0x00000800;
         }
         result.messageData_ = messageData_;
@@ -910,6 +1032,58 @@ public final class NrvProtobuf {
             }
           }
         }
+        if (parametersAnyBuilder_ == null) {
+          if (!other.parametersAny_.isEmpty()) {
+            if (parametersAny_.isEmpty()) {
+              parametersAny_ = other.parametersAny_;
+              bitField0_ = (bitField0_ & ~0x00002000);
+            } else {
+              ensureParametersAnyIsMutable();
+              parametersAny_.addAll(other.parametersAny_);
+            }
+            onChanged();
+          }
+        } else {
+          if (!other.parametersAny_.isEmpty()) {
+            if (parametersAnyBuilder_.isEmpty()) {
+              parametersAnyBuilder_.dispose();
+              parametersAnyBuilder_ = null;
+              parametersAny_ = other.parametersAny_;
+              bitField0_ = (bitField0_ & ~0x00002000);
+              parametersAnyBuilder_ = 
+                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
+                   getParametersAnyFieldBuilder() : null;
+            } else {
+              parametersAnyBuilder_.addAllMessages(other.parametersAny_);
+            }
+          }
+        }
+        if (metadataAnyBuilder_ == null) {
+          if (!other.metadataAny_.isEmpty()) {
+            if (metadataAny_.isEmpty()) {
+              metadataAny_ = other.metadataAny_;
+              bitField0_ = (bitField0_ & ~0x00004000);
+            } else {
+              ensureMetadataAnyIsMutable();
+              metadataAny_.addAll(other.metadataAny_);
+            }
+            onChanged();
+          }
+        } else {
+          if (!other.metadataAny_.isEmpty()) {
+            if (metadataAnyBuilder_.isEmpty()) {
+              metadataAnyBuilder_.dispose();
+              metadataAnyBuilder_ = null;
+              metadataAny_ = other.metadataAny_;
+              bitField0_ = (bitField0_ & ~0x00004000);
+              metadataAnyBuilder_ = 
+                com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
+                   getMetadataAnyFieldBuilder() : null;
+            } else {
+              metadataAnyBuilder_.addAllMessages(other.metadataAny_);
+            }
+          }
+        }
         if (other.hasMessageData()) {
           setMessageData(other.getMessageData());
         }
@@ -938,6 +1112,18 @@ public final class NrvProtobuf {
         }
         for (int i = 0; i < getMetadataCount(); i++) {
           if (!getMetadata(i).isInitialized()) {
+            
+            return false;
+          }
+        }
+        for (int i = 0; i < getParametersAnyCount(); i++) {
+          if (!getParametersAny(i).isInitialized()) {
+            
+            return false;
+          }
+        }
+        for (int i = 0; i < getMetadataAnyCount(); i++) {
+          if (!getMetadataAny(i).isInitialized()) {
             
             return false;
           }
@@ -1044,8 +1230,20 @@ public final class NrvProtobuf {
               break;
             }
             case 114: {
-              bitField0_ |= 0x00002000;
+              bitField0_ |= 0x00008000;
               messageData_ = input.readBytes();
+              break;
+            }
+            case 802: {
+              com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder subBuilder = com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.newBuilder();
+              input.readMessage(subBuilder, extensionRegistry);
+              addParametersAny(subBuilder.buildPartial());
+              break;
+            }
+            case 810: {
+              com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder subBuilder = com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.newBuilder();
+              input.readMessage(subBuilder, extensionRegistry);
+              addMetadataAny(subBuilder.buildPartial());
               break;
             }
           }
@@ -1858,10 +2056,382 @@ public final class NrvProtobuf {
         return metadataBuilder_;
       }
       
+      // repeated .com.wajam.nrv.data.serialization.AnyPair parametersAny = 100;
+      private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> parametersAny_ =
+        java.util.Collections.emptyList();
+      private void ensureParametersAnyIsMutable() {
+        if (!((bitField0_ & 0x00002000) == 0x00002000)) {
+          parametersAny_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair>(parametersAny_);
+          bitField0_ |= 0x00002000;
+         }
+      }
+      
+      private com.google.protobuf.RepeatedFieldBuilder<
+          com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> parametersAnyBuilder_;
+      
+      public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> getParametersAnyList() {
+        if (parametersAnyBuilder_ == null) {
+          return java.util.Collections.unmodifiableList(parametersAny_);
+        } else {
+          return parametersAnyBuilder_.getMessageList();
+        }
+      }
+      public int getParametersAnyCount() {
+        if (parametersAnyBuilder_ == null) {
+          return parametersAny_.size();
+        } else {
+          return parametersAnyBuilder_.getCount();
+        }
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getParametersAny(int index) {
+        if (parametersAnyBuilder_ == null) {
+          return parametersAny_.get(index);
+        } else {
+          return parametersAnyBuilder_.getMessage(index);
+        }
+      }
+      public Builder setParametersAny(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
+        if (parametersAnyBuilder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureParametersAnyIsMutable();
+          parametersAny_.set(index, value);
+          onChanged();
+        } else {
+          parametersAnyBuilder_.setMessage(index, value);
+        }
+        return this;
+      }
+      public Builder setParametersAny(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
+        if (parametersAnyBuilder_ == null) {
+          ensureParametersAnyIsMutable();
+          parametersAny_.set(index, builderForValue.build());
+          onChanged();
+        } else {
+          parametersAnyBuilder_.setMessage(index, builderForValue.build());
+        }
+        return this;
+      }
+      public Builder addParametersAny(com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
+        if (parametersAnyBuilder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureParametersAnyIsMutable();
+          parametersAny_.add(value);
+          onChanged();
+        } else {
+          parametersAnyBuilder_.addMessage(value);
+        }
+        return this;
+      }
+      public Builder addParametersAny(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
+        if (parametersAnyBuilder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureParametersAnyIsMutable();
+          parametersAny_.add(index, value);
+          onChanged();
+        } else {
+          parametersAnyBuilder_.addMessage(index, value);
+        }
+        return this;
+      }
+      public Builder addParametersAny(
+          com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
+        if (parametersAnyBuilder_ == null) {
+          ensureParametersAnyIsMutable();
+          parametersAny_.add(builderForValue.build());
+          onChanged();
+        } else {
+          parametersAnyBuilder_.addMessage(builderForValue.build());
+        }
+        return this;
+      }
+      public Builder addParametersAny(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
+        if (parametersAnyBuilder_ == null) {
+          ensureParametersAnyIsMutable();
+          parametersAny_.add(index, builderForValue.build());
+          onChanged();
+        } else {
+          parametersAnyBuilder_.addMessage(index, builderForValue.build());
+        }
+        return this;
+      }
+      public Builder addAllParametersAny(
+          java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> values) {
+        if (parametersAnyBuilder_ == null) {
+          ensureParametersAnyIsMutable();
+          super.addAll(values, parametersAny_);
+          onChanged();
+        } else {
+          parametersAnyBuilder_.addAllMessages(values);
+        }
+        return this;
+      }
+      public Builder clearParametersAny() {
+        if (parametersAnyBuilder_ == null) {
+          parametersAny_ = java.util.Collections.emptyList();
+          bitField0_ = (bitField0_ & ~0x00002000);
+          onChanged();
+        } else {
+          parametersAnyBuilder_.clear();
+        }
+        return this;
+      }
+      public Builder removeParametersAny(int index) {
+        if (parametersAnyBuilder_ == null) {
+          ensureParametersAnyIsMutable();
+          parametersAny_.remove(index);
+          onChanged();
+        } else {
+          parametersAnyBuilder_.remove(index);
+        }
+        return this;
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder getParametersAnyBuilder(
+          int index) {
+        return getParametersAnyFieldBuilder().getBuilder(index);
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder getParametersAnyOrBuilder(
+          int index) {
+        if (parametersAnyBuilder_ == null) {
+          return parametersAny_.get(index);  } else {
+          return parametersAnyBuilder_.getMessageOrBuilder(index);
+        }
+      }
+      public java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> 
+           getParametersAnyOrBuilderList() {
+        if (parametersAnyBuilder_ != null) {
+          return parametersAnyBuilder_.getMessageOrBuilderList();
+        } else {
+          return java.util.Collections.unmodifiableList(parametersAny_);
+        }
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder addParametersAnyBuilder() {
+        return getParametersAnyFieldBuilder().addBuilder(
+            com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.getDefaultInstance());
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder addParametersAnyBuilder(
+          int index) {
+        return getParametersAnyFieldBuilder().addBuilder(
+            index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.getDefaultInstance());
+      }
+      public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder> 
+           getParametersAnyBuilderList() {
+        return getParametersAnyFieldBuilder().getBuilderList();
+      }
+      private com.google.protobuf.RepeatedFieldBuilder<
+          com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> 
+          getParametersAnyFieldBuilder() {
+        if (parametersAnyBuilder_ == null) {
+          parametersAnyBuilder_ = new com.google.protobuf.RepeatedFieldBuilder<
+              com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder>(
+                  parametersAny_,
+                  ((bitField0_ & 0x00002000) == 0x00002000),
+                  getParentForChildren(),
+                  isClean());
+          parametersAny_ = null;
+        }
+        return parametersAnyBuilder_;
+      }
+      
+      // repeated .com.wajam.nrv.data.serialization.AnyPair metadataAny = 101;
+      private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> metadataAny_ =
+        java.util.Collections.emptyList();
+      private void ensureMetadataAnyIsMutable() {
+        if (!((bitField0_ & 0x00004000) == 0x00004000)) {
+          metadataAny_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair>(metadataAny_);
+          bitField0_ |= 0x00004000;
+         }
+      }
+      
+      private com.google.protobuf.RepeatedFieldBuilder<
+          com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> metadataAnyBuilder_;
+      
+      public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> getMetadataAnyList() {
+        if (metadataAnyBuilder_ == null) {
+          return java.util.Collections.unmodifiableList(metadataAny_);
+        } else {
+          return metadataAnyBuilder_.getMessageList();
+        }
+      }
+      public int getMetadataAnyCount() {
+        if (metadataAnyBuilder_ == null) {
+          return metadataAny_.size();
+        } else {
+          return metadataAnyBuilder_.getCount();
+        }
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getMetadataAny(int index) {
+        if (metadataAnyBuilder_ == null) {
+          return metadataAny_.get(index);
+        } else {
+          return metadataAnyBuilder_.getMessage(index);
+        }
+      }
+      public Builder setMetadataAny(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
+        if (metadataAnyBuilder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureMetadataAnyIsMutable();
+          metadataAny_.set(index, value);
+          onChanged();
+        } else {
+          metadataAnyBuilder_.setMessage(index, value);
+        }
+        return this;
+      }
+      public Builder setMetadataAny(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
+        if (metadataAnyBuilder_ == null) {
+          ensureMetadataAnyIsMutable();
+          metadataAny_.set(index, builderForValue.build());
+          onChanged();
+        } else {
+          metadataAnyBuilder_.setMessage(index, builderForValue.build());
+        }
+        return this;
+      }
+      public Builder addMetadataAny(com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
+        if (metadataAnyBuilder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureMetadataAnyIsMutable();
+          metadataAny_.add(value);
+          onChanged();
+        } else {
+          metadataAnyBuilder_.addMessage(value);
+        }
+        return this;
+      }
+      public Builder addMetadataAny(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
+        if (metadataAnyBuilder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureMetadataAnyIsMutable();
+          metadataAny_.add(index, value);
+          onChanged();
+        } else {
+          metadataAnyBuilder_.addMessage(index, value);
+        }
+        return this;
+      }
+      public Builder addMetadataAny(
+          com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
+        if (metadataAnyBuilder_ == null) {
+          ensureMetadataAnyIsMutable();
+          metadataAny_.add(builderForValue.build());
+          onChanged();
+        } else {
+          metadataAnyBuilder_.addMessage(builderForValue.build());
+        }
+        return this;
+      }
+      public Builder addMetadataAny(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
+        if (metadataAnyBuilder_ == null) {
+          ensureMetadataAnyIsMutable();
+          metadataAny_.add(index, builderForValue.build());
+          onChanged();
+        } else {
+          metadataAnyBuilder_.addMessage(index, builderForValue.build());
+        }
+        return this;
+      }
+      public Builder addAllMetadataAny(
+          java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> values) {
+        if (metadataAnyBuilder_ == null) {
+          ensureMetadataAnyIsMutable();
+          super.addAll(values, metadataAny_);
+          onChanged();
+        } else {
+          metadataAnyBuilder_.addAllMessages(values);
+        }
+        return this;
+      }
+      public Builder clearMetadataAny() {
+        if (metadataAnyBuilder_ == null) {
+          metadataAny_ = java.util.Collections.emptyList();
+          bitField0_ = (bitField0_ & ~0x00004000);
+          onChanged();
+        } else {
+          metadataAnyBuilder_.clear();
+        }
+        return this;
+      }
+      public Builder removeMetadataAny(int index) {
+        if (metadataAnyBuilder_ == null) {
+          ensureMetadataAnyIsMutable();
+          metadataAny_.remove(index);
+          onChanged();
+        } else {
+          metadataAnyBuilder_.remove(index);
+        }
+        return this;
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder getMetadataAnyBuilder(
+          int index) {
+        return getMetadataAnyFieldBuilder().getBuilder(index);
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder getMetadataAnyOrBuilder(
+          int index) {
+        if (metadataAnyBuilder_ == null) {
+          return metadataAny_.get(index);  } else {
+          return metadataAnyBuilder_.getMessageOrBuilder(index);
+        }
+      }
+      public java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> 
+           getMetadataAnyOrBuilderList() {
+        if (metadataAnyBuilder_ != null) {
+          return metadataAnyBuilder_.getMessageOrBuilderList();
+        } else {
+          return java.util.Collections.unmodifiableList(metadataAny_);
+        }
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder addMetadataAnyBuilder() {
+        return getMetadataAnyFieldBuilder().addBuilder(
+            com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.getDefaultInstance());
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder addMetadataAnyBuilder(
+          int index) {
+        return getMetadataAnyFieldBuilder().addBuilder(
+            index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.getDefaultInstance());
+      }
+      public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder> 
+           getMetadataAnyBuilderList() {
+        return getMetadataAnyFieldBuilder().getBuilderList();
+      }
+      private com.google.protobuf.RepeatedFieldBuilder<
+          com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> 
+          getMetadataAnyFieldBuilder() {
+        if (metadataAnyBuilder_ == null) {
+          metadataAnyBuilder_ = new com.google.protobuf.RepeatedFieldBuilder<
+              com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder>(
+                  metadataAny_,
+                  ((bitField0_ & 0x00004000) == 0x00004000),
+                  getParentForChildren(),
+                  isClean());
+          metadataAny_ = null;
+        }
+        return metadataAnyBuilder_;
+      }
+      
       // optional bytes messageData = 14;
       private com.google.protobuf.ByteString messageData_ = com.google.protobuf.ByteString.EMPTY;
       public boolean hasMessageData() {
-        return ((bitField0_ & 0x00002000) == 0x00002000);
+        return ((bitField0_ & 0x00008000) == 0x00008000);
       }
       public com.google.protobuf.ByteString getMessageData() {
         return messageData_;
@@ -1870,13 +2440,13 @@ public final class NrvProtobuf {
         if (value == null) {
     throw new NullPointerException();
   }
-  bitField0_ |= 0x00002000;
+  bitField0_ |= 0x00008000;
         messageData_ = value;
         onChanged();
         return this;
       }
       public Builder clearMessageData() {
-        bitField0_ = (bitField0_ & ~0x00002000);
+        bitField0_ = (bitField0_ & ~0x00008000);
         messageData_ = getDefaultInstance().getMessageData();
         onChanged();
         return this;
@@ -5188,6 +5758,457 @@ public final class NrvProtobuf {
     // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.StringPair)
   }
   
+  public interface AnyPairOrBuilder
+      extends com.google.protobuf.MessageOrBuilder {
+    
+    // required string key = 1;
+    boolean hasKey();
+    String getKey();
+    
+    // required bytes value = 2;
+    boolean hasValue();
+    com.google.protobuf.ByteString getValue();
+  }
+  public static final class AnyPair extends
+      com.google.protobuf.GeneratedMessage
+      implements AnyPairOrBuilder {
+    // Use AnyPair.newBuilder() to construct.
+    private AnyPair(Builder builder) {
+      super(builder);
+    }
+    private AnyPair(boolean noInit) {}
+    
+    private static final AnyPair defaultInstance;
+    public static AnyPair getDefaultInstance() {
+      return defaultInstance;
+    }
+    
+    public AnyPair getDefaultInstanceForType() {
+      return defaultInstance;
+    }
+    
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return com.wajam.nrv.data.serialization.NrvProtobuf.internal_static_com_wajam_nrv_data_serialization_AnyPair_descriptor;
+    }
+    
+    protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+        internalGetFieldAccessorTable() {
+      return com.wajam.nrv.data.serialization.NrvProtobuf.internal_static_com_wajam_nrv_data_serialization_AnyPair_fieldAccessorTable;
+    }
+    
+    private int bitField0_;
+    // required string key = 1;
+    public static final int KEY_FIELD_NUMBER = 1;
+    private java.lang.Object key_;
+    public boolean hasKey() {
+      return ((bitField0_ & 0x00000001) == 0x00000001);
+    }
+    public String getKey() {
+      java.lang.Object ref = key_;
+      if (ref instanceof String) {
+        return (String) ref;
+      } else {
+        com.google.protobuf.ByteString bs = 
+            (com.google.protobuf.ByteString) ref;
+        String s = bs.toStringUtf8();
+        if (com.google.protobuf.Internal.isValidUtf8(bs)) {
+          key_ = s;
+        }
+        return s;
+      }
+    }
+    private com.google.protobuf.ByteString getKeyBytes() {
+      java.lang.Object ref = key_;
+      if (ref instanceof String) {
+        com.google.protobuf.ByteString b = 
+            com.google.protobuf.ByteString.copyFromUtf8((String) ref);
+        key_ = b;
+        return b;
+      } else {
+        return (com.google.protobuf.ByteString) ref;
+      }
+    }
+    
+    // required bytes value = 2;
+    public static final int VALUE_FIELD_NUMBER = 2;
+    private com.google.protobuf.ByteString value_;
+    public boolean hasValue() {
+      return ((bitField0_ & 0x00000002) == 0x00000002);
+    }
+    public com.google.protobuf.ByteString getValue() {
+      return value_;
+    }
+    
+    private void initFields() {
+      key_ = "";
+      value_ = com.google.protobuf.ByteString.EMPTY;
+    }
+    private byte memoizedIsInitialized = -1;
+    public final boolean isInitialized() {
+      byte isInitialized = memoizedIsInitialized;
+      if (isInitialized != -1) return isInitialized == 1;
+      
+      if (!hasKey()) {
+        memoizedIsInitialized = 0;
+        return false;
+      }
+      if (!hasValue()) {
+        memoizedIsInitialized = 0;
+        return false;
+      }
+      memoizedIsInitialized = 1;
+      return true;
+    }
+    
+    public void writeTo(com.google.protobuf.CodedOutputStream output)
+                        throws java.io.IOException {
+      getSerializedSize();
+      if (((bitField0_ & 0x00000001) == 0x00000001)) {
+        output.writeBytes(1, getKeyBytes());
+      }
+      if (((bitField0_ & 0x00000002) == 0x00000002)) {
+        output.writeBytes(2, value_);
+      }
+      getUnknownFields().writeTo(output);
+    }
+    
+    private int memoizedSerializedSize = -1;
+    public int getSerializedSize() {
+      int size = memoizedSerializedSize;
+      if (size != -1) return size;
+    
+      size = 0;
+      if (((bitField0_ & 0x00000001) == 0x00000001)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBytesSize(1, getKeyBytes());
+      }
+      if (((bitField0_ & 0x00000002) == 0x00000002)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBytesSize(2, value_);
+      }
+      size += getUnknownFields().getSerializedSize();
+      memoizedSerializedSize = size;
+      return size;
+    }
+    
+    private static final long serialVersionUID = 0L;
+    @java.lang.Override
+    protected java.lang.Object writeReplace()
+        throws java.io.ObjectStreamException {
+      return super.writeReplace();
+    }
+    
+    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
+        com.google.protobuf.ByteString data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return newBuilder().mergeFrom(data).buildParsed();
+    }
+    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
+        com.google.protobuf.ByteString data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return newBuilder().mergeFrom(data, extensionRegistry)
+               .buildParsed();
+    }
+    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(byte[] data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return newBuilder().mergeFrom(data).buildParsed();
+    }
+    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
+        byte[] data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return newBuilder().mergeFrom(data, extensionRegistry)
+               .buildParsed();
+    }
+    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return newBuilder().mergeFrom(input).buildParsed();
+    }
+    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return newBuilder().mergeFrom(input, extensionRegistry)
+               .buildParsed();
+    }
+    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseDelimitedFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      Builder builder = newBuilder();
+      if (builder.mergeDelimitedFrom(input)) {
+        return builder.buildParsed();
+      } else {
+        return null;
+      }
+    }
+    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseDelimitedFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      Builder builder = newBuilder();
+      if (builder.mergeDelimitedFrom(input, extensionRegistry)) {
+        return builder.buildParsed();
+      } else {
+        return null;
+      }
+    }
+    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
+        com.google.protobuf.CodedInputStream input)
+        throws java.io.IOException {
+      return newBuilder().mergeFrom(input).buildParsed();
+    }
+    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return newBuilder().mergeFrom(input, extensionRegistry)
+               .buildParsed();
+    }
+    
+    public static Builder newBuilder() { return Builder.create(); }
+    public Builder newBuilderForType() { return newBuilder(); }
+    public static Builder newBuilder(com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair prototype) {
+      return newBuilder().mergeFrom(prototype);
+    }
+    public Builder toBuilder() { return newBuilder(this); }
+    
+    @java.lang.Override
+    protected Builder newBuilderForType(
+        com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+      Builder builder = new Builder(parent);
+      return builder;
+    }
+    public static final class Builder extends
+        com.google.protobuf.GeneratedMessage.Builder<Builder>
+       implements com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder {
+      public static final com.google.protobuf.Descriptors.Descriptor
+          getDescriptor() {
+        return com.wajam.nrv.data.serialization.NrvProtobuf.internal_static_com_wajam_nrv_data_serialization_AnyPair_descriptor;
+      }
+      
+      protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+          internalGetFieldAccessorTable() {
+        return com.wajam.nrv.data.serialization.NrvProtobuf.internal_static_com_wajam_nrv_data_serialization_AnyPair_fieldAccessorTable;
+      }
+      
+      // Construct using com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.newBuilder()
+      private Builder() {
+        maybeForceBuilderInitialization();
+      }
+      
+      private Builder(BuilderParent parent) {
+        super(parent);
+        maybeForceBuilderInitialization();
+      }
+      private void maybeForceBuilderInitialization() {
+        if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+        }
+      }
+      private static Builder create() {
+        return new Builder();
+      }
+      
+      public Builder clear() {
+        super.clear();
+        key_ = "";
+        bitField0_ = (bitField0_ & ~0x00000001);
+        value_ = com.google.protobuf.ByteString.EMPTY;
+        bitField0_ = (bitField0_ & ~0x00000002);
+        return this;
+      }
+      
+      public Builder clone() {
+        return create().mergeFrom(buildPartial());
+      }
+      
+      public com.google.protobuf.Descriptors.Descriptor
+          getDescriptorForType() {
+        return com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.getDescriptor();
+      }
+      
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getDefaultInstanceForType() {
+        return com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.getDefaultInstance();
+      }
+      
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair build() {
+        com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair result = buildPartial();
+        if (!result.isInitialized()) {
+          throw newUninitializedMessageException(result);
+        }
+        return result;
+      }
+      
+      private com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair buildParsed()
+          throws com.google.protobuf.InvalidProtocolBufferException {
+        com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair result = buildPartial();
+        if (!result.isInitialized()) {
+          throw newUninitializedMessageException(
+            result).asInvalidProtocolBufferException();
+        }
+        return result;
+      }
+      
+      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair buildPartial() {
+        com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair result = new com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair(this);
+        int from_bitField0_ = bitField0_;
+        int to_bitField0_ = 0;
+        if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
+          to_bitField0_ |= 0x00000001;
+        }
+        result.key_ = key_;
+        if (((from_bitField0_ & 0x00000002) == 0x00000002)) {
+          to_bitField0_ |= 0x00000002;
+        }
+        result.value_ = value_;
+        result.bitField0_ = to_bitField0_;
+        onBuilt();
+        return result;
+      }
+      
+      public Builder mergeFrom(com.google.protobuf.Message other) {
+        if (other instanceof com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair) {
+          return mergeFrom((com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair)other);
+        } else {
+          super.mergeFrom(other);
+          return this;
+        }
+      }
+      
+      public Builder mergeFrom(com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair other) {
+        if (other == com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.getDefaultInstance()) return this;
+        if (other.hasKey()) {
+          setKey(other.getKey());
+        }
+        if (other.hasValue()) {
+          setValue(other.getValue());
+        }
+        this.mergeUnknownFields(other.getUnknownFields());
+        return this;
+      }
+      
+      public final boolean isInitialized() {
+        if (!hasKey()) {
+          
+          return false;
+        }
+        if (!hasValue()) {
+          
+          return false;
+        }
+        return true;
+      }
+      
+      public Builder mergeFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        com.google.protobuf.UnknownFieldSet.Builder unknownFields =
+          com.google.protobuf.UnknownFieldSet.newBuilder(
+            this.getUnknownFields());
+        while (true) {
+          int tag = input.readTag();
+          switch (tag) {
+            case 0:
+              this.setUnknownFields(unknownFields.build());
+              onChanged();
+              return this;
+            default: {
+              if (!parseUnknownField(input, unknownFields,
+                                     extensionRegistry, tag)) {
+                this.setUnknownFields(unknownFields.build());
+                onChanged();
+                return this;
+              }
+              break;
+            }
+            case 10: {
+              bitField0_ |= 0x00000001;
+              key_ = input.readBytes();
+              break;
+            }
+            case 18: {
+              bitField0_ |= 0x00000002;
+              value_ = input.readBytes();
+              break;
+            }
+          }
+        }
+      }
+      
+      private int bitField0_;
+      
+      // required string key = 1;
+      private java.lang.Object key_ = "";
+      public boolean hasKey() {
+        return ((bitField0_ & 0x00000001) == 0x00000001);
+      }
+      public String getKey() {
+        java.lang.Object ref = key_;
+        if (!(ref instanceof String)) {
+          String s = ((com.google.protobuf.ByteString) ref).toStringUtf8();
+          key_ = s;
+          return s;
+        } else {
+          return (String) ref;
+        }
+      }
+      public Builder setKey(String value) {
+        if (value == null) {
+    throw new NullPointerException();
+  }
+  bitField0_ |= 0x00000001;
+        key_ = value;
+        onChanged();
+        return this;
+      }
+      public Builder clearKey() {
+        bitField0_ = (bitField0_ & ~0x00000001);
+        key_ = getDefaultInstance().getKey();
+        onChanged();
+        return this;
+      }
+      void setKey(com.google.protobuf.ByteString value) {
+        bitField0_ |= 0x00000001;
+        key_ = value;
+        onChanged();
+      }
+      
+      // required bytes value = 2;
+      private com.google.protobuf.ByteString value_ = com.google.protobuf.ByteString.EMPTY;
+      public boolean hasValue() {
+        return ((bitField0_ & 0x00000002) == 0x00000002);
+      }
+      public com.google.protobuf.ByteString getValue() {
+        return value_;
+      }
+      public Builder setValue(com.google.protobuf.ByteString value) {
+        if (value == null) {
+    throw new NullPointerException();
+  }
+  bitField0_ |= 0x00000002;
+        value_ = value;
+        onChanged();
+        return this;
+      }
+      public Builder clearValue() {
+        bitField0_ = (bitField0_ & ~0x00000002);
+        value_ = getDefaultInstance().getValue();
+        onChanged();
+        return this;
+      }
+      
+      // @@protoc_insertion_point(builder_scope:com.wajam.nrv.data.serialization.AnyPair)
+    }
+    
+    static {
+      defaultInstance = new AnyPair(true);
+      defaultInstance.initFields();
+    }
+    
+    // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.AnyPair)
+  }
+  
   private static com.google.protobuf.Descriptors.Descriptor
     internal_static_com_wajam_nrv_data_serialization_Message_descriptor;
   private static
@@ -5223,6 +6244,11 @@ public final class NrvProtobuf {
   private static
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
       internal_static_com_wajam_nrv_data_serialization_StringPair_fieldAccessorTable;
+  private static com.google.protobuf.Descriptors.Descriptor
+    internal_static_com_wajam_nrv_data_serialization_AnyPair_descriptor;
+  private static
+    com.google.protobuf.GeneratedMessage.FieldAccessorTable
+      internal_static_com_wajam_nrv_data_serialization_AnyPair_fieldAccessorTable;
   
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -5233,7 +6259,7 @@ public final class NrvProtobuf {
   static {
     java.lang.String[] descriptorData = {
       "\n\021NrvProtobuf.proto\022 com.wajam.nrv.data." +
-      "serialization\"\267\003\n\007Message\022\024\n\014protocolNam" +
+      "serialization\"\271\004\n\007Message\022\024\n\014protocolNam" +
       "e\030\001 \001(\t\022\023\n\013serviceName\030\002 \001(\t\022\016\n\006method\030\003" +
       " \001(\t\022\014\n\004path\030\004 \001(\t\022\024\n\014rendezVousId\030\005 \001(\003" +
       "\022\014\n\004code\030\006 \001(\005\022\r\n\005error\030\007 \001(\014\022\020\n\010functio" +
@@ -5243,19 +6269,23 @@ public final class NrvProtobuf {
       "Endpoints\022\r\n\005token\030\013 \001(\003\022@\n\nparameters\030\014" +
       " \003(\0132,.com.wajam.nrv.data.serialization.",
       "StringPair\022>\n\010metadata\030\r \003(\0132,.com.wajam" +
-      ".nrv.data.serialization.StringPair\022\023\n\013me" +
-      "ssageData\030\016 \001(\014\"\217\002\n\tEndpoints\022A\n\006shards\030" +
-      "\001 \003(\01321.com.wajam.nrv.data.serialization" +
-      ".Endpoints.Shard\032]\n\005Shard\022\r\n\005token\030\001 \001(\003" +
-      "\022E\n\010replicas\030\002 \003(\01323.com.wajam.nrv.data." +
-      "serialization.Endpoints.Replica\032`\n\007Repli" +
-      "ca\022\r\n\005token\030\001 \001(\003\0224\n\004node\030\002 \001(\0132&.com.wa" +
-      "jam.nrv.data.serialization.Node\022\020\n\010selec" +
-      "ted\030\003 \001(\010\"P\n\004Node\022\014\n\004host\030\001 \001(\014\022:\n\005ports",
-      "\030\002 \003(\0132+.com.wajam.nrv.data.serializatio" +
-      "n.Int32Pair\"\'\n\tInt32Pair\022\013\n\003key\030\001 \002(\t\022\r\n" +
-      "\005value\030\002 \002(\005\"(\n\nStringPair\022\013\n\003key\030\001 \002(\t\022" +
-      "\r\n\005value\030\002 \002(\t"
+      ".nrv.data.serialization.StringPair\022@\n\rpa" +
+      "rametersAny\030d \003(\0132).com.wajam.nrv.data.s" +
+      "erialization.AnyPair\022>\n\013metadataAny\030e \003(" +
+      "\0132).com.wajam.nrv.data.serialization.Any" +
+      "Pair\022\023\n\013messageData\030\016 \001(\014\"\217\002\n\tEndpoints\022" +
+      "A\n\006shards\030\001 \003(\01321.com.wajam.nrv.data.ser" +
+      "ialization.Endpoints.Shard\032]\n\005Shard\022\r\n\005t" +
+      "oken\030\001 \001(\003\022E\n\010replicas\030\002 \003(\01323.com.wajam" +
+      ".nrv.data.serialization.Endpoints.Replic",
+      "a\032`\n\007Replica\022\r\n\005token\030\001 \001(\003\0224\n\004node\030\002 \001(" +
+      "\0132&.com.wajam.nrv.data.serialization.Nod" +
+      "e\022\020\n\010selected\030\003 \001(\010\"P\n\004Node\022\014\n\004host\030\001 \001(" +
+      "\014\022:\n\005ports\030\002 \003(\0132+.com.wajam.nrv.data.se" +
+      "rialization.Int32Pair\"\'\n\tInt32Pair\022\013\n\003ke" +
+      "y\030\001 \002(\t\022\r\n\005value\030\002 \002(\005\"(\n\nStringPair\022\013\n\003" +
+      "key\030\001 \002(\t\022\r\n\005value\030\002 \002(\t\"%\n\007AnyPair\022\013\n\003k" +
+      "ey\030\001 \002(\t\022\r\n\005value\030\002 \002(\014"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -5267,7 +6297,7 @@ public final class NrvProtobuf {
           internal_static_com_wajam_nrv_data_serialization_Message_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_com_wajam_nrv_data_serialization_Message_descriptor,
-              new java.lang.String[] { "ProtocolName", "ServiceName", "Method", "Path", "RendezVousId", "Code", "Error", "Function", "Source", "Destination", "Token", "Parameters", "Metadata", "MessageData", },
+              new java.lang.String[] { "ProtocolName", "ServiceName", "Method", "Path", "RendezVousId", "Code", "Error", "Function", "Source", "Destination", "Token", "Parameters", "Metadata", "ParametersAny", "MetadataAny", "MessageData", },
               com.wajam.nrv.data.serialization.NrvProtobuf.Message.class,
               com.wajam.nrv.data.serialization.NrvProtobuf.Message.Builder.class);
           internal_static_com_wajam_nrv_data_serialization_Endpoints_descriptor =
@@ -5318,6 +6348,14 @@ public final class NrvProtobuf {
               new java.lang.String[] { "Key", "Value", },
               com.wajam.nrv.data.serialization.NrvProtobuf.StringPair.class,
               com.wajam.nrv.data.serialization.NrvProtobuf.StringPair.Builder.class);
+          internal_static_com_wajam_nrv_data_serialization_AnyPair_descriptor =
+            getDescriptor().getMessageTypes().get(5);
+          internal_static_com_wajam_nrv_data_serialization_AnyPair_fieldAccessorTable = new
+            com.google.protobuf.GeneratedMessage.FieldAccessorTable(
+              internal_static_com_wajam_nrv_data_serialization_AnyPair_descriptor,
+              new java.lang.String[] { "Key", "Value", },
+              com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.class,
+              com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder.class);
           return null;
         }
       };

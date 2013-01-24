@@ -43,7 +43,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     message.metadata += "CONTENT-TYPE" -> "text/plain"
     message.messageData = "Blob Of Data"
 
-    // Here you go a message with possible value set (attachments is not serialized)
+    // Here you go a message with all possible value set (attachments is not serialized)
 
     message
   }
