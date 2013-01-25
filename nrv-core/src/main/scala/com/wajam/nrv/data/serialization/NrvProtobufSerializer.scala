@@ -107,7 +107,7 @@ class NrvProtobufSerializer {
 
     protoMessage.getParametersAnyList.asScala.foreach {
       case (p: AnyPair) =>
-        message.parameters += p.getKey -> deserializeMessage(p.getValue.toByteArray)
+        message.parameters += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
     }
 
     protoMessage.getParametersList.asScala.foreach {
@@ -117,7 +117,7 @@ class NrvProtobufSerializer {
 
     protoMessage.getMetadataAnyList.asScala.foreach {
       case (p: AnyPair) =>
-        message.metadata += p.getKey -> deserializeMessage(p.getValue.toByteArray)
+        message.metadata += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
     }
 
     protoMessage.getMetadataList.asScala.foreach {
