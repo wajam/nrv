@@ -8,6 +8,7 @@ import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
 import java.net.InetAddress
 import scala.Array
+import com.wajam.nrv.data.serialization.NrvProtobuf.{AnyPair, StringPair}
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
@@ -56,7 +57,7 @@ class NrvProtobufSerializer {
         if (value.isInstanceOf[String])
           protoMessage.addParameters(NrvProtobuf.StringPair.newBuilder().setKey(key).setValue(value.asInstanceOf[String]))
         else
-          protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).serializeToBytes(value))
+          protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
     }
 
     message.metadata.foreach {
@@ -64,7 +65,7 @@ class NrvProtobufSerializer {
         if (value.isInstanceOf[String])
           protoMessage.addMetadata(NrvProtobuf.StringPair.newBuilder().setKey(key).setValue(value.asInstanceOf[String]))
         else
-          protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).serializeToBytes(value))
+          protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
     }
 
     protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))
@@ -88,7 +89,7 @@ class NrvProtobufSerializer {
     message.method = protoMessage.getMethod
     message.path = protoMessage.getPath
 
-    //TODO: Modify message.rendezvousId when we won't use JavaSerialization anymore to use a long
+    // TODO: Modify message.rendezvousId when we won't use JavaSerialization anymore to use a long
     message.rendezvousId = protoMessage.getRendezVousId.asInstanceOf[Int]
 
     val error = protoMessage.getError
@@ -103,6 +104,26 @@ class NrvProtobufSerializer {
 
     message.destination = destination
     message.token = protoMessage.getToken
+
+    protoMessage.getParametersAnyList.asScala.foreach {
+      case (p: AnyPair) =>
+        message.parameters += p.getKey -> deserializeMessage(p.getValue.toByteArray)
+    }
+
+    protoMessage.getParametersList.asScala.foreach {
+      case (p: StringPair) =>
+        message.parameters += p.getKey -> p.getValue
+    }
+
+    protoMessage.getMetadataAnyList.asScala.foreach {
+      case (p: AnyPair) =>
+        message.metadata += p.getKey -> deserializeMessage(p.getValue.toByteArray)
+    }
+
+    protoMessage.getMetadataList.asScala.foreach {
+      case (p: StringPair) =>
+        message.metadata += p.getKey -> p.getValue
+    }
 
     message
   }
