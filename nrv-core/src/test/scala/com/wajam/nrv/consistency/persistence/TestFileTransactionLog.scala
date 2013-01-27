@@ -1,26 +1,37 @@
 package com.wajam.nrv.consistency.persistence
 
-import org.scalatest.{BeforeAndAfter, FunSuite}
+import org.scalatest.BeforeAndAfter
 import org.scalatest.matchers.ShouldMatchers._
-import java.io.File
+import java.io.{IOException, File}
 import java.nio.file.Files
 import com.wajam.nrv.utils.timestamp.Timestamp
+import org.mockito.Matchers._
+import org.mockito.Mockito._
 
 class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   var logDir: File = null
   var fileTxLog: FileTransactionLog = null
+  var spySerializer: TransactionEventSerializer = null
 
   before {
     logDir = Files.createTempDirectory("TestFileTransactionLog").toFile
-    fileTxLog = new FileTransactionLog("service", 1000, logDir.getAbsolutePath)
+    spySerializer = spy(new TransactionEventSerializer)
+    fileTxLog = createFileTransactionLog()
   }
 
   after {
+    spySerializer = null
+
     fileTxLog.close()
+    fileTxLog = null
 
     logDir.listFiles().foreach(_.delete())
     logDir.delete()
     logDir = null
+  }
+
+  def createFileTransactionLog(service: String = "service", token: Long = 1000) = {
+    new FileTransactionLog(service, token, logDir.getAbsolutePath, spySerializer)
   }
 
   test("should get proper timestamp from log name") {
@@ -80,31 +91,118 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val it = fileTxLog.read(Timestamp(0))
     it.hasNext should be(true)
     assertEquals(createTransaction(0), it.next())
-    it.hasNext should  be(false)
+    it.hasNext should be(false)
     it.close()
   }
 
-  ignore("should append to non empty log directory") {
-    fail("Not implemented yet!")
+  test("should append to non empty log directory") {
+    val tx1 = createTransaction(74)
+    val tx2 = createTransaction(4321, 74)
+    val tx3 = createTransaction(9999, 4321)
+
+    fileTxLog.append(tx1)
+    fileTxLog.append(tx2)
+    fileTxLog.commit()
+    fileTxLog.close()
+
+    fileTxLog = createFileTransactionLog()
+    fileTxLog.append(tx3)
+    fileTxLog.commit()
+
+    val files = logDir.list().sorted
+    files should be(Array("service-0000001000-74.log", "service-0000001000-9999.log"))
+
+    val expectedTx = List(tx1, tx2, tx3)
+    val actualTx = fileTxLog.read(Timestamp(0)).toList
+    actualTx.length should be(expectedTx.length)
+    expectedTx.zip(actualTx).foreach(tuple => assertEquals(tuple._1, tuple._2))
   }
 
-  ignore("should fail when trying to append out of order transactions") {
-    // Append a transaction
+  test("should fail when trying to append out of order transactions") {
+    val tx1 = createTransaction(100) // First
+    val tx2 = createTransaction(101, 99) // Bad previous
+    val tx3 = createTransaction(102, 100) // Good previous
+    val logFile = new File(logDir, fileTxLog.getNameFromTimestamp(tx1.timestamp))
+
+    fileTxLog.append(tx1)
+    fileTxLog.commit()
+    val fileLenAfterTx1 = logFile.length()
+    fileLenAfterTx1 should be > 0L
+
     // Append a transaction with previous timestamp not matching
-    //  Expect an exception
-    //  Verify log file size the same as after first append
-    // Append a transaction
-    //  Verify read only returns first and 3rd append
-    fail("Not implemented yet!")
+    evaluating {
+      fileTxLog.append(tx2)
+    } should produce[IOException]
+    fileTxLog.commit()
+    logFile.length() should be(fileLenAfterTx1)
+
+    fileTxLog.append(tx3)
+    fileTxLog.commit()
+    logFile.length() should be > fileLenAfterTx1
+
+    val expectedTx = List(tx1, tx3)
+    val actualTx = fileTxLog.read(Timestamp(0)).toList
+    actualTx.length should be(expectedTx.length)
+    expectedTx.zip(actualTx).foreach(tuple => assertEquals(tuple._1, tuple._2))
   }
 
-  ignore("should not corrupt transaction log when append fail due to transaction event persistence error") {
-    // Append a normal transaction
-    // Append a mocked transaction with write that fails (exception)
-    //  Verify log file size the same as after first append
-    // Append a normal transaction again
-    //  Verify read only returns first and 3rd append
-    fail("Not implemented yet!")
+  test("should fail when trying to append a timestamp in the past") {
+    val tx1 = createTransaction(100)      // First
+    val tx2 = createTransaction(99, 100)  // Bad timestamp
+    val tx3 = createTransaction(101, 100) // Good
+    val logFile = new File(logDir, fileTxLog.getNameFromTimestamp(tx1.timestamp))
+
+    fileTxLog.append(tx1)
+    fileTxLog.commit()
+    val fileLenAfterTx1 = logFile.length()
+    fileLenAfterTx1 should be > 0L
+
+    // Append a transaction with proper previous but timestamp before previous
+    evaluating {
+      fileTxLog.append(tx2)
+    } should produce[IOException]
+    fileTxLog.commit()
+    logFile.length() should be(fileLenAfterTx1)
+
+    fileTxLog.append(tx3)
+    fileTxLog.commit()
+    logFile.length() should be > fileLenAfterTx1
+
+    val expectedTx = List(tx1, tx3)
+    val actualTx = fileTxLog.read(Timestamp(0)).toList
+    actualTx.length should be(expectedTx.length)
+    expectedTx.zip(actualTx).foreach(tuple => assertEquals(tuple._1, tuple._2))
+  }
+
+  test("should not corrupt transaction log when append fail due to transaction event persistence error") {
+    val tx1 = createTransaction(100)      // First
+    val tx2 = createTransaction(150, 100) // Error
+    when(spySerializer.serialize(tx2)).thenThrow(new IOException("Forced error"))
+    val tx3 = createTransaction(200, 100) // Ok
+    val logFile = new File(logDir, fileTxLog.getNameFromTimestamp(tx1.timestamp))
+
+    // Append successful
+    fileTxLog.append(tx1)
+    fileTxLog.commit()
+    val fileLenAfterTx1 = logFile.length()
+    fileLenAfterTx1 should be > 0L
+
+    // Append error on transaction serialization, should not  modify the log file
+    evaluating {
+      fileTxLog.append(tx2)
+    } should produce[IOException]
+    fileTxLog.commit()
+    logFile.length() should be(fileLenAfterTx1)
+
+    // Append successful again
+    fileTxLog.append(tx3)
+    fileTxLog.commit()
+    logFile.length() should be > fileLenAfterTx1
+
+    val expectedTx = List(tx1, tx3)
+    val actualTx = fileTxLog.read(Timestamp(0)).toList
+    actualTx.length should be(expectedTx.length)
+    expectedTx.zip(actualTx).foreach(tuple => assertEquals(tuple._1, tuple._2))
   }
 
   ignore("append from a new instance when an empty log file with the same name exist") {
@@ -139,36 +237,94 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   test("should read transactions from specified timestamp") {
-    Range(0, 4).foreach(i => {
-      fileTxLog.append(createTransaction(i, i - 1))
-    })
+    fileTxLog.append(createTransaction(0))
+    fileTxLog.append(createTransaction(1, 0))
+    fileTxLog.append(createTransaction(2, 1))
+    fileTxLog.append(createTransaction(3, 2))
     fileTxLog.rollLog()
-    Range(4, 8).foreach(i => {
-      fileTxLog.append(createTransaction(i, i - 1))
-    })
+    fileTxLog.append(createTransaction(4, 3))
+    fileTxLog.append(createTransaction(5, 4))
+    fileTxLog.append(createTransaction(6, 5))
+    fileTxLog.append(createTransaction(7, 6))
     fileTxLog.rollLog()
-    Range(8, 10).foreach(i => {
-      fileTxLog.append(createTransaction(i, i - 1))
-    })
+    fileTxLog.append(createTransaction(8, 7))
+    fileTxLog.append(createTransaction(9, 8))
     fileTxLog.commit()
 
-    // Validate
+    // Validate starting at 5
     val it = fileTxLog.read(Timestamp(5))
     Range(5, 10).foreach(i => {
       it.hasNext should be(true)
       assertEquals(createTransaction(i, i - 1), it.next())
     })
-    it.hasNext should  be(false)
+    it.hasNext should be(false)
     it.close()
+
+    // Validate starting from every index
+    Range(0, 10).foreach(i => {
+      fileTxLog.read(Timestamp(i)).zipWithIndex.foreach(tup => {
+        val (actual, j) = tup
+        assertEquals(createTransaction(j + i, j + i - 1), actual)
+      })
+    })
+
   }
 
-  ignore("read should skip empty log file") {
-    // Zero size file
-    // File with file header written but no transaction
-    fail("Not implemented yet!")
+  test("read should skip empty log files") {
+    val tx1 = createTransaction(100)        // Good
+    val fileTx1 = new File(logDir, fileTxLog.getNameFromTimestamp(tx1.timestamp))
+
+    val tx2 = createTransaction(150, 100)   // Good
+    val fileTx2 = new File(logDir, fileTxLog.getNameFromTimestamp(tx2.timestamp))
+
+    val tx3 = createTransaction(200, 150)   // Bad
+    when(spySerializer.serialize(tx3)).thenThrow(new IOException("Forced error"))
+    val fileTx3 = new File(logDir, fileTxLog.getNameFromTimestamp(tx3.timestamp))
+
+    val tx4 = createTransaction(250, 150)   // Good
+    val fileTx4 = new File(logDir, fileTxLog.getNameFromTimestamp(tx4.timestamp))
+
+    // Append first transaction
+    fileTxLog.append(tx1)
+    fileTxLog.commit()
+    fileTx1.length() should be > 0L
+
+    // Create an empty log file
+    new File(logDir, fileTxLog.getNameFromTimestamp(Timestamp(125))).createNewFile()
+
+    // This append create a new log file
+    fileTxLog.rollLog()
+    fileTxLog.append(tx2)
+    fileTxLog.commit()
+    fileTx2.length() should be > 0L
+
+    // Append again on a new log file but serialization fail, should result on a log containing only file headers
+    fileTxLog.rollLog()
+    evaluating {
+      fileTxLog.append(tx3)
+    } should produce[IOException]
+    fileTxLog.commit()
+    fileTx3.length() should be > 0L
+    fileTx3.length() should be < fileTx2.length()
+
+    // Append final transaction in a new log file
+    fileTxLog.rollLog()
+    fileTxLog.append(tx4)
+    fileTxLog.commit()
+    fileTx4.length() should be > 0L
+
+    val expectedFiles = Array("service-0000001000-100.log", "service-0000001000-125.log",
+      "service-0000001000-150.log", "service-0000001000-200.log", "service-0000001000-250.log")
+    val actualFiles = logDir.list().sorted
+    actualFiles should be(expectedFiles)
+
+    val expectedTx = List(tx1, tx2, tx4)
+    val actualTx = fileTxLog.read(Timestamp(0)).toList
+    actualTx.length should be(expectedTx.length)
+    expectedTx.zip(actualTx).foreach(tuple => assertEquals(tuple._1, tuple._2))
   }
 
-  ignore("read corrupted transaction event") {
+  ignore("read corrupted transaction event stop at corrupted tx") {
     // Should stop reading at that transaction i.e. like no more transactions
     fail("Not implemented yet!")
   }
@@ -189,12 +345,64 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     fileTxLog.getLastLoggedTimestamp should be(Some(Timestamp(9999)))
 
-    val otherTxLog = new FileTransactionLog("service", 1000, logDir.getAbsolutePath)
-    otherTxLog.getLastLoggedTimestamp should be(Some(Timestamp(9999)))
+    // Close and try with a brand new instance
+    fileTxLog.close()
+    fileTxLog = createFileTransactionLog()
+    fileTxLog.getLastLoggedTimestamp should be(Some(Timestamp(9999)))
   }
 
   test("the last logged timestamp should be None when there are no log files") {
     fileTxLog.getLastLoggedTimestamp should be(None)
+  }
+
+  test("should get the last logged timestamp even if last log file is empty") {
+    fileTxLog.append(createTransaction(100))
+    fileTxLog.commit()
+
+    // Create an empty log file
+    new File(logDir, fileTxLog.getNameFromTimestamp(Timestamp(200))).createNewFile()
+
+    val expectedFiles = Array("service-0000001000-100.log", "service-0000001000-200.log")
+    val actualFiles = logDir.list().sorted
+    actualFiles should be(expectedFiles)
+
+    fileTxLog.getLastLoggedTimestamp should be(Some(Timestamp(100)))
+
+    // Close and try with a brand new instance
+    fileTxLog.close()
+    fileTxLog = createFileTransactionLog()
+    fileTxLog.getLastLoggedTimestamp should be(Some(Timestamp(100)))
+  }
+
+  test("should get the last logged timestamp even if last log file contains file header only") {
+    val tx1 = createTransaction(100)
+    val fileTx1 = new File(logDir, fileTxLog.getNameFromTimestamp(tx1.timestamp))
+    val tx2 = createTransaction(200, 100)
+    when(spySerializer.serialize(tx2)).thenThrow(new IOException())
+    val fileTx2 = new File(logDir, fileTxLog.getNameFromTimestamp(tx2.timestamp))
+
+    fileTxLog.append(tx1)
+    fileTxLog.rollLog()
+
+    // Tx2 serialization should fail, resulting to a log file containing only file headers
+    fileTxLog.rollLog()
+    evaluating {
+      fileTxLog.append(tx2)
+    } should produce[IOException]
+    fileTxLog.commit()
+    fileTx2.length() should be > 0L
+    fileTx2.length() should be < fileTx1.length()
+
+    val expectedFiles = Array("service-0000001000-100.log", "service-0000001000-200.log")
+    val actualFiles = logDir.list().sorted
+    actualFiles should be(expectedFiles)
+
+    fileTxLog.getLastLoggedTimestamp should be(Some(Timestamp(100)))
+
+    // Close and try with a brand new instance
+    fileTxLog.close()
+    fileTxLog = createFileTransactionLog()
+    fileTxLog.getLastLoggedTimestamp should be(Some(Timestamp(100)))
   }
 
   ignore("truncate should delete all transactions from specified timestamp") {

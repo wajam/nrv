@@ -41,7 +41,10 @@ import scala.Some
  *
  * </pre></blockquote>
  */
-class FileTransactionLog(service: String, token: Long, val logDir: String) extends Logging with Instrumented {
+class FileTransactionLog(service: String, token: Long, val logDir: String,
+                         serializer: TransactionEventSerializer = new TransactionEventSerializer)
+  extends Logging with Instrumented {
+
   import FileTransactionLog._
 
   private val syncTimer = metrics.timer("sync-time")
@@ -72,16 +75,27 @@ class FileTransactionLog(service: String, token: Long, val logDir: String) exten
   /**
    * Appends the specified transaction event to the transaction log
    */
-  def append(txEvent: TransactionEvent) {
+  def append(tx: TransactionEvent) {
 
-    if (txEvent.previous != lastTimestamp) {
-      // TODO: Log an error and throws an exception
+    // Validate previous timestamp match last transaction event timestamp
+    if (tx.previous != lastTimestamp) {
+      throw new IOException("This transaction %s previous timestamp %s is not %s".format(
+        tx, tx.previous, lastTimestamp))
+    }
+
+    // Validate transaction timestamp is newer than previous timestamp
+    tx.previous match {
+      case Some(previousTimestamp) if previousTimestamp >= tx.timestamp => {
+        throw new IOException("This transaction %s previous timestamp %s >= %s".format(
+          tx, previousTimestamp, tx.timestamp))
+      }
+      case _ =>
     }
 
     logStream match {
       case None => {
         // No log file open, create a new log file
-        val logFileName = getNameFromTimestamp(txEvent.timestamp)
+        val logFileName = getNameFromTimestamp(tx.timestamp)
         info("Creating new log file: {}", logFileName)
 
         val fos = new FileOutputStream(new File(logDir, logFileName))
@@ -92,26 +106,27 @@ class FileTransactionLog(service: String, token: Long, val logDir: String) exten
         fileStreams = fos :: fileStreams
 
         // Finally write the transaction event to the newly created log file
-        writeTransactionEvent(dos, txEvent)
+        writeTransactionEvent(dos, tx)
       }
       case Some(dos) => {
         // Write the transaction event into th currently open log file
-        writeTransactionEvent(dos, txEvent)
+        writeTransactionEvent(dos, tx)
       }
     }
 
-    lastTimestamp = Some(txEvent.timestamp)
+    lastTimestamp = Some(tx.timestamp)
   }
 
   private def writeFileHeader(dos: DataOutputStream) {
     dos.writeLong(LogFileMagic)
     dos.writeInt(LogFileVersion)
     dos.writeUTF(service)
+    dos.flush()
   }
 
-  private def writeTransactionEvent(dos: DataOutputStream, txEvent: TransactionEvent) {
+  private def writeTransactionEvent(dos: DataOutputStream, tx: TransactionEvent) {
     val crc = new CRC32()
-    val buf = txEvent.writeToBytes()
+    val buf = serializer.serialize(tx)
     crc.update(buf.length)
     crc.update(buf, 0, buf.length)
     crc.update(EOT)
@@ -207,19 +222,19 @@ class FileTransactionLog(service: String, token: Long, val logDir: String) exten
 
   class TransactionLogIterator(timestamp: Timestamp) extends Iterator[TransactionEvent] {
     private var logStream: Option[DataInputStream] = None
-    private var nextTxEvent: Option[TransactionEvent] = None
+    private var nextTx: Option[TransactionEvent] = None
 
     // Initialize iterator to the initial transaction
     private val logFiles = getLogFilesFrom(timestamp).toIterator
     openNextFile()
-    while (nextTxEvent.isDefined && nextTxEvent.get.timestamp < timestamp) {
+    while (nextTx.isDefined && nextTx.get.timestamp < timestamp) {
       readNextTransaction()
     }
 
-    def hasNext = nextTxEvent.isDefined
+    def hasNext = nextTx.isDefined
 
     def next(): TransactionEvent = {
-      val result = nextTxEvent.get
+      val result = nextTx.get
 
       // Try to advance to the future next transaction
       readNextTransaction()
@@ -238,12 +253,16 @@ class FileTransactionLog(service: String, token: Long, val logDir: String) exten
 
       if (logFiles.hasNext) {
         val file = logFiles.next()
-        // TODO: skip empty log file
-        info("Opening log file: {}", file)
-        val dis = new DataInputStream(new FileInputStream(file))
-        readFileHeader(dis)
-        logStream = Some(dis)
-        readNextTransaction()
+        if (file.length() == 0) {
+          info("Skipping empty log file: {}", file)
+          openNextFile()
+        } else {
+          info("Opening log file: {}", file)
+          val dis = new DataInputStream(new FileInputStream(file))
+          readFileHeader(dis)
+          logStream = Some(dis)
+          readNextTransaction()
+        }
       } else {
         false
       }
@@ -264,13 +283,13 @@ class FileTransactionLog(service: String, token: Long, val logDir: String) exten
             val txLen = dis.readInt() // TODO: protection against negative or len too large
             val buf = new Array[Byte](txLen)
             dis.read(buf) // TODO: validate read len
-            val txEvent = TransactionEvent(buf)
+            val tx = serializer.deserialize(buf)
             val eot = dis.readInt() // TODO: validate eot
-            nextTxEvent = Some(txEvent)
+            nextTx = Some(tx)
             true
           } catch {
             case e: EOFException => {
-              nextTxEvent = None
+              nextTx = None
               openNextFile()
             }
           }

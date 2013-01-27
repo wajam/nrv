@@ -4,31 +4,30 @@ import com.wajam.nrv.data.Message
 import java.io._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.protocol.codec.{MessageJavaSerializeCodec, Codec}
-import java.util.zip.{CheckedInputStream, CRC32, CheckedOutputStream}
+import scala.Array
 
-case class TransactionEvent(timestamp: Timestamp, previous: Option[Timestamp], token: Long, message: Message) {
-  def writeToBytes(): Array[Byte] = {
+case class TransactionEvent(timestamp: Timestamp, previous: Option[Timestamp], token: Long, message: Message)
+
+class TransactionEventSerializer {
+  import TransactionEventSerializer._
+
+  @throws(classOf[IOException])
+  def serialize(tx: TransactionEvent): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
     val dos = new DataOutputStream(baos)
 
-    dos.writeLong(timestamp.value)
-    dos.writeLong(previous.getOrElse(Timestamp(-1)).value)
-    dos.writeLong(token)
-    val encodedMessage = TransactionEvent.codec.encode(message)
+    dos.writeLong(tx.timestamp.value)
+    dos.writeLong(tx.previous.getOrElse(Timestamp(-1)).value)
+    dos.writeLong(tx.token)
+    val encodedMessage = codec.encode(tx.message)
     dos.writeInt(encodedMessage.length)
     dos.write(encodedMessage)
     dos.flush()
     baos.toByteArray
   }
-}
 
-object TransactionEvent {
-  val MinMessageLen = 0
-  val MaxMessageLen = 1000000
-
-  val codec: Codec = new MessageJavaSerializeCodec
-
-  def apply(data: Array[Byte]): TransactionEvent = {
+  @throws(classOf[IOException])
+  def deserialize(data: Array[Byte]): TransactionEvent = {
     val bais = new ByteArrayInputStream(data)
     val dis = new DataInputStream(bais)
 
@@ -49,8 +48,15 @@ object TransactionEvent {
     if (readLen != messageLen) {
       throw new IOException("Read message length %d not equals to %d".format(readLen, messageLen))
     }
-    val message = TransactionEvent.codec.decode(encodedMessage).asInstanceOf[Message]
+    val message = codec.decode(encodedMessage).asInstanceOf[Message]
 
     TransactionEvent(timestamp, previous, token, message)
   }
+}
+
+object TransactionEventSerializer {
+  val MinMessageLen = 0
+  val MaxMessageLen = 1000000
+
+  val codec: Codec = new MessageJavaSerializeCodec
 }
