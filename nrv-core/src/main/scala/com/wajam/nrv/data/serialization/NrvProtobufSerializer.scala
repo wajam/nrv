@@ -7,7 +7,6 @@ import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
 import java.net.InetAddress
-import scala.Array
 import com.wajam.nrv.data.serialization.NrvProtobuf.{AnyPair, StringPair}
 
 /**
