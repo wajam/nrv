@@ -5,7 +5,6 @@ import codec.{MessageJavaSerializeCodec, Codec}
 import com.wajam.nrv.data.Message
 import com.wajam.nrv.transport.nrv.NrvNettyTransport
 import com.wajam.nrv.cluster.LocalNode
-import com.wajam.nrv.UnsupportedProtocolException
 import com.wajam.nrv.data.serialization.NrvProtobufSerializer
 import com.google.common.primitives.{Shorts, UnsignedBytes}
 
@@ -39,7 +38,7 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
     else if (magicByte == (UnsignedBytes.toInt(NrvProtocol.V2MagicByte)))
       parseV2(bytes)
     else
-      throw new UnsupportedProtocolException("The magic byte was not recognized.")
+      throw new RuntimeException("The magic byte was not recognized.")
   }
 
   def generate(message: Message): AnyRef = {
@@ -48,7 +47,7 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
     else if (protocolVersion == NrvProtocolVersion.V2)
       generateV2(message)
     else
-      throw new UnsupportedProtocolException("The provided version number is invalid.")
+      throw new RuntimeException("The provided version number is invalid.")
   }
 
   private def parseV2(message: Array[Byte]): Message = {

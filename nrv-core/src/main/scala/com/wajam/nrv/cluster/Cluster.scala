@@ -33,6 +33,7 @@ class Cluster(val localNode: LocalNode,
   this.registerProtocol(new NrvProtocol(this.localNode, protocolVersion = nrvProtocolVersion), default = true)
 
   def registerProtocol(protocol: Protocol, default: Boolean = false) {
+    this.protocols -= protocol.name
     this.protocols += (protocol.name -> protocol)
 
     if (default) {
