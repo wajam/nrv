@@ -2,11 +2,12 @@ package com.wajam.nrv.consistency.persistence
 
 import org.scalatest.BeforeAndAfter
 import org.scalatest.matchers.ShouldMatchers._
-import java.io.{IOException, File}
+import java.io.{DataOutputStream, ByteArrayOutputStream, IOException, File}
 import java.nio.file.Files
 import com.wajam.nrv.utils.timestamp.Timestamp
 import org.mockito.Matchers._
 import org.mockito.Mockito._
+import util.Random
 
 class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   var logDir: File = null
@@ -267,7 +268,6 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
         assertEquals(createTransaction(j + i, j + i - 1), actual)
       })
     })
-
   }
 
   test("read should skip empty log files") {
@@ -324,13 +324,94 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     expectedTx.zip(actualTx).foreach(tuple => assertEquals(tuple._1, tuple._2))
   }
 
-  ignore("read corrupted transaction event stop at corrupted tx") {
-    // Should stop reading at that transaction i.e. like no more transactions
-    fail("Not implemented yet!")
+  test("read corrupted transaction event stop at corrupted tx") {
+    val tx1 = createTransaction(0)
+    val tx2 = createTransaction(1, 0)
+    val tx3 = createTransaction(2, 1)
+    val tx4 = createTransaction(3, 2)
+    val tx5 = createTransaction(4, 3)
+
+    fileTxLog.append(tx1)
+    fileTxLog.append(tx2)
+    fileTxLog.append(tx3)
+    fileTxLog.append(tx4)
+    fileTxLog.rollLog()
+    fileTxLog.append(tx5)
+    fileTxLog.commit()
+
+    // Fail deserialization of the fourth transaction
+    doReturn(tx1).doReturn(tx2).doReturn(tx3).doThrow(new IOException()).doReturn(tx5).when(spySerializer).deserialize(anyObject())
+
+    val expectedTx = List(tx2, tx3) // Start at second transaction
+    val actualTx = fileTxLog.read(Timestamp(1)).toList
+    actualTx.length should be(expectedTx.length)
+    expectedTx.zip(actualTx).foreach(tuple => assertEquals(tuple._1, tuple._2))
   }
 
-  ignore("read corrupted transaction file header") {
-    fail("Not implemented yet!")
+  test("read corrupted transaction file header") {
+    val tx1 = createTransaction(10)
+    val tx2 = createTransaction(20, 10)
+    val tx3 = createTransaction(30, 20)
+
+    fileTxLog.append(tx1)
+    fileTxLog.append(tx2)
+    fileTxLog.rollLog()
+    fileTxLog.append(tx3)
+    fileTxLog.commit()
+
+    // Create a log file between tx2 and tx3 with random content
+    val buff = new Array[Byte](25)
+    Random.nextBytes(buff)
+    Files.write(new File(logDir, fileTxLog.getNameFromTimestamp(Timestamp(25))).toPath, buff)
+
+    val expectedFiles = Array("service-0000001000-10.log", "service-0000001000-25.log", "service-0000001000-30.log")
+    val actualFiles = logDir.list().sorted
+    actualFiles should be(expectedFiles)
+
+    val expectedTx = List(tx1, tx2)
+    val actualTx = fileTxLog.read(Timestamp(1)).toList
+    actualTx.length should be(expectedTx.length)
+    expectedTx.zip(actualTx).foreach(tuple => assertEquals(tuple._1, tuple._2))
+  }
+
+  test("read transaction file with invalid header values") {
+
+    // Create an empty log file with specified header values
+    def createEmptyLogFileWithHeader(timestamp: Long, magic: Long = FileTransactionLog.LogFileMagic,
+                                     version: Int = FileTransactionLog.LogFileVersion, service: String = fileTxLog.service) {
+      val baos = new ByteArrayOutputStream()
+      val dos = new DataOutputStream(baos)
+
+      dos.writeLong(magic)
+      dos.writeInt(version)
+      dos.writeUTF(service)
+      dos.flush()
+      baos.toByteArray
+
+      Files.write(new File(logDir, fileTxLog.getNameFromTimestamp(Timestamp(timestamp))).toPath, baos.toByteArray)
+    }
+
+    // Ensure we can successfully create a log file with valid headers
+    fileTxLog.append(createTransaction(10))
+    fileTxLog.commit()
+    createEmptyLogFileWithHeader(0)
+    fileTxLog.read(Timestamp(0)).length should be(1)
+
+    // Invalid header magic
+    createEmptyLogFileWithHeader(0, magic = Random.nextLong())
+    fileTxLog.read(Timestamp(0)).length should be(0)
+
+    // Invalid header version
+    createEmptyLogFileWithHeader(0, version = 1)
+    fileTxLog.read(Timestamp(0)).length should be(0)
+
+    // Invalid header service
+    createEmptyLogFileWithHeader(0, service = "dummy")
+    fileTxLog.read(Timestamp(0)).length should be(0)
+
+    // Test again with a valid header
+    createEmptyLogFileWithHeader(0)
+    fileTxLog.read(Timestamp(0)).length should be(1)
   }
 
   test("should get the last logged timestamp") {

@@ -27,9 +27,9 @@ import scala.Some
  * Txn || Txn TxnList
  *
  * Txn:
- * checksum TxnEvent 0x5A
+ * checksum TxnLen TxnEvent 0x5A
  *
- * checksum: 8bytes CRC32 calculated across TxnEvent and 0x5A
+ * checksum: 8bytes CRC32 calculated across TxnLen, TxnEvent and 0x5A
  *
  * TxnEvent: {
  * timestamp 8bytes
@@ -41,7 +41,7 @@ import scala.Some
  *
  * </pre></blockquote>
  */
-class FileTransactionLog(service: String, token: Long, val logDir: String,
+class FileTransactionLog(val service: String, val token: Long, val logDir: String,
                          serializer: TransactionEventSerializer = new TransactionEventSerializer)
   extends Logging with Instrumented {
 
@@ -224,19 +224,33 @@ class FileTransactionLog(service: String, token: Long, val logDir: String,
 
   class TransactionLogIterator(timestamp: Timestamp) extends Iterator[TransactionEvent] {
     private var logStream: Option[DataInputStream] = None
-    private var nextTx: Option[TransactionEvent] = None
+    private var nextTx: Either[Exception, Option[TransactionEvent]] = Right(None)
+    private var currentFile: File = _
 
     // Initialize iterator to the initial transaction
     private val logFiles = getLogFilesFrom(timestamp).toIterator
     openNextFile()
-    while (nextTx.isDefined && nextTx.get.timestamp < timestamp) {
+    while (nextTx match {
+      case Right(Some(tx)) => tx.timestamp < timestamp
+      case Left(e) => throw new IOException(e)
+      case _ => false
+    }) {
       readNextTransaction()
     }
 
-    def hasNext = nextTx.isDefined
+    def hasNext: Boolean = {
+      nextTx match {
+        case Right(Some(tx)) => true
+        case _ => false
+      }
+    }
 
     def next(): TransactionEvent = {
-      val result = nextTx.get
+      // Match intentionally non exhaustive, next() must fail if called and there is no next transaction
+      val result = nextTx match {
+        case Right(Some(tx)) => tx
+        case Left(e) => throw new IOException(e)
+      }
 
       // Try to advance to the future next transaction
       readNextTransaction()
@@ -247,34 +261,57 @@ class FileTransactionLog(service: String, token: Long, val logDir: String,
     def close() {
       logStream.foreach(_.close())
       logStream = None
+      currentFile = null
     }
 
     private def openNextFile(): Boolean = {
       logStream.foreach(_.close())
       logStream = None
+      currentFile = null
 
       if (logFiles.hasNext) {
-        val file = logFiles.next()
-        if (file.length() == 0) {
-          info("Skipping empty log file: {}", file)
+        currentFile = logFiles.next()
+        if (currentFile.length() == 0) {
+          info("Skipping empty log file: {}", currentFile)
           openNextFile()
         } else {
-          info("Opening log file: {}", file)
-          val dis = new DataInputStream(new FileInputStream(file))
-          readFileHeader(dis)
-          logStream = Some(dis)
-          readNextTransaction()
+          info("Opening log file: {}", currentFile)
+          val dis = new DataInputStream(new FileInputStream(currentFile))
+          if (readFileHeader(dis)) {
+            logStream = Some(dis)
+            readNextTransaction()
+          } else {
+            nextTx = Right(None)
+            false
+          }
         }
       } else {
         false
       }
     }
 
-    private def readFileHeader(dis: DataInputStream) {
-      // TODO: header validation
-      dis.readLong() // LogFileMagic
-      dis.readInt() // LogFileVersion
-      dis.readUTF() // Service
+    private def readFileHeader(dis: DataInputStream): Boolean = {
+      try {
+        val readMagic = dis.readLong()
+        if (readMagic != LogFileMagic) {
+          throw new IOException("Log file header magic %x not %x".format(readMagic, LogFileMagic))
+        }
+        val readVersion = dis.readInt()
+        if (readVersion != LogFileVersion) {
+          throw new IOException("Unsupported log file version %d".format(readVersion))
+        }
+        val readService = dis.readUTF()
+        if (readService != service) {
+          throw new IOException("Service %s not %s".format(readService, service))
+        }
+        true
+      } catch {
+        case e: Exception => {
+          warn("Error reading log file header from {}: {}", currentFile.getName, e)
+          nextTx = Left(e)
+          false
+        }
+      }
     }
 
     private def readNextTransaction(): Boolean = {
@@ -282,16 +319,25 @@ class FileTransactionLog(service: String, token: Long, val logDir: String,
         case Some(dis) => {
           try {
             val crc = dis.readLong() // TODO: crc validation
-            val txLen = dis.readInt() // TODO: protection against negative or len too large
-            val buf = new Array[Byte](txLen)
-            dis.read(buf) // TODO: validate read len
-            val tx = serializer.deserialize(buf)
-            val eot = dis.readInt() // TODO: validate eot
-            nextTx = Some(tx)
-            true
+            try {
+              val txLen = dis.readInt() // TODO: protection against negative or len too large
+              val buf = new Array[Byte](txLen)
+              dis.read(buf) // TODO: validate read len
+              val tx = serializer.deserialize(buf)
+              val eot = dis.readInt() // TODO: validate eot
+              nextTx = Right(Some(tx))
+              true
+            } catch {
+              case e: Exception => {
+                warn("Error reading transaction from {}: {}", currentFile.getName, e)
+                nextTx = Left(e)
+                false
+              }
+            }
           } catch {
             case e: EOFException => {
-              nextTx = None
+              info("End of log file: {}", currentFile)
+              nextTx = Right(None)
               openNextFile()
             }
           }
@@ -300,6 +346,7 @@ class FileTransactionLog(service: String, token: Long, val logDir: String,
       }
     }
   }
+
 }
 
 object FileTransactionLog {
