@@ -57,19 +57,21 @@ class FileTransactionLog(service: String, token: Long, val logDir: String,
   private var lastTimestamp: Option[Timestamp] = getLastLoggedTimestamp
 
   /**
-   * Returns the most recent timestamp written on disk. This method scan the log files to find the timestamp
+   * Returns the most recent timestamp written on disk. This method scan the log files to find the last timestamp
    */
   def getLastLoggedTimestamp: Option[Timestamp] = {
-    // Iterate to the last transaction of the last log file
-    getLogFilesFrom(Timestamp(0)).lastOption match {
-      case Some(file) => {
-        read(getTimestampFromName(file.getName)).toIterable.lastOption match {
-          case Some(tx) => Some(tx.timestamp)
-          case _ => None
+    var result: Option[Timestamp] = None
+    getLogFilesFrom(Timestamp(0)).toList.reverse.find(file => {
+      read(getTimestampFromName(file.getName)).toIterable.lastOption match {
+        case Some(tx) => {
+          result = Some(tx.timestamp)
+          true
         }
+        case _ => false
       }
-      case _ => None
-    }
+    })
+
+    result
   }
 
   /**
