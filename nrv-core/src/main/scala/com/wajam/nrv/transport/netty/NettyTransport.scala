@@ -141,7 +141,7 @@ abstract class NettyTransport(host: InetAddress,
     val clientMessageHandler = new MessageHandler(false)
 
     val clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(Executors.newCachedThreadPool, Executors.newCachedThreadPool))
-    clientBootstrap.setOption("connectTimeoutMillis", connectionTimeoutInMs);
+    clientBootstrap.setOption("connectTimeoutMillis", connectionTimeoutInMs)
     clientBootstrap.setPipelineFactory(new DefaultPipelineFactory)
 
     def start() {
