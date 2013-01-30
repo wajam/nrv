@@ -54,7 +54,7 @@ class NrvProtobufSerializer {
       case (key, value) =>
 
         if (value.isInstanceOf[String])
-          protoMessage.addParameters(NrvProtobuf.StringPair.newBuilder().setKey(key).setValue(value.asInstanceOf[String]))
+          protoMessage.addParameters(NrvProtobuf.StringPair.newBuilder().setKey(key).addValue(value.asInstanceOf[String]))
         else
           protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
     }
@@ -62,7 +62,7 @@ class NrvProtobufSerializer {
     message.metadata.foreach {
       case (key, value) =>
         if (value.isInstanceOf[String])
-          protoMessage.addMetadata(NrvProtobuf.StringPair.newBuilder().setKey(key).setValue(value.asInstanceOf[String]))
+          protoMessage.addMetadata(NrvProtobuf.StringPair.newBuilder().setKey(key).addValue(value.asInstanceOf[String]))
         else
           protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
     }
@@ -73,13 +73,12 @@ class NrvProtobufSerializer {
   }
 
   private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message, messageDataCodec: Codec): Message = {
-    val parameters = for (p <- protoMessage.getParametersList.asScala.toList) yield ((p.getKey, p.getValue))
-    val metadata = for (p <- protoMessage.getMetadataList.asScala.toList) yield ((p.getKey, p.getValue))
+
     val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
 
     val destination = decodeEndpoints(protoMessage.getDestination)
 
-    val message = new SerializableMessage(parameters, metadata, messageData)
+    val message = new SerializableMessage(null, null, messageData)
 
     message.code = protoMessage.getCode
 
@@ -111,7 +110,7 @@ class NrvProtobufSerializer {
 
     protoMessage.getParametersList.asScala.foreach {
       case (p: StringPair) =>
-        message.parameters += p.getKey -> p.getValue
+        message.parameters += p.getKey -> p.getValue(0)
     }
 
     protoMessage.getMetadataAnyList.asScala.foreach {
@@ -121,7 +120,7 @@ class NrvProtobufSerializer {
 
     protoMessage.getMetadataList.asScala.foreach {
       case (p: StringPair) =>
-        message.metadata += p.getKey -> p.getValue
+        message.metadata += p.getKey -> p.getValue(0)
     }
 
     message
