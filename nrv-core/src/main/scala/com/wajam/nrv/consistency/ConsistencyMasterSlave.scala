@@ -1,19 +1,66 @@
 package com.wajam.nrv.consistency
 
-import com.wajam.nrv.service.{ActionMethod, Action}
+import com.wajam.nrv.service._
 import com.wajam.nrv.data.{MessageType, InMessage}
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
 import java.util.concurrent.atomic.AtomicReference
+import com.yammer.metrics.scala.Instrumented
+import com.wajam.nrv.utils.Event
+import com.wajam.nrv.service.StatusTransitionEvent
+import persistence.TransactionEvent
+import scala.Some
 
 /**
  * Consistency that (will eventually) sends read/write to a master replica and replicate modification to the
  * other replicas.
  *
- * TEMPORARY extends ConsistencyOne until real master/slave consistency is implemented.
+ * IMPORTANT NOTES:
+ *   - Extends ConsistencyOne until real master/slave consistency is implemented.
+ *   - Support binding to a single service
  */
-class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator) extends ConsistencyOne {
+class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, logDir: String = "") extends ConsistencyOne with Instrumented {
+
+  private val recordersCount = metrics.gauge("recorders-count") {
+    recorders.size
+  }
+  private val recordersAppendQueueSize = metrics.gauge("recorders-append-queue-size") {
+    recorders.values.flatten.foldLeft[Int](0)((sum, recorder) => {
+      sum + recorder.appendQueueSize
+    })
+  }
 
   private val lastWriteTimestamp = new AtomicReference[Option[Timestamp]](None)
+  private var recorders: Map[ServiceMember, Seq[TransactionRecorder]] = Map()
+
+  def service = bindedServices.head
+
+  override def bindService(service: Service) {
+    if (bindedServices.size == 0) {
+      super.bindService(service)
+    } else {
+      throw new IllegalStateException("Cannot bind to multiple services. Already bound to %s".format(bindedServices.head))
+    }
+  }
+
+  override def serviceEvent(event: Event) {
+    super.serviceEvent(event)
+
+    event match {
+      case event: StatusTransitionEvent =>
+        event.to match {
+          case MemberStatus.Up if cluster.isLocalNode(event.member.node) => {
+            // Iniatialize transaction for local service member going up
+            val ranges = service.getMemberTokenRanges(event.member)
+            recorders = recorders + (event.member -> ranges.map(new TransactionRecorder(service, _, logDir)))
+          }
+          case _ => {
+            // Remove transaction recorder for all other cases
+            recorders = recorders - event.member
+          }
+        }
+      case _ =>
+    }
+  }
 
   override def handleIncoming(action: Action, message: InMessage, next: Unit => Unit) {
 
@@ -26,9 +73,11 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator) extends
             case _ => executeWriteRequest(message, next)
           }
         }
-        case _ => {
-          // Response, no special handling
-          next()
+        case MessageType.FUNCTION_RESPONSE => {
+          message.method match {
+            case ActionMethod.GET => executeReadResponse(message, next)
+            case _ => executeWriteResponse(message, next)
+          }
         }
       }
     }
@@ -91,5 +140,42 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator) extends
         case None => lastWriteTimestamp.compareAndSet(savedTimestamp, Some(timestamp))
       }
     } while (!updateSuccessful)
+  }
+
+  private def executeReadResponse(res: InMessage, next: Unit => Unit) {
+    next()
+  }
+
+  private def executeWriteResponse(res: InMessage, next: Unit => Unit) {
+
+    if (res.code >= 200 && res.code < 300) {
+      // Record sucessful request into the transaction log
+      res.matchingOutMessage match {
+        case Some(req) =>
+          try {
+            val recorder: Option[TransactionRecorder] = service.getMemberAtToken(req.token).flatMap(member => {
+              recorders.get(member).flatMap(_.find(_.range.contains(req.token)))
+            })
+            recorder match {
+              case Some(rec) => {
+                rec.append(req)
+              }
+              case _ =>
+              // TODO: meter + info log no recorder
+            }
+          } catch {
+            case e: Exception => {
+              // TODO: meter + error log
+            }
+          }
+        case None => {
+          // TODO: meter + info log unexpected response
+        }
+      }
+    } else {
+      // TODO: meter
+    }
+
+    next()
   }
 }

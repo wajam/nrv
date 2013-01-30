@@ -42,7 +42,8 @@ import scala.Some
  * </pre></blockquote>
  */
 class FileTransactionLog(val service: String, val token: Long, val logDir: String,
-                         serializer: TransactionEventSerializer = new TransactionEventSerializer)
+                         serializer: TransactionEventSerializer = new TransactionEventSerializer,
+                         validateTimestamp: Boolean = true)
   extends Logging with Instrumented {
 
   import FileTransactionLog._
@@ -97,7 +98,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
     appendTimer.time {
       // Validate previous timestamp match last transaction event timestamp
-      if (tx.previous != lastTimestamp) {
+      if (validateTimestamp && tx.previous != lastTimestamp) {
         throw new IOException("This transaction %s previous timestamp %s is not %s".format(
           tx, tx.previous, lastTimestamp))
       }
