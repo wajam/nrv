@@ -7,7 +7,7 @@ import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
 import java.net.InetAddress
-import com.wajam.nrv.data.serialization.NrvProtobuf.{AnyPair, StringPair}
+import com.wajam.nrv.data.serialization.NrvProtobuf.{AnyPair, StringListPair}
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
@@ -54,7 +54,7 @@ class NrvProtobufSerializer {
       case (key, value) =>
 
         if (value.isInstanceOf[String])
-          protoMessage.addParameters(NrvProtobuf.StringPair.newBuilder().setKey(key).setValue(value.asInstanceOf[String]))
+          protoMessage.addParameters(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value.asInstanceOf[String]))
         else
           protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
     }
@@ -62,7 +62,7 @@ class NrvProtobufSerializer {
     message.metadata.foreach {
       case (key, value) =>
         if (value.isInstanceOf[String])
-          protoMessage.addMetadata(NrvProtobuf.StringPair.newBuilder().setKey(key).setValue(value.asInstanceOf[String]))
+          protoMessage.addMetadata(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value.asInstanceOf[String]))
         else
           protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
     }
@@ -73,8 +73,30 @@ class NrvProtobufSerializer {
   }
 
   private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message, messageDataCodec: Codec): Message = {
-    val parameters = for (p <- protoMessage.getParametersList.asScala.toList) yield ((p.getKey, p.getValue))
-    val metadata = for (p <- protoMessage.getMetadataList.asScala.toList) yield ((p.getKey, p.getValue))
+
+    val parameters = new collection.mutable.HashMap[String, Any]
+    val metadata = new collection.mutable.HashMap[String, Any]
+
+    protoMessage.getParametersAnyList.asScala.foreach {
+      case (p: AnyPair) =>
+        parameters += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
+    }
+
+    protoMessage.getParametersList.asScala.foreach {
+      case (p: StringListPair) =>
+        parameters += p.getKey -> p.getValue(0)
+    }
+
+    protoMessage.getMetadataAnyList.asScala.foreach {
+      case (p: AnyPair) =>
+        metadata += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
+    }
+
+    protoMessage.getMetadataList.asScala.foreach {
+      case (p: StringListPair) =>
+        metadata += p.getKey -> p.getValue(0)
+    }
+
     val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
 
     val destination = decodeEndpoints(protoMessage.getDestination)
@@ -103,26 +125,6 @@ class NrvProtobufSerializer {
 
     message.destination = destination
     message.token = protoMessage.getToken
-
-    protoMessage.getParametersAnyList.asScala.foreach {
-      case (p: AnyPair) =>
-        message.parameters += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
-    }
-
-    protoMessage.getParametersList.asScala.foreach {
-      case (p: StringPair) =>
-        message.parameters += p.getKey -> p.getValue
-    }
-
-    protoMessage.getMetadataAnyList.asScala.foreach {
-      case (p: AnyPair) =>
-        message.metadata += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
-    }
-
-    protoMessage.getMetadataList.asScala.foreach {
-      case (p: StringPair) =>
-        message.metadata += p.getKey -> p.getValue
-    }
 
     message
   }
