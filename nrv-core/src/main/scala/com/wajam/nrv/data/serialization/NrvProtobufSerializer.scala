@@ -84,7 +84,7 @@ class NrvProtobufSerializer {
     message.code = protoMessage.getCode
 
     message.protocolName = protoMessage.getProtocolName
-    message.serviceName = protoMessage.getProtocolName
+    message.serviceName = protoMessage.getServiceName
     message.method = protoMessage.getMethod
     message.path = protoMessage.getPath
 

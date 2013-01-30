@@ -8,7 +8,6 @@ import com.wajam.nrv.data.{SerializableMessage, MessageType, Message, InMessage}
 import com.wajam.nrv.service.{Shard, Replica, Endpoints, ActionMethod}
 import com.wajam.nrv.cluster.Node
 import java.net.InetAddress
-import java.nio.ByteBuffer
 import com.wajam.nrv.protocol.codec._
 
 @RunWith(classOf[JUnitRunner])
@@ -18,7 +17,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val message = new SerializableMessage()
 
     message.protocolName = "Nrv"
-    message.serviceName = "Nrv"
+    message.serviceName = "NrvService"
     message.method = ActionMethod.PUT
     message.path = "Yellow brick road"
     message.rendezvousId = 1024
@@ -136,14 +135,14 @@ class TestNrvProtobufSerializer extends FunSuite {
 
     val entity1 = makeMessage()
 
-    entity1.metadata += "Key1" -> 1
-    entity1.parameters += "Key1" -> 1
+    entity1.metadata += "Key1m" -> 1
+    entity1.parameters += "Key1p" -> 2
 
-    entity1.metadata += "Key2" -> 1.0
-    entity1.parameters += "Key2" -> 1.0
+    entity1.metadata += "Key2m" -> 1.0
+    entity1.parameters += "Key2p" -> 2.0
 
-    entity1.metadata += "Key3" -> new Pair("A", 1)
-    entity1.parameters += "Key3" -> new Pair("A", 1)
+    entity1.metadata += "Key3m" -> new Pair("A", 1)
+    entity1.parameters += "Key3p" -> new Pair("B", 2)
 
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
