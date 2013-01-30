@@ -23,12 +23,12 @@ object NrvBuild extends Build {
     "org.scalatest" %% "scalatest" % "1.7.1" % "test,it",
     "junit" % "junit" % "4.10" % "test,it",
     "org.mockito" % "mockito-core" % "1.9.0" % "test,it",
-    "com.google.protobuf" % "protobuf-java" % "2.4.1"
+    "com.google.protobuf" % "protobuf-java" % "2.4.1",
+    "com.google.guava" % "guava" % "12.0"
   )
 
   var zookeeperDeps = Seq(
     "org.apache.zookeeper" % "zookeeper" % "3.4.3-cdh4.1.1" exclude("javax.jms", "jms") exclude("com.sun.jmx", "jmxri") exclude("com.sun.jdmk", "jmxtools"),
-    "com.google.guava" % "guava" % "12.0",
     "org.rogach" %% "scallop" % "0.6.0"
   )
 

@@ -12,6 +12,8 @@
 
 package com.wajam.nrv.data.serialization;
 
+option optimize_for = LITE_RUNTIME;
+
 message Message {
 
     optional string protocolName = 1;
@@ -31,6 +33,10 @@ message Message {
 
     repeated StringPair parameters = 12;
     repeated StringPair metadata = 13;
+
+    repeated AnyPair parametersAny = 100;
+    repeated AnyPair metadataAny = 101;
+
     optional bytes messageData = 14;
 }
 
@@ -65,4 +71,9 @@ message Int32Pair {
 message StringPair {
     required string key = 1;
     required string value = 2;
+}
+
+message AnyPair {
+    required string key = 1;
+    required bytes value = 2;
 }
