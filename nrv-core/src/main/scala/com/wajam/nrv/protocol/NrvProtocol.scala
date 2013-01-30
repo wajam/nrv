@@ -21,6 +21,7 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
 
   def start() {
     transport.start()
+    log.info("Using protocol {}", protocolVersion)
   }
 
   def stop() {
