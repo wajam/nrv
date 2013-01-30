@@ -47,7 +47,22 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   import FileTransactionLog._
 
-  private val syncTimer = metrics.timer("sync-time")
+  lazy private val syncTimer = metrics.timer("sync-time")
+  lazy private val appendTimer = metrics.timer("append-time")
+  lazy private val appendMeter = metrics.meter("append-calls", "append-calls")
+  lazy private val truncateTimer = metrics.timer("truncate-time")
+  lazy private val truncateMeter = metrics.meter("truncate-calls", "truncate-calls")
+  lazy private val commitMeter = metrics.meter("commit-calls", "commit-calls")
+  lazy private val rollMeter = metrics.meter("roll-calls", "roll-calls")
+
+  lazy private val readMeter = metrics.meter("read-calls", "read-calls")
+  lazy private val readInitTimer = metrics.timer("read-init-time")
+  lazy private val readNextCalls = metrics.meter("read-next-calls", "read-next-calls")
+  lazy private val readNextError = metrics.meter("read-next-error", "read-next-error")
+  lazy private val readNextTimer = metrics.timer("read-next-time")
+  lazy private val readOpenMeter = metrics.meter("read-open-calls", "read-open-calls")
+
+  // TODO: Add write-bytes and read-bytes meters
 
   private val filePrefix = "%s-%010d".format(service, token)
 
@@ -78,45 +93,48 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    * Appends the specified transaction event to the transaction log
    */
   def append(tx: TransactionEvent) {
+    appendMeter.mark()
 
-    // Validate previous timestamp match last transaction event timestamp
-    if (tx.previous != lastTimestamp) {
-      throw new IOException("This transaction %s previous timestamp %s is not %s".format(
-        tx, tx.previous, lastTimestamp))
-    }
-
-    // Validate transaction timestamp is newer than previous timestamp
-    tx.previous match {
-      case Some(previousTimestamp) if previousTimestamp >= tx.timestamp => {
-        throw new IOException("This transaction %s previous timestamp %s >= %s".format(
-          tx, previousTimestamp, tx.timestamp))
+    appendTimer.time {
+      // Validate previous timestamp match last transaction event timestamp
+      if (tx.previous != lastTimestamp) {
+        throw new IOException("This transaction %s previous timestamp %s is not %s".format(
+          tx, tx.previous, lastTimestamp))
       }
-      case _ =>
-    }
 
-    logStream match {
-      case None => {
-        // No log file open, create a new log file
-        val logFileName = getNameFromTimestamp(tx.timestamp)
-        info("Creating new log file: {}", logFileName)
-
-        val fos = new FileOutputStream(new File(logDir, logFileName))
-        val dos = new DataOutputStream(new BufferedOutputStream(fos))
-        writeFileHeader(dos)
-
-        logStream = Some(dos)
-        fileStreams = fos :: fileStreams
-
-        // Finally write the transaction event to the newly created log file
-        writeTransactionEvent(dos, tx)
+      // Validate transaction timestamp is newer than previous timestamp
+      tx.previous match {
+        case Some(previousTimestamp) if previousTimestamp >= tx.timestamp => {
+          throw new IOException("This transaction %s previous timestamp %s >= %s".format(
+            tx, previousTimestamp, tx.timestamp))
+        }
+        case _ =>
       }
-      case Some(dos) => {
-        // Write the transaction event into th currently open log file
-        writeTransactionEvent(dos, tx)
-      }
-    }
 
-    lastTimestamp = Some(tx.timestamp)
+      logStream match {
+        case None => {
+          // No log file open, create a new log file
+          val logFileName = getNameFromTimestamp(tx.timestamp)
+          info("Creating new log file: {}", logFileName)
+
+          val fos = new FileOutputStream(new File(logDir, logFileName))
+          val dos = new DataOutputStream(new BufferedOutputStream(fos))
+          writeFileHeader(dos)
+
+          logStream = Some(dos)
+          fileStreams = fos :: fileStreams
+
+          // Finally write the transaction event to the newly created log file
+          writeTransactionEvent(dos, tx)
+        }
+        case Some(dos) => {
+          // Write the transaction event into th currently open log file
+          writeTransactionEvent(dos, tx)
+        }
+      }
+
+      lastTimestamp = Some(tx.timestamp)
+    }
   }
 
   private def writeFileHeader(dos: DataOutputStream) {
@@ -144,7 +162,11 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    * Read all the transaction from the specified timestamp
    */
   def read(timestamp: Timestamp): TransactionLogIterator = {
-    new TransactionLogIterator(timestamp)
+    readMeter.mark()
+
+    readInitTimer.time {
+      new TransactionLogIterator(timestamp)
+    }
   }
 
   /**
@@ -152,13 +174,19 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    */
   def truncate(timestamp: Timestamp): Boolean = {
     // TODO: to implement
-    false
+    truncateMeter.mark()
+
+    truncateTimer.time {
+      false
+    }
   }
 
   /**
    * Rollover the current log file
    */
   def rollLog() {
+    rollMeter.mark()
+
     logStream.foreach(_.flush())
     logStream = None
   }
@@ -167,8 +195,10 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    * Ensure that transaction log is fully written on disk
    */
   def commit() {
-    logStream.foreach(_.flush())
+    commitMeter.mark()
 
+    // Flush streams
+    logStream.foreach(_.flush())
     for (fos <- fileStreams) {
       fos.flush()
       syncTimer.time {
@@ -176,6 +206,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       }
     }
 
+    // Close all open streams but the most recent one
     val toClose = fileStreams.tail
     fileStreams = List(fileStreams.head)
     toClose.foreach(_.close())
@@ -246,6 +277,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
 
     def next(): TransactionEvent = {
+      readNextCalls.mark()
+
       // Match intentionally non exhaustive, next() must fail if called and there is no next transaction
       val result = nextTx match {
         case Right(Some(tx)) => tx
@@ -265,6 +298,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
 
     private def openNextFile(): Boolean = {
+      readOpenMeter.mark()
+
       logStream.foreach(_.close())
       logStream = None
       currentFile = null
@@ -307,6 +342,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         true
       } catch {
         case e: Exception => {
+          readNextError.mark()
           warn("Error reading log file header from {}: {}", currentFile.getName, e)
           nextTx = Left(e)
           false
@@ -315,34 +351,37 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
 
     private def readNextTransaction(): Boolean = {
-      logStream match {
-        case Some(dis) => {
-          try {
-            val crc = dis.readLong() // TODO: crc validation
+      readNextTimer.time {
+        logStream match {
+          case Some(dis) => {
             try {
-              val txLen = dis.readInt() // TODO: protection against negative or len too large
-              val buf = new Array[Byte](txLen)
-              dis.read(buf) // TODO: validate read len
-              val tx = serializer.deserialize(buf)
-              val eot = dis.readInt() // TODO: validate eot
-              nextTx = Right(Some(tx))
-              true
+              val crc = dis.readLong() // TODO: crc validation
+              try {
+                val txLen = dis.readInt() // TODO: protection against negative or len too large
+                val buf = new Array[Byte](txLen)
+                dis.read(buf) // TODO: validate read len
+                val tx = serializer.deserialize(buf)
+                val eot = dis.readInt() // TODO: validate eot
+                nextTx = Right(Some(tx))
+                true
+              } catch {
+                case e: Exception => {
+                  readNextError.mark()
+                  warn("Error reading transaction from {}: {}", currentFile.getName, e)
+                  nextTx = Left(e)
+                  false
+                }
+              }
             } catch {
-              case e: Exception => {
-                warn("Error reading transaction from {}: {}", currentFile.getName, e)
-                nextTx = Left(e)
-                false
+              case e: EOFException => {
+                info("End of log file: {}", currentFile)
+                nextTx = Right(None)
+                openNextFile()
               }
             }
-          } catch {
-            case e: EOFException => {
-              info("End of log file: {}", currentFile)
-              nextTx = Right(None)
-              openNextFile()
-            }
           }
+          case _ => false
         }
-        case _ => false
       }
     }
   }
