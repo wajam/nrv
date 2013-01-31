@@ -133,7 +133,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     // Append a transaction with previous timestamp not matching
     evaluating {
       fileTxLog.append(tx2)
-    } should produce[IOException]
+    } should produce[IllegalArgumentException]
     fileTxLog.commit()
     logFile.length() should be(fileLenAfterTx1)
 
@@ -161,7 +161,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     // Append a transaction with proper previous but timestamp before previous
     evaluating {
       fileTxLog.append(tx2)
-    } should produce[IOException]
+    } should produce[IllegalArgumentException]
     fileTxLog.commit()
     logFile.length() should be(fileLenAfterTx1)
 
