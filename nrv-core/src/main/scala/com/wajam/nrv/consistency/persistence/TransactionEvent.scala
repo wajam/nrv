@@ -4,7 +4,6 @@ import com.wajam.nrv.data.Message
 import java.io._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.protocol.codec.{MessageJavaSerializeCodec, Codec}
-import scala.Array
 
 case class TransactionEvent(timestamp: Timestamp, previous: Option[Timestamp], token: Long, message: Message)
 
@@ -58,5 +57,6 @@ object TransactionEventSerializer {
   val MinMessageLen = 0
   val MaxMessageLen = 1000000
 
+  // TODO: Change to protobuf codec when ready
   val codec: Codec = new MessageJavaSerializeCodec
 }

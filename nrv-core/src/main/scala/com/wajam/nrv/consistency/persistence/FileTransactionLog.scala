@@ -6,7 +6,6 @@ import java.io._
 import java.util.zip.CRC32
 import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
-import scala.Some
 
 /**
  * Class for writing and reading transaction logs
@@ -48,12 +47,12 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   import FileTransactionLog._
 
-  lazy private val syncTimer = metrics.timer("sync-time")
   lazy private val appendTimer = metrics.timer("append-time")
   lazy private val appendMeter = metrics.meter("append-calls", "append-calls")
   lazy private val truncateTimer = metrics.timer("truncate-time")
   lazy private val truncateMeter = metrics.meter("truncate-calls", "truncate-calls")
   lazy private val commitMeter = metrics.meter("commit-calls", "commit-calls")
+  lazy private val commitSyncTimer = metrics.timer("commit-sync-time")
   lazy private val rollMeter = metrics.meter("roll-calls", "roll-calls")
 
   lazy private val readMeter = metrics.meter("read-calls", "read-calls")
@@ -76,6 +75,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    * Returns the most recent timestamp written on disk. This method scan the log files to find the last timestamp
    */
   def getLastLoggedTimestamp: Option[Timestamp] = {
+    // Read the last timestamp from the last file. If the file is empty, do the same same the previous one and so on
+    // until a timestamp is found.
     var result: Option[Timestamp] = None
     getLogFilesFrom(Timestamp(0)).toList.reverse.find(file => {
       read(getTimestampFromName(file.getName)).toIterable.lastOption match {
@@ -97,45 +98,33 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     appendMeter.mark()
 
     appendTimer.time {
-      // Validate previous timestamp match last transaction event timestamp
-      if (validateTimestamp && tx.previous != lastTimestamp) {
-        throw new IOException("This transaction %s previous timestamp %s is not %s".format(
+      // Ensure previous timestamp match last transaction event timestamp
+      if (validateTimestamp) {
+        require(tx.previous == lastTimestamp, "This transaction %s previous timestamp %s is not %s".format(
           tx, tx.previous, lastTimestamp))
+
+        // Ensure transaction timestamp is newer than previous timestamp
+        require(tx.previous.forall(_ < tx.timestamp), "This transaction %s previous timestamp %s >= %s".format(
+          tx, tx.previous.get, tx.timestamp))
       }
 
-      // Validate transaction timestamp is newer than previous timestamp
-      tx.previous match {
-        case Some(previousTimestamp) if previousTimestamp >= tx.timestamp => {
-          throw new IOException("This transaction %s previous timestamp %s >= %s".format(
-            tx, previousTimestamp, tx.timestamp))
-        }
-        case _ =>
-      }
-
-      logStream match {
-        case None => {
-          // No log file open, create a new log file
-          val logFileName = getNameFromTimestamp(tx.timestamp)
-          info("Creating new log file: {}", logFileName)
-
-          val fos = new FileOutputStream(new File(logDir, logFileName))
-          val dos = new DataOutputStream(new BufferedOutputStream(fos))
-          writeFileHeader(dos)
-
-          logStream = Some(dos)
-          fileStreams = fos :: fileStreams
-
-          // Finally write the transaction event to the newly created log file
-          writeTransactionEvent(dos, tx)
-        }
-        case Some(dos) => {
-          // Write the transaction event into th currently open log file
-          writeTransactionEvent(dos, tx)
-        }
-      }
-
+      // Write the transaction event into the open log file
+      writeTransactionEvent(logStream.getOrElse(openNewLogFile(tx.timestamp)), tx)
       lastTimestamp = Some(tx.timestamp)
     }
+  }
+
+  private def openNewLogFile(timestamp: Timestamp) = {
+    val logFileName = getNameFromTimestamp(timestamp)
+    info("Creating new log file: {}", logFileName)
+
+    val fos = new FileOutputStream(new File(logDir, logFileName))
+    val dos = new DataOutputStream(new BufferedOutputStream(fos))
+    writeFileHeader(dos)
+
+    logStream = Some(dos)
+    fileStreams = fos :: fileStreams
+    dos
   }
 
   private def writeFileHeader(dos: DataOutputStream) {
@@ -202,15 +191,19 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     logStream.foreach(_.flush())
     for (fos <- fileStreams) {
       fos.flush()
-      syncTimer.time {
+      commitSyncTimer.time {
         fos.getChannel.force(false)
       }
     }
 
     // Close all open streams but the most recent one
-    val toClose = fileStreams.tail
-    fileStreams = List(fileStreams.head)
-    toClose.foreach(_.close())
+    fileStreams match {
+      case fileStream :: toClose => {
+        fileStreams = fileStream :: Nil
+        toClose.foreach(_.close())
+      }
+      case Nil => // Nothing to close
+    }
   }
 
   /**
@@ -232,15 +225,12 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       }
     })
 
-    if (logFiles.isEmpty) {
-      logFiles
-    } else {
-      val sortedFiles = logFiles.sortWith((f1, f2) => getTimestampFromName(f1.getName) < getTimestampFromName(f2.getName))
-      sortedFiles.indexWhere(f => getTimestampFromName(f.getName) > timestamp) match {
-        case -1 => List(sortedFiles.last)
-        case 0 => sortedFiles
-        case i => sortedFiles.drop(i - 1)
-      }
+    val sortedFiles = logFiles.sortWith((f1, f2) => getTimestampFromName(f1.getName) < getTimestampFromName(f2.getName))
+    sortedFiles.indexWhere(f => getTimestampFromName(f.getName) > timestamp) match {
+      case -1 if sortedFiles.isEmpty => sortedFiles
+      case -1 => List(sortedFiles.last)
+      case 0 => sortedFiles
+      case i => sortedFiles.drop(i - 1)
     }
   }
 
@@ -254,16 +244,17 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     Timestamp(name.substring(start, end).toLong)
   }
 
-  class TransactionLogIterator(timestamp: Timestamp) extends Iterator[TransactionEvent] {
+  class TransactionLogIterator(initialTimestamp: Timestamp) extends Iterator[TransactionEvent] {
     private var logStream: Option[DataInputStream] = None
     private var nextTx: Either[Exception, Option[TransactionEvent]] = Right(None)
-    private var currentFile: File = _
+    private var currentFile: File = null
 
-    // Initialize iterator to the initial transaction
-    private val logFiles = getLogFilesFrom(timestamp).toIterator
+    // Position the iterator to the initial timestamp by reading tx from log as long the read timestamp is before the
+    // initial timestamp
+    private val logFiles = getLogFilesFrom(initialTimestamp).toIterator
     openNextFile()
     while (nextTx match {
-      case Right(Some(tx)) => tx.timestamp < timestamp
+      case Right(Some(tx)) => tx.timestamp < initialTimestamp
       case Left(e) => throw new IOException(e)
       case _ => false
     }) {
@@ -280,13 +271,13 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     def next(): TransactionEvent = {
       readNextCalls.mark()
 
-      // Match intentionally non exhaustive, next() must fail if called and there is no next transaction
       val result = nextTx match {
         case Right(Some(tx)) => tx
         case Left(e) => throw new IOException(e)
+        case _ => throw new IllegalStateException("Must not be invoked beyond the end of the iterator")
       }
 
-      // Try to advance to the future next transaction
+      // Read ahead the next transaction for a future call
       readNextTransaction()
 
       result
@@ -344,7 +335,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       } catch {
         case e: Exception => {
           readNextError.mark()
-          warn("Error reading log file header from {}: {}", currentFile.getName, e)
+          warn("Error reading log file header from {}: {}", currentFile, e)
           nextTx = Left(e)
           false
         }
@@ -368,7 +359,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
               } catch {
                 case e: Exception => {
                   readNextError.mark()
-                  warn("Error reading transaction from {}: {}", currentFile.getName, e)
+                  warn("Error reading transaction from {}: {}", currentFile, e)
                   nextTx = Left(e)
                   false
                 }
