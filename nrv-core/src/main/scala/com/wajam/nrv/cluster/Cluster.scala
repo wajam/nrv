@@ -5,14 +5,15 @@ import com.wajam.nrv.Logging
 import com.wajam.nrv.utils.Observable
 import com.wajam.nrv.tracing.Tracer
 import com.wajam.nrv.consistency.ConsistencyOne
-import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
+import com.wajam.nrv.protocol.{NrvProtocolVersion, NrvProtocol, Protocol}
 
 /**
  * A cluster composed of services that are provided by nodes.
  */
 class Cluster(val localNode: LocalNode,
               val clusterManager: ClusterManager,
-              actionSupportOptions: ActionSupportOptions = new ActionSupportOptions())
+              actionSupportOptions: ActionSupportOptions = new ActionSupportOptions(),
+              optDefaultProtocol: Option[Protocol] = None)
   extends ActionSupport with Logging with Observable {
 
   // assign default resolver, switchboard, etc.
@@ -28,8 +29,14 @@ class Cluster(val localNode: LocalNode,
 
   def isLocalNode(node: Node) = node == localNode
 
-  // register default protocol, which is nrv
-  this.registerProtocol(new NrvProtocol(this.localNode), default = true)
+  // recover alternative protocol or get the default one
+  val defaultProtocol = optDefaultProtocol.getOrElse({
+    new NrvProtocol(this.localNode)
+  })
+
+  // register default protocol
+  this.registerProtocol(defaultProtocol, default = true)
+
 
   def registerProtocol(protocol: Protocol, default: Boolean = false) {
     this.protocols += (protocol.name -> protocol)
