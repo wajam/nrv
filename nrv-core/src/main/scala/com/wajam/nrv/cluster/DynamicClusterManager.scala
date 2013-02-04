@@ -77,7 +77,11 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     added.foreach(newMember => {
       info("New member {} in service {}", newMember, service)
       val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
-      newMember.setStatus(votedStatus, triggerEvent = true)
+      newMember.setStatus(votedStatus, triggerEvent = true).map(event =>  {
+        if (cluster.isLocalNode(event.member.node)) {
+          updateStatusChangeMetrics(service, event.to)
+        }
+      })
       service.addMember(newMember)
     })
 
@@ -91,9 +95,12 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     newMembers.foreach(newMember => {
       service.getMemberAtToken(newMember.token).map(currentMember => {
         val votedStatus = compileVotes(currentMember, newMemberVotes(currentMember))
-        currentMember.setStatus(votedStatus, triggerEvent = true).map(event =>
+        currentMember.setStatus(votedStatus, triggerEvent = true).map(event => {
           info("Member {} of service {} changed status from {} to {}", currentMember, service, event.from, event.to)
-        )
+          if (cluster.isLocalNode(event.member.node)) {
+            updateStatusChangeMetrics(service, event.to)
+          }
+        })
       })
     })
   }
@@ -125,6 +132,24 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       serviceMemberDownCount = members.count(_.status == MemberStatus.Down)
       serviceMemberJoiningCount = members.count(_.status == MemberStatus.Joining)
     }
+
+    lazy private val statusChangeUpMeter = metrics.meter(
+      "status-change-up", "status-change-up", name)
+    lazy private val statusChangeDownMeter = metrics.meter(
+      "status-change-down", "status-change-down", name)
+    lazy private val statusChangeJoiningMeter = metrics.meter(
+      "status-change-joining", "status-change-joining", name)
+    lazy private val statusChangeUnknownMeter = metrics.meter(
+      "status-change-unknown", "status-change-unknown", name)
+
+    def memberStatusChange(status: MemberStatus) {
+      status match {
+        case MemberStatus.Up => statusChangeUpMeter.mark()
+        case MemberStatus.Down => statusChangeDownMeter.mark()
+        case MemberStatus.Joining => statusChangeJoiningMeter.mark()
+        case _ => statusChangeUnknownMeter.mark()
+      }
+    }
   }
 
   /**
@@ -132,18 +157,25 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
    */
   private def updateServicesMetrics() {
     allServicesMetrics.update(allMembers.map(_._2))
-
     for (service <- allServices) {
-      val stats = servicesMetrics.get(service) match {
-        case Some(s) => s
-        case None => {
-          val stats = new ServiceMetrics(service.name)
-          servicesMetrics += (service -> stats)
-          stats
-        }
-      }
-      stats.update(service.members)
+      getServiceMetrics(service).update(service.members)
     }
+  }
+
+  private def getServiceMetrics(service: Service): ServiceMetrics = {
+    servicesMetrics.get(service) match {
+      case Some(s) => s
+      case None => {
+        val stats = new ServiceMetrics(service.name)
+        servicesMetrics += (service -> stats)
+        stats
+      }
+    }
+  }
+
+  private def updateStatusChangeMetrics(service: Service, status: MemberStatus) {
+    allServicesMetrics.memberStatusChange(status)
+    getServiceMetrics(service).memberStatusChange(status)
   }
 
   /**
@@ -283,7 +315,11 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
             info("Forcing the whole cluster down")
             try {
               allMembers.foreach {
-                case (service, member) => member.setStatus(MemberStatus.Down, triggerEvent = true)
+                case (service, member) => member.setStatus(MemberStatus.Down, triggerEvent = true).map(event =>  {
+                  if (cluster.isLocalNode(event.member.node)) {
+                    updateStatusChangeMetrics(service, event.to)
+                  }
+                })
               }
             } catch {
               case e: Exception =>
