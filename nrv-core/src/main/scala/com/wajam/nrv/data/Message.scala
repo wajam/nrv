@@ -33,6 +33,11 @@ abstract class Message(params: Iterable[(String, Any)] = null,
 
   val parameters = new collection.mutable.HashMap[String, Any]
   val metadata = new collection.mutable.HashMap[String, Any]
+
+  // TODO: StringMigration: Rename (remove new suffix) when old "[String, Any]" are removed
+  val parametersNew = new collection.mutable.HashMap[String, Seq[String]]
+  val metadataNew = new collection.mutable.HashMap[String, Seq[String]]
+
   var messageData: Any = null
 
   val attachments = new collection.mutable.HashMap[String, Any]
