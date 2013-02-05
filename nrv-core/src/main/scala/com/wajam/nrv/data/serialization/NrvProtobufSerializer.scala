@@ -20,7 +20,7 @@ import com.wajam.nrv.data.serialization.NrvProtobuf.{AnyPair, StringListPair}
  * dropAny: Enable the drop of the old any. Thus only to the new string format will be available, very usefull to find
  * case not migrated.
  */
-class NrvProtobufSerializer(val dropString : Boolean = false, val dropAny : Boolean = false) {
+class NrvProtobufSerializer(val dropString : Boolean = false, val dropAny : Boolean = true) {
 
   val javaSerialize = new GenericJavaSerializeCodec()
 
