@@ -2,7 +2,7 @@ package com.wajam.nrv.cluster
 
 import actors.Actor
 import com.wajam.nrv.utils.{TransformLogging, Scheduler}
-import com.wajam.nrv.service.{Service, ServiceMember, MemberStatus}
+import com.wajam.nrv.service.{StatusTransitionEvent, Service, ServiceMember, MemberStatus}
 import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
 
@@ -77,11 +77,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     added.foreach(newMember => {
       info("New member {} in service {}", newMember, service)
       val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
-      newMember.setStatus(votedStatus, triggerEvent = true).map(event =>  {
-        if (cluster.isLocalNode(event.member.node)) {
-          updateStatusChangeMetrics(service, event.to)
-        }
-      })
+      val event = newMember.setStatus(votedStatus, triggerEvent = true)
+      updateStatusChangeMetrics(service, event)
       service.addMember(newMember)
     })
 
@@ -97,9 +94,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
         val votedStatus = compileVotes(currentMember, newMemberVotes(currentMember))
         currentMember.setStatus(votedStatus, triggerEvent = true).map(event => {
           info("Member {} of service {} changed status from {} to {}", currentMember, service, event.from, event.to)
-          if (cluster.isLocalNode(event.member.node)) {
-            updateStatusChangeMetrics(service, event.to)
-          }
+          updateStatusChangeMetrics(service, Some(event))
         })
       })
     })
@@ -173,9 +168,13 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     }
   }
 
-  private def updateStatusChangeMetrics(service: Service, status: MemberStatus) {
-    allServicesMetrics.memberStatusChange(status)
-    getServiceMetrics(service).memberStatusChange(status)
+  private def updateStatusChangeMetrics(service: Service, event: Option[StatusTransitionEvent]) {
+    event.foreach(event => {
+      if (cluster.isLocalNode(event.member.node)) {
+        allServicesMetrics.memberStatusChange(event.to)
+        getServiceMetrics(service).memberStatusChange(event.to)
+      }
+    })
   }
 
   /**
@@ -315,11 +314,10 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
             info("Forcing the whole cluster down")
             try {
               allMembers.foreach {
-                case (service, member) => member.setStatus(MemberStatus.Down, triggerEvent = true).map(event =>  {
-                  if (cluster.isLocalNode(event.member.node)) {
-                    updateStatusChangeMetrics(service, event.to)
-                  }
-                })
+                case (service, member) => {
+                  val event = member.setStatus(MemberStatus.Down, triggerEvent = true)
+                  updateStatusChangeMetrics(service, event)
+                }
               }
             } catch {
               case e: Exception =>
