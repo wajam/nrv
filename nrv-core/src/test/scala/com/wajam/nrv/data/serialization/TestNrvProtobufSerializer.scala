@@ -2,7 +2,7 @@ package com.wajam.nrv.data.serialization
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import org.scalatest.FunSuite
+import org.scalatest.{TestFailedException, FunSuite}
 import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.data.{SerializableMessage, MessageType, Message, InMessage}
 import com.wajam.nrv.service.{Shard, Replica, Endpoints, ActionMethod}
@@ -102,6 +102,8 @@ class TestNrvProtobufSerializer extends FunSuite {
     assert(endpointsAreEqual(message1.destination, message2.destination))
     assert(message1.parameters.forall( kv1 => message2.parameters.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
     assert(message1.metadata.forall( kv1 => message2.metadata.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
+    assert(message1.parametersNew.forall( kv1 => message2.parametersNew.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
+    assert(message1.metadataNew.forall( kv1 => message2.metadataNew.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
     assert(message1.messageData === message2.messageData)
   }
 
@@ -148,6 +150,40 @@ class TestNrvProtobufSerializer extends FunSuite {
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
 
     assertMessageEqual(entity1, entity2)
+  }
+
+  test("can drop Any in parameters and metadata") {
+    val codec = new NrvProtobufSerializer(dropAny = true)
+    val messageDataCodec = new GenericJavaSerializeCodec()
+
+    val entity1 = makeMessage()
+
+    entity1.metadata += "Key1m" -> 1
+    entity1.parameters += "Key1p" -> 2
+
+    val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
+    val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
+
+    intercept[TestFailedException] {
+      assertMessageEqual(entity1, entity2)
+    }
+  }
+
+  test("can drop String in parameters and metadata") {
+    val codec = new NrvProtobufSerializer(dropString = true)
+    val messageDataCodec = new GenericJavaSerializeCodec()
+
+    val entity1 = makeMessage()
+
+    entity1.metadataNew += "Key1m" -> Seq("1")
+    entity1.parametersNew += "Key1p" -> Seq("2")
+
+    val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
+    val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
+
+    intercept[TestFailedException] {
+      assertMessageEqual(entity1, entity2)
+    }
   }
 
   test("can encode/decode empty message") {
