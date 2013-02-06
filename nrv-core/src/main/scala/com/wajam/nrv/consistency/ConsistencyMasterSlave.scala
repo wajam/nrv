@@ -107,7 +107,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def executeReadRequest(req: InMessage, next: Unit => Unit) {
     lastWriteTimestamp.get() match {
       case Some(timestamp) => {
-        req.metadata += ("timestamp" -> timestamp)
+        // TODO: StringMigration: Remove Any usages
+        req.metadata += ("timestamp" -> Seq(timestamp.toString))
+        req.metadataOld += ("timestamp" -> timestamp.toString)
         next()
       }
       case None => {
@@ -129,7 +131,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         }
         val timestamp = timestamps(0)
         updateLastTimestamp(timestamp)
-        req.metadata += ("timestamp" -> timestamp)
+        req.metadata += ("timestamp" -> Seq(timestamp.toString))
+        req.metadataOld += ("timestamp" -> timestamp.toString)
         next()
       } catch {
         case e: Exception =>

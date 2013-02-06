@@ -109,7 +109,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter {
 
     cluster.start()
 
-    val req = new OutMessage(Map("test" -> "someval"))
+    val req = new OutMessage(Map("test" -> Seq("someval"))
     req.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, cluster.localNode)))))
     protocol.handleOutgoing(null, req)
 
@@ -118,7 +118,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter {
     }
 
     assert(received != null)
-    assert(received.parameters.getOrElse("test", "") == "someval")
+    assert(received.parametersNew.getOrElse("test", "") == "someval")
 
     cluster.stop()
   }

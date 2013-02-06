@@ -53,7 +53,7 @@ class HttpProtocol(name: String, localNode: LocalNode)
         }
         val nettyUriDecoder = new QueryStringDecoder(req.getUri)
         val parsedParameters = Map.empty[String, Any] ++ nettyUriDecoder.getParameters.asScala.mapValues(_.asScala)
-        msg.parameters ++= collapseSingletonLists(parsedParameters)
+        msg.parameters ++= collapseSingletonLists(parsedParameters).asInstanceOf[Map[String, Seq[String]]]
         mapHeaders(req, msg)
         mapContent(req, msg)
       }
@@ -128,7 +128,7 @@ class HttpProtocol(name: String, localNode: LocalNode)
       key =>
         key.toUpperCase -> httpMessage.getHeaders(key).asScala
     }.toMap
-    message.metadata ++= collapseSingletonLists(headers)
+    message.metadata ++= collapseSingletonLists(headers).asInstanceOf[Map[String, Seq[String]]]
   }
 
   private def mapContent(httpMessage: HttpMessage, message: Message) {
@@ -210,6 +210,9 @@ class HttpProtocol(name: String, localNode: LocalNode)
     (parts(0), charset)
   }
 
+  /**
+   * Turn heterogeneous Map of value and Seq(value) (of one) to a flat value Map
+   */
   private def collapseSingletonLists(parameters: Map[String, Any]): Map[String, Any] = {
     parameters.mapValues(v => {
       v match {
