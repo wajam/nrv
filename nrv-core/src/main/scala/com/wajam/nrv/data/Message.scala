@@ -7,8 +7,8 @@ import com.wajam.nrv.service.{Endpoints, ActionMethod, ActionURL}
 /**
  * Base used for outbound and inbound messages.
  */
-abstract class Message(params: Iterable[(String, Seq[String])] = null,
-                       meta: Iterable[(String, Seq[String])] = null,
+abstract class Message(params: Iterable[(String, Any)] = null,
+                       meta: Iterable[(String, Any)] = null,
                        data: Any = null,
                        var code: Int = 200) extends Serializable {
 
@@ -31,12 +31,8 @@ abstract class Message(params: Iterable[(String, Seq[String])] = null,
   var destination: Endpoints = Endpoints.EMPTY
   var token: Long = -1
 
-  val parameters = new collection.mutable.HashMap[String, Seq[String]]
-  val metadata = new collection.mutable.HashMap[String, Seq[String]]
-
-  // TODO: StringMigration: Remove when migration is complete
-  val parametersOld = new collection.mutable.HashMap[String, Any]
-  val metadataOld = new collection.mutable.HashMap[String, Any]
+  val parameters = new SpyHashMap[String, Any]
+  val metadata = new SpyHashMap[String, Any]
 
   var messageData: Any = null
 
@@ -46,8 +42,8 @@ abstract class Message(params: Iterable[(String, Seq[String])] = null,
 
   def this() = this(null, null, null)
 
-  private def loadData(params: Iterable[(String, Seq[String])] = null,
-                       meta: Iterable[(String, Seq[String])] = null,
+  private def loadData(params: Iterable[(String, Any)] = null,
+                       meta: Iterable[(String, Any)] = null,
                        data: Any = null) {
     if (params != null) {
       parameters ++= params
@@ -105,8 +101,16 @@ object MessageType {
   val FUNCTION_RESPONSE = 1
 }
 
-class SerializableMessage(params: Iterable[(String, Seq[String])] = null,
-                          meta: Iterable[(String, Seq[String])] = null,
+class SpyHashMap[A, B] extends collection.mutable.HashMap[A, B]
+{
+  protected override def addEntry(e: Entry) {
+    println("StringMigration: Added value w/ key: " + e.key + " of type: " + e.value.getClass.getCanonicalName)
+    super.addEntry(e)
+  }
+}
+
+class SerializableMessage(params: Iterable[(String, Any)] = null,
+                          meta: Iterable[(String, Any)] = null,
                           data: Any = null) extends Message(params, meta, data) with Serializable {
 
 }

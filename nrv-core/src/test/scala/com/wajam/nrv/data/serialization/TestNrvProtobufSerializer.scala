@@ -38,8 +38,8 @@ class TestNrvProtobufSerializer extends FunSuite {
 
     message.token = 1024
 
-    message.parametersNew += "Key" -> Seq("Value")
-    message.metadataNew += "CONTENT-TYPE" -> Seq("text/plain")
+    message.parameters += "Key" -> Seq("Value")
+    message.metadata += "CONTENT-TYPE" -> Seq("text/plain")
     message.messageData = "Blob Of Data"
 
     // Here you go a message with all possible value set (attachments is not serialized)
@@ -102,8 +102,6 @@ class TestNrvProtobufSerializer extends FunSuite {
     assert(endpointsAreEqual(message1.destination, message2.destination))
     assert(message1.parameters.forall( kv1 => message2.parameters.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
     assert(message1.metadata.forall( kv1 => message2.metadata.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
-    assert(message1.parametersNew.forall( kv1 => message2.parametersNew.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
-    assert(message1.metadataNew.forall( kv1 => message2.metadataNew.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
     assert(message1.messageData === message2.messageData)
   }
 
@@ -175,8 +173,8 @@ class TestNrvProtobufSerializer extends FunSuite {
 
     val entity1 = makeMessage()
 
-    entity1.metadataNew += "Key1m" -> Seq("1")
-    entity1.parametersNew += "Key1p" -> Seq("2")
+    entity1.metadata += "Key1m" -> Seq("1")
+    entity1.parameters += "Key1p" -> Seq("2")
 
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)

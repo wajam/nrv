@@ -35,45 +35,14 @@ class Action(val path: ActionPath,
   // overrides defaults with passed options
   applySupportOptions(actionSupportOptions)
 
-  // TODO: StringMigration: Remove after
-  def callOld(params: Iterable[(String, Any)],
-              meta: Iterable[(String, Any)],
-              data: Any): Future[InMessage] = {
-    callOld(params, meta, data, responseTimeout)
-  }
-
-  // TODO: StringMigration: Remove after
-  def callOld(params: Iterable[(String, Any)],
-              meta: Iterable[(String, Any)],
-              data: Any,
-              responseTimeout: Long): Future[InMessage] = {
-    val p = Promise[InMessage]
-    this.callOld(params, p.complete(_, _), meta, data, responseTimeout)
-    p.future
-  }
-
-  // TODO: StringMigration: Remove after
-  def callOld(params: Iterable[(String, Any)],
-           onReply: ((InMessage, Option[Exception]) => Unit),
-           meta: Iterable[(String, Any)] = null,
-           data: Any = null,
-           responseTimeout: Long = responseTimeout) {
-
-    val message = new OutMessage(null, null, data, onReply = onReply, responseTimeout = responseTimeout)
-    message.parametersOld ++= params
-    message.metadataOld ++= meta
-
-    this.call(message)
-  }
-
-  def call(params: Iterable[(String, Seq[String])],
-           meta: Iterable[(String, Seq[String])],
+  def call(params: Iterable[(String, Any)],
+           meta: Iterable[(String, Any)],
            data: Any): Future[InMessage] = {
     call(params, meta, data, responseTimeout)
   }
 
-  def call(params: Iterable[(String, Seq[String])],
-           meta: Iterable[(String, Seq[String])],
+  def call(params: Iterable[(String, Any)],
+           meta: Iterable[(String, Any)],
            data: Any,
            responseTimeout: Long): Future[InMessage] = {
     val p = Promise[InMessage]
@@ -81,9 +50,9 @@ class Action(val path: ActionPath,
     p.future
   }
 
-  def call(params: Iterable[(String, Seq[String])],
+  def call(params: Iterable[(String, Any)],
            onReply: ((InMessage, Option[Exception]) => Unit),
-           meta: Iterable[(String, Seq[String])] = null,
+           meta: Iterable[(String, Any)] = null,
            data: Any = null,
            responseTimeout: Long = responseTimeout) {
     this.call(new OutMessage(params, meta, data, onReply = onReply, responseTimeout = responseTimeout))
@@ -239,7 +208,6 @@ class Action(val path: ActionPath,
   private def extractParamsFromPath(intoMessage: Message, path: String) {
     val (_, params) = this.path.matchesPath(path)
     intoMessage.parameters ++= params.map((kv) => (kv._1, Seq(kv._2)))
-    intoMessage.parametersOld ++= params
   }
 }
 

@@ -11,15 +11,15 @@ import com.wajam.nrv.data.serialization.NrvProtobuf.{AnyPair, StringListPair}
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
-+ *
-+ * For metadata, parameters migration DEBUG:
-+ *
-+ * dropString: Drop usage not using bare String and not Seq[String] to detect those usages
-+ *
-+ * dropAny: Enable the drop of the old any. Thus only to the new string format will be available, very usefull to find
-+ * case not migrated.
+ *
+ * For metadata, parameters migration DEBUG:
+ *
+ * dropString: Drop usage not using bare String and not Seq[String] to detect those usages
+ *
+ * dropAny: Enable the drop of the old any. Thus only to the new string format will be available, very usefull to find
+ * case not migrated.
  */
-+class NrvProtobufSerializer(val dropString : Boolean = false, val dropAny : Boolean = false) {
+class NrvProtobufSerializer(val dropString : Boolean = false, val dropAny : Boolean = true) {
 
   val javaSerialize = new GenericJavaSerializeCodec()
 
