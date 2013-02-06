@@ -62,6 +62,8 @@ class NrvProtobufSerializer(val dropString : Boolean = false, val dropAny : Bool
 
         if (value.isInstanceOf[String])
           protoMessage.addParameters(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value.asInstanceOf[String]))
+        else if (value.isInstanceOf[Seq[String]])
+          protoMessage.addParametersSeq(NrvProtobuf.StringListPair.newBuilder().setKey(key).addAllValue(value.asInstanceOf[Seq[String]].asJava))
         else
           protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
     }
@@ -70,6 +72,8 @@ class NrvProtobufSerializer(val dropString : Boolean = false, val dropAny : Bool
       case (key, value) =>
         if (value.isInstanceOf[String])
           protoMessage.addMetadata(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value.asInstanceOf[String]))
+        else if (value.isInstanceOf[Seq[String]])
+          protoMessage.addMetadataSeq(NrvProtobuf.StringListPair.newBuilder().setKey(key).addAllValue(value.asInstanceOf[Seq[String]].asJava))
         else
           protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
     }
@@ -89,11 +93,6 @@ class NrvProtobufSerializer(val dropString : Boolean = false, val dropAny : Bool
         parameters += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
     }
 
-    protoMessage.getParametersList.asScala.foreach {
-      case (p: StringListPair) =>
-        parameters += p.getKey -> p.getValue(0)
-    }
-
     protoMessage.getMetadataAnyList.asScala.foreach {
       case (p: AnyPair) =>
         metadata += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
@@ -102,6 +101,21 @@ class NrvProtobufSerializer(val dropString : Boolean = false, val dropAny : Bool
     protoMessage.getMetadataList.asScala.foreach {
       case (p: StringListPair) =>
         metadata += p.getKey -> p.getValue(0)
+    }
+
+    protoMessage.getParametersList.asScala.foreach {
+      case (p: StringListPair) =>
+        parameters += p.getKey -> p.getValue(0)
+    }
+
+    protoMessage.getMetadataSeqList.asScala.foreach {
+      case (p: StringListPair) =>
+        metadata += p.getKey -> p.getValueList.asScala.toSeq
+    }
+
+    protoMessage.getParametersSeqList.asScala.foreach {
+      case (p: StringListPair) =>
+        parameters += p.getKey -> p.getValueList.asScala.toSeq
     }
 
     val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
