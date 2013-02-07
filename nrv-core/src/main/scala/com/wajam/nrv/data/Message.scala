@@ -31,8 +31,8 @@ abstract class Message(params: Iterable[(String, Any)] = null,
   var destination: Endpoints = Endpoints.EMPTY
   var token: Long = -1
 
-  val parameters = new SpyHashMap[String, Any]
-  val metadata = new SpyHashMap[String, Any]
+  val parameters = new MessageHashMap
+  val metadata = new MessageHashMap
 
   var messageData: Any = null
 
@@ -94,19 +94,50 @@ abstract class Message(params: Iterable[(String, Any)] = null,
       .append(", parameters=" + parameters)
       .append(", code=" + code).append("]").toString()
   }
+
+  class MessageHashMap extends collection.mutable.HashMap[String, Any]
+  {
+    protected override def addEntry(e: Entry) {
+      println("StringMigration: Added value w/ key: " + e.key + " of type: " + e.value.getClass.getCanonicalName)
+      super.addEntry(e)
+    }
+
+    /**
+     * Get the first value of Seq[T] or T transparently
+     *
+     * HACK: For now the duplicate write value is read transparently
+     */
+    def getFlatStringValue(key: String): String = {
+
+      // Try the new way Seq[String]
+      val anyValue = getRealFlatValue(key + "New")
+
+      // Failed? Try the
+      anyValue match {
+        case None => getRealFlatValue(key).get
+        case Some(_) => _
+      }
+    }
+
+    /**
+     * Get the first value of Seq[T] or T transparently
+     *
+     */
+    private def getRealFlatValue(key: String): Option[String] = {
+      getOrElse(key, null) match {
+        case None => None
+        case values: Seq[_] if values.isEmpty => None
+        case values: Seq[_] => Some(values(0).asInstanceOf[String])
+        case value: String => Some(value)
+        case _ => None
+      }
+    }
+  }
 }
 
 object MessageType {
   val FUNCTION_CALL = 0
   val FUNCTION_RESPONSE = 1
-}
-
-class SpyHashMap[A, B] extends collection.mutable.HashMap[A, B]
-{
-  protected override def addEntry(e: Entry) {
-    println("StringMigration: Added value w/ key: " + e.key + " of type: " + e.value.getClass.getCanonicalName)
-    super.addEntry(e)
-  }
 }
 
 class SerializableMessage(params: Iterable[(String, Any)] = null,
