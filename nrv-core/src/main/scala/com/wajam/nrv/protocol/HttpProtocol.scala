@@ -132,8 +132,9 @@ class HttpProtocol(name: String, localNode: LocalNode)
   }
 
   private def mapContent(httpMessage: HttpMessage, message: Message) {
-    val contentTypeHeader = message.metadata.getOrElse("CONTENT-TYPE",
-      HttpProtocol.DEFAULT_CONTENT_TYPE).asInstanceOf[String]
+
+    val contentTypeHeader = message.metadata.getFlatStringValue("CONTENT-TYPE").getOrElse(
+      HttpProtocol.DEFAULT_CONTENT_TYPE)
     val (contentType, contentEncoding) = splitContentTypeHeader(contentTypeHeader)
     val byteBuffer = httpMessage.getContent.toByteBuffer
     val bytes = new Array[Byte](byteBuffer.limit())
@@ -164,8 +165,8 @@ class HttpProtocol(name: String, localNode: LocalNode)
 
   private def setContent(httpMessage: HttpMessage, message: Message) {
     if (message.messageData != null) {
-      val contentTypeHeader = message.metadata.getOrElse("Content-Type",
-        HttpProtocol.DEFAULT_CONTENT_TYPE).asInstanceOf[String]
+      val contentTypeHeader = message.metadata.getFlatStringValue("Content-Type").getOrElse(
+        HttpProtocol.DEFAULT_CONTENT_TYPE)
       val (contentType, contentEncoding) = splitContentTypeHeader(contentTypeHeader)
       contentTypeCodecs.get(contentType) match {
         case Some(codec) => {

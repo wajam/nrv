@@ -105,10 +105,10 @@ object TraceFilter extends MessageHandler with Logging {
   def setContextInMessageMetadata(message: Message, traceContext: Option[TraceContext]) {
     clearContextInMessageMetadata(message)
     for (context <- traceContext) {
-      message.metadata(TraceHeader.TraceId.toString) = context.traceId
-      message.metadata(TraceHeader.SpanId.toString) = context.spanId
-      for (parentId <- context.parentId) message.metadata(TraceHeader.ParentId.toString) = parentId
-      for (sampled <- context.sampled) message.metadata(TraceHeader.Sampled.toString) = sampled.toString
+      message.metadata(TraceHeader.TraceId.toString) = Seq(context.traceId)
+      message.metadata(TraceHeader.SpanId.toString) = Seq(context.spanId)
+      for (parentId <- context.parentId) message.metadata(TraceHeader.ParentId.toString) = Seq(parentId)
+      for (sampled <- context.sampled) message.metadata(TraceHeader.Sampled.toString) = Seq(sampled.toString)
     }
   }
 

@@ -31,6 +31,7 @@ abstract class Message(params: Iterable[(String, Any)] = null,
   var destination: Endpoints = Endpoints.EMPTY
   var token: Long = -1
 
+  // TODO: StringMigration : Replace with original hashmap after migration, no more tracing, no more getFlat
   val parameters = new MessageHashMap
   val metadata = new MessageHashMap
 
@@ -107,15 +108,15 @@ abstract class Message(params: Iterable[(String, Any)] = null,
      *
      * HACK: For now the duplicate write value is read transparently
      */
-    def getFlatStringValue(key: String): String = {
+    def getFlatStringValue(key: String): Option[String] = {
 
       // Try the new way Seq[String]
       val anyValue = getRealFlatValue(key + "New")
 
-      // Failed? Try the
+      // Failed? Try the old key
       anyValue match {
-        case None => getRealFlatValue(key).get
-        case Some(_) => _
+        case None => getRealFlatValue(key)
+        case _ => _
       }
     }
 

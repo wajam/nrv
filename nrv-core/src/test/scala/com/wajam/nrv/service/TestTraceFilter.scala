@@ -93,7 +93,8 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val message = new InMessage()
     message.protocolName = "dummy"
     message.serviceName = service.name
-    message.metadata(TraceHeader.Sampled.toString) = true.toString
+
+    message.metadata(TraceHeader.Sampled.toString) = Seq(true.toString)
 
     var called = false
     TraceFilter.handleIncoming(action, message, _ => called = true)
