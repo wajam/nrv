@@ -13,7 +13,7 @@ import com.wajam.nrv.data.serialization.NrvProtobuf.{AnyPair, StringListPair}
  * Convert NRV principal objects to their Protobuf equivalent back and forth
  *
  */
-class NrvProtobufSerializer(val dropNewKey: Boolean = false, val dropString: Boolean = false, val dropAny: Boolean = true) {
+class NrvProtobufSerializer(val dropNewKey: Boolean = false, val dropString: Boolean = false, val dropAny: Boolean = false) {
 
   val javaSerialize = new GenericJavaSerializeCodec()
 
