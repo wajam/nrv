@@ -1,6 +1,7 @@
 package com.wajam.nrv.service
 
 import com.wajam.nrv.InvalidParameter
+import com.wajam.nrv.data.SeqStringMigrationHelper
 
 /**
  * Path used in NRV to represent an action and part of the ActionPath
@@ -44,6 +45,7 @@ class ActionPath(var path: String) {
       if (fragment startsWith ":") {
         val param = fragment.substring(1)
         if (data.contains(param)) {
+          //retPath += SeqStringMigrationHelper.getFlatStringValue(data, param)
           retPath += data(param)
         } else {
           throw new InvalidParameter("Missing parameter '%s' for path %s".format(param, path))

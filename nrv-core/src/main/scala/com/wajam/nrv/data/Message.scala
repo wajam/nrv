@@ -99,7 +99,7 @@ abstract class Message(params: Iterable[(String, Any)] = null,
   class MessageHashMap extends collection.mutable.HashMap[String, Any]
   {
     protected override def addEntry(e: Entry) {
-      println("StringMigration: Added value w/ key: \"" + e.key + " \"of type: \"" + e.value.getClass.getCanonicalName + "\"")
+      println("StringMigration: Added value w/ key: \"" + e.key + "\" of type: \"" + e.value.getClass + "\"")
       super.addEntry(e)
     }
 
