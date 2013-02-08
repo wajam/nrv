@@ -207,7 +207,7 @@ class Action(val path: ActionPath,
 
   private def extractParamsFromPath(intoMessage: Message, path: String) {
     val (_, params) = this.path.matchesPath(path)
-    intoMessage.parameters ++= params.map((kv) => (kv._1, Seq(kv._2)))
+    intoMessage.parameters ++= params
   }
 }
 
