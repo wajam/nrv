@@ -31,8 +31,8 @@ abstract class Message(params: Iterable[(String, Any)] = null,
   var destination: Endpoints = Endpoints.EMPTY
   var token: Long = -1
 
-  val parameters = new MessageHashMap
-  val metadata = new MessageHashMap
+  val parameters = new SpyHashMap
+  val metadata = new SpyHashMap
   var messageData: Any = null
 
   val attachments = new collection.mutable.HashMap[String, Any]

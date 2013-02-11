@@ -1,6 +1,6 @@
 package com.wajam.nrv.data
 
-class MessageMigration(val map: scala.collection.Map[String, Any]) {
+class MessageMigration(val map: scala.collection.mutable.Map[String, Any]) {
 
   private val newSuffix = "_New"
 
@@ -9,55 +9,55 @@ class MessageMigration(val map: scala.collection.Map[String, Any]) {
    * Phase #1 of migrating a use case.
    *
    */
-  implicit def setValue(map: scala.collection.Map[String, Any], key: String, newValue: Seq[String], oldValue: Any) = {
-    map += (key, oldValue)
-    map += (key + newSuffix, newValue)
+  def setValue(key: String, newValue: Seq[String], oldValue: Any) = {
+    map += (key -> oldValue)
+    map += (key + newSuffix -> newValue)
   }
 
   /**
    * Use to mark a usage compatible (already Seq[String]). Phase #1 of migrating a use case.
    *
    */
-  implicit def setNoopValue(map: scala.collection.Map[String, Any], key: String, newValue: Seq[String]) = {
-    map += (key, newValue)
+  def setNoopValue(key: String, newValue: Seq[String]) = {
+    map += (key -> newValue)
   }
 
   /**
    * Use to revert key_new to key. Phase #2 of migrating a use case.
    *
    */
-  implicit def setEitherStringValue(map: scala.collection.Map[String, Any], key: String, newValue: Seq[String]) = {
-    map += (key, newValue)
-    map += (key_new, newValue)
+  def setEitherStringValue(key: String, newValue: Seq[String]) = {
+    map += (key -> newValue)
+    map += (key + newSuffix -> newValue)
   }
 
 
   /**
    * Return both the new and old value. Phase #1 of migrating a use case.
    */
-  implicit def getBothValue(map: scala.collection.Map[String, Any], key: String): (Any, Seq[String]) = {
-    (map(key), map(key + newSuffix))
+  def getBothValue(key: String): (Any, Seq[String]) = {
+    (map(key), map(key + newSuffix).asInstanceOf[Seq[String]])
   }
 
   /**
    * Use to revert key_new to key. Phase #2 of migrating a use case.
    *
    */
-  implicit def getEitherStringValue(map: scala.collection.Map[String, Any], key: String, newValue: Seq[String]) = {
-    map += (key, newValue)
+  def getEitherStringValue(key: String, newValue: Seq[String]) = {
+    map += (key -> newValue)
   }
 
   /**
    * Get the first value of Seq[String] or String transparently
    */
-  implicit def getFlatStringValue(map: scala.collection.Map[String, Any], key: String): Option[String] = {
+  def getFlatStringValue(key: String): Option[String] = {
 
     // Try the new way Seq[String]
-    val anyValue = getRealFlatValue(map, key + newSuffix)
+    val anyValue = getRealFlatValue(key + newSuffix)
 
     // Failed? Try the old key
     anyValue match {
-      case None => getRealFlatValue(map, key)
+      case None => getRealFlatValue(key)
       case result => result
     }
   }
@@ -65,7 +65,7 @@ class MessageMigration(val map: scala.collection.Map[String, Any]) {
   /**
    * Get the first value of Seq[String] or String transparently
    */
-  private def getRealFlatValue(map: scala.collection.Map[String, Any], key: String): Option[String] = {
+  def getRealFlatValue(key: String): Option[String] = {
     map.getOrElse(key, null) match {
       case None => None
       case values: Seq[_] if values.isEmpty => None
@@ -74,4 +74,8 @@ class MessageMigration(val map: scala.collection.Map[String, Any]) {
       case _ => None
     }
   }
+}
+
+object MessageMigration  {
+  implicit def map2MigrationMap(map: scala.collection.mutable.Map[String, Any]) = new MessageMigration(map)
 }
