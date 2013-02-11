@@ -1,8 +1,6 @@
 package com.wajam.nrv.data
 
-class MessageMutableMapMigration(val map: scala.collection.mutable.Map[String, Any]) {
-
-  val newSuffix = MessageMigration.newSuffix
+class MessageMutableMapMigration(val varMap: scala.collection.mutable.Map[String, Any]) extends MessageMapMigration(varMap) {
 
   /**
    * Use to write data on both the new format and the new to allow legacy code to not freak out.
@@ -10,8 +8,8 @@ class MessageMutableMapMigration(val map: scala.collection.mutable.Map[String, A
    *
    */
   def setValue(key: String, newValue: Seq[String], oldValue: Any) = {
-    map += (key -> oldValue)
-    map += (key + newSuffix -> newValue)
+    varMap += (key -> oldValue)
+    varMap += (key + newSuffix -> newValue)
   }
 
   /**
@@ -19,7 +17,7 @@ class MessageMutableMapMigration(val map: scala.collection.mutable.Map[String, A
    *
    */
   def setNoopValue(key: String, newValue: Seq[String]) = {
-    map += (key -> newValue)
+    varMap += (key -> newValue)
   }
 
   /**
@@ -27,14 +25,14 @@ class MessageMutableMapMigration(val map: scala.collection.mutable.Map[String, A
    *
    */
   def setEitherStringValue(key: String, newValue: Seq[String]) = {
-    map += (key -> newValue)
-    map += (key + newSuffix -> newValue)
+    varMap += (key -> newValue)
+    varMap += (key + newSuffix -> newValue)
   }
 }
 
-class MessageMapMigration(val map: Map[String, Any]) {
+class MessageMapMigration(val map: scala.collection.Map[String, Any]) {
 
-  val newSuffix = MessageMigration.newSuffix
+  val newSuffix = "_New"
 
   /**
    * Return both the new and old value. Phase #1 of migrating a use case.
@@ -102,8 +100,6 @@ class MessageMapMigration(val map: Map[String, Any]) {
 
 object MessageMigration  {
 
-  val newSuffix = "_New"
-
   implicit def mutableMap2MigrationMap(map: scala.collection.mutable.Map[String, Any]) = new MessageMutableMapMigration(map)
-  implicit def map2MigrationMap(map: Map[String, Any]) = new MessageMapMigration(map)
+  implicit def map2MigrationMap(map: scala.collection.Map[String, Any]) = new MessageMapMigration(map)
 }
