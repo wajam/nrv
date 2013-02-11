@@ -6,6 +6,11 @@ package com.wajam.nrv.utils.timestamp
 trait Timestamp extends Serializable with Ordered[Timestamp] {
   def value: Long
 
+  def clone(t: Timestamp) =
+  {
+    new Timestamp { val value = t.value}
+  }
+
   override def compare(t: Timestamp) = compareTo(t)
 
   override def compareTo(t: Timestamp): Int = {
@@ -28,5 +33,8 @@ trait Timestamp extends Serializable with Ordered[Timestamp] {
 object Timestamp {
   def apply(l: Long): Timestamp = new Timestamp {
     val value = l
+  }
+  def apply(l: String): Timestamp = new Timestamp {
+    val value = l.toLong
   }
 }
