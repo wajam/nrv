@@ -1,8 +1,8 @@
 package com.wajam.nrv.data
 
-class MessageMigration(val map: scala.collection.mutable.Map[String, Any]) {
+class MessageMutableMapMigration(val map: scala.collection.mutable.Map[String, Any]) {
 
-  private val newSuffix = "_New"
+  val newSuffix = MessageMigration.newSuffix
 
   /**
    * Use to write data on both the new format and the new to allow legacy code to not freak out.
@@ -30,7 +30,11 @@ class MessageMigration(val map: scala.collection.mutable.Map[String, Any]) {
     map += (key -> newValue)
     map += (key + newSuffix -> newValue)
   }
+}
 
+class MessageMapMigration(val map: Map[String, Any]) {
+
+  val newSuffix = MessageMigration.newSuffix
 
   /**
    * Return both the new and old value. Phase #1 of migrating a use case.
@@ -40,11 +44,31 @@ class MessageMigration(val map: scala.collection.mutable.Map[String, Any]) {
   }
 
   /**
-   * Use to revert key_new to key. Phase #2 of migrating a use case.
+   *  Get old value directly or use transformation function to get value.
+   *  Phase #1 of migrating a use case.
+   */
+  def getValueOldOrFromString(key: String, transFct: Seq[String] => Any): Any = {
+    if (map.contains(key + newSuffix))
+      transFct(map(key + newSuffix).asInstanceOf[Seq[String]])
+    else
+      map.get(key)
+  }
+
+  /**
+   * Check either the old or new value is contained in the map.
+   *
+   */
+  def containsEither(key: String): Boolean = {
+    map.contains(key) || map.contains(key + newSuffix)
+  }
+
+  /**
+   * Use to revert key_new to key.
+   * Phase #2 of migrating a use case.
    *
    */
   def getEitherStringValue(key: String, newValue: Seq[String]) = {
-    map += (key -> newValue)
+    map.getOrElse(key, map.get(key + newSuffix))
   }
 
   /**
@@ -77,5 +101,9 @@ class MessageMigration(val map: scala.collection.mutable.Map[String, Any]) {
 }
 
 object MessageMigration  {
-  implicit def map2MigrationMap(map: scala.collection.mutable.Map[String, Any]) = new MessageMigration(map)
+
+  val newSuffix = "_New"
+
+  implicit def mutableMap2MigrationMap(map: scala.collection.mutable.Map[String, Any]) = new MessageMutableMapMigration(map)
+  implicit def map2MigrationMap(map: Map[String, Any]) = new MessageMapMigration(map)
 }
