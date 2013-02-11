@@ -34,6 +34,9 @@ message Message {
     repeated StringListPair parameters = 12;
     repeated StringListPair metadata = 13;
 
+    repeated StringListPair parametersSeq = 102;
+    repeated StringListPair metadataSeq = 103;
+
     repeated AnyPair parametersAny = 100;
     repeated AnyPair metadataAny = 101;
 
