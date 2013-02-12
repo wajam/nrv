@@ -6,13 +6,18 @@ import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
 import com.wajam.nrv.{UnavailableException, TimeoutException, Logging}
 import java.util.concurrent.atomic.AtomicBoolean
 import com.wajam.nrv.utils.Scheduler
+import com.twitter.util.RingBuffer
+import com.google.common.cache.{RemovalNotification, RemovalListener, CacheBuilder}
+import java.util.concurrent.TimeUnit
+import java.text.SimpleDateFormat
 
 /**
  * Handle incoming messages and find matching outgoing messages, having same
  * rendez-vous number.
  */
-class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int = 50)
-  extends Actor with MessageHandler with Logging with Instrumented {
+class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int = 50,
+                  val banExpirationDuration: Long = 45000L, val banRatio: Double = 0.40)
+  extends Actor with MessageHandler with  Logging with Instrumented {
 
   require(numExecutor > 0)
   require(maxTaskExecutorQueueSize > 0)
@@ -27,18 +32,26 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
 
   // instrumentation
   private def metricName = if (name.isEmpty) null else name
-  private val received = metrics.meter("received", "received", metricName)
-  private val sent = metrics.meter("sent", "sent", metricName)
-  private val timeout = metrics.meter("timeout", "timeout", metricName)
+  lazy private val received = metrics.meter("received", "received", metricName)
+  lazy private val sent = metrics.meter("sent", "sent", metricName)
+  lazy private val timeout = metrics.meter("timeout", "timeout", metricName)
   private val pending = metrics.gauge("pending", metricName) {
     rendezvous.size
   }
 
-  private val rejectedMessages = metrics.meter("rejected", "messages", metricName)
-  private val unexpectedResponses = metrics.meter("unexpected", "responses", metricName)
+  lazy private val rejectedMessages = metrics.meter("rejected", "messages", metricName)
+  lazy private val unexpectedResponses = metrics.meter("unexpected", "responses", metricName)
   private val executorQueueSize = metrics.gauge("executors-queue-size", metricName) {
     executors.foldLeft[Int](0)((sum: Int, actor: SwitchboardExecutor) => {
       sum + actor.queueSize
+    })
+  }
+
+  lazy private val bannedMessages = metrics.meter("banned", "messages", metricName)
+  lazy private val bannedDurationTimer = metrics.timer("banned-token-time", metricName)
+  private val bannedListSize = metrics.gauge("banned-list-size", metricName) {
+    executors.foldLeft(0L)((sum, executor: SwitchboardExecutor) => {
+      sum + executor.bannedListSize
     })
   }
 
@@ -186,32 +199,9 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
   private def execute(action: Action, message: Message, next: (Unit => Unit)) {
     if (message.token >= 0) {
       val executor = executors((message.token % numExecutor).toInt)
-      if(!rejectMessageWhenOverloaded(action, message, executor)) {
-        executor ! next
-      }
+      executor.execute(action, message, next)
     } else {
       throw new RuntimeException("Invalid token for message: " + message)
-    }
-  }
-
-  private def rejectMessageWhenOverloaded(action: Action, message: Message, executor: SwitchboardExecutor): Boolean = {
-    // Reject only incoming message that are function calls (i.e. request from other nodes/clients)
-    message match {
-      case inMessage: InMessage => {
-        val rejected = (inMessage.function == MessageType.FUNCTION_CALL
-          && executor.queueSize >= maxTaskExecutorQueueSize)
-        if (rejected) {
-          rejectedMessages.mark()
-          val rejectedMessage = new OutMessage()
-          action.generateResponseMessage(message, rejectedMessage)
-          rejectedMessage.error = Some(new UnavailableException)
-          rejectedMessage.code = 503
-
-          action.callOutgoingHandlers(rejectedMessage)
-        }
-        rejected
-      }
-      case _ => false
     }
   }
 
@@ -223,9 +213,91 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
 
   private object CheckTimeout
 
+  private case class TokenBan(token: Long, createTime: Long = getTime(),
+                              var lastAttemptTime: Long = getTime(), var attemptAfterBan: Int = 0) {
+    override def toString = {
+      "<tk=%d, attempts=%d, banned=%s, lastAttempt=%s>".format(
+        token, attemptAfterBan, formatTimestamp(createTime), formatTimestamp(lastAttemptTime))
+    }
+
+    private def formatTimestamp(timestamp: Long) = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(timestamp)
+  }
+
   private class SwitchboardExecutor extends Actor with Logging {
 
+    private val bannedTokenRemovalListener = new RemovalListener[java.lang.Long, TokenBan] {
+      def onRemoval(notification: RemovalNotification[java.lang.Long, TokenBan]) {
+        bannedDurationTimer.update(getTime() - notification.getValue.createTime, TimeUnit.MILLISECONDS)
+        info("Ban lifted {}", notification.getValue)
+      }
+    }
+
+    private val recentTokens = new RingBuffer[Long](maxTaskExecutorQueueSize)
+    private val bannedTokens = CacheBuilder.newBuilder().expireAfterAccess(
+      banExpirationDuration, TimeUnit.MILLISECONDS).removalListener(bannedTokenRemovalListener).build[java.lang.Long, TokenBan]
+
     def queueSize = mailboxSize
+
+    def bannedListSize = bannedTokens.size()
+
+    def execute(action: Action, message: Message, next: (Unit => Unit)) {
+      if (!rejectMessageWhenOverloadedOrBanned(action, message)) {
+        recentTokens += message.token
+        this ! next
+      }
+    }
+
+    def rejectMessageWhenOverloadedOrBanned(action: Action, message: Message): Boolean = {
+      // Reject only incoming message that are function calls (i.e. request from other nodes/clients)
+      message match {
+        case inMessage: InMessage if inMessage.function == MessageType.FUNCTION_CALL => {
+          Option(bannedTokens.getIfPresent(long2Long(message.token))) match {
+            case Some(ban) => {
+              // There is a ban on this token, reject the message with "Too many requests" error
+              bannedMessages.mark()
+              info("Reject banned message {} (queueSize={})", ban, queueSize)
+
+              ban.attemptAfterBan += 1
+              ban.lastAttemptTime = getTime()
+              replyError(action, message, 429, new UnavailableException)
+              true
+            }
+            case _ if queueSize >= maxTaskExecutorQueueSize => {
+              // Executor queue is overloaded, reject the message and create ban if needed
+              rejectedMessages.mark()
+              debug("Executor queue overflow. Rejecting message (queueSize={}, tk={})", queueSize, message.token)
+
+              // Ban queued tokens wich are exceeding the ban ratio
+              val tokenCounts = recentTokens.iterator.foldLeft(Map[Long, Int]())((grouped, token) => {
+                grouped + (token -> (grouped.getOrElse(token, 0) + 1))
+              })
+              tokenCounts.foreach {
+                case (token, count) => {
+                  if (count > maxTaskExecutorQueueSize * banRatio) {
+                    info("Executor queue overflow. Banning token {} because queue ratio {} exceeding {} (queueSize={})",
+                      token, count / maxTaskExecutorQueueSize.toDouble, banRatio, queueSize)
+                    bannedTokens.put(long2Long(token), TokenBan(token))
+                  }
+                }
+              }
+
+              replyError(action, message, 503, new UnavailableException)
+              true
+            }
+            case _ => false
+          }
+        }
+        case _ => false
+      }
+    }
+
+    private def replyError(action: Action, message: Message, code: Int, error: Exception) {
+      val errorMessage = new OutMessage()
+      action.generateResponseMessage(message, errorMessage)
+      errorMessage.error = Some(error)
+      errorMessage.code = code
+      action.callOutgoingHandlers(errorMessage)
+    }
 
     def act() {
       loop {
