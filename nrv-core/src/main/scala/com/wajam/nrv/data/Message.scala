@@ -93,14 +93,6 @@ abstract class Message(params: Iterable[(String, Any)] = null,
       .append(", parameters=" + parameters)
       .append(", code=" + code).append("]").toString()
   }
-
-  class SpyHashMap extends collection.mutable.HashMap[String, Any]
-  {
-    protected override def addEntry(e: Entry) {
-      println("StringMigration: Added value w/ key: \"" + e.key + "\" of type: \"" + e.value.getClass + "\"")
-      super.addEntry(e)
-    }
-  }
 }
 
 object MessageType {
