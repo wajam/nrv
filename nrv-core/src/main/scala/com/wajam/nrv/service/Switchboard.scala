@@ -16,7 +16,7 @@ import java.text.SimpleDateFormat
  * rendez-vous number.
  */
 class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int = 50,
-                  val banExpirationDuration: Long = 45000L, val banRatio: Double = 0.40)
+                  val banExpirationDuration: Long = 60000L, val banRatio: Double = 1.0)
   extends Actor with MessageHandler with  Logging with Instrumented {
 
   require(numExecutor > 0)
