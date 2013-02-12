@@ -255,7 +255,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
             case Some(ban) => {
               // There is a ban on this token, reject the message with "Too many requests" error
               bannedMessages.mark()
-              info("Reject banned message {} (queueSize={})", ban, queueSize)
+              debug("Reject banned message {} (queueSize={})", ban, queueSize)
 
               ban.attemptAfterBan += 1
               ban.lastAttemptTime = getTime()
@@ -268,16 +268,11 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
               debug("Executor queue overflow. Rejecting message (queueSize={}, tk={})", queueSize, message.token)
 
               // Ban queued tokens wich are exceeding the ban ratio
-              val tokenCounts = recentTokens.iterator.foldLeft(Map[Long, Int]())((grouped, token) => {
-                grouped + (token -> (grouped.getOrElse(token, 0) + 1))
-              })
-              tokenCounts.foreach {
-                case (token, count) => {
-                  if (count > maxTaskExecutorQueueSize * banRatio) {
-                    info("Executor queue overflow. Banning token {} because queue ratio {} exceeding {} (queueSize={})",
-                      token, count / maxTaskExecutorQueueSize.toDouble, banRatio, queueSize)
-                    bannedTokens.put(long2Long(token), TokenBan(token))
-                  }
+              for ((token, tokens) <- recentTokens.groupBy(k => k)) {
+                if (tokens.size > maxTaskExecutorQueueSize * banRatio) {
+                  info("Executor queue overflow. Banning token {} because queue ratio {} exceeding {} (queueSize={})",
+                    token, tokens.size / maxTaskExecutorQueueSize.toDouble, banRatio, queueSize)
+                  bannedTokens.put(long2Long(token), TokenBan(token))
                 }
               }
 
