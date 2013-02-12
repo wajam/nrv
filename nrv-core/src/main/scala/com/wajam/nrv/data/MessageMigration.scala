@@ -1,6 +1,10 @@
 package com.wajam.nrv.data
 
-class MessageMutableMapMigration(val varMap: scala.collection.mutable.Map[String, Any]) extends MessageMapMigration(varMap) {
+/**
+ * Mutable operations
+ *
+ */
+class MessageMutableMapMigration(val varMap: collection.mutable.Map[String, Any]) extends MessageMapMigration(varMap) {
 
   /**
    * Use to write data on both the new format and the new to allow legacy code to not freak out.
@@ -13,7 +17,8 @@ class MessageMutableMapMigration(val varMap: scala.collection.mutable.Map[String
   }
 
   /**
-   * Use to mark a usage compatible (already Seq[String]). Phase #1 of migrating a use case.
+   * Use to mark a usage compatible (already Seq[String]).
+   * Phase #1 of migrating a use case.
    *
    */
   def setNoopValue(key: String, newValue: Seq[String]) = {
@@ -21,24 +26,31 @@ class MessageMutableMapMigration(val varMap: scala.collection.mutable.Map[String
   }
 
   /**
-   * Use to revert key_new to key. Phase #2 of migrating a use case.
+   * Use to revert key_new to key.
+   * Phase #2 of migrating a use case.
    *
    */
-  def setEitherStringValue(key: String, newValue: Seq[String]) = {
+  def setBothStringValue(key: String, newValue: Seq[String]) = {
     varMap += (key -> newValue)
     varMap += (key + newSuffix -> newValue)
   }
 }
 
+
+/**
+ * Both mutable and immutable operations
+ *
+ */
 class MessageMapMigration(val map: scala.collection.Map[String, Any]) {
 
   val newSuffix = "_New"
 
   /**
-   * Return both the new and old value. Phase #1 of migrating a use case.
+   * Return both the new and old value.
+   * Phase #1 of migrating a use case.
    */
-  def getBothValue(key: String): (Any, Seq[String]) = {
-    (map(key), map(key + newSuffix).asInstanceOf[Seq[String]])
+  def getBothValue(key: String): (Seq[String], Any) = {
+    (map(key + newSuffix).asInstanceOf[Seq[String]], map(key))
   }
 
   /**
@@ -49,7 +61,7 @@ class MessageMapMigration(val map: scala.collection.Map[String, Any]) {
     if (map.contains(key + newSuffix))
       transFct(map(key + newSuffix).asInstanceOf[Seq[String]])
     else
-      map.get(key)
+      map(key)
   }
 
   /**
@@ -87,7 +99,7 @@ class MessageMapMigration(val map: scala.collection.Map[String, Any]) {
   /**
    * Get the first value of Seq[String] or String transparently
    */
-  def getRealFlatValue(key: String): Option[String] = {
+  private def getRealFlatValue(key: String): Option[String] = {
     map.getOrElse(key, null) match {
       case None => None
       case values: Seq[_] if values.isEmpty => None
