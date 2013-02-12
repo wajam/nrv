@@ -16,7 +16,7 @@ import java.text.SimpleDateFormat
  * rendez-vous number.
  */
 class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int = 50,
-                  val banExpirationDuration: Long = 60000L, val banRatio: Double = 1.0)
+                  val banExpirationDuration: Long = 60000L, val banThreshold: Double = 1.0)
   extends Actor with MessageHandler with  Logging with Instrumented {
 
   require(numExecutor > 0)
@@ -269,9 +269,9 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
 
               // Ban queued tokens wich are exceeding the ban ratio
               for ((token, tokens) <- recentTokens.groupBy(k => k)) {
-                if (tokens.size > maxTaskExecutorQueueSize * banRatio) {
-                  info("Executor queue overflow. Banning token {} because queue ratio {} exceeding {} (queueSize={})",
-                    token, tokens.size / maxTaskExecutorQueueSize.toDouble, banRatio, queueSize)
+                if (tokens.size > maxTaskExecutorQueueSize * banThreshold) {
+                  info("Executor queue overflow. Banning token {} because queue ratio {} is exceeding threshold {} (queueSize={})",
+                    token, tokens.size / maxTaskExecutorQueueSize.toDouble, banThreshold, queueSize)
                   bannedTokens.put(long2Long(token), TokenBan(token))
                 }
               }
