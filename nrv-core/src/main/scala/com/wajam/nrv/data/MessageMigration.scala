@@ -45,7 +45,7 @@ class MessageMapMigration(val map: scala.collection.Map[String, Any]) {
    *  Get old value directly or use transformation function to get value.
    *  Phase #1 of migrating a use case.
    */
-  def getValueOldOrFromString(key: String, transFct: Seq[String] => Any): Any = {
+  def getValueOrBuildFromString(key: String, transFct: Seq[String] => Any): Any = {
     if (map.contains(key + newSuffix))
       transFct(map(key + newSuffix).asInstanceOf[Seq[String]])
     else
@@ -65,8 +65,8 @@ class MessageMapMigration(val map: scala.collection.Map[String, Any]) {
    * Phase #2 of migrating a use case.
    *
    */
-  def getEitherStringValue(key: String, newValue: Seq[String]) = {
-    map.getOrElse(key, map.get(key + newSuffix))
+  def getEitherStringValue(key: String): Seq[String] = {
+    map.getOrElse(key, map.get(key + newSuffix).get).asInstanceOf[Seq[String]]
   }
 
   /**
