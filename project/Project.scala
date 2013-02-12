@@ -13,6 +13,7 @@ object NrvBuild extends Build {
     "Oracle Maven2 Repo" at "http://download.oracle.com/maven",
     "Sonatype" at "http://oss.sonatype.org/content/repositories/release",
     "Cloudera" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
+    "Twitter" at "http://maven.twttr.com/",
     "Scallop" at "http://mvnrepository.com/"
   )
 
@@ -24,7 +25,8 @@ object NrvBuild extends Build {
     "junit" % "junit" % "4.10" % "test,it",
     "org.mockito" % "mockito-core" % "1.9.0" % "test,it",
     "com.google.protobuf" % "protobuf-java" % "2.4.1",
-    "com.google.guava" % "guava" % "12.0"
+    "com.google.guava" % "guava" % "12.0",
+    "com.twitter" % "util-core" % "6.1.0"
   )
 
   var zookeeperDeps = Seq(
