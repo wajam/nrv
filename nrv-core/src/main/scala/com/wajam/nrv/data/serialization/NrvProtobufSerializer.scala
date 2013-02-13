@@ -53,23 +53,26 @@ class NrvProtobufSerializer() {
 
     message.parameters.foreach {
       case (key, value) =>
-
-        if (value.isInstanceOf[String])
-          protoMessage.addParameters(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value.asInstanceOf[String]))
-        else if (value.isInstanceOf[Seq[String]])
-          protoMessage.addParametersSeq(NrvProtobuf.StringListPair.newBuilder().setKey(key).addAllValue(value.asInstanceOf[Seq[String]].asJava))
-        else
-          protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
+        value match {
+          case value: String =>
+              protoMessage.addParameters(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value))
+          case value: Seq[_] if value.forall(_.isInstanceOf[String]) =>
+              protoMessage.addParametersSeq(NrvProtobuf.StringListPair.newBuilder().setKey(key).addAllValue(value.asInstanceOf[Seq[String]].asJava))
+          case value =>
+              protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
+        }
     }
 
     message.metadata.foreach {
       case (key, value) =>
-        if (value.isInstanceOf[String])
-          protoMessage.addMetadata(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value.asInstanceOf[String]))
-        else if (value.isInstanceOf[Seq[String]])
-          protoMessage.addMetadataSeq(NrvProtobuf.StringListPair.newBuilder().setKey(key).addAllValue(value.asInstanceOf[Seq[String]].asJava))
-        else
-          protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
+        value match {
+          case value: String =>
+            protoMessage.addMetadata(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value))
+          case value: Seq[_] if value.forall(_.isInstanceOf[String]) =>
+            protoMessage.addMetadataSeq(NrvProtobuf.StringListPair.newBuilder().setKey(key).addAllValue(value.asInstanceOf[Seq[String]].asJava))
+          case value =>
+            protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
+        }
     }
 
     protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))

@@ -150,6 +150,24 @@ class TestNrvProtobufSerializer extends FunSuite {
     assertMessageEqual(entity1, entity2)
   }
 
+  test("can differentiate Seq[X] and Seq[String]") {
+    val codec = new NrvProtobufSerializer()
+    val messageDataCodec = new GenericJavaSerializeCodec()
+
+    val entity1 = makeMessage()
+
+    entity1.metadata += "Key1m" -> Seq("1")
+    entity1.parameters += "Key1p" -> Seq("2")
+
+    entity1.metadata += "Key1m" ->  Seq(Pair("A", 1))
+    entity1.parameters += "Key1p" -> Seq(Pair("B", 2))
+
+    val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
+    val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
+
+    assertMessageEqual(entity1, entity2)
+  }
+
   test("can encode/decode empty message") {
     val codec = new NrvProtobufSerializer()
     val messageDataCodec = new GenericJavaSerializeCodec()
