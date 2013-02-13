@@ -4,7 +4,7 @@ import actors.Actor
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.service.{ServiceMember, Service}
 import persistence.{TransactionEvent, FileTransactionLog}
-import com.wajam.nrv.data.{SerializableMessage, MessageType, Message}
+import com.wajam.nrv.data.{MessageType, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.utils.{CurrentTime, Scheduler}
 import util.Random
@@ -61,8 +61,6 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, logDi
       case MessageType.FUNCTION_RESPONSE => {
         RecordingActor ! HandleResponse(message)
       }
-      case _ =>
-        // TODO: error
     }
   }
 

@@ -34,8 +34,9 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     logDir = null
   }
 
-  def createFileTransactionLog(service: String = "service", token: Long = 1000) = {
-    new FileTransactionLog(service, token, logDir.getAbsolutePath, spySerializer)
+  def createFileTransactionLog(service: String = "service", token: Long = 1000,
+                               dir: String = logDir.getAbsolutePath) = {
+    new FileTransactionLog(service, token, dir, spySerializer)
   }
 
   test("should get proper timestamp from log name") {
@@ -77,6 +78,14 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     new File(logDir, "service-0000009999-0.log").createNewFile()
     new File(logDir, "service-0000009999-123.log").createNewFile()
     fileTxLog.getLogFilesFrom(Timestamp(0)).toList should be(List[File]())
+  }
+
+  test("should create tx logger even if log directory does not exist") {
+    val fakeLogDir = new File("fakepath/1234567")
+    fakeLogDir.isDirectory should be(false)
+
+    val txLog = createFileTransactionLog(dir = fakeLogDir.getAbsolutePath)
+    txLog.getLastLoggedTimestamp should be (None)
   }
 
   test("should append new transaction") {
