@@ -8,7 +8,10 @@ import com.wajam.nrv.utils.timestamp.Timestamp
 import org.mockito.Matchers._
 import org.mockito.Mockito._
 import util.Random
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   var logDir: File = null
   var fileTxLog: FileTransactionLog = null

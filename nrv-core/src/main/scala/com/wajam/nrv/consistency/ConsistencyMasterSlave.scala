@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency
 
 import com.wajam.nrv.service._
-import com.wajam.nrv.data.{Message, MessageType, InMessage}
+import com.wajam.nrv.data.{OutMessage, Message, MessageType, InMessage}
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
 import java.util.concurrent.atomic.AtomicReference
 import com.yammer.metrics.scala.Instrumented
@@ -62,7 +62,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
             this.synchronized {
               // Iniatialize transaction recorder for local service member going up
               info("Iniatialize transaction recorders for {}", event.member)
-              val recorder = new TransactionRecorder(service, event.member, txLogDir, txLogEnabled)
+              val recorder = new TransactionRecorder(service, event.member, txLogDir,
+                appendDelay = timestampGenerator.responseTimeout + 1000, txLogEnabled)
               recorders += (event.member -> recorder)
               recorder.start()
             }
@@ -82,25 +83,21 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
+  private def requiresConsistency(message: Message) = {
+    message.serviceName == service.name && store.requiresConsistency(message)
+  }
+
   override def handleIncoming(action: Action, message: InMessage, next: Unit => Unit) {
-    if (message.serviceName == service.name && store.requiresConsistency(message)) {
-      message.function match {
-        case MessageType.FUNCTION_CALL => {
-          message.method match {
-            case ActionMethod.GET => executeConsistentReadRequest(message, next)
-            case _ => executeConsistentWriteRequest(message, next)
-          }
-        }
-        case MessageType.FUNCTION_RESPONSE => {
-          message.method match {
-            case ActionMethod.GET => executeConsistentReadResponse(message, next)
-            case _ => executeConsistentWriteResponse(message, next)
-          }
+    message.function match {
+      case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
+        message.method match {
+          case ActionMethod.GET => executeConsistentReadRequest(message, next)
+          case _ => executeConsistentWriteRequest(message, next)
         }
       }
-    }
-    else {
-      next()
+      case _ => {
+        next()
+      }
     }
   }
 
@@ -162,11 +159,25 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     } while (!updateSuccessful)
   }
 
-  private def executeConsistentReadResponse(res: InMessage, next: Unit => Unit) {
+  override def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
+    message.function match {
+      case MessageType.FUNCTION_RESPONSE if requiresConsistency(message) => {
+        message.method match {
+          case ActionMethod.GET => executeConsistentReadResponse(message, next)
+          case _ => executeConsistentWriteResponse(message, next)
+        }
+      }
+      case _ => {
+        next()
+      }
+    }
+  }
+
+  private def executeConsistentReadResponse(res: OutMessage, next: Unit => Unit) {
     next()
   }
 
-  private def executeConsistentWriteResponse(res: InMessage, next: Unit => Unit) {
+  private def executeConsistentWriteResponse(res: OutMessage, next: Unit => Unit) {
     recordConsistentMessage(res)
     next()
   }

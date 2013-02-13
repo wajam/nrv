@@ -16,4 +16,6 @@ trait TimestampGenerator {
    *              selected randomly
    */
   def fetchTimestamps(name: String, cb: (Seq[Timestamp], Option[Exception]) => Unit, nb: Int, token: Long)
+
+  def responseTimeout: Long
 }
