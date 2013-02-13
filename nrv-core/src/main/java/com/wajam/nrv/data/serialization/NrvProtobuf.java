@@ -67,6 +67,18 @@ public final class NrvProtobuf {
     com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair getMetadata(int index);
     int getMetadataCount();
     
+    // repeated .com.wajam.nrv.data.serialization.StringListPair parametersSeq = 102;
+    java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> 
+        getParametersSeqList();
+    com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair getParametersSeq(int index);
+    int getParametersSeqCount();
+    
+    // repeated .com.wajam.nrv.data.serialization.StringListPair metadataSeq = 103;
+    java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> 
+        getMetadataSeqList();
+    com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair getMetadataSeq(int index);
+    int getMetadataSeqCount();
+    
     // repeated .com.wajam.nrv.data.serialization.AnyPair parametersAny = 100;
     java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> 
         getParametersAnyList();
@@ -342,6 +354,48 @@ public final class NrvProtobuf {
       return metadata_.get(index);
     }
     
+    // repeated .com.wajam.nrv.data.serialization.StringListPair parametersSeq = 102;
+    public static final int PARAMETERSSEQ_FIELD_NUMBER = 102;
+    private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> parametersSeq_;
+    public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> getParametersSeqList() {
+      return parametersSeq_;
+    }
+    public java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.StringListPairOrBuilder> 
+        getParametersSeqOrBuilderList() {
+      return parametersSeq_;
+    }
+    public int getParametersSeqCount() {
+      return parametersSeq_.size();
+    }
+    public com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair getParametersSeq(int index) {
+      return parametersSeq_.get(index);
+    }
+    public com.wajam.nrv.data.serialization.NrvProtobuf.StringListPairOrBuilder getParametersSeqOrBuilder(
+        int index) {
+      return parametersSeq_.get(index);
+    }
+    
+    // repeated .com.wajam.nrv.data.serialization.StringListPair metadataSeq = 103;
+    public static final int METADATASEQ_FIELD_NUMBER = 103;
+    private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> metadataSeq_;
+    public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> getMetadataSeqList() {
+      return metadataSeq_;
+    }
+    public java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.StringListPairOrBuilder> 
+        getMetadataSeqOrBuilderList() {
+      return metadataSeq_;
+    }
+    public int getMetadataSeqCount() {
+      return metadataSeq_.size();
+    }
+    public com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair getMetadataSeq(int index) {
+      return metadataSeq_.get(index);
+    }
+    public com.wajam.nrv.data.serialization.NrvProtobuf.StringListPairOrBuilder getMetadataSeqOrBuilder(
+        int index) {
+      return metadataSeq_.get(index);
+    }
+    
     // repeated .com.wajam.nrv.data.serialization.AnyPair parametersAny = 100;
     public static final int PARAMETERSANY_FIELD_NUMBER = 100;
     private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> parametersAny_;
@@ -408,6 +462,8 @@ public final class NrvProtobuf {
       token_ = 0L;
       parameters_ = java.util.Collections.emptyList();
       metadata_ = java.util.Collections.emptyList();
+      parametersSeq_ = java.util.Collections.emptyList();
+      metadataSeq_ = java.util.Collections.emptyList();
       parametersAny_ = java.util.Collections.emptyList();
       metadataAny_ = java.util.Collections.emptyList();
       messageData_ = com.google.protobuf.ByteString.EMPTY;
@@ -471,6 +527,12 @@ public final class NrvProtobuf {
       }
       for (int i = 0; i < metadataAny_.size(); i++) {
         output.writeMessage(101, metadataAny_.get(i));
+      }
+      for (int i = 0; i < parametersSeq_.size(); i++) {
+        output.writeMessage(102, parametersSeq_.get(i));
+      }
+      for (int i = 0; i < metadataSeq_.size(); i++) {
+        output.writeMessage(103, metadataSeq_.get(i));
       }
     }
     
@@ -543,6 +605,14 @@ public final class NrvProtobuf {
       for (int i = 0; i < metadataAny_.size(); i++) {
         size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(101, metadataAny_.get(i));
+      }
+      for (int i = 0; i < parametersSeq_.size(); i++) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(102, parametersSeq_.get(i));
+      }
+      for (int i = 0; i < metadataSeq_.size(); i++) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(103, metadataSeq_.get(i));
       }
       memoizedSerializedSize = size;
       return size;
@@ -672,12 +742,16 @@ public final class NrvProtobuf {
         bitField0_ = (bitField0_ & ~0x00000800);
         metadata_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00001000);
-        parametersAny_ = java.util.Collections.emptyList();
+        parametersSeq_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00002000);
-        metadataAny_ = java.util.Collections.emptyList();
+        metadataSeq_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00004000);
-        messageData_ = com.google.protobuf.ByteString.EMPTY;
+        parametersAny_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00008000);
+        metadataAny_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00010000);
+        messageData_ = com.google.protobuf.ByteString.EMPTY;
+        bitField0_ = (bitField0_ & ~0x00020000);
         return this;
       }
       
@@ -766,16 +840,26 @@ public final class NrvProtobuf {
         }
         result.metadata_ = metadata_;
         if (((bitField0_ & 0x00002000) == 0x00002000)) {
-          parametersAny_ = java.util.Collections.unmodifiableList(parametersAny_);
+          parametersSeq_ = java.util.Collections.unmodifiableList(parametersSeq_);
           bitField0_ = (bitField0_ & ~0x00002000);
         }
-        result.parametersAny_ = parametersAny_;
+        result.parametersSeq_ = parametersSeq_;
         if (((bitField0_ & 0x00004000) == 0x00004000)) {
-          metadataAny_ = java.util.Collections.unmodifiableList(metadataAny_);
+          metadataSeq_ = java.util.Collections.unmodifiableList(metadataSeq_);
           bitField0_ = (bitField0_ & ~0x00004000);
         }
+        result.metadataSeq_ = metadataSeq_;
+        if (((bitField0_ & 0x00008000) == 0x00008000)) {
+          parametersAny_ = java.util.Collections.unmodifiableList(parametersAny_);
+          bitField0_ = (bitField0_ & ~0x00008000);
+        }
+        result.parametersAny_ = parametersAny_;
+        if (((bitField0_ & 0x00010000) == 0x00010000)) {
+          metadataAny_ = java.util.Collections.unmodifiableList(metadataAny_);
+          bitField0_ = (bitField0_ & ~0x00010000);
+        }
         result.metadataAny_ = metadataAny_;
-        if (((from_bitField0_ & 0x00008000) == 0x00008000)) {
+        if (((from_bitField0_ & 0x00020000) == 0x00020000)) {
           to_bitField0_ |= 0x00000800;
         }
         result.messageData_ = messageData_;
@@ -838,10 +922,30 @@ public final class NrvProtobuf {
           }
           
         }
+        if (!other.parametersSeq_.isEmpty()) {
+          if (parametersSeq_.isEmpty()) {
+            parametersSeq_ = other.parametersSeq_;
+            bitField0_ = (bitField0_ & ~0x00002000);
+          } else {
+            ensureParametersSeqIsMutable();
+            parametersSeq_.addAll(other.parametersSeq_);
+          }
+          
+        }
+        if (!other.metadataSeq_.isEmpty()) {
+          if (metadataSeq_.isEmpty()) {
+            metadataSeq_ = other.metadataSeq_;
+            bitField0_ = (bitField0_ & ~0x00004000);
+          } else {
+            ensureMetadataSeqIsMutable();
+            metadataSeq_.addAll(other.metadataSeq_);
+          }
+          
+        }
         if (!other.parametersAny_.isEmpty()) {
           if (parametersAny_.isEmpty()) {
             parametersAny_ = other.parametersAny_;
-            bitField0_ = (bitField0_ & ~0x00002000);
+            bitField0_ = (bitField0_ & ~0x00008000);
           } else {
             ensureParametersAnyIsMutable();
             parametersAny_.addAll(other.parametersAny_);
@@ -851,7 +955,7 @@ public final class NrvProtobuf {
         if (!other.metadataAny_.isEmpty()) {
           if (metadataAny_.isEmpty()) {
             metadataAny_ = other.metadataAny_;
-            bitField0_ = (bitField0_ & ~0x00004000);
+            bitField0_ = (bitField0_ & ~0x00010000);
           } else {
             ensureMetadataAnyIsMutable();
             metadataAny_.addAll(other.metadataAny_);
@@ -956,7 +1060,7 @@ public final class NrvProtobuf {
               break;
             }
             case 114: {
-              bitField0_ |= 0x00008000;
+              bitField0_ |= 0x00020000;
               messageData_ = input.readBytes();
               break;
             }
@@ -975,6 +1079,18 @@ public final class NrvProtobuf {
               com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder subBuilder = com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.newBuilder();
               input.readMessage(subBuilder, extensionRegistry);
               addMetadataAny(subBuilder.buildPartial());
+              break;
+            }
+            case 818: {
+              com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair.Builder subBuilder = com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair.newBuilder();
+              input.readMessage(subBuilder, extensionRegistry);
+              addParametersSeq(subBuilder.buildPartial());
+              break;
+            }
+            case 826: {
+              com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair.Builder subBuilder = com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair.newBuilder();
+              input.readMessage(subBuilder, extensionRegistry);
+              addMetadataSeq(subBuilder.buildPartial());
               break;
             }
           }
@@ -1499,13 +1615,191 @@ public final class NrvProtobuf {
         return this;
       }
       
+      // repeated .com.wajam.nrv.data.serialization.StringListPair parametersSeq = 102;
+      private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> parametersSeq_ =
+        java.util.Collections.emptyList();
+      private void ensureParametersSeqIsMutable() {
+        if (!((bitField0_ & 0x00002000) == 0x00002000)) {
+          parametersSeq_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair>(parametersSeq_);
+          bitField0_ |= 0x00002000;
+         }
+      }
+      
+      public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> getParametersSeqList() {
+        return java.util.Collections.unmodifiableList(parametersSeq_);
+      }
+      public int getParametersSeqCount() {
+        return parametersSeq_.size();
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair getParametersSeq(int index) {
+        return parametersSeq_.get(index);
+      }
+      public Builder setParametersSeq(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair value) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureParametersSeqIsMutable();
+        parametersSeq_.set(index, value);
+        
+        return this;
+      }
+      public Builder setParametersSeq(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair.Builder builderForValue) {
+        ensureParametersSeqIsMutable();
+        parametersSeq_.set(index, builderForValue.build());
+        
+        return this;
+      }
+      public Builder addParametersSeq(com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair value) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureParametersSeqIsMutable();
+        parametersSeq_.add(value);
+        
+        return this;
+      }
+      public Builder addParametersSeq(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair value) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureParametersSeqIsMutable();
+        parametersSeq_.add(index, value);
+        
+        return this;
+      }
+      public Builder addParametersSeq(
+          com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair.Builder builderForValue) {
+        ensureParametersSeqIsMutable();
+        parametersSeq_.add(builderForValue.build());
+        
+        return this;
+      }
+      public Builder addParametersSeq(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair.Builder builderForValue) {
+        ensureParametersSeqIsMutable();
+        parametersSeq_.add(index, builderForValue.build());
+        
+        return this;
+      }
+      public Builder addAllParametersSeq(
+          java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> values) {
+        ensureParametersSeqIsMutable();
+        super.addAll(values, parametersSeq_);
+        
+        return this;
+      }
+      public Builder clearParametersSeq() {
+        parametersSeq_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00002000);
+        
+        return this;
+      }
+      public Builder removeParametersSeq(int index) {
+        ensureParametersSeqIsMutable();
+        parametersSeq_.remove(index);
+        
+        return this;
+      }
+      
+      // repeated .com.wajam.nrv.data.serialization.StringListPair metadataSeq = 103;
+      private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> metadataSeq_ =
+        java.util.Collections.emptyList();
+      private void ensureMetadataSeqIsMutable() {
+        if (!((bitField0_ & 0x00004000) == 0x00004000)) {
+          metadataSeq_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair>(metadataSeq_);
+          bitField0_ |= 0x00004000;
+         }
+      }
+      
+      public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> getMetadataSeqList() {
+        return java.util.Collections.unmodifiableList(metadataSeq_);
+      }
+      public int getMetadataSeqCount() {
+        return metadataSeq_.size();
+      }
+      public com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair getMetadataSeq(int index) {
+        return metadataSeq_.get(index);
+      }
+      public Builder setMetadataSeq(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair value) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureMetadataSeqIsMutable();
+        metadataSeq_.set(index, value);
+        
+        return this;
+      }
+      public Builder setMetadataSeq(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair.Builder builderForValue) {
+        ensureMetadataSeqIsMutable();
+        metadataSeq_.set(index, builderForValue.build());
+        
+        return this;
+      }
+      public Builder addMetadataSeq(com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair value) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureMetadataSeqIsMutable();
+        metadataSeq_.add(value);
+        
+        return this;
+      }
+      public Builder addMetadataSeq(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair value) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureMetadataSeqIsMutable();
+        metadataSeq_.add(index, value);
+        
+        return this;
+      }
+      public Builder addMetadataSeq(
+          com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair.Builder builderForValue) {
+        ensureMetadataSeqIsMutable();
+        metadataSeq_.add(builderForValue.build());
+        
+        return this;
+      }
+      public Builder addMetadataSeq(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair.Builder builderForValue) {
+        ensureMetadataSeqIsMutable();
+        metadataSeq_.add(index, builderForValue.build());
+        
+        return this;
+      }
+      public Builder addAllMetadataSeq(
+          java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NrvProtobuf.StringListPair> values) {
+        ensureMetadataSeqIsMutable();
+        super.addAll(values, metadataSeq_);
+        
+        return this;
+      }
+      public Builder clearMetadataSeq() {
+        metadataSeq_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00004000);
+        
+        return this;
+      }
+      public Builder removeMetadataSeq(int index) {
+        ensureMetadataSeqIsMutable();
+        metadataSeq_.remove(index);
+        
+        return this;
+      }
+      
       // repeated .com.wajam.nrv.data.serialization.AnyPair parametersAny = 100;
       private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> parametersAny_ =
         java.util.Collections.emptyList();
       private void ensureParametersAnyIsMutable() {
-        if (!((bitField0_ & 0x00002000) == 0x00002000)) {
+        if (!((bitField0_ & 0x00008000) == 0x00008000)) {
           parametersAny_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair>(parametersAny_);
-          bitField0_ |= 0x00002000;
+          bitField0_ |= 0x00008000;
          }
       }
       
@@ -1577,7 +1871,7 @@ public final class NrvProtobuf {
       }
       public Builder clearParametersAny() {
         parametersAny_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00002000);
+        bitField0_ = (bitField0_ & ~0x00008000);
         
         return this;
       }
@@ -1592,9 +1886,9 @@ public final class NrvProtobuf {
       private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> metadataAny_ =
         java.util.Collections.emptyList();
       private void ensureMetadataAnyIsMutable() {
-        if (!((bitField0_ & 0x00004000) == 0x00004000)) {
+        if (!((bitField0_ & 0x00010000) == 0x00010000)) {
           metadataAny_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair>(metadataAny_);
-          bitField0_ |= 0x00004000;
+          bitField0_ |= 0x00010000;
          }
       }
       
@@ -1666,7 +1960,7 @@ public final class NrvProtobuf {
       }
       public Builder clearMetadataAny() {
         metadataAny_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00004000);
+        bitField0_ = (bitField0_ & ~0x00010000);
         
         return this;
       }
@@ -1680,7 +1974,7 @@ public final class NrvProtobuf {
       // optional bytes messageData = 14;
       private com.google.protobuf.ByteString messageData_ = com.google.protobuf.ByteString.EMPTY;
       public boolean hasMessageData() {
-        return ((bitField0_ & 0x00008000) == 0x00008000);
+        return ((bitField0_ & 0x00020000) == 0x00020000);
       }
       public com.google.protobuf.ByteString getMessageData() {
         return messageData_;
@@ -1689,13 +1983,13 @@ public final class NrvProtobuf {
         if (value == null) {
     throw new NullPointerException();
   }
-  bitField0_ |= 0x00008000;
+  bitField0_ |= 0x00020000;
         messageData_ = value;
         
         return this;
       }
       public Builder clearMessageData() {
-        bitField0_ = (bitField0_ & ~0x00008000);
+        bitField0_ = (bitField0_ & ~0x00020000);
         messageData_ = getDefaultInstance().getMessageData();
         
         return this;
