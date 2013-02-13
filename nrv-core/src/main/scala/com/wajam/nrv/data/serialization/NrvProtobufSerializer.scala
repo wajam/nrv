@@ -56,12 +56,10 @@ class NrvProtobufSerializer() {
         value match {
           case value: String =>
               protoMessage.addParameters(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value))
-          case value: Seq[_] if value.forall(x => x.isInstanceOf[String]) =>
+          case value: Seq[_] if value.forall(_.isInstanceOf[String]) =>
               protoMessage.addParametersSeq(NrvProtobuf.StringListPair.newBuilder().setKey(key).addAllValue(value.asInstanceOf[Seq[String]].asJava))
-          case value: AnyRef  =>
-              protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value))))
-          case _ =>
-            throw new RuntimeException("Not supported!")
+          case value =>
+              protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
         }
     }
 
@@ -70,12 +68,10 @@ class NrvProtobufSerializer() {
         value match {
           case value: String =>
             protoMessage.addMetadata(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value))
-          case value: Seq[_] if value.forall(x => x.isInstanceOf[String]) =>
+          case value: Seq[_] if value.forall(_.isInstanceOf[String]) =>
             protoMessage.addMetadataSeq(NrvProtobuf.StringListPair.newBuilder().setKey(key).addAllValue(value.asInstanceOf[Seq[String]].asJava))
-          case value: AnyRef  =>
-            protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value))))
-          case _ =>
-            throw new RuntimeException("Not supported!")
+          case value =>
+            protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
         }
     }
 
