@@ -11,6 +11,7 @@ class TestMessageMigration extends FunSuite with ShouldMatchers {
 
     map.setValue("myKey", Seq("1"), 1)
 
+    // Old key is still available for old client
     map.contains("myKey") should be(true)
     map("myKey") should be(1)
 
@@ -42,6 +43,7 @@ class TestMessageMigration extends FunSuite with ShouldMatchers {
   test("getBothValue gets both") {
     val map = new collection.mutable.HashMap[String, Any]
 
+    // Old key is still available from old client
     map.setValue("myKey", Seq("1"), 1)
     val values = map.getBothValue("myKey")
 
@@ -62,8 +64,8 @@ class TestMessageMigration extends FunSuite with ShouldMatchers {
   test("getValueOrBuildFromString gets Any from pure value") {
     val map = new collection.mutable.HashMap[String, Any]
 
+    // Simulate getting key from old client
     map.setValue("myKey", Seq("1"), 1)
-
     map -= "myKey_New"
 
     val value = map.getValueOrBuildFromString("myKey", (v) => (v(0).toInt))
