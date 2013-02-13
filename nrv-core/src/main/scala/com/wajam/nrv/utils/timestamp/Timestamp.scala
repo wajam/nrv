@@ -29,4 +29,10 @@ object Timestamp {
   def apply(l: Long): Timestamp = new Timestamp {
     val value = l
   }
+  def apply(l: String): Timestamp = new Timestamp {
+    val value = l.toLong
+  }
+  def apply(t: Timestamp): Timestamp = new Timestamp {
+    val value = t.value
+  }
 }

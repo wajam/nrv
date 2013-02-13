@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicReference
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.utils.Event
 import com.wajam.nrv.service.StatusTransitionEvent
+import com.wajam.nrv.data.MessageMigration._
 
 /**
  * Consistency that (will eventually) sends read/write to a master replica and replicate modification to the
@@ -107,7 +108,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def executeReadRequest(req: InMessage, next: Unit => Unit) {
     lastWriteTimestamp.get() match {
       case Some(timestamp) => {
-        req.metadata += ("timestamp" -> timestamp)
+        req.metadata.setValue("timestamp", Seq(timestamp.toString), timestamp)
         next()
       }
       case None => {
@@ -129,7 +130,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         }
         val timestamp = timestamps(0)
         updateLastTimestamp(timestamp)
-        req.metadata += ("timestamp" -> timestamp)
+        req.metadata.setValue("timestamp", Seq(timestamp.toString), timestamp)
         next()
       } catch {
         case e: Exception =>
