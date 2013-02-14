@@ -160,6 +160,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   override def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
+    handleOutgoing(action, message)
+
     message.function match {
       case MessageType.FUNCTION_RESPONSE if requiresConsistency(message) => {
         message.method match {
