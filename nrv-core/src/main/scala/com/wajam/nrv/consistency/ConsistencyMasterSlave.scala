@@ -1,13 +1,12 @@
 package com.wajam.nrv.consistency
 
 import com.wajam.nrv.service._
-import com.wajam.nrv.data.{MessageType, InMessage}
+import com.wajam.nrv.data.{OutMessage, Message, MessageType, InMessage}
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
 import java.util.concurrent.atomic.AtomicReference
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.utils.Event
 import com.wajam.nrv.service.StatusTransitionEvent
-import com.wajam.nrv.data.MessageMigration._
 
 /**
  * Consistency that (will eventually) sends read/write to a master replica and replicate modification to the
@@ -20,23 +19,26 @@ import com.wajam.nrv.data.MessageMigration._
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean)
   extends ConsistencyOne with Instrumented {
 
-  lazy private val recorderNotFound = metrics.meter("recorder-notfound", "recorder-notfound")
-  lazy private val recorderAppendError = metrics.meter("recorder-append-error", "recorder-append-error")
-  lazy private val unexpectedResponse = metrics.meter("unexpected-response", "unexpected-response")
-  lazy private val skipErrorResponse = metrics.meter("skip-error-response", "skip-error-response")
+  import Consistency._
 
+  lazy private val recorderNotFound = metrics.meter("recorder-not-found", "recorder-not-found")
   private val recordersCount = metrics.gauge("recorders-count") {
     recorders.size
   }
-  private val recordersAppendQueueSize = metrics.gauge("recorders-append-queue-size") {
+  private val recordersQueueSize = metrics.gauge("recorders-queue-size") {
     recorders.values.foldLeft[Int](0)((sum, recorder) => {
-      sum + recorder.appendQueueSize
+      sum + recorder.queueSize
+    })
+  }
+  private val recordersPendingSize = metrics.gauge("recorders-pending-tx-size") {
+    recorders.values.foldLeft[Int](0)((sum, recorder) => {
+      sum + recorder.pendingSize
     })
   }
 
   private val lastWriteTimestamp = new AtomicReference[Option[Timestamp]](None)
   @volatile
-  private var recorders: Map[ServiceMember, TransactionRecorder] = Map()
+  private var recorders: Map[ServiceMember, TransactionRecorder] = Map() // updates are synchronized but lookups are not
 
   def service = bindedServices.head
 
@@ -53,62 +55,56 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   override def serviceEvent(event: Event) {
     super.serviceEvent(event)
 
-    if (txLogEnabled) {
-      event match {
-        case event: StatusTransitionEvent if cluster.isLocalNode(event.member.node) => {
-          event.to match {
-            case MemberStatus.Up => {
-              this.synchronized {
-                // Iniatialize transaction recorders for local service member going up
-                info("Iniatialize transaction recorders for {}", event.member)
-                val recorder = new TransactionRecorder(service, event.member, txLogDir)
-                recorders = recorders + (event.member -> recorder)
-                recorder.start()
-              }
+    event match {
+      case event: StatusTransitionEvent if cluster.isLocalNode(event.member.node) => {
+        event.to match {
+          case MemberStatus.Up => {
+            this.synchronized {
+              // Iniatialize transaction recorder for local service member going up
+              info("Iniatialize transaction recorders for {}", event.member)
+              val recorder = new TransactionRecorder(service, event.member, txLogDir,
+                appendDelay = timestampGenerator.responseTimeout + 1000, txLogEnabled)
+              recorders += (event.member -> recorder)
+              recorder.start()
             }
-            case _ => {
-              this.synchronized {
-                // Remove transaction recorders for all other cases
-                info("Remove transaction recorders for {}", event.member)
-                val recorder = recorders.get(event.member)
-                recorders = recorders - event.member
-                recorder.foreach(_.kill())
-              }
+          }
+          case _ => {
+            this.synchronized {
+              // Remove transaction recorder for all other cases
+              info("Remove transaction recorders for {}", event.member)
+              val recorder = recorders.get(event.member)
+              recorders -= event.member
+              recorder.foreach(_.kill())
             }
           }
         }
-        case _ =>
       }
+      case _ =>
     }
+  }
+
+  private def requiresConsistency(message: Message) = {
+    message.serviceName == service.name && store.requiresConsistency(message)
   }
 
   override def handleIncoming(action: Action, message: InMessage, next: Unit => Unit) {
-    if (message.serviceName == service.name && store.requiresConsistency(message)) {
-      message.function match {
-        case MessageType.FUNCTION_CALL => {
-          // Ensure a cluster unique timestamp is present in request
-          message.method match {
-            case ActionMethod.GET => executeReadRequest(message, next)
-            case _ => executeWriteRequest(message, next)
-          }
-        }
-        case MessageType.FUNCTION_RESPONSE => {
-          message.method match {
-            case ActionMethod.GET => executeReadResponse(message, next)
-            case _ => executeWriteResponse(message, next)
-          }
+    message.function match {
+      case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
+        message.method match {
+          case ActionMethod.GET => executeConsistentReadRequest(message, next)
+          case _ => executeConsistentWriteRequest(message, next)
         }
       }
-    }
-    else {
-      next()
+      case _ => {
+        next()
+      }
     }
   }
 
-  private def executeReadRequest(req: InMessage, next: Unit => Unit) {
+  private def executeConsistentReadRequest(req: InMessage, next: Unit => Unit) {
     lastWriteTimestamp.get() match {
       case Some(timestamp) => {
-        req.metadata.setValue("timestamp", Seq(timestamp.toString), timestamp)
+        setMessageTimestamp(req, timestamp)
         next()
       }
       case None => {
@@ -117,8 +113,11 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
-  private def executeWriteRequest(req: InMessage, next: Unit => Unit) {
-    fetchTimestampAndExecuteNext(req, next)
+  private def executeConsistentWriteRequest(req: InMessage, next: Unit => Unit) {
+    fetchTimestampAndExecuteNext(req, _ => {
+      recordConsistentMessage(req)
+      next()
+    })
   }
 
   private def fetchTimestampAndExecuteNext(req: InMessage, next: Unit => Unit) {
@@ -130,7 +129,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         }
         val timestamp = timestamps(0)
         updateLastTimestamp(timestamp)
-        req.metadata.setValue("timestamp", Seq(timestamp.toString), timestamp)
+        setMessageTimestamp(req, timestamp)
         next()
       } catch {
         case e: Exception =>
@@ -160,46 +159,42 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     } while (!updateSuccessful)
   }
 
-  private def executeReadResponse(res: InMessage, next: Unit => Unit) {
+  override def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
+    handleOutgoing(action, message)
+
+    message.function match {
+      case MessageType.FUNCTION_RESPONSE if requiresConsistency(message) => {
+        message.method match {
+          case ActionMethod.GET => executeConsistentReadResponse(message, next)
+          case _ => executeConsistentWriteResponse(message, next)
+        }
+      }
+      case _ => {
+        next()
+      }
+    }
+  }
+
+  private def executeConsistentReadResponse(res: OutMessage, next: Unit => Unit) {
     next()
   }
 
-  private def executeWriteResponse(res: InMessage, next: Unit => Unit) {
-    if (txLogEnabled) {
-      if (res.code >= 200 && res.code < 300) {
-        // Record sucessful request into the transaction log
-        res.matchingOutMessage match {
-          case Some(req) =>
-            try {
-              val recorder = service.resolveMembers(req.token, service.resolver.replica).find(
-                member => cluster.isLocalNode(member.node)).flatMap(recorders.get(_))
-              recorder match {
-                case Some(rec) => {
-                  debug("Appending request message to transaction log recorder (request={}).", req)
-                  rec.append(req)
-                }
-                case _ => {
-                  recorderNotFound.mark()
-                  info("No transaction log recorder found for token {} (request={}).", req.token, req)
-                }
-              }
-            } catch {
-              case e: Exception => {
-                recorderAppendError.mark()
-                info("Error appending request message {} to transaction log. ", req, e)
-              }
-            }
-          case None => {
-            unexpectedResponse.mark()
-            debug("Received a response message without matching request message: {}", res)
-          }
-        }
-      } else {
-        skipErrorResponse.mark()
-        debug("Received a non successful response message. Skip transaction log: {}", res)
+  private def executeConsistentWriteResponse(res: OutMessage, next: Unit => Unit) {
+    recordConsistentMessage(res)
+    next()
+  }
+
+  private def recordConsistentMessage(message: Message) {
+    val recorderOpt = service.resolveMembers(message.token, service.resolver.replica).find(
+      member => cluster.isLocalNode(member.node)).flatMap(recorders.get(_))
+    recorderOpt match {
+      case Some(recorder) => {
+        recorder.handleMessage(message)
+      }
+      case _ => {
+        recorderNotFound.mark()
+        debug("No transaction log recorder found for token {} (message={}).", message.token, message)
       }
     }
-
-    next()
   }
 }

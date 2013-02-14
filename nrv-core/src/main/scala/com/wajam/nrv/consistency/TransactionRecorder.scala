@@ -4,65 +4,223 @@ import actors.Actor
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.service.{ServiceMember, Service}
 import persistence.{TransactionEvent, FileTransactionLog}
-import com.wajam.nrv.data.Message
+import com.wajam.nrv.data.{MessageType, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
-import com.wajam.nrv.utils.Scheduler
+import com.wajam.nrv.utils.{CurrentTime, Scheduler}
 import util.Random
 import com.wajam.nrv.Logging
+import collection.immutable.TreeMap
 
-class TransactionRecorder(val service: Service, val member: ServiceMember, logDir: String) extends Instrumented {
+class TransactionRecorder(val service: Service, val member: ServiceMember, logDir: String, appendDelay: Long,
+                          txLogEnabled: Boolean)
+  extends CurrentTime with Instrumented with Logging {
 
-  val txLog: FileTransactionLog = new FileTransactionLog(service.name, member.token, logDir, validateTimestamp = false)
-  val commitScheduler = new Scheduler(AppenderActor, Commit, Random.nextInt(5000), 5000, blockingMessage = true, autoStart = false)
+  lazy private val consistencyError = metrics.meter("consistency-error", "consistency-error")
+  lazy private val consistencyRequestError = metrics.meter("consistency-request-error", "consistency-request-error")
+  lazy private val consistencyResponseError = metrics.meter("consistency-response-error", "consistency-response-error")
+  lazy private val consistencyAppendError = metrics.meter("consistency-append-error", "consistency-append-error")
+  lazy private val consistencyCommitError = metrics.meter("consistency-commit-error", "consistency-commit-error")
+  lazy private val consistencyTimeoutError = metrics.meter("consistency-timeout-error", "consistency-timeout-error")
+  lazy private val consistencyCheckPendingError = metrics.meter("consistency-check-pending-error", "consistency-check-pending-error")
+  lazy private val unexpectedResponse = metrics.meter("unexpected-response", "unexpected-response")
+  lazy private val ignoredFailTransaction = metrics.meter("ignored-fail-tx", "ignored-fail-tx")
+  lazy private val killError = metrics.meter("kill-error", "kill-error")
+
+  private var pendingRequests: TreeMap[Timestamp, PendingTxContext] = TreeMap()
+  private val txLog: FileTransactionLog = new FileTransactionLog(service.name, member.token, logDir,
+    validateTimestamp = true)
+  private var lastTimestamp = txLog.getLastLoggedTimestamp
+  private val responseTimeout = math.max(service.responseTimeout + 1000, 15000)
+
+  val commitScheduler = new Scheduler(RecordingActor, Commit,
+    Random.nextInt(5000), 5000, blockingMessage = true, autoStart = false)
+  val checkTimeoutScheduler = new Scheduler(RecordingActor, CheckPending,
+    100, 100, blockingMessage = true, autoStart = false)
+
+  def queueSize = RecordingActor.queueSize
+
+  def pendingSize = pendingRequests.size
 
   def start() {
-    AppenderActor.start()
+    RecordingActor.start()
     commitScheduler.start()
-  }
-
-  def append(message: Message) {
-    // TODO: Properly lookup message timestamp
-    val timestamp = Timestamp(System.currentTimeMillis() * 1000)
-    AppenderActor ! Append(TransactionEvent(timestamp, None, message.token, message))
+    checkTimeoutScheduler.start()
   }
 
   def kill() {
     commitScheduler.cancel()
-    AppenderActor ! Kill
+    checkTimeoutScheduler.cancel()
+    RecordingActor ! Kill
   }
 
-  def appendQueueSize = AppenderActor.queueSize
+  def handleMessage(message: Message) {
+    message.function match {
+      case MessageType.FUNCTION_CALL => {
+        RecordingActor ! HandleRequest(message)
+      }
+      case MessageType.FUNCTION_RESPONSE => {
+        RecordingActor ! HandleResponse(message)
+      }
+    }
+  }
 
-  private case class Append(tx: TransactionEvent)
+  private case class PendingTxContext(request: Message, addedTime: Long, var status: TxStatus = TxStatus.Pending) {
+    def isReady = status == TxStatus.Success && currentTime - addedTime > appendDelay
+    def isExpired = currentTime - addedTime > responseTimeout
+  }
 
-  private object Commit
+  private sealed trait TxStatus
 
-  private object Kill
+  private object TxStatus {
 
-  private object AppenderActor extends Actor with Logging {
+    object Success extends TxStatus
+
+    object Pending extends TxStatus
+
+  }
+
+  case class HandleRequest(message: Message)
+
+  case class HandleResponse(message: Message)
+
+  object Commit
+
+  object CheckPending
+
+  object Kill
+
+  private object RecordingActor extends Actor with Logging {
+
+    import Consistency._
 
     def queueSize = mailboxSize
+
+    private def isSuccessful(reponse: Message) = reponse.code >= 200 && reponse.code < 300
+
+    private def appendReadyHeadTransactions() {
+      pendingRequests.headOption match {
+        case Some((timestamp, context)) if context.isReady => {
+          try {
+            if (txLogEnabled) {
+              txLog.append(TransactionEvent(timestamp, lastTimestamp, context.request.token, context.request))
+              lastTimestamp = Some(timestamp)
+            }
+            pendingRequests -= timestamp
+            appendReadyHeadTransactions()
+          } catch {
+            case e: Exception => {
+              error("Consistency error processing appending message {}. ", context.request, e)
+              consistencyAppendError.mark()
+              raiseConsistencyError()
+            }
+          }
+        }
+        case _ => // First request still pending, do nothing.
+      }
+    }
+
+    private def raiseConsistencyError() {
+      consistencyError.mark()
+
+      // TODO: fail the current service member
+      // Removes all pending requests to prevent further timeouts. This will generate many unexpected response but this
+      // is not really an issue as from this point the service member should go down.
+      pendingRequests = new TreeMap()
+    }
 
     def act() {
       loop {
         react {
-          case Append(tx) => {
+          case HandleRequest(message) => {
             try {
-              txLog.append(tx)
+              val timestamp = getMessageTimestamp(message).get
+              pendingRequests += (timestamp -> PendingTxContext(message, currentTime))
             } catch {
               case e: Exception => {
+                error("Consistency error processing request message {}. ", message, e)
+                consistencyRequestError.mark()
+                raiseConsistencyError()
+              }
+            }
+          }
+          case HandleResponse(message) => {
+            try {
+              getMessageTimestamp(message) match {
+                case Some(timestamp) => {
+                  pendingRequests.get(timestamp) match {
+                    case Some(context) if isSuccessful(message) => {
+                      // The transaction is complete and successful!
+                      context.status = TxStatus.Success
+                    }
+                    case Some(context) => {
+                      // The transaction is complete but the response is unsucessful, ignore the transaction
+                      ignoredFailTransaction.mark()
+                      pendingRequests -= timestamp
+                      debug("Received a non successful response message. Do not append transaction to log: {}", message)
+
+                    }
+                    case _ => {
+                      unexpectedResponse.mark()
+                      debug("Received a response message without matching request message: {}", message)
+                    }
+                  }
+
+                  // Append all completed head transactions
+                  appendReadyHeadTransactions()
+                }
+                case _ if isSuccessful(message) => {
+                  consistencyResponseError.mark()
+                  error("Response is sucessful but missing timestamp {}. ", message)
+                  raiseConsistencyError()
+                }
+                case _ => {
+                  // Just ignore failure response without timestamp
+                  debug("Response failure missing timestamp {}. ", message)
+                }
+              }
+            } catch {
+              case e: Exception => {
+                consistencyResponseError.mark()
+                error("Consistency error processing response message {}. ", message, e)
+                raiseConsistencyError()
               }
             }
           }
           case Commit => {
             try {
-              info("Commit transaction log: {}", txLog)
+              debug("Commit transaction log: {}", txLog)
               txLog.commit()
             } catch {
               case e: Exception => {
+                error("Consistency error commiting transaction log of member {}.", member, e)
+                consistencyCommitError.mark()
+                raiseConsistencyError()
               }
             } finally {
-              sender ! true
+              reply(sender)
+            }
+          }
+          case CheckPending => {
+            try {
+              // Append all transactions completed and ready
+              appendReadyHeadTransactions()
+
+              pendingRequests.headOption match {
+                case Some((timestamp, context)) if context.isExpired => {
+                  consistencyTimeoutError.mark()
+                  error("Consistency error timeout on message {}.", context.request)
+                  raiseConsistencyError()
+                }
+                case _ => // Head transaction not expired, do nothing
+              }
+            } catch {
+              case e: Exception => {
+                error("Consistency error checking pending transactions {}.", member, e)
+                consistencyCheckPendingError.mark()
+                raiseConsistencyError()
+              }
+            } finally {
+              reply(sender)
             }
           }
           case Kill => {
@@ -72,6 +230,8 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, logDi
               exit()
             } catch {
               case e: Exception => {
+                killError.mark()
+                warn("Error killing recorder {}.", member, e)
               }
             }
           }

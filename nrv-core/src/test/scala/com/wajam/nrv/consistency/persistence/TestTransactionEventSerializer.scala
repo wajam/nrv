@@ -5,7 +5,10 @@ import com.wajam.nrv.data.InMessage
 import com.wajam.nrv.utils.timestamp.Timestamp
 import java.io.IOException
 import util.Random
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class TestTransactionEventSerializer extends TestTransactionBase {
 
   test("should serialize and deserialize message event") {

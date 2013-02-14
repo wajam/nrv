@@ -227,11 +227,16 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    * timestamp ascending order.
    */
    def getLogFilesFrom(timestamp: Timestamp): Iterable[File] = {
-    val logFiles = new File(logDir).listFiles(new FilenameFilter {
-      def accept(dir: File, name: String) = {
-        name.startsWith(filePrefix) && name.endsWith(".log")
-      }
-    })
+    val directory = new File(logDir)
+    val logFiles = if (directory.exists()) {
+      directory.listFiles(new FilenameFilter {
+        def accept(dir: File, name: String) = {
+          name.startsWith(filePrefix) && name.endsWith(".log")
+        }
+      })
+    } else {
+      Array[File]()
+    }
 
     val sortedFiles = logFiles.sortWith((f1, f2) => getTimestampFromName(f1.getName) < getTimestampFromName(f2.getName))
     sortedFiles.indexWhere(f => getTimestampFromName(f.getName) > timestamp) match {
