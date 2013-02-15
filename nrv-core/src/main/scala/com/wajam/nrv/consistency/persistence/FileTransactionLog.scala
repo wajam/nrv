@@ -44,7 +44,7 @@ import com.yammer.metrics.scala.Instrumented
 class FileTransactionLog(val service: String, val token: Long, val logDir: String,
                          serializer: TransactionEventSerializer = new TransactionEventSerializer,
                          validateTimestamp: Boolean = true)
-  extends Logging with Instrumented {
+  extends TransactionLog with Logging with Instrumented {
 
   import FileTransactionLog._
 
@@ -161,7 +161,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     readMeter.mark()
 
     readInitTimer.time {
-      new TransactionLogIterator(timestamp)
+      new FileTransactionLogIterator(timestamp)
     }
   }
 
@@ -257,7 +257,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     Timestamp(name.substring(start, end).toLong)
   }
 
-  class TransactionLogIterator(initialTimestamp: Timestamp) extends Iterator[TransactionEvent] {
+  private class FileTransactionLogIterator(initialTimestamp: Timestamp) extends TransactionLogIterator {
     private var logStream: Option[DataInputStream] = None
     private var nextTx: Either[Exception, Option[TransactionEvent]] = Right(None)
     private var readFile: File = null

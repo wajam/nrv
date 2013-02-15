@@ -1,8 +1,9 @@
 package com.wajam.nrv.consistency.persistence
 
 import org.scalatest.FunSuite
-import com.wajam.nrv.data.{InMessage, Message}
+import com.wajam.nrv.data.{OutMessage, InMessage, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.nrv.consistency.Consistency
 
 abstract class TestTransactionBase extends FunSuite {
   def createTransaction(timestamp: Long, previousTimestamp: Long = -1, token: Long = 0, msg: Message = null) = {
@@ -12,6 +13,7 @@ abstract class TestTransactionBase extends FunSuite {
     } else {
       new InMessage((Map(("ts" -> timestamp), ("pt" -> previousTimestamp), ("tk" -> token))))
     }
+    Consistency.setMessageTimestamp(message, Timestamp(timestamp))
     TransactionEvent(Timestamp(timestamp), previous, token, message)
   }
 
