@@ -1,13 +1,16 @@
 package com.wajam.nrv.data.serialization
 
 import scala.collection.JavaConverters._
-import com.wajam.nrv.data.{Message, SerializableMessage}
+import com.wajam.nrv.data._
+import com.wajam.nrv.data.MValue._
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
 import java.net.InetAddress
-import com.wajam.nrv.data.serialization.NrvProtobuf.{AnyPair, StringListPair}
+import com.wajam.nrv.data.MLong
+import scala.Some
+import com.wajam.nrv.data.MInt
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
@@ -23,6 +26,27 @@ class NrvProtobufSerializer() {
 
   def deserializeMessage(bytes: Array[Byte], messageDataCodec: Codec = javaSerialize): Message = {
     decodeMessage(NrvProtobuf.Message.parseFrom(bytes), messageDataCodec)
+  }
+
+  private[serialization] def decodeMValue(protoValue: NrvProtobuf.MValue): MValue = {
+    protoValue match {
+      case _ if protoValue.hasIntegerValue() => protoValue.getIntegerValue()
+      case _ if protoValue.hasLongValue() => protoValue.getLongValue()
+      case _ if protoValue.hasStringValue() => protoValue.getStringValue()
+      case _ => protoValue.getListValueList.asScala.map(decodeMValue(_))
+    }
+  }
+
+  private[serialization] def encodeMValue(value: MValue): NrvProtobuf.MValue = {
+
+    val protoValue = NrvProtobuf.MValue.newBuilder()
+
+    value match {
+      case value: MInt => protoValue.setIntegerValue(value.value).build()
+      case value: MLong => protoValue.setLongValue(value.value).build()
+      case value: MString => protoValue.setStringValue(value.value).build()
+      case value: MList => protoValue.addAllListValue(value.values.map(encodeMValue(_)).asJava).build()
+    }
   }
 
   private[serialization] def encodeMessage(message: Message, messageDataCodec: Codec): NrvProtobuf.Message = {
@@ -54,24 +78,26 @@ class NrvProtobufSerializer() {
     message.parameters.foreach {
       case (key, value) =>
         value match {
-          case value: String =>
-              protoMessage.addParameters(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value))
-          case value: Seq[_] if value.forall(_.isInstanceOf[String]) =>
-              protoMessage.addParametersSeq(NrvProtobuf.StringListPair.newBuilder().setKey(key).addAllValue(value.asInstanceOf[Seq[String]].asJava))
+          case value: MValue =>
+            val protoValue = encodeMValue(value)
+            protoMessage.addParameters(NrvProtobuf.MPair.newBuilder().setKey(key).setValue(protoValue))
+
           case value =>
-              protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
+            val bytes = ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))
+            protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(bytes))
         }
     }
 
     message.metadata.foreach {
       case (key, value) =>
         value match {
-          case value: String =>
-            protoMessage.addMetadata(NrvProtobuf.StringListPair.newBuilder().setKey(key).addValue(value))
-          case value: Seq[_] if value.forall(_.isInstanceOf[String]) =>
-            protoMessage.addMetadataSeq(NrvProtobuf.StringListPair.newBuilder().setKey(key).addAllValue(value.asInstanceOf[Seq[String]].asJava))
+          case value: MValue =>
+            val protoValue = encodeMValue(value)
+            protoMessage.addMetadata(NrvProtobuf.MPair.newBuilder().setKey(key).setValue(protoValue))
+
           case value =>
-            protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))))
+            val bytes = ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))
+            protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(bytes))
         }
     }
 
@@ -86,33 +112,23 @@ class NrvProtobufSerializer() {
     val metadata = new collection.mutable.HashMap[String, Any]
 
     protoMessage.getParametersAnyList.asScala.foreach {
-      case (p: AnyPair) =>
+      case (p: NrvProtobuf.AnyPair) =>
         parameters += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
     }
 
     protoMessage.getMetadataAnyList.asScala.foreach {
-      case (p: AnyPair) =>
+      case (p: NrvProtobuf.AnyPair) =>
         metadata += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
     }
 
     protoMessage.getMetadataList.asScala.foreach {
-      case (p: StringListPair) =>
-        metadata += p.getKey -> p.getValue(0)
+      case (p: NrvProtobuf.MPair) =>
+        metadata += p.getKey -> decodeMValue(p.getValue())
     }
 
     protoMessage.getParametersList.asScala.foreach {
-      case (p: StringListPair) =>
-        parameters += p.getKey -> p.getValue(0)
-    }
-
-    protoMessage.getMetadataSeqList.asScala.foreach {
-      case (p: StringListPair) =>
-        metadata += p.getKey -> p.getValueList.asScala.toSeq
-    }
-
-    protoMessage.getParametersSeqList.asScala.foreach {
-      case (p: StringListPair) =>
-        parameters += p.getKey -> p.getValueList.asScala.toSeq
+      case (p: NrvProtobuf.MPair) =>
+        parameters += p.getKey -> decodeMValue(p.getValue())
     }
 
     val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)

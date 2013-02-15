@@ -4531,18 +4531,23 @@ public final class NrvProtobuf {
   public interface MValueOrBuilder
       extends com.google.protobuf.MessageLiteOrBuilder {
     
-    // optional int64 integerValue = 1;
+    // optional int32 integerValue = 1;
     boolean hasIntegerValue();
-    long getIntegerValue();
+    int getIntegerValue();
     
-    // optional string stringValue = 2;
+    // optional int64 longValue = 2;
+    boolean hasLongValue();
+    long getLongValue();
+    
+    // optional string stringValue = 3;
     boolean hasStringValue();
     String getStringValue();
     
-    // repeated string stringListValue = 3;
-    java.util.List<String> getStringListValueList();
-    int getStringListValueCount();
-    String getStringListValue(int index);
+    // repeated .com.wajam.nrv.data.serialization.MValue listValue = 4;
+    java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.MValue> 
+        getListValueList();
+    com.wajam.nrv.data.serialization.NrvProtobuf.MValue getListValue(int index);
+    int getListValueCount();
   }
   public static final class MValue extends
       com.google.protobuf.GeneratedMessageLite
@@ -4563,21 +4568,31 @@ public final class NrvProtobuf {
     }
     
     private int bitField0_;
-    // optional int64 integerValue = 1;
+    // optional int32 integerValue = 1;
     public static final int INTEGERVALUE_FIELD_NUMBER = 1;
-    private long integerValue_;
+    private int integerValue_;
     public boolean hasIntegerValue() {
       return ((bitField0_ & 0x00000001) == 0x00000001);
     }
-    public long getIntegerValue() {
+    public int getIntegerValue() {
       return integerValue_;
     }
     
-    // optional string stringValue = 2;
-    public static final int STRINGVALUE_FIELD_NUMBER = 2;
+    // optional int64 longValue = 2;
+    public static final int LONGVALUE_FIELD_NUMBER = 2;
+    private long longValue_;
+    public boolean hasLongValue() {
+      return ((bitField0_ & 0x00000002) == 0x00000002);
+    }
+    public long getLongValue() {
+      return longValue_;
+    }
+    
+    // optional string stringValue = 3;
+    public static final int STRINGVALUE_FIELD_NUMBER = 3;
     private java.lang.Object stringValue_;
     public boolean hasStringValue() {
-      return ((bitField0_ & 0x00000002) == 0x00000002);
+      return ((bitField0_ & 0x00000004) == 0x00000004);
     }
     public String getStringValue() {
       java.lang.Object ref = stringValue_;
@@ -4605,24 +4620,32 @@ public final class NrvProtobuf {
       }
     }
     
-    // repeated string stringListValue = 3;
-    public static final int STRINGLISTVALUE_FIELD_NUMBER = 3;
-    private com.google.protobuf.LazyStringList stringListValue_;
-    public java.util.List<String>
-        getStringListValueList() {
-      return stringListValue_;
+    // repeated .com.wajam.nrv.data.serialization.MValue listValue = 4;
+    public static final int LISTVALUE_FIELD_NUMBER = 4;
+    private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.MValue> listValue_;
+    public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.MValue> getListValueList() {
+      return listValue_;
     }
-    public int getStringListValueCount() {
-      return stringListValue_.size();
+    public java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.MValueOrBuilder> 
+        getListValueOrBuilderList() {
+      return listValue_;
     }
-    public String getStringListValue(int index) {
-      return stringListValue_.get(index);
+    public int getListValueCount() {
+      return listValue_.size();
+    }
+    public com.wajam.nrv.data.serialization.NrvProtobuf.MValue getListValue(int index) {
+      return listValue_.get(index);
+    }
+    public com.wajam.nrv.data.serialization.NrvProtobuf.MValueOrBuilder getListValueOrBuilder(
+        int index) {
+      return listValue_.get(index);
     }
     
     private void initFields() {
-      integerValue_ = 0L;
+      integerValue_ = 0;
+      longValue_ = 0L;
       stringValue_ = "";
-      stringListValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      listValue_ = java.util.Collections.emptyList();
     }
     private byte memoizedIsInitialized = -1;
     public final boolean isInitialized() {
@@ -4637,13 +4660,16 @@ public final class NrvProtobuf {
                         throws java.io.IOException {
       getSerializedSize();
       if (((bitField0_ & 0x00000001) == 0x00000001)) {
-        output.writeInt64(1, integerValue_);
+        output.writeInt32(1, integerValue_);
       }
       if (((bitField0_ & 0x00000002) == 0x00000002)) {
-        output.writeBytes(2, getStringValueBytes());
+        output.writeInt64(2, longValue_);
       }
-      for (int i = 0; i < stringListValue_.size(); i++) {
-        output.writeBytes(3, stringListValue_.getByteString(i));
+      if (((bitField0_ & 0x00000004) == 0x00000004)) {
+        output.writeBytes(3, getStringValueBytes());
+      }
+      for (int i = 0; i < listValue_.size(); i++) {
+        output.writeMessage(4, listValue_.get(i));
       }
     }
     
@@ -4655,20 +4681,19 @@ public final class NrvProtobuf {
       size = 0;
       if (((bitField0_ & 0x00000001) == 0x00000001)) {
         size += com.google.protobuf.CodedOutputStream
-          .computeInt64Size(1, integerValue_);
+          .computeInt32Size(1, integerValue_);
       }
       if (((bitField0_ & 0x00000002) == 0x00000002)) {
         size += com.google.protobuf.CodedOutputStream
-          .computeBytesSize(2, getStringValueBytes());
+          .computeInt64Size(2, longValue_);
       }
-      {
-        int dataSize = 0;
-        for (int i = 0; i < stringListValue_.size(); i++) {
-          dataSize += com.google.protobuf.CodedOutputStream
-            .computeBytesSizeNoTag(stringListValue_.getByteString(i));
-        }
-        size += dataSize;
-        size += 1 * getStringListValueList().size();
+      if (((bitField0_ & 0x00000004) == 0x00000004)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBytesSize(3, getStringValueBytes());
+      }
+      for (int i = 0; i < listValue_.size(); i++) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(4, listValue_.get(i));
       }
       memoizedSerializedSize = size;
       return size;
@@ -4772,12 +4797,14 @@ public final class NrvProtobuf {
       
       public Builder clear() {
         super.clear();
-        integerValue_ = 0L;
+        integerValue_ = 0;
         bitField0_ = (bitField0_ & ~0x00000001);
-        stringValue_ = "";
+        longValue_ = 0L;
         bitField0_ = (bitField0_ & ~0x00000002);
-        stringListValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+        stringValue_ = "";
         bitField0_ = (bitField0_ & ~0x00000004);
+        listValue_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000008);
         return this;
       }
       
@@ -4818,13 +4845,16 @@ public final class NrvProtobuf {
         if (((from_bitField0_ & 0x00000002) == 0x00000002)) {
           to_bitField0_ |= 0x00000002;
         }
-        result.stringValue_ = stringValue_;
-        if (((bitField0_ & 0x00000004) == 0x00000004)) {
-          stringListValue_ = new com.google.protobuf.UnmodifiableLazyStringList(
-              stringListValue_);
-          bitField0_ = (bitField0_ & ~0x00000004);
+        result.longValue_ = longValue_;
+        if (((from_bitField0_ & 0x00000004) == 0x00000004)) {
+          to_bitField0_ |= 0x00000004;
         }
-        result.stringListValue_ = stringListValue_;
+        result.stringValue_ = stringValue_;
+        if (((bitField0_ & 0x00000008) == 0x00000008)) {
+          listValue_ = java.util.Collections.unmodifiableList(listValue_);
+          bitField0_ = (bitField0_ & ~0x00000008);
+        }
+        result.listValue_ = listValue_;
         result.bitField0_ = to_bitField0_;
         return result;
       }
@@ -4834,16 +4864,19 @@ public final class NrvProtobuf {
         if (other.hasIntegerValue()) {
           setIntegerValue(other.getIntegerValue());
         }
+        if (other.hasLongValue()) {
+          setLongValue(other.getLongValue());
+        }
         if (other.hasStringValue()) {
           setStringValue(other.getStringValue());
         }
-        if (!other.stringListValue_.isEmpty()) {
-          if (stringListValue_.isEmpty()) {
-            stringListValue_ = other.stringListValue_;
-            bitField0_ = (bitField0_ & ~0x00000004);
+        if (!other.listValue_.isEmpty()) {
+          if (listValue_.isEmpty()) {
+            listValue_ = other.listValue_;
+            bitField0_ = (bitField0_ & ~0x00000008);
           } else {
-            ensureStringListValueIsMutable();
-            stringListValue_.addAll(other.stringListValue_);
+            ensureListValueIsMutable();
+            listValue_.addAll(other.listValue_);
           }
           
         }
@@ -4873,17 +4906,23 @@ public final class NrvProtobuf {
             }
             case 8: {
               bitField0_ |= 0x00000001;
-              integerValue_ = input.readInt64();
+              integerValue_ = input.readInt32();
               break;
             }
-            case 18: {
+            case 16: {
               bitField0_ |= 0x00000002;
-              stringValue_ = input.readBytes();
+              longValue_ = input.readInt64();
               break;
             }
             case 26: {
-              ensureStringListValueIsMutable();
-              stringListValue_.add(input.readBytes());
+              bitField0_ |= 0x00000004;
+              stringValue_ = input.readBytes();
+              break;
+            }
+            case 34: {
+              com.wajam.nrv.data.serialization.NrvProtobuf.MValue.Builder subBuilder = com.wajam.nrv.data.serialization.NrvProtobuf.MValue.newBuilder();
+              input.readMessage(subBuilder, extensionRegistry);
+              addListValue(subBuilder.buildPartial());
               break;
             }
           }
@@ -4892,15 +4931,15 @@ public final class NrvProtobuf {
       
       private int bitField0_;
       
-      // optional int64 integerValue = 1;
-      private long integerValue_ ;
+      // optional int32 integerValue = 1;
+      private int integerValue_ ;
       public boolean hasIntegerValue() {
         return ((bitField0_ & 0x00000001) == 0x00000001);
       }
-      public long getIntegerValue() {
+      public int getIntegerValue() {
         return integerValue_;
       }
-      public Builder setIntegerValue(long value) {
+      public Builder setIntegerValue(int value) {
         bitField0_ |= 0x00000001;
         integerValue_ = value;
         
@@ -4908,15 +4947,36 @@ public final class NrvProtobuf {
       }
       public Builder clearIntegerValue() {
         bitField0_ = (bitField0_ & ~0x00000001);
-        integerValue_ = 0L;
+        integerValue_ = 0;
         
         return this;
       }
       
-      // optional string stringValue = 2;
+      // optional int64 longValue = 2;
+      private long longValue_ ;
+      public boolean hasLongValue() {
+        return ((bitField0_ & 0x00000002) == 0x00000002);
+      }
+      public long getLongValue() {
+        return longValue_;
+      }
+      public Builder setLongValue(long value) {
+        bitField0_ |= 0x00000002;
+        longValue_ = value;
+        
+        return this;
+      }
+      public Builder clearLongValue() {
+        bitField0_ = (bitField0_ & ~0x00000002);
+        longValue_ = 0L;
+        
+        return this;
+      }
+      
+      // optional string stringValue = 3;
       private java.lang.Object stringValue_ = "";
       public boolean hasStringValue() {
-        return ((bitField0_ & 0x00000002) == 0x00000002);
+        return ((bitField0_ & 0x00000004) == 0x00000004);
       }
       public String getStringValue() {
         java.lang.Object ref = stringValue_;
@@ -4932,77 +4992,110 @@ public final class NrvProtobuf {
         if (value == null) {
     throw new NullPointerException();
   }
-  bitField0_ |= 0x00000002;
+  bitField0_ |= 0x00000004;
         stringValue_ = value;
         
         return this;
       }
       public Builder clearStringValue() {
-        bitField0_ = (bitField0_ & ~0x00000002);
+        bitField0_ = (bitField0_ & ~0x00000004);
         stringValue_ = getDefaultInstance().getStringValue();
         
         return this;
       }
       void setStringValue(com.google.protobuf.ByteString value) {
-        bitField0_ |= 0x00000002;
+        bitField0_ |= 0x00000004;
         stringValue_ = value;
         
       }
       
-      // repeated string stringListValue = 3;
-      private com.google.protobuf.LazyStringList stringListValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      private void ensureStringListValueIsMutable() {
-        if (!((bitField0_ & 0x00000004) == 0x00000004)) {
-          stringListValue_ = new com.google.protobuf.LazyStringArrayList(stringListValue_);
-          bitField0_ |= 0x00000004;
+      // repeated .com.wajam.nrv.data.serialization.MValue listValue = 4;
+      private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.MValue> listValue_ =
+        java.util.Collections.emptyList();
+      private void ensureListValueIsMutable() {
+        if (!((bitField0_ & 0x00000008) == 0x00000008)) {
+          listValue_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.MValue>(listValue_);
+          bitField0_ |= 0x00000008;
          }
       }
-      public java.util.List<String>
-          getStringListValueList() {
-        return java.util.Collections.unmodifiableList(stringListValue_);
+      
+      public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.MValue> getListValueList() {
+        return java.util.Collections.unmodifiableList(listValue_);
       }
-      public int getStringListValueCount() {
-        return stringListValue_.size();
+      public int getListValueCount() {
+        return listValue_.size();
       }
-      public String getStringListValue(int index) {
-        return stringListValue_.get(index);
+      public com.wajam.nrv.data.serialization.NrvProtobuf.MValue getListValue(int index) {
+        return listValue_.get(index);
       }
-      public Builder setStringListValue(
-          int index, String value) {
+      public Builder setListValue(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.MValue value) {
         if (value == null) {
-    throw new NullPointerException();
-  }
-  ensureStringListValueIsMutable();
-        stringListValue_.set(index, value);
+          throw new NullPointerException();
+        }
+        ensureListValueIsMutable();
+        listValue_.set(index, value);
         
         return this;
       }
-      public Builder addStringListValue(String value) {
+      public Builder setListValue(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.MValue.Builder builderForValue) {
+        ensureListValueIsMutable();
+        listValue_.set(index, builderForValue.build());
+        
+        return this;
+      }
+      public Builder addListValue(com.wajam.nrv.data.serialization.NrvProtobuf.MValue value) {
         if (value == null) {
-    throw new NullPointerException();
-  }
-  ensureStringListValueIsMutable();
-        stringListValue_.add(value);
+          throw new NullPointerException();
+        }
+        ensureListValueIsMutable();
+        listValue_.add(value);
         
         return this;
       }
-      public Builder addAllStringListValue(
-          java.lang.Iterable<String> values) {
-        ensureStringListValueIsMutable();
-        super.addAll(values, stringListValue_);
+      public Builder addListValue(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.MValue value) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureListValueIsMutable();
+        listValue_.add(index, value);
         
         return this;
       }
-      public Builder clearStringListValue() {
-        stringListValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-        bitField0_ = (bitField0_ & ~0x00000004);
+      public Builder addListValue(
+          com.wajam.nrv.data.serialization.NrvProtobuf.MValue.Builder builderForValue) {
+        ensureListValueIsMutable();
+        listValue_.add(builderForValue.build());
         
         return this;
       }
-      void addStringListValue(com.google.protobuf.ByteString value) {
-        ensureStringListValueIsMutable();
-        stringListValue_.add(value);
+      public Builder addListValue(
+          int index, com.wajam.nrv.data.serialization.NrvProtobuf.MValue.Builder builderForValue) {
+        ensureListValueIsMutable();
+        listValue_.add(index, builderForValue.build());
         
+        return this;
+      }
+      public Builder addAllListValue(
+          java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NrvProtobuf.MValue> values) {
+        ensureListValueIsMutable();
+        super.addAll(values, listValue_);
+        
+        return this;
+      }
+      public Builder clearListValue() {
+        listValue_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000008);
+        
+        return this;
+      }
+      public Builder removeListValue(int index) {
+        ensureListValueIsMutable();
+        listValue_.remove(index);
+        
+        return this;
       }
       
       // @@protoc_insertion_point(builder_scope:com.wajam.nrv.data.serialization.MValue)

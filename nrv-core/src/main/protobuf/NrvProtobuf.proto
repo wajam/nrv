@@ -83,7 +83,8 @@ message AnyPair {
 
 message MValue
 {
-	optional int64 integerValue = 1;
-	optional string stringValue = 2;
-	repeated string stringListValue = 3;
+	optional int32 integerValue = 1;
+	optional int64 longValue = 2;
+	optional string stringValue = 3;
+	repeated MValue listValue = 4;
 }
