@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicReference
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.utils.Event
 import com.wajam.nrv.service.StatusTransitionEvent
+import persistence.{NullTransactionLog, FileTransactionLog}
 
 /**
  * Consistency that (will eventually) sends read/write to a master replica and replicate modification to the
@@ -62,8 +63,13 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
             this.synchronized {
               // Iniatialize transaction recorder for local service member going up
               info("Iniatialize transaction recorders for {}", event.member)
-              val recorder = new TransactionRecorder(service, event.member, txLogDir,
-                appendDelay = timestampGenerator.responseTimeout + 1000, txLogEnabled)
+              val txLog = if (txLogEnabled) {
+                new FileTransactionLog(service.name, event.member.token, txLogDir, validateTimestamp = true)
+              } else {
+                NullTransactionLog
+              }
+              val recorder = new TransactionRecorder(service, event.member, txLog,
+                appendDelay = timestampGenerator.responseTimeout + 1000)
               recorders += (event.member -> recorder)
               recorder.start()
             }
