@@ -46,7 +46,6 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
 
     consistencyErrorMeter = new Meter(Metrics.defaultRegistry().newMeter(
       recorder.getClass, "consistency-error", "consistency-error", TimeUnit.MILLISECONDS))
-
   }
 
   after {
@@ -80,8 +79,8 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
 
   private def createRequestMessage(timestamp: Long, token: Long = 0): InMessage = {
     val request = new InMessage((Map(("ts" -> timestamp), ("tk" -> token))))
-    request.token = token
     request.function = MessageType.FUNCTION_CALL
+    request.token = token
     request.serviceName = service.name
     Consistency.setMessageTimestamp(request, Timestamp(timestamp))
     request
@@ -89,9 +88,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
 
   private def createResponseMessage(request: InMessage, code: Int = 200, error: Option[Exception] = None) = {
     val response = new OutMessage()
-    if (request != null) {
-      request.copyTo(response)
-    }
+    request.copyTo(response)
     response.function = MessageType.FUNCTION_RESPONSE
     response.code = code
     response.error = error
@@ -130,9 +127,11 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     val request = createRequestMessage(timestamp = 0)
     recorder.handleMessage(request)
     recorder.checkPending()
+    recorder.pendingSize should be(1)
 
     recorder.handleMessage(createResponseMessage(request))
     recorder.checkPending()
+    recorder.pendingSize should be(1)
 
     verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
     verifyZeroInteractions(mockTxLog)
@@ -153,8 +152,9 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.handleMessage(createResponseMessage(request3))
     recorder.handleMessage(createResponseMessage(request4))
     recorder.handleMessage(createResponseMessage(request2))
-    recorder.handleMessage(createResponseMessage(request1))
     recorder.advanceTime(appendDelay + 1000)
+    recorder.checkPending()
+    recorder.handleMessage(createResponseMessage(request1))
     recorder.checkPending()
 
     verify(mockTxLog).append(argThat(matchTx(request1)))
@@ -180,7 +180,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     verifyZeroInteractions(mockTxLog)
   }
 
-  test("failed transaction (error) should not be appended to log") {
+  test("failed transaction (exception) should not be appended to log") {
     // not logged + not pending anymore
     val request = createRequestMessage(timestamp = 0)
     recorder.handleMessage(request)
@@ -266,7 +266,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.checkPending()
     recorder.pendingSize should be(1)
 
-    // message with duplicate message
+    // message with duplicate timestamp
     recorder.handleMessage(createRequestMessage(timestamp = 0))
     recorder.checkPending()
 
