@@ -31,11 +31,8 @@ message Message {
     optional Endpoints destination = 10;
     optional int64 token = 11;
 
-    repeated StringListPair parameters = 12;
-    repeated StringListPair metadata = 13;
-
-    repeated StringListPair parametersSeq = 102;
-    repeated StringListPair metadataSeq = 103;
+    repeated MPair parameters = 12;
+    repeated MPair metadata = 13;
 
     repeated AnyPair parametersAny = 100;
     repeated AnyPair metadataAny = 101;
@@ -66,17 +63,27 @@ message Node {
 
 /* Used to emulate a map */
 
+
 message Int32Pair {
     optional string key = 1;
     optional int32 value = 2;
 }
 
-message StringListPair {
+message MPair {
     optional string key = 1;
-    repeated string value = 2;
+    optional MValue value = 2;
 }
 
 message AnyPair {
     optional string key = 1;
     optional bytes value = 2;
+}
+
+/* Value container (mostly to differentiate type) */
+
+message MValue
+{
+	optional int64 integerValue = 1;
+	optional string stringValue = 2;
+	repeated string stringListValue = 3;
 }
