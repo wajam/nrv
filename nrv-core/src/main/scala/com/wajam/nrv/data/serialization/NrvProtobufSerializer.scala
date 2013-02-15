@@ -8,9 +8,6 @@ import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
 import java.net.InetAddress
-import com.wajam.nrv.data.MLong
-import scala.Some
-import com.wajam.nrv.data.MInt
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
