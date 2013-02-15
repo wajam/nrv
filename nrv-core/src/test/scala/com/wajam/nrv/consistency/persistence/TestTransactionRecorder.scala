@@ -6,7 +6,7 @@ import com.wajam.nrv.cluster.LocalNode
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import org.scalatest.{BeforeAndAfter, FunSuite}
+import org.scalatest.BeforeAndAfter
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
@@ -17,11 +17,9 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.utils.ControlableCurrentTime
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.utils.timestamp.Timestamp
-import com.wajam.nrv.tracing.{TraceContext, Annotation}
 import com.yammer.metrics.scala.Meter
 import com.yammer.metrics.Metrics
 import java.util.concurrent.TimeUnit
-import java.io.IOException
 
 
 @RunWith(classOf[JUnitRunner])
@@ -44,7 +42,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder = new TransactionRecorder(service, member, mockTxLog, appendDelay) with ControlableCurrentTime
     recorder.currentTime = 0
     recorder.start()
-    verify(mockTxLog).getLastLoggedTimestamp  // Ignore call done at recorder construction
+    verify(mockTxLog).getLastLoggedTimestamp // Ignore call done at recorder construction
 
     consistencyErrorMeter = new Meter(Metrics.defaultRegistry().newMeter(
       recorder.getClass, "consistency-error", "consistency-error", TimeUnit.MILLISECONDS))
@@ -206,7 +204,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.checkPending()
     recorder.pendingSize should be(0)
 
-    consistencyErrorMeter.count should be (before + 1)
+    consistencyErrorMeter.count should be(before + 1)
     // TODO: verify service member status goes down
 
     verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
@@ -222,7 +220,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.checkPending()
     recorder.pendingSize should be(0)
 
-    consistencyErrorMeter.count should be (before)
+    consistencyErrorMeter.count should be(before)
 
     verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
     verifyZeroInteractions(mockTxLog)
@@ -237,7 +235,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.checkPending()
     recorder.pendingSize should be(0)
 
-    consistencyErrorMeter.count should be (before + 1)
+    consistencyErrorMeter.count should be(before + 1)
     // TODO: verify service member status goes down
 
     verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
@@ -255,7 +253,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.checkPending()
     recorder.pendingSize should be(0)
 
-    consistencyErrorMeter.count should be (before)
+    consistencyErrorMeter.count should be(before)
 
     verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
     verifyZeroInteractions(mockTxLog)
@@ -272,7 +270,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.handleMessage(createRequestMessage(timestamp = 0))
     recorder.checkPending()
 
-    consistencyErrorMeter.count should be (before + 1)
+    consistencyErrorMeter.count should be(before + 1)
     // TODO: verify service member status goes down
 
     verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
@@ -291,7 +289,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.advanceTime(appendDelay + 1000)
     recorder.checkPending()
 
-    consistencyErrorMeter.count should be (before + 1)
+    consistencyErrorMeter.count should be(before + 1)
     // TODO: verify service member status goes down
 
     verify(mockTxLog).append(argThat(matchTx(request)))
@@ -310,7 +308,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.advanceTime(service.responseTimeout + 2000)
     recorder.checkPending()
 
-    consistencyErrorMeter.count should be (before + 1)
+    consistencyErrorMeter.count should be(before + 1)
     // TODO: verify service member status goes down
 
     verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
