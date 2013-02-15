@@ -101,23 +101,34 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
     private def isSuccessful(response: Message) = response.code >= 200 && response.code < 300 && response.error.isEmpty
 
-    // TODO: true tail recursive
-    private def appendReadyHeadTransactions() {
+    private def appendAllReadyTransactions() {
+      // Not implemented as tail recursive because of the try/catch
+      while (appendHead()) {}
+    }
+
+    /**
+     * Append the first pending transaction if ready. Returns true if appended or false if not
+     */
+    private def appendHead(): Boolean = {
       pendingRequests.headOption match {
         case Some((timestamp, context)) if context.isReady => {
           try {
             txLog.append(TransactionEvent(timestamp, lastTimestamp, context.request.token, context.request))
             lastTimestamp = Some(timestamp)
             pendingRequests -= timestamp
-            appendReadyHeadTransactions()
+            true
           } catch {
             case e: Exception => {
               raiseConsistencyError(consistencyAppendError,
                 "Consistency error processing appending message {}. ", context.request, e)
+              false
             }
           }
         }
-        case _ => // First request still pending, do nothing.
+        case _ => {
+          // First transaction still pending, do nothing.
+          false
+        }
       }
     }
 
@@ -191,7 +202,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
                   }
 
                   // Append all completed head transactions
-                  appendReadyHeadTransactions()
+                  appendAllReadyTransactions()
                 }
                 case None if isSuccessful(message) => {
                   raiseConsistencyError(consistencyResponseError,
@@ -225,7 +236,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
           case CheckPending => {
             try {
               // Append all transactions completed and ready
-              appendReadyHeadTransactions()
+              appendAllReadyTransactions()
 
               pendingRequests.headOption match {
                 case Some((timestamp, context)) if context.isExpired => {
