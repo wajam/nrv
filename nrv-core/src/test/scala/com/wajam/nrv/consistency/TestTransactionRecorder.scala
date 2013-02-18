@@ -1,6 +1,5 @@
-package com.wajam.nrv.consistency.persistence
+package com.wajam.nrv.consistency
 
-import com.wajam.nrv.consistency.{Consistency, TransactionRecorder}
 import com.wajam.nrv.service.{ActionSupportOptions, ServiceMember, Service}
 import com.wajam.nrv.cluster.LocalNode
 
@@ -20,6 +19,7 @@ import com.wajam.nrv.utils.timestamp.Timestamp
 import com.yammer.metrics.scala.Meter
 import com.yammer.metrics.Metrics
 import java.util.concurrent.TimeUnit
+import persistence.{TransactionEvent, TransactionLog, TestTransactionBase}
 
 
 @RunWith(classOf[JUnitRunner])
@@ -195,36 +195,10 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     verifyZeroInteractions(mockTxLog)
   }
 
-  test("success response for non pending transaction should raise a consistency error AFTER grace period") {
-    val before = consistencyErrorMeter.count
-
-    recorder.advanceTime(service.responseTimeout + 2000) // Advance beyond grace period
-    recorder.pendingSize should be(0)
-    recorder.handleMessage(createResponseMessage(createRequestMessage(timestamp = 0))) // with timestamp, no pending match
-    recorder.checkPending()
-    recorder.pendingSize should be(0)
-
-    consistencyErrorMeter.count should be(before + 1)
-    // TODO: verify service member status goes down
-
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
-
+  ignore("timeout transaction should be truncated from storage") {
   }
 
-  test("success response for non pending transaction should NOT raise a consistency error DURING grace period") {
-    val before = consistencyErrorMeter.count
-
-    recorder.pendingSize should be(0)
-    recorder.handleMessage(createResponseMessage(createRequestMessage(timestamp = 0))) // with timestamp, no pending match
-    recorder.checkPending()
-    recorder.pendingSize should be(0)
-
-    consistencyErrorMeter.count should be(before)
-
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
-
+  ignore("success response for non pending transaction should be truncated from storage") {
   }
 
   test("success response without timestamp should raise a consistency error") {
