@@ -83,8 +83,19 @@ message AnyPair {
 
 message MValue
 {
-	optional int32 integerValue = 1;
-	optional int64 longValue = 2;
-	optional string stringValue = 3;
-	repeated MValue listValue = 4;
+    enum Type {
+	    INT = 1;
+	    LONG = 2;
+	    BOOLEAN = 3;
+	    DOUBLE = 4;
+	    STRING = 5;
+	    LIST = 6;
+    }
+
+    required Type type = 1;
+
+	optional int64 varintValue = 2;
+	optional double doubleValue = 3;
+	optional string stringValue = 4;
+	repeated MValue listValue = 5;
 }

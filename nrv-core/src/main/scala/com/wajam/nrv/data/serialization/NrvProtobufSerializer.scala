@@ -2,7 +2,6 @@ package com.wajam.nrv.data.serialization
 
 import scala.collection.JavaConverters._
 import com.wajam.nrv.data._
-import com.wajam.nrv.data.MValue._
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
@@ -26,23 +25,52 @@ class NrvProtobufSerializer() {
   }
 
   private[serialization] def decodeMValue(protoValue: NrvProtobuf.MValue): MValue = {
-    protoValue match {
-      case _ if protoValue.hasIntegerValue() => protoValue.getIntegerValue()
-      case _ if protoValue.hasLongValue() => protoValue.getLongValue()
-      case _ if protoValue.hasStringValue() => protoValue.getStringValue()
-      case _ => protoValue.getListValueList.asScala.map(decodeMValue(_))
+
+    // We can reuse int64 for int32 and bool because of efficient varint in protobuf
+    // https://developers.google.com/protocol-buffers/docs/encoding#structure
+
+    import NrvProtobuf.MValue.{Type => Type}
+
+    protoValue.getType match {
+      case Type.INT => MInt(protoValue.getVarintValue().asInstanceOf[Int])
+      case Type.LONG => MLong(protoValue.getVarintValue())
+      case Type.BOOLEAN => MBoolean(protoValue.getVarintValue() == 1)
+      case Type.STRING => MString(protoValue.getStringValue())
+      case Type.DOUBLE => MDouble(protoValue.getDoubleValue())
+      case Type.LIST => MList(protoValue.getListValueList.asScala.map(decodeMValue(_)))
     }
   }
 
   private[serialization] def encodeMValue(value: MValue): NrvProtobuf.MValue = {
 
+    import NrvProtobuf.MValue.{Type => Type}
+
     val protoValue = NrvProtobuf.MValue.newBuilder()
 
     value match {
-      case value: MInt => protoValue.setIntegerValue(value.value).build()
-      case value: MLong => protoValue.setLongValue(value.value).build()
-      case value: MString => protoValue.setStringValue(value.value).build()
-      case value: MList => protoValue.addAllListValue(value.values.map(encodeMValue(_)).asJava).build()
+      case value: MInt =>
+        protoValue.setVarintValue(value.value)
+                  .setType(Type.INT).build()
+
+      case value: MLong =>
+        protoValue.setVarintValue(value.value)
+                  .setType(Type.LONG).build()
+
+      case value: MBoolean =>
+        protoValue.setVarintValue(if (value.value) 1 else 0)
+                  .setType(Type.BOOLEAN).build()
+
+      case value: MDouble =>
+        protoValue.setDoubleValue(value.value)
+                  .setType(Type.DOUBLE).build()
+
+      case value: MString =>
+        protoValue.setStringValue(value.value)
+                  .setType(Type.STRING).build()
+
+      case value: MList =>
+        protoValue.addAllListValue(value.values.map(encodeMValue(_)).asJava)
+                  .setType(Type.LIST).build()
     }
   }
 
