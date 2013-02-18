@@ -74,6 +74,24 @@ class NrvProtobufSerializer() {
     }
   }
 
+  private def encodeMessageMap(map: collection.Map[String, Any],
+                               pbFn: (NrvProtobuf.MPair.Builder) => Any,
+                               anyFn: (NrvProtobuf.AnyPair.Builder) => Any) = {
+
+    map.foreach {
+      case (key, value) =>
+        value match {
+          case value: MValue =>
+            val protoValue = encodeMValue(value)
+            pbFn(NrvProtobuf.MPair.newBuilder().setKey(key).setValue(protoValue))
+
+          case value =>
+            val bytes = ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))
+            anyFn(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(bytes))
+        }
+    }
+  }
+
   private[serialization] def encodeMessage(message: Message, messageDataCodec: Codec): NrvProtobuf.Message = {
 
     val protoMessage = NrvProtobuf.Message.newBuilder()
@@ -100,31 +118,8 @@ class NrvProtobufSerializer() {
 
     protoMessage.setToken(message.token)
 
-    message.parameters.foreach {
-      case (key, value) =>
-        value match {
-          case value: MValue =>
-            val protoValue = encodeMValue(value)
-            protoMessage.addParameters(NrvProtobuf.MPair.newBuilder().setKey(key).setValue(protoValue))
-
-          case value =>
-            val bytes = ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))
-            protoMessage.addParametersAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(bytes))
-        }
-    }
-
-    message.metadata.foreach {
-      case (key, value) =>
-        value match {
-          case value: MValue =>
-            val protoValue = encodeMValue(value)
-            protoMessage.addMetadata(NrvProtobuf.MPair.newBuilder().setKey(key).setValue(protoValue))
-
-          case value =>
-            val bytes = ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))
-            protoMessage.addMetadataAny(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(bytes))
-        }
-    }
+    encodeMessageMap(message.parameters, protoMessage.addParameters _, protoMessage.addParametersAny _)
+    encodeMessageMap(message.metadata, protoMessage.addMetadata _, protoMessage.addMetadataAny _)
 
     protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))
 
