@@ -4,8 +4,15 @@ import com.wajam.nrv.data.Message
 import java.io._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.protocol.codec.{MessageJavaSerializeCodec, Codec}
+import com.wajam.nrv.consistency.Consistency
 
 case class TransactionEvent(timestamp: Timestamp, previous: Option[Timestamp], token: Long, message: Message)
+
+object TransactionEvent {
+  def apply(message: Message, previous: Option[Timestamp]): TransactionEvent = {
+    TransactionEvent(Consistency.getMessageTimestamp(message).get, previous, message.token, message)
+  }
+}
 
 class TransactionEventSerializer {
   import TransactionEventSerializer._
