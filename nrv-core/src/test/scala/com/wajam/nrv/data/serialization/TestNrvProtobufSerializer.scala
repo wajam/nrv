@@ -9,6 +9,7 @@ import com.wajam.nrv.service.{Shard, Replica, Endpoints, ActionMethod}
 import com.wajam.nrv.cluster.Node
 import java.net.InetAddress
 import com.wajam.nrv.protocol.codec._
+import com.wajam.nrv.data._
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtobufSerializer extends FunSuite {
@@ -122,6 +123,26 @@ class TestNrvProtobufSerializer extends FunSuite {
     val messageDataCodec = new GenericJavaSerializeCodec()
 
     val entity1 = makeMessage()
+
+    val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
+    val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
+
+    assertMessageEqual(entity1, entity2)
+  }
+
+  test("can handle all MValue") {
+    val codec = new NrvProtobufSerializer()
+    val messageDataCodec = new GenericJavaSerializeCodec()
+
+    val entity1 = makeMessage()
+
+    entity1.metadata += "MInt" -> MInt(1)
+    entity1.metadata += "MLong" -> MLong(1)
+    entity1.metadata += "MString" -> MString("Test")
+    entity1.metadata += "MDouble" -> MDouble(0.9)
+    entity1.metadata += "MBool1" -> MBoolean(false)
+    entity1.metadata += "MBool2" -> MBoolean(true)
+    entity1.metadata += "MList" -> MList(Seq("A", "B"))
 
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
@@ -273,4 +294,3 @@ class TestNrvProtobufSerializer extends FunSuite {
     exception.asInstanceOf[Exception].getMessage should equal("/ by zero")
   }
 }
-
