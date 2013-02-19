@@ -7,18 +7,33 @@ package com.wajam.nrv.data
  */
 sealed trait MValue
 
-final case class MString(value: String) extends MValue
-final case class MLong(value: Long) extends MValue
-final case class MInt(value: Int) extends MValue
-final case class MDouble(value: Double) extends MValue
-final case class MBoolean(value: Boolean) extends MValue
-final case class MList(values: Iterable[MValue]) extends MValue
+sealed case class MList(values: Iterable[MValue]) extends MValue
+sealed case class MString(value: String) extends MValue
+sealed case class MLong(value: Long) extends MValue
+sealed case class MInt(value: Int) extends MValue
+sealed case class MDouble(value: Double) extends MValue
+sealed case class MBoolean(value: Boolean) extends MValue
+sealed case class MMigrationCatchAll(values: Any) extends MValue // TODO: PBMigration Remove
 
 object MValue {
+
   implicit def stringToMValue(s: String) = MString(s)
   implicit def longToMValue(l: Long) = MLong(l)
   implicit def intToMValue(l: Int) = MInt(l)
   implicit def doubleToMValue(l: Double) = MDouble(l)
   implicit def booleanToMValue(l: Boolean) = MBoolean(l)
-  implicit def iterableToMValue(l: Iterable[MValue]) = MList(l)
+
+  // Helper to convert usage
+//
+//  implicit def iterableToMListString(iter: Iterable[String]): MList = {
+//    MList(iterableToMString(iter))
+//  }
+//
+//  implicit def iterableToMString(iter: Iterable[String]): Iterable[MString] = {
+//    iter.map { case(v: String) => (MString(v)) }
+//  }
+
+  implicit def mapToMString(map: Iterable[(String, String)]): Iterable[(String, MValue)] = {
+    map.map { case(k: String, v: String) => (k, MString(v)) }
+  }
 }

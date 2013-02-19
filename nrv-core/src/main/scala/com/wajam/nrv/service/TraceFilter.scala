@@ -1,9 +1,11 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
+import com.wajam.nrv.data._
 import com.wajam.nrv.tracing.{RpcName, TraceContext, Tracer, Annotation}
 import com.wajam.nrv.Logging
 import java.net.InetSocketAddress
+import com.wajam.nrv.tracing.RpcName
+import com.wajam.nrv.tracing.TraceContext
 
 /**
  * Listen to incoming and and outgoing message and record trace information on the go
@@ -94,10 +96,9 @@ object TraceFilter extends MessageHandler with Logging {
 
   private def getMetadataValue(message: Message, key: String): Option[String] = {
     message.metadata.getOrElse(key, null) match {
-      case None => None
-      case values: Seq[_] if values.isEmpty => None
-      case values: Seq[_] => Some(values(0).toString)
-      case value: String => Some(value)
+      case MList(values) if values.isEmpty => None
+      case MList(values) => Some(values.head.toString)
+      case MString(value) => Some(value)
       case _ => None
     }
   }
@@ -105,10 +106,10 @@ object TraceFilter extends MessageHandler with Logging {
   def setContextInMessageMetadata(message: Message, traceContext: Option[TraceContext]) {
     clearContextInMessageMetadata(message)
     for (context <- traceContext) {
-      message.metadata(TraceHeader.TraceId.toString) = context.traceId
-      message.metadata(TraceHeader.SpanId.toString) = context.spanId
-      for (parentId <- context.parentId) message.metadata(TraceHeader.ParentId.toString) = parentId
-      for (sampled <- context.sampled) message.metadata(TraceHeader.Sampled.toString) = sampled.toString
+      message.metadata(TraceHeader.TraceId.toString) = MString(context.traceId)
+      message.metadata(TraceHeader.SpanId.toString) = MString(context.spanId)
+      for (parentId <- context.parentId) message.metadata(TraceHeader.ParentId.toString) = MString(parentId)
+      for (sampled <- context.sampled) message.metadata(TraceHeader.Sampled.toString) = MString(sampled.toString)
     }
   }
 

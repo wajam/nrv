@@ -10,6 +10,7 @@ import com.wajam.nrv.cluster.Node
 import java.net.InetAddress
 import com.wajam.nrv.protocol.codec._
 import com.wajam.nrv.data._
+import com.wajam.nrv.data.MValue._
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtobufSerializer extends FunSuite {
@@ -162,26 +163,8 @@ class TestNrvProtobufSerializer extends FunSuite {
     entity1.metadata += "Key2m" -> 1.0
     entity1.parameters += "Key2p" -> 2.0
 
-    entity1.metadata += "Key3m" -> new Pair("A", 1)
-    entity1.parameters += "Key3p" -> new Pair("B", 2)
-
-    val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
-    val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
-
-    assertMessageEqual(entity1, entity2)
-  }
-
-  test("can differentiate Seq[X] and Seq[String]") {
-    val codec = new NrvProtobufSerializer()
-    val messageDataCodec = new GenericJavaSerializeCodec()
-
-    val entity1 = makeMessage()
-
-    entity1.metadata += "Key1m" -> Seq("1")
-    entity1.parameters += "Key1p" -> Seq("2")
-
-    entity1.metadata += "Key1m" ->  Seq(Pair("A", 1))
-    entity1.parameters += "Key1p" -> Seq(Pair("B", 2))
+    entity1.metadata += "Key3m" -> MMigrationCatchAll(new Pair("A", 1))
+    entity1.parameters += "Key3p" -> MMigrationCatchAll(new Pair("B", 2))
 
     val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
     val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
@@ -289,7 +272,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val codec = new NrvProtobufSerializer()
 
     val bytes = codec.serializeToBytes(generateException())
-    val exception = codec.serializeFromBytes(bytes)
+    val exception = codec.deserializeFromBytes(bytes)
 
     exception.asInstanceOf[Exception].getMessage should equal("/ by zero")
   }

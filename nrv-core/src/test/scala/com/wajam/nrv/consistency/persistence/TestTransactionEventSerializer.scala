@@ -8,6 +8,8 @@ import util.Random
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 
+import com.wajam.nrv.data.MValue._
+
 @RunWith(classOf[JUnitRunner])
 class TestTransactionEventSerializer extends TestTransactionBase {
 

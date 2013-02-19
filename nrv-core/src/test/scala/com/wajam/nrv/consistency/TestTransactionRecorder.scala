@@ -8,7 +8,7 @@ import org.scalatest.junit.JUnitRunner
 import org.scalatest.BeforeAndAfter
 import org.mockito.Mockito._
 import org.mockito.Matchers._
-import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
+import com.wajam.nrv.data._
 import org.mockito.ArgumentMatcher
 import org.hamcrest.Description
 import org.scalatest.matchers.ShouldMatchers._
@@ -20,6 +20,7 @@ import com.yammer.metrics.scala.Meter
 import com.yammer.metrics.Metrics
 import java.util.concurrent.TimeUnit
 import persistence.{TransactionEvent, TransactionLog, TestTransactionBase}
+import scala.Some
 
 
 @RunWith(classOf[JUnitRunner])
@@ -78,7 +79,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
   }
 
   private def createRequestMessage(timestamp: Long, token: Long = 0): InMessage = {
-    val request = new InMessage((Map(("ts" -> timestamp), ("tk" -> token))))
+    val request = new InMessage((Map(("ts" -> MLong(timestamp)), ("tk" -> MLong(token)))))
     request.function = MessageType.FUNCTION_CALL
     request.token = token
     request.serviceName = service.name
