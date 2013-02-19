@@ -29,7 +29,7 @@ class NrvProtobufSerializer() {
     // We can reuse int64 for int32 and bool because of efficient varint in protobuf
     // https://developers.google.com/protocol-buffers/docs/encoding#structure
 
-    import NrvProtobuf.MValue.{Type => Type}
+    import NrvProtobuf.MValue.Type
 
     protoValue.getType match {
       case Type.INT => MInt(protoValue.getVarintValue().asInstanceOf[Int])
@@ -43,7 +43,7 @@ class NrvProtobufSerializer() {
 
   private[serialization] def encodeMValue(value: MValue): NrvProtobuf.MValue = {
 
-    import NrvProtobuf.MValue.{Type => Type}
+    import NrvProtobuf.MValue.Type
 
     val protoValue = NrvProtobuf.MValue.newBuilder()
 
