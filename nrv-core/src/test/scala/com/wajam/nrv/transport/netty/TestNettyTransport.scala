@@ -6,7 +6,7 @@ import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.jboss.netty.handler.codec.string.{StringEncoder, StringDecoder}
 import org.jboss.netty.channel._
 import java.net.{InetSocketAddress, InetAddress}
-import com.wajam.nrv.data.{InMessage, Message}
+import com.wajam.nrv.data.{MString, InMessage, Message}
 import com.wajam.nrv.protocol.Protocol
 
 @RunWith(classOf[JUnitRunner])
@@ -58,11 +58,14 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
     var receivedMessage: String = null
 
     override def parse(message: AnyRef): Message = {
-      receivedMessage = message.asInstanceOf[Message].parameters.getOrElse("text", "").asInstanceOf[String]
+
+      val mockMessage = message.asInstanceOf[Message]
+
+      receivedMessage = mockMessage.parameters.getOrElse("text", "").asInstanceOf[MString].value
       notifier.synchronized {
         notifier.notify()
       }
-      null
+      mockMessage
     }
 
     override def start() {}

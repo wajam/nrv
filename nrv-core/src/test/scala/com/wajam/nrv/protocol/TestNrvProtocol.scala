@@ -102,7 +102,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter {
         notifier.synchronized {
           notifier.notify()
         }
-        null
+        parsedMsg
       }
     }
     cluster.registerProtocol(protocol)
@@ -118,7 +118,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter {
     }
 
     assert(received != null)
-    assert(received.parameters.getOrElse("test", "") == "someval")
+    assert(received.parameters.getOrElse("test", "") == MString("someval"))
 
     cluster.stop()
   }

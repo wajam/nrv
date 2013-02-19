@@ -175,7 +175,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
     val syncCall = Promise[String]
 
     val action = service.registerAction(new Action("/test/:param", req => {
-      syncCall.success(req.parameters("param").asInstanceOf[String])
+      syncCall.success(req.parameters("param").asInstanceOf[MString].value)
     }))
     action.start()
 
