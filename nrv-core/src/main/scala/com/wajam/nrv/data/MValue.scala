@@ -24,14 +24,6 @@ object MValue {
   implicit def booleanToMValue(l: Boolean) = MBoolean(l)
 
   // Helper to convert usage
-//
-//  implicit def iterableToMListString(iter: Iterable[String]): MList = {
-//    MList(iterableToMString(iter))
-//  }
-//
-//  implicit def iterableToMString(iter: Iterable[String]): Iterable[MString] = {
-//    iter.map { case(v: String) => (MString(v)) }
-//  }
 
   implicit def mapToMString(map: Iterable[(String, String)]): Iterable[(String, MValue)] = {
     map.map { case(k: String, v: String) => (k, MString(v)) }
