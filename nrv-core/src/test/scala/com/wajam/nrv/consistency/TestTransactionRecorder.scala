@@ -20,8 +20,7 @@ import com.yammer.metrics.scala.Meter
 import com.yammer.metrics.Metrics
 import java.util.concurrent.TimeUnit
 import persistence.{TransactionEvent, TransactionLog, TestTransactionBase}
-import scala.Some
-
+import com.wajam.nrv.data.MValue._
 
 @RunWith(classOf[JUnitRunner])
 class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter with MockitoSugar {
@@ -79,7 +78,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
   }
 
   private def createRequestMessage(timestamp: Long, token: Long = 0): InMessage = {
-    val request = new InMessage((Map(("ts" -> MLong(timestamp)), ("tk" -> MLong(token)))))
+    val request = new InMessage((Map(("ts" -> timestamp), ("tk" -> token))))
     request.function = MessageType.FUNCTION_CALL
     request.token = token
     request.serviceName = service.name
