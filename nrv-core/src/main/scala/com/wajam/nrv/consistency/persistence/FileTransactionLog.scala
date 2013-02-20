@@ -8,6 +8,55 @@ import com.wajam.nrv.consistency.persistence.LogRecord._
 import java.util.zip.CRC32
 import java.nio.ByteBuffer
 
+/**
+ * Class for writing and reading transaction logs.
+ *
+ * <p>
+ * The format of a Transactional log is as follows:
+ * <blockquote><pre>
+ * LogFile:
+ * FileHeader RecordList
+ *
+ * FileHeader: {
+ * magic 8bytes "NRVTXLOG"
+ * version 4bytes
+ * servicename mutf-8
+ * }
+ *
+ * RecordList:
+ * Record || Record RecordList
+ *
+ * Record:
+ * checksum recordlen type Request | Response | Index 0x5A
+ *
+ * checksum: 8bytes CRC32 calculated across recordlen, type, Request, Reponse, Index and 0x5A
+ * recordlen: 4 bytes
+ * type: 2bytes (1=Request, 2=Response, 3=Index)
+ *
+ * Request: {
+ * id 8bytes
+ * consistenttimestamp 8bytes
+ * timestamp 8bytes
+ * token 8bytes
+ * msglen 4bytes
+ * message
+ * }
+ *
+ * Response: {
+ * id 8bytes
+ * consistenttimestamp 8bytes
+ * timestamp 8bytes
+ * token 8bytes
+ * status 2bytes (1=OK, 0=Error)
+ * }
+ *
+ * Index: {
+ * id 8bytes
+ * consistenttimestamp 8bytes
+ * }
+ *
+ * </pre></blockquote>
+ */
 class FileTransactionLog(val service: String, val token: Long, val logDir: String,
                          serializer: LogRecordSerializer = new LogRecordSerializer)
   extends TransactionLog with Logging with Instrumented {
@@ -226,15 +275,10 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     sortedFiles.indexWhere(f => {
       val fileIndex = getIndexFromName(f.getName)
       position match {
-        case (Some(i), Some(ts)) => if (fileIndex > Index(i, timestamp)) {
-          require(fileIndex.consistentTimestamp >= timestamp)
-          true
-        } else {
-          false
-        }
+        case (None, None) => true
         case (Some(i), None) => fileIndex.id > i
         case (None, Some(ts)) => fileIndex.consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) >= ts
-        case (None, None) => true
+        case (Some(i), Some(ts)) => fileIndex > Index(i, timestamp)
       }
     }) match {
       case -1 if sortedFiles.isEmpty => sortedFiles

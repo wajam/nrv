@@ -10,8 +10,6 @@ import com.wajam.nrv.consistency.Consistency
 sealed trait LogRecord {
   val id: Long
   val consistentTimestamp: Option[Timestamp]
-  //  val timestamp: Timestamp
-  //  val token: Long
 }
 
 object LogRecord {
@@ -91,7 +89,7 @@ object LogRecord {
       id.compareTo(that.id) match {
         case 0 => consistentTimestamp.getOrElse(Timestamp(Long.MinValue)).compareTo(
           that.consistentTimestamp.getOrElse(Timestamp(Long.MinValue)))
-        case r => r // TODO: if (id > that.id) require(timestamp >= that.timestamp)
+        case r => r
       }
     }
   }
@@ -115,15 +113,15 @@ class LogRecordSerializer {
 
     record match {
       case req: Request => {
-        dos.writeInt(RequestType)
+        dos.writeShort(RequestType)
         writeRequest(req, dos)
       }
       case res: Response => {
-        dos.writeInt(ResponseType)
+        dos.writeShort(ResponseType)
         writeResponse(res, dos)
       }
       case i: Index => {
-        dos.writeInt(IndexType)
+        dos.writeShort(IndexType)
         writeIndex(i, dos)
       }
     }
@@ -148,7 +146,7 @@ class LogRecordSerializer {
     writeTimestampOption(record.consistentTimestamp, dos)
     dos.writeLong(record.timestamp.value)
     dos.writeLong(record.token)
-    dos.writeInt(record.status.code)
+    dos.writeShort(record.status.code)
   }
 
   @throws(classOf[IOException])
@@ -167,7 +165,7 @@ class LogRecordSerializer {
     val bais = new ByteArrayInputStream(data)
     val dis = new DataInputStream(bais)
 
-    dis.readInt() match {
+    dis.readShort() match {
       case RequestType => {
         readRequest(dis)
       }
@@ -208,7 +206,7 @@ class LogRecordSerializer {
     val consistentTimestamp = readTimestampOption(dis)
     val timestamp = Timestamp(dis.readLong())
     val token = dis.readLong()
-    val status = dis.readInt() match {
+    val status = dis.readShort() match {
       case Response.Success.code => Response.Success
       case Response.Error.code => Response.Error
     }
