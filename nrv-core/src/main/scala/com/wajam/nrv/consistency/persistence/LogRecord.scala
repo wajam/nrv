@@ -1,10 +1,10 @@
-package com.wajam.nrv.consistency.persistence2
+package com.wajam.nrv.consistency.persistence
 
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.data.{MessageType, Message}
 import java.io._
 import com.wajam.nrv.protocol.codec.{MessageJavaSerializeCodec, Codec}
-import com.wajam.nrv.consistency.persistence2.LogRecord.{Index, Response, Request}
+import com.wajam.nrv.consistency.persistence.LogRecord.{Index, Response, Request}
 import com.wajam.nrv.consistency.Consistency
 
 sealed trait LogRecord {

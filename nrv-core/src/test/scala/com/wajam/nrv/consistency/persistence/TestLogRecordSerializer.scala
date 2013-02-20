@@ -1,4 +1,4 @@
-package com.wajam.nrv.consistency.persistence2
+package com.wajam.nrv.consistency.persistence
 
 import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.data.{Message, OutMessage, MessageType, InMessage}
@@ -9,7 +9,7 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.FunSuite
 import com.wajam.nrv.consistency.Consistency
-import com.wajam.nrv.consistency.persistence2.LogRecord.{Response, Request}
+import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Request}
 
 @RunWith(classOf[JUnitRunner])
 class TestLogRecordSerializer extends TestTransactionBase {

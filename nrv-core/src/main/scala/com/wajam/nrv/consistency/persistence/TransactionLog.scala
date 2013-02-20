@@ -1,27 +1,28 @@
 package com.wajam.nrv.consistency.persistence
 
 import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.nrv.consistency.persistence.LogRecord.Index
 
 trait TransactionLog {
   /**
-   * Returns the most recent timestamp written on the log storage.
+   * Returns the most recent consistant timestamp written on the log storage.
    */
-  def getLastLoggedTimestamp: Option[Timestamp]
+  def getLastLoggedIndex: Option[Index]
 
   /**
-   * Appends the specified transaction event to the transaction log
+   * Appends the specified record to the transaction log
    */
-  def append(tx: TransactionEvent)
+  def append(record: LogRecord)
 
   /**
-   * Read all the transaction from the specified timestamp
+   * Read all the records from the specified id, consistent timestamp or both
    */
-  def read(timestamp: Timestamp): TransactionLogIterator
+  def read(id: Option[Long] = None, consistentTimestamp: Option[Timestamp] = None): TransactionLogIterator
 
   /**
-   * Truncate log storage from the specified timestamp inclusively
+   * Truncate log storage from the specified index inclusively
    */
-  def truncate(timestamp: Timestamp): Boolean
+  def truncate(index: Index): Boolean
 
   /**
    * Ensure that transaction log is fully written on the log storage
@@ -34,6 +35,6 @@ trait TransactionLog {
   def close()
 }
 
-trait TransactionLogIterator extends Iterator[TransactionEvent] {
+trait TransactionLogIterator extends Iterator[LogRecord] {
   def close()
 }
