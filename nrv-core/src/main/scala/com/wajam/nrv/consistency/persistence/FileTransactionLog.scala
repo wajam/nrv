@@ -116,35 +116,38 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    * Appends the specified record to the transaction log
    */
   def append(block: => LogRecord): LogRecord = {
+
+    def validateRecord(record: LogRecord) {
+      lastIndex match {
+        case Some(Index(lastId, lastTimestampOpt)) => {
+          // Ensure record id is > than last index id
+          require(record.id > lastId, "This record id %s <= previous index id %s".format(record.id, lastId))
+
+          // Ensure record consistent timestamp is >= than last index consistent timestamp
+          (record.consistentTimestamp, lastTimestampOpt) match {
+            case (Some(recordTimestamp), Some(lastTimestamp)) => {
+              require(recordTimestamp >= lastTimestamp,
+                "This record consistent timestamp %s < previous index consistent timestamp %s".format(
+                  recordTimestamp, lastTimestamp))
+            }
+            case (None, Some(lastTimestamp)) => throw new IllegalArgumentException(
+              "This record has no consistent timestamp while previous index consistent timestamp is %s".format(
+                lastTimestamp))
+            case _ => // No timestamp to validate
+          }
+        }
+        case None => // Nothing to validate
+      }
+    }
+
     appendTimer.time {
       this.synchronized {
         val record: LogRecord = block
-        val recordIndex = Index(record.id, record.consistentTimestamp)
-        lastIndex match {
-          case Some(Index(lastId, lastTimestampOpt)) => {
-            // Ensure record id is > than last index id
-            require(record.id > lastId, "This record id %s <= previous index id %s".format(record.id, lastId))
-
-            // Ensure record consistent timestamp is >= than last index consistent timestamp
-            (record.consistentTimestamp, lastTimestampOpt) match {
-              case (Some(recordTimestamp), Some(lastTimestamp)) => {
-                require(recordTimestamp >= lastTimestamp,
-                  "This record consistent timestamp %s < previous index consistent timestamp %s".format(
-                    recordTimestamp, lastTimestamp))
-              }
-              case (None, Some(lastTimestamp)) => throw new IllegalArgumentException(
-                "This record has no consistent timestamp while previous index consistent timestamp is %s".format(
-                  lastTimestamp))
-              case _ => // No timestamp to validate
-            }
-          }
-          case None => // Nothing to validate
-        }
+        validateRecord(record)
 
         // Write the transaction event into the open log file
-        writeRecord(logStream.getOrElse(openNewLogFile(recordIndex)), record)
-        lastIndex = Some(recordIndex)
-
+        writeRecord(logStream.getOrElse(openNewLogFile(record)), record)
+        lastIndex = Some(record)
         record
       }
     }
@@ -281,7 +284,10 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         case (None, None) => true
         case (Some(i), None) => fileIndex.id > i
         case (None, Some(ts)) => fileIndex.consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) >= ts
-        case (Some(i), Some(ts)) => fileIndex > Index(i, timestamp)
+        case (Some(i), Some(ts)) => if (fileIndex.id > i) {
+          fileIndex.consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) >= ts
+          true
+        } else false
       }
     }) match {
       case -1 if sortedFiles.isEmpty => sortedFiles

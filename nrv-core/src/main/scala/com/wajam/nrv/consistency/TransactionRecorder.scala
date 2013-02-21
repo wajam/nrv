@@ -33,7 +33,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
   private val consistencyActor = new ConsistencyActor
   private val responseTimeout = math.max(service.responseTimeout + 2000, 15000)
-  private var currentId: Long = currentTime
+  private var currentId: Long = currentTime // Reseed at creation until a new id generation strategy is implemented
 
   def queueSize = consistencyActor.queueSize
 
@@ -45,13 +45,6 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
   def kill() {
     consistencyActor.stop()
-  }
-
-  def nextId: Long = {
-    txLog.synchronized {
-      currentId += 1
-      currentId
-    }
   }
 
   def appendMessage(message: Message) {
@@ -75,13 +68,21 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
     }
   }
 
+  // TODO: change id generation strategy to something similar to SCN timestamp generation but synchronous
+  private def nextId: Long = {
+    txLog.synchronized {
+      currentId += 1
+      currentId
+    }
+  }
+
   private[consistency] def checkPending() {
     consistencyActor !? CheckPending
   }
 
   private case class PendingTxContext(timestamp: Timestamp, token: Long, addedTime: Long, var completed: Boolean = false) {
 
-    def isReady = currentTime - addedTime > consistencyDelay
+    def isConsistent = currentTime - addedTime > consistencyDelay
 
     def isExpired = currentTime - addedTime > responseTimeout
   }
@@ -105,6 +106,8 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
       case Some(index) => index.consistentTimestamp
       case None => None
     }
+
+    // TODO: make commit frequency configurable.
     val commitScheduler = new Scheduler(this, Commit, Random.nextInt(5000), 5000, blockingMessage = true,
       autoStart = false)
     val checkPendingScheduler = new Scheduler(this, CheckPending, 100, 100, blockingMessage = true, autoStart = false)
@@ -115,8 +118,8 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
     override def start() = {
       super.start()
-        commitScheduler.start()
-        checkPendingScheduler.start()
+      commitScheduler.start()
+      checkPendingScheduler.start()
       this
     }
 
@@ -131,7 +134,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
     @tailrec
     private def checkPendingConsistency() {
       pendingTransactions.headOption match {
-        case Some((timestamp, context)) if context.isReady => {
+        case Some((timestamp, context)) if context.isConsistent => {
           // Pending head transaction is ready, remove from pending and update the consistent timestamp
           // TODO: Ensure we are not going back in time!!!
           consistentTimestamp = Some(timestamp)
