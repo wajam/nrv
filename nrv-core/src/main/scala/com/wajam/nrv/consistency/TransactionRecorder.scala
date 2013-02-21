@@ -7,7 +7,7 @@ import persistence.LogRecord.Index
 import persistence.{TransactionLog, LogRecord}
 import com.wajam.nrv.data.{MessageType, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
-import com.wajam.nrv.utils.{CurrentTime, Scheduler}
+import com.wajam.nrv.utils.{TimestampIdGenerator, CurrentTime, Scheduler}
 import util.Random
 import com.wajam.nrv.Logging
 import collection.immutable.TreeMap
@@ -33,7 +33,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
   private val consistencyActor = new ConsistencyActor
   private val responseTimeout = math.max(service.responseTimeout + 2000, 15000)
-  private var currentId: Long = currentTime // Reseed at creation until a new id generation strategy is implemented
+  private val idGenerator = new TimestampIdGenerator
 
   def queueSize = consistencyActor.queueSize
 
@@ -49,7 +49,9 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
   def appendMessage(message: Message) {
     txLog.append {
-      LogRecord(nextId, consistencyActor.consistentTimestamp, message)
+      // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
+      // the append method implementation
+      LogRecord(idGenerator.nextId, consistencyActor.consistentTimestamp, message)
     }
 
     message.function match {
@@ -64,16 +66,11 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
   private def appendIndex() {
     txLog.append {
-      Index(nextId, consistencyActor.consistentTimestamp)
+      // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
+      // the append method implementation
+      Index(idGenerator.nextId, consistencyActor.consistentTimestamp)
     }
-  }
-
-  // TODO: change id generation strategy to something similar to SCN timestamp generation but synchronous
-  private def nextId: Long = {
-    txLog.synchronized {
-      currentId += 1
-      currentId
-    }
+    txLog.commit()
   }
 
   private[consistency] def checkPending() {
@@ -272,8 +269,10 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
           }
           case Kill => {
             try {
-              txLog.commit()
-              txLog.close()
+              txLog.synchronized {
+                txLog.commit()
+                txLog.close()
+              }
               exit()
             } catch {
               case e: Exception => {
