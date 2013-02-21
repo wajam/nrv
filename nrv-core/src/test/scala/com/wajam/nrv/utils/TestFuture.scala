@@ -2,7 +2,10 @@ package com.wajam.nrv.utils
 
 import org.scalatest.FunSuite
 import com.wajam.nrv.TimeoutException
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class TestFuture extends FunSuite {
 
   test("future method runs a block on a seperate thread and complete a future when done") {

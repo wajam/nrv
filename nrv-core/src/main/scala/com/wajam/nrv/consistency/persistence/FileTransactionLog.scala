@@ -92,24 +92,22 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   /**
    * Returns the most recent consistent timestamp written on the log storage.
    */
-  def getLastLoggedIndex = {
-    this.synchronized {
-      // Read the last timestamp from the last file. If the file is empty, do the same same the previous one and so on
-      // until a timestamp is found.
-      var result: Option[Index] = None
-      getLogFiles().toList.reverse.find(file => {
-        val fileIndex = getIndexFromName(file.getName)
-        read(Some(fileIndex.id), fileIndex.consistentTimestamp).toIterable.lastOption match {
-          case Some(record) => {
-            result = Some(record)
-            true
-          }
-          case _ => false
+  def getLastLoggedIndex = synchronized {
+    // Read the last timestamp from the last file. If the file is empty, do the same same the previous one and so on
+    // until a timestamp is found.
+    var result: Option[Index] = None
+    getLogFiles().toList.reverse.find(file => {
+      val fileIndex = getIndexFromName(file.getName)
+      read(Some(fileIndex.id), fileIndex.consistentTimestamp).toIterable.lastOption match {
+        case Some(record) => {
+          result = Some(record)
+          true
         }
-      })
+        case _ => false
+      }
+    })
 
-      result
-    }
+    result
   }
 
   /**
@@ -335,7 +333,6 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         case (None, Some(ts)) => record.consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) < ts
         case (Some(id), timestamp) => {
           if (record.id == id) {
-            // TODO: Should we simply ignore timestamp or MUST absolutly be equals?
             require(record.consistentTimestamp == timestamp)
           }
           record.id < id

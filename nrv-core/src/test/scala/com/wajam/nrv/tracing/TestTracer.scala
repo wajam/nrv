@@ -162,7 +162,7 @@ class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
       val parent = tracer.currentContext
       evaluating {
-        val child = TraceContext(idGenerator.createId, idGenerator.createId, None)
+        val child = TraceContext(idGenerator.nextId, idGenerator.nextId, None)
         tracer.trace(Some(child)) {
           fail("Must not be called!")
         }
