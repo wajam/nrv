@@ -8,11 +8,36 @@ package com.wajam.nrv.data
 sealed trait MValue
 
 sealed case class MList(values: Iterable[MValue]) extends MValue
-sealed case class MString(value: String) extends MValue
-sealed case class MLong(value: Long) extends MValue
-sealed case class MInt(value: Int) extends MValue
-sealed case class MDouble(value: Double) extends MValue
-sealed case class MBoolean(value: Boolean) extends MValue
+
+sealed case class MString(value: String) extends MValue {
+  override def toString() = {
+    value.toString
+  }
+}
+
+sealed case class MLong(value: Long) extends MValue {
+  override def toString() = {
+    value.toString
+  }
+}
+
+sealed case class MInt(value: Int) extends MValue {
+  override def toString() = {
+    value.toString
+  }
+}
+
+sealed case class MDouble(value: Double) extends MValue {
+  override def toString() = {
+    value.toString
+  }
+}
+sealed case class MBoolean(value: Boolean) extends MValue {
+  override def toString() = {
+    value.toString
+  }
+}
+
 sealed case class MMigrationCatchAll(value: Any) extends MValue // TODO: PBMigration Remove
 
 object MValue {
