@@ -13,7 +13,7 @@ sealed case class MLong(value: Long) extends MValue
 sealed case class MInt(value: Int) extends MValue
 sealed case class MDouble(value: Double) extends MValue
 sealed case class MBoolean(value: Boolean) extends MValue
-sealed case class MMigrationCatchAll(values: Any) extends MValue // TODO: PBMigration Remove
+sealed case class MMigrationCatchAll(value: Any) extends MValue // TODO: PBMigration Remove
 
 object MValue {
 
