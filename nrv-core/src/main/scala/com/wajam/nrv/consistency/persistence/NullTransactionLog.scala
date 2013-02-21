@@ -7,7 +7,9 @@ object NullTransactionLog extends TransactionLog {
 
   def getLastLoggedIndex = None
 
-  def append(record: LogRecord) {}
+  def append(block: => LogRecord): LogRecord = {
+    block
+  }
 
   def read(id: Option[Long], consistentTimestamp: Option[Timestamp]) = NullTransactionLogIterator
 

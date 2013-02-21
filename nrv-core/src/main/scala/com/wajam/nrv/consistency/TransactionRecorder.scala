@@ -55,8 +55,8 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
   }
 
   def appendMessage(message: Message) {
-    txLog.synchronized {
-      txLog.append(LogRecord(nextId, consistencyActor.consistentTimestamp, message))
+    txLog.append {
+      LogRecord(nextId, consistencyActor.consistentTimestamp, message)
     }
 
     message.function match {
@@ -70,8 +70,8 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
   }
 
   private def appendIndex() {
-    txLog.synchronized {
-      txLog.append(Index(nextId, consistencyActor.consistentTimestamp))
+    txLog.append {
+      Index(nextId, consistencyActor.consistentTimestamp)
     }
   }
 

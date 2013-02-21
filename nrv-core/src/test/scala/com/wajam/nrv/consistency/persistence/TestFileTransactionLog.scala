@@ -139,7 +139,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
   test("should append new record") {
     Range(0, 10).foreach(i => {
-      fileTxLog.append(Request(i, None, createRequestMessage(i)))
+      fileTxLog.append(LogRecord(id = i, None, createRequestMessage(timestamp = i)))
     })
 
     val files = logDir.list()
@@ -159,17 +159,13 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   test("should append to non empty log directory") {
-    val r1 = LogRecord(id = 74, None, createRequestMessage(timestamp = 74))
-    val r2 = LogRecord(id = 4321, None, createRequestMessage(timestamp = 4321))
-    val r3 = LogRecord(id = 9999, Some(2000), createRequestMessage(timestamp = 9999))
-
-    fileTxLog.append(r1)
-    fileTxLog.append(r2)
+    val r1 = fileTxLog.append(LogRecord(id = 74, None, createRequestMessage(timestamp = 74)))
+    val r2 = fileTxLog.append(LogRecord(id = 4321, None, createRequestMessage(timestamp = 4321)))
     fileTxLog.commit()
     fileTxLog.close()
 
     fileTxLog = createFileTransactionLog()
-    fileTxLog.append(r3)
+    val r3 = fileTxLog.append(LogRecord(id = 9999, Some(2000), createRequestMessage(timestamp = 9999)))
     fileTxLog.commit()
 
     val files = logDir.list().sorted
@@ -180,29 +176,25 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   test("should fail when trying to append out of order id") {
-    val r1 = LogRecord(id = 100, None, createRequestMessage(timestamp = 150))
-    val r2 = LogRecord(id = 99, None, createRequestMessage(timestamp = 151)) // Bad
-    val r3 = LogRecord(id = 101, None, createRequestMessage(timestamp = 152))
-    val logFile = new File(logDir, fileTxLog.getNameFromIndex(r1))
-
-    fileTxLog.append(r1)
+    val r1 = fileTxLog.append(LogRecord(id = 100, None, createRequestMessage(timestamp = 150)))
     fileTxLog.commit()
+    val logFile = new File(logDir, fileTxLog.getNameFromIndex(r1))
     val fileLenAfterRecord1 = logFile.length()
     fileLenAfterRecord1 should be > 0L
 
-    // Append a record with consistent timestamp not matching
+    // Append a record with id less than previous record
     evaluating {
-      fileTxLog.append(r2)
+      fileTxLog.append(LogRecord(id = 99, None, createRequestMessage(timestamp = 151)))
     } should produce[IllegalArgumentException]
     fileTxLog.commit()
     logFile.length() should be(fileLenAfterRecord1)
 
-    fileTxLog.append(r3)
+    val r2 = fileTxLog.append(LogRecord(id = 101, None, createRequestMessage(timestamp = 152)))
     fileTxLog.commit()
     logFile.length() should be > fileLenAfterRecord1
 
     val actualrecords = fileTxLog.read().toList
-    actualrecords should be (List(r1, r3))
+    actualrecords should be (List(r1, r2))
   }
 
   test("should fail when trying to append out of order consistent timestamp") {
@@ -303,14 +295,15 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   test("multiple roll log calls between append should not fail") {
-    fileTxLog.append(LogRecord(id = 100, None, createRequestMessage(timestamp = 0)))
+    val r1 = fileTxLog.append(LogRecord(id = 100, None, createRequestMessage(timestamp = 0)))
     fileTxLog.rollLog()
     fileTxLog.rollLog()
     fileTxLog.rollLog()
-    fileTxLog.append(LogRecord(id = 101, None, createRequestMessage(timestamp = 1)))
+    val r2 = fileTxLog.append(LogRecord(id = 101, None, createRequestMessage(timestamp = 1)))
 
     val files = logDir.list().sorted
     files should be(Array("service-0000001000-100:.log", "service-0000001000-101:.log"))
+    fileTxLog.read().toList should be(List(r1, r2))
   }
 
   ignore("should automatically roll log file at a given size threshold") {
@@ -353,42 +346,29 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   test("should read all transactions when no position specified") {
-    val r0 = LogRecord(id = 0, Some(100), createRequestMessage(timestamp = 1000))
-    val r1 = LogRecord(id = 1, Some(200), createRequestMessage(timestamp = 1001))
-    val r2 = LogRecord(id = 2, Some(300), createRequestMessage(timestamp = 1002))
-    fileTxLog.append(r0)
-    fileTxLog.append(r1)
-    fileTxLog.append(r2)
+    val r1 = fileTxLog.append(LogRecord(id = 0, Some(100), createRequestMessage(timestamp = 1000)))
+    val r2 = fileTxLog.append(LogRecord(id = 1, Some(200), createRequestMessage(timestamp = 1001)))
+    val r3 = fileTxLog.append(LogRecord(id = 2, Some(300), createRequestMessage(timestamp = 1002)))
     fileTxLog.commit()
 
     // Validate starting from begining
     val actualRecords = fileTxLog.read().toList
-    actualRecords should be (List(r0, r1, r2))
+    actualRecords should be (List(r1, r2, r3))
   }
 
   test("should read transactions from specified consistent timestamp") {
-    val r0 = LogRecord(id = 0, Some(100), createRequestMessage(timestamp = 1000))
-    val r1 = LogRecord(id = 1, Some(200), createRequestMessage(timestamp = 1001))
-    val r2 = LogRecord(id = 2, Some(300), createRequestMessage(timestamp = 1002))
-    val r3 = LogRecord(id = 3, Some(400), createRequestMessage(timestamp = 1003))
-    val r4 = LogRecord(id = 4, Some(599), createRequestMessage(timestamp = 1004))
-    val r5 = LogRecord(id = 5, Some(600), createRequestMessage(timestamp = 1005))
-    val r6 = LogRecord(id = 6, Some(600), createRequestMessage(timestamp = 1006))
-    val r7 = LogRecord(id = 7, Some(601), createRequestMessage(timestamp = 1007))
-    val r8 = LogRecord(id = 8, Some(601), createRequestMessage(timestamp = 1008))
-    val r9 = LogRecord(id = 9, Some(700), createRequestMessage(timestamp = 1009))
-    fileTxLog.append(r0)
-    fileTxLog.append(r1)
-    fileTxLog.append(r2)
-    fileTxLog.append(r3)
+    val r0 = fileTxLog.append(LogRecord(id = 0, Some(100), createRequestMessage(timestamp = 1000)))
+    val r1 = fileTxLog.append(LogRecord(id = 1, Some(200), createRequestMessage(timestamp = 1001)))
+    val r2 = fileTxLog.append(LogRecord(id = 2, Some(300), createRequestMessage(timestamp = 1002)))
+    val r3 = fileTxLog.append(LogRecord(id = 3, Some(400), createRequestMessage(timestamp = 1003)))
     fileTxLog.rollLog()
-    fileTxLog.append(r4)
-    fileTxLog.append(r5)
-    fileTxLog.append(r6)
-    fileTxLog.append(r7)
+    val r4 = fileTxLog.append(LogRecord(id = 4, Some(599), createRequestMessage(timestamp = 1004)))
+    val r5 = fileTxLog.append(LogRecord(id = 5, Some(600), createRequestMessage(timestamp = 1005)))
+    val r6 = fileTxLog.append(LogRecord(id = 6, Some(600), createRequestMessage(timestamp = 1006)))
+    val r7 = fileTxLog.append(LogRecord(id = 7, Some(601), createRequestMessage(timestamp = 1007)))
     fileTxLog.rollLog()
-    fileTxLog.append(r8)
-    fileTxLog.append(r9)
+    val r8 = fileTxLog.append(LogRecord(id = 8, Some(601), createRequestMessage(timestamp = 1008)))
+    val r9 = fileTxLog.append(LogRecord(id = 9, Some(700), createRequestMessage(timestamp = 1009)))
     fileTxLog.commit()
 
     // Validate starting at consistent timestamp 600
@@ -400,28 +380,18 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   test("should read transactions from specified id AND consistent timestamp") {
-    val r0 = LogRecord(id = 0, Some(100), createRequestMessage(timestamp = 1000))
-    val r1 = LogRecord(id = 1, Some(200), createRequestMessage(timestamp = 1001))
-    val r2 = LogRecord(id = 2, Some(300), createRequestMessage(timestamp = 1002))
-    val r3 = LogRecord(id = 3, Some(400), createRequestMessage(timestamp = 1003))
-    val r4 = LogRecord(id = 4, Some(599), createRequestMessage(timestamp = 1004))
-    val r5 = LogRecord(id = 5, Some(600), createRequestMessage(timestamp = 1005))
-    val r6 = LogRecord(id = 6, Some(600), createRequestMessage(timestamp = 1006))
-    val r7 = LogRecord(id = 7, Some(601), createRequestMessage(timestamp = 1007))
-    val r8 = LogRecord(id = 8, Some(601), createRequestMessage(timestamp = 1008))
-    val r9 = LogRecord(id = 9, Some(700), createRequestMessage(timestamp = 1009))
-    fileTxLog.append(r0)
-    fileTxLog.append(r1)
-    fileTxLog.append(r2)
-    fileTxLog.append(r3)
+    val r0 = fileTxLog.append(LogRecord(id = 0, Some(100), createRequestMessage(timestamp = 1000)))
+    val r1 = fileTxLog.append(LogRecord(id = 1, Some(200), createRequestMessage(timestamp = 1001)))
+    val r2 = fileTxLog.append(LogRecord(id = 2, Some(300), createRequestMessage(timestamp = 1002)))
+    val r3 = fileTxLog.append(LogRecord(id = 3, Some(400), createRequestMessage(timestamp = 1003)))
     fileTxLog.rollLog()
-    fileTxLog.append(r4)
-    fileTxLog.append(r5)
-    fileTxLog.append(r6)
-    fileTxLog.append(r7)
+    val r4 = fileTxLog.append(LogRecord(id = 4, Some(599), createRequestMessage(timestamp = 1004)))
+    val r5 = fileTxLog.append(LogRecord(id = 5, Some(600), createRequestMessage(timestamp = 1005)))
+    val r6 = fileTxLog.append(LogRecord(id = 6, Some(600), createRequestMessage(timestamp = 1006)))
+    val r7 = fileTxLog.append(LogRecord(id = 7, Some(601), createRequestMessage(timestamp = 1007)))
     fileTxLog.rollLog()
-    fileTxLog.append(r8)
-    fileTxLog.append(r9)
+    val r8 = fileTxLog.append(LogRecord(id = 8, Some(601), createRequestMessage(timestamp = 1008)))
+    val r9 = fileTxLog.append(LogRecord(id = 9, Some(700), createRequestMessage(timestamp = 1009)))
     fileTxLog.commit()
 
     val allRecords = List(r0, r1, r2, r3, r4, r5, r6, r7, r8, r9)
@@ -490,17 +460,12 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   test("read corrupted transaction event stop at corrupted tx") {
-    val r1 = LogRecord(id = 1, None, createRequestMessage(timestamp = 1000))
-    val r2 = LogRecord(id = 2, None, createRequestMessage(timestamp = 1001))
-    val r3 = LogRecord(id = 3, None, createRequestMessage(timestamp = 1002))
-    val r4 = LogRecord(id = 4, None, createRequestMessage(timestamp = 1003))
-    val r5 = LogRecord(id = 5, None, createRequestMessage(timestamp = 1004))
-    fileTxLog.append(r1)
-    fileTxLog.append(r2)
-    fileTxLog.append(r3)
-    fileTxLog.append(r4)
+    val r1 = fileTxLog.append(LogRecord(id = 1, None, createRequestMessage(timestamp = 1000)))
+    val r2 = fileTxLog.append(LogRecord(id = 2, None, createRequestMessage(timestamp = 1001)))
+    val r3 = fileTxLog.append(LogRecord(id = 3, None, createRequestMessage(timestamp = 1002)))
+    val r4 = fileTxLog.append(LogRecord(id = 4, None, createRequestMessage(timestamp = 1003)))
     fileTxLog.rollLog()
-    fileTxLog.append(r5)
+    val r5 = fileTxLog.append(LogRecord(id = 5, None, createRequestMessage(timestamp = 1004)))
     fileTxLog.commit()
 
     // Fail deserialization of the fourth transaction
@@ -512,13 +477,10 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   test("read corrupted transaction file header should stop reading at currupted file") {
-    val r1 = LogRecord(id = 10, None, createRequestMessage(timestamp = 1000))
-    val r2 = LogRecord(id = 20, None, createRequestMessage(timestamp = 1001))
-    val r3 = LogRecord(id = 30, None, createRequestMessage(timestamp = 1002))
-    fileTxLog.append(r1)
-    fileTxLog.append(r2)
+    val r1 = fileTxLog.append(LogRecord(id = 10, None, createRequestMessage(timestamp = 1000)))
+    val r2 = fileTxLog.append(LogRecord(id = 20, None, createRequestMessage(timestamp = 1001)))
     fileTxLog.rollLog()
-    fileTxLog.append(r3)
+    val r3 = fileTxLog.append(LogRecord(id = 30, None, createRequestMessage(timestamp = 1002)))
     fileTxLog.commit()
 
     // Create a log file between record2 and record3 with random content
@@ -552,8 +514,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     }
 
     // Create a valid log file with a single record.
-    val record = LogRecord(id = 10, None, createRequestMessage(timestamp = 1000))
-    fileTxLog.append(record)
+    val record = fileTxLog.append(LogRecord(id = 10, None, createRequestMessage(timestamp = 1000)))
     fileTxLog.commit()
 
     // Ensure we can successfully create a log file with valid header
@@ -584,15 +545,15 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.append(LogRecord(id = 4, Some(2000), createRequestMessage(timestamp = 2000)))
     fileTxLog.rollLog()
     fileTxLog.append(LogRecord(id = 999, Some(2000), createRequestMessage(timestamp = 2001)))
-    fileTxLog.append(LogRecord(id = 9999, Some(2000), createRequestMessage(timestamp = 2002)))
+    val last: Index = fileTxLog.append(LogRecord(id = 9999, Some(2000), createRequestMessage(timestamp = 2002)))
     fileTxLog.commit()
 
-    fileTxLog.getLastLoggedIndex should be(Some(Index(id = 9999, Option(2000))))
+    fileTxLog.getLastLoggedIndex should be(Some(last))
 
     // Close and try with a brand new instance
     fileTxLog.close()
     fileTxLog = createFileTransactionLog()
-    fileTxLog.getLastLoggedIndex should be(Some(Index(id = 9999, Option(2000))))
+    fileTxLog.getLastLoggedIndex should be(Some(last))
   }
 
   test("the last logged index should be None when there are no log files") {
@@ -600,7 +561,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   test("should get the last logged index even if last log file is empty") {
-    fileTxLog.append(LogRecord(id = 100, None, createRequestMessage(timestamp = 0)))
+    val last: Index = fileTxLog.append(LogRecord(id = 100, None, createRequestMessage(timestamp = 0)))
     fileTxLog.commit()
 
     // Create an empty log file
@@ -610,12 +571,12 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val actualFiles = logDir.list().sorted
     actualFiles should be(expectedFiles)
 
-    fileTxLog.getLastLoggedIndex should be(Some(Index(100, None)))
+    fileTxLog.getLastLoggedIndex should be(Some(last))
 
     // Close and try with a brand new instance
     fileTxLog.close()
     fileTxLog = createFileTransactionLog()
-    fileTxLog.getLastLoggedIndex should be(Some(Index(100, None)))
+    fileTxLog.getLastLoggedIndex should be(Some(last))
   }
 
   test("should get the last logged index even if last log file contains file header only") {
