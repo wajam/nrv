@@ -17,7 +17,7 @@ class TestSynchronizedIdGenerator extends FunSuite {
     }
   }
 
-  test("concurent calls should get duplicates without synchronized") {
+  ignore("concurent calls should get duplicates without synchronized") {
     val generator = new SequenceIdGenerator
     val iterations = 20000
 
