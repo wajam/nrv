@@ -17,12 +17,12 @@ class TestSynchronizedIdGenerator extends FunSuite {
     }
   }
 
-  test("concurent calls should get duplicates without synchronized") {
+  ignore("concurent calls should get duplicates without synchronized") {
     val generator = new SequenceIdGenerator
-    val iterations = 500
+    val iterations = 20000
 
     // Generate ids concurently
-    val workers = 0.to(5).map(_ => Future.future({
+    val workers = 0.to(15).map(_ => Future.future({
       for (i <- 1 to iterations) yield generator.nextId
     }))
 
@@ -33,10 +33,10 @@ class TestSynchronizedIdGenerator extends FunSuite {
 
   test("concurent calls should not get any duplicates") {
     val generator = new SequenceIdGenerator with SynchronizedIdGenerator[Int]
-    val iterations = 500
+    val iterations = 20000
 
     // Generate ids concurently
-    val workers = 0.to(5).map(_ => Future.future({
+    val workers = 0.to(15).map(_ => Future.future({
       for (i <- 1 to iterations) yield generator.nextId
     }))
 
