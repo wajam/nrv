@@ -64,12 +64,12 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               // Iniatialize transaction recorder for local service member going up
               info("Iniatialize transaction recorders for {}", event.member)
               val txLog = if (txLogEnabled) {
-                new FileTransactionLog(service.name, event.member.token, txLogDir, validateTimestamp = true)
+                new FileTransactionLog(service.name, event.member.token, txLogDir)
               } else {
                 NullTransactionLog
               }
               val recorder = new TransactionRecorder(service, event.member, txLog,
-                appendDelay = timestampGenerator.responseTimeout + 1000)
+                consistencyDelay = timestampGenerator.responseTimeout + 1000)
               recorders += (event.member -> recorder)
               recorder.start()
             }
@@ -195,7 +195,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       member => cluster.isLocalNode(member.node)).flatMap(recorders.get(_))
     recorderOpt match {
       case Some(recorder) => {
-        recorder.handleMessage(message)
+        recorder.appendMessage(message)
       }
       case _ => {
         recorderNotFound.mark()

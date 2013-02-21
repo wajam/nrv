@@ -35,4 +35,6 @@ object Timestamp {
   def apply(t: Timestamp): Timestamp = new Timestamp {
     val value = t.value
   }
+
+  implicit def long2Timestamp(l: Long) = Timestamp(l)
 }
