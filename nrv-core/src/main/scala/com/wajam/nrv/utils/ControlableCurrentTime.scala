@@ -10,7 +10,7 @@ trait ControlableCurrentTime extends CurrentTime {
 
   override def currentTime = value
 
-  def currentTime_=(newValue: Long) {
+  def currentTime_=(newValue: => Long) {
     value = newValue
   }
 

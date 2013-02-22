@@ -113,9 +113,9 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   /**
    * Appends the specified record to the transaction log
    */
-  def append(block: => LogRecord): LogRecord = {
+  def append[T <: LogRecord](block: => T): T = {
 
-    def validateRecord(record: LogRecord) {
+    def validateRecord(record: T) {
       lastIndex match {
         case Some(Index(lastId, lastTimestampOpt)) => {
           // Ensure record id is > than last index id
@@ -140,7 +140,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
     appendTimer.time {
       this.synchronized {
-        val record: LogRecord = block
+        val record: T = block
         validateRecord(record)
 
         // Write the transaction event into the open log file

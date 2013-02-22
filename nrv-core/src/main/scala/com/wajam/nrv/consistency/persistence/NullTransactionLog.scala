@@ -7,7 +7,7 @@ object NullTransactionLog extends TransactionLog {
 
   def getLastLoggedIndex = None
 
-  def append(block: => LogRecord): LogRecord = {
+  def append[T <: LogRecord](block: => T): T = {
     block
   }
 

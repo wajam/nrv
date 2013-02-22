@@ -11,6 +11,7 @@ import util.Random
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.consistency.persistence.LogRecord.Index
+import com.wajam.nrv.consistency.TestTransactionBase
 
 @RunWith(classOf[JUnitRunner])
 class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {

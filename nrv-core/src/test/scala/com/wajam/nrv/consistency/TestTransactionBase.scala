@@ -1,9 +1,8 @@
-package com.wajam.nrv.consistency.persistence
+package com.wajam.nrv.consistency
 
 import org.scalatest.FunSuite
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
-import com.wajam.nrv.consistency.Consistency
 
 abstract class TestTransactionBase extends FunSuite {
 
