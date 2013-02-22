@@ -17,7 +17,8 @@ import persistence.{NullTransactionLog, FileTransactionLog}
  * - Extends ConsistencyOne until real master/slave consistency is implemented.
  * - Support binding to a single service. The service must extends ConsistentStore.
  */
-class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean)
+class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
+                             txLogRolloverSize: Int = 50000000)
   extends ConsistencyOne with Instrumented {
 
   import Consistency._
@@ -64,7 +65,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               // Iniatialize transaction recorder for local service member going up
               info("Iniatialize transaction recorders for {}", event.member)
               val txLog = if (txLogEnabled) {
-                new FileTransactionLog(service.name, event.member.token, txLogDir)
+                new FileTransactionLog(service.name, event.member.token, txLogDir, txLogRolloverSize)
               } else {
                 NullTransactionLog
               }

@@ -10,7 +10,7 @@ import org.mockito.Mockito._
 import util.Random
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.consistency.persistence.LogRecord.{Request, Index}
+import com.wajam.nrv.consistency.persistence.LogRecord.Index
 
 @RunWith(classOf[JUnitRunner])
 class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
@@ -36,8 +36,8 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   def createFileTransactionLog(service: String = "service", token: Long = 1000,
-                               dir: String = logDir.getAbsolutePath) = {
-    new FileTransactionLog(service, token, dir, spySerializer)
+                               dir: String = logDir.getAbsolutePath, fileRolloverSize: Int = 0) = {
+    new FileTransactionLog(service, token, dir, fileRolloverSize = fileRolloverSize, serializer = spySerializer)
   }
 
   test("should get proper index from log name") {
@@ -134,7 +134,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fakeLogDir.isDirectory should be(false)
 
     val txLog = createFileTransactionLog(dir = fakeLogDir.getAbsolutePath)
-    txLog.getLastLoggedIndex should be (None)
+    txLog.getLastLoggedIndex should be(None)
   }
 
   test("should append new record") {
@@ -153,7 +153,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     val it = fileTxLog.read()
     it.hasNext should be(true)
-    it.next() should be (record)
+    it.next() should be(record)
     it.hasNext should be(false)
     it.close()
   }
@@ -172,7 +172,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     files should be(Array("service-0000001000-74:.log", "service-0000001000-9999:2000.log"))
 
     val actualRecords = fileTxLog.read().toList
-    actualRecords should be (List(r1, r2, r3))
+    actualRecords should be(List(r1, r2, r3))
   }
 
   test("should fail when trying to append out of order id") {
@@ -194,7 +194,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     logFile.length() should be > fileLenAfterRecord1
 
     val actualrecords = fileTxLog.read().toList
-    actualrecords should be (List(r1, r2))
+    actualrecords should be(List(r1, r2))
   }
 
   test("should fail when trying to append out of order consistent timestamp") {
@@ -220,7 +220,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     logFile.length() should be > fileLenAfterRecord1
 
     val actualrecords = fileTxLog.read().toList
-    actualrecords should be (List(r1, r3))
+    actualrecords should be(List(r1, r3))
   }
 
   test("should fail when trying to append no consistent timestamp after a valid consistent timestamp") {
@@ -246,7 +246,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     logFile.length() should be > fileLenAfterRecord1
 
     val actualrecords = fileTxLog.read().toList
-    actualrecords should be (List(r1, r3))
+    actualrecords should be(List(r1, r3))
   }
 
   test("should not corrupt transaction log when append fail due to transaction event persistence error") {
@@ -275,7 +275,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     logFile.length() should be > fileLenAfterRecord1
 
     val actualRecords = fileTxLog.read().toList
-    actualRecords should be (List(r1, r3))
+    actualRecords should be(List(r1, r3))
   }
 
   ignore("append from a new instance when an empty log file with the same name exist") {
@@ -306,8 +306,38 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.read().toList should be(List(r1, r2))
   }
 
-  ignore("should automatically roll log file at a given size threshold") {
-    fail("Not implemented yet!")
+  test("should automatically roll log file at a given size threshold") {
+    val index = fileTxLog.append(Index(id = 100, None))
+    val logFile = new File(logDir, fileTxLog.getNameFromIndex(index))
+    val indexLen = logFile.length()
+
+    // Compute file size required to rollover after appending an Index, a Request and 3 more Request records
+    val r1 = fileTxLog.append(LogRecord(id = 101, None, createRequestMessage(timestamp = 1)))
+    fileTxLog.commit()
+    val setupLen = logFile.length()
+    val recordLen = setupLen - indexLen
+    val rolloverSize = setupLen + recordLen * 3 - recordLen / 2
+
+    // Recreate transaction log with computed rollover size
+    fileTxLog.close()
+    logFile.delete()
+    logFile.exists() should be(false)
+    fileTxLog = createFileTransactionLog(fileRolloverSize = rolloverSize.toInt)
+    fileTxLog.append(index)
+    fileTxLog.append(r1)
+    logFile.length() should be(setupLen)
+
+    // Add 4 Request records, should rollover AFTER the 3rd
+    fileTxLog.append(LogRecord(id = 201, None, createRequestMessage(timestamp = 11)))
+    logDir.list().size should be(1)
+    fileTxLog.append(LogRecord(id = 202, None, createRequestMessage(timestamp = 12)))
+    logDir.list().size should be(1)
+    fileTxLog.append(LogRecord(id = 203, None, createRequestMessage(timestamp = 13)))
+    fileTxLog.commit()
+    logDir.list().size should be(1)
+    logFile.length() should be > rolloverSize
+    fileTxLog.append(LogRecord(id = 204, None, createRequestMessage(timestamp = 14)))
+    logDir.list().sorted should be(Array("service-0000001000-100:.log", "service-0000001000-204:.log"))
   }
 
   test("should read transactions from specified id") {
@@ -329,7 +359,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val it = fileTxLog.read(id = Some(5))
     5.until(10).foreach(i => {
       it.hasNext should be(true)
-      it.next() should be (LogRecord(id = i, None, createRequestMessage(timestamp = i)))
+      it.next() should be(LogRecord(id = i, None, createRequestMessage(timestamp = i)))
     })
     it.hasNext should be(false)
     it.close()
@@ -338,11 +368,11 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     0.until(10).foreach(i => {
       val expectedRecords = i.until(10).map(i => LogRecord(id = i, None, createRequestMessage(timestamp = i))).toList
       val actualRecords = fileTxLog.read(id = Some(i)).toList
-      actualRecords should be (expectedRecords)
+      actualRecords should be(expectedRecords)
     })
 
     // Validate starting beyond end
-    fileTxLog.read(id = Some(9999)).toList should be (List())
+    fileTxLog.read(id = Some(9999)).toList should be(List())
   }
 
   test("should read all transactions when no position specified") {
@@ -353,7 +383,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     // Validate starting from begining
     val actualRecords = fileTxLog.read().toList
-    actualRecords should be (List(r1, r2, r3))
+    actualRecords should be(List(r1, r2, r3))
   }
 
   test("should read transactions from specified consistent timestamp") {
@@ -373,10 +403,10 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     // Validate starting at consistent timestamp 600
     val actualRecords = fileTxLog.read(consistentTimestamp = Some(600)).toList
-    actualRecords should be (List(r5, r6, r7, r8, r9))
+    actualRecords should be(List(r5, r6, r7, r8, r9))
 
     // Validate starting beyond end
-    fileTxLog.read(consistentTimestamp = Some(9999)).toList should be (List())
+    fileTxLog.read(consistentTimestamp = Some(9999)).toList should be(List())
   }
 
   test("should read transactions from specified id AND consistent timestamp") {
@@ -400,11 +430,11 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     0.until(10).foreach(i => {
       val expectedRecords = allRecords.slice(i, allRecords.size)
       val actualRecords = fileTxLog.read(id = Some(i)).toList
-      actualRecords should be (expectedRecords)
+      actualRecords should be(expectedRecords)
     })
 
     // Validate starting beyond end
-    fileTxLog.read(id = Some(9999), consistentTimestamp = Some(9999)).toList should be (List())
+    fileTxLog.read(id = Some(9999), consistentTimestamp = Some(9999)).toList should be(List())
   }
 
   test("read should skip empty log files") {
@@ -456,7 +486,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     actualFiles should be(expectedFiles)
 
     val actualRecords = fileTxLog.read().toList
-    actualRecords should be (List(r1, r2, r4))
+    actualRecords should be(List(r1, r2, r4))
   }
 
   test("read corrupted transaction event stop at corrupted tx") {
@@ -473,7 +503,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     // Start at second transaction
     val actualRecords = fileTxLog.read(id = Some(2)).toList
-    actualRecords should be (List(r2, r3))
+    actualRecords should be(List(r2, r3))
   }
 
   test("read corrupted transaction file header should stop reading at currupted file") {
@@ -493,7 +523,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     actualFiles should be(expectedFiles)
 
     val actualRecords = fileTxLog.read().toList
-    actualRecords should be (List(r1, r2))
+    actualRecords should be(List(r1, r2))
   }
 
   test("read transaction file with invalid header values") {

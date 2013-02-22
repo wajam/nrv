@@ -57,7 +57,7 @@ import java.nio.ByteBuffer
  *
  * </pre></blockquote>
  */
-class FileTransactionLog(val service: String, val token: Long, val logDir: String,
+class FileTransactionLog(val service: String, val token: Long, val logDir: String, fileRolloverSize: Int = 0,
                          serializer: LogRecordSerializer = new LogRecordSerializer)
   extends TransactionLog with Logging with Instrumented {
 
@@ -146,6 +146,15 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         // Write the transaction event into the open log file
         writeRecord(logStream.getOrElse(openNewLogFile(record)), record)
         lastIndex = Some(record)
+
+        // Roll log if needed
+        if (fileRolloverSize > 0) {
+          logStream match {
+            case Some(out) if (out.size >= fileRolloverSize) => rollLog()
+            case _ => // No need to roll
+          }
+        }
+
         record
       }
     }
