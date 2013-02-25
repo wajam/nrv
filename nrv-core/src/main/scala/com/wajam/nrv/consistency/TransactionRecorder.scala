@@ -14,11 +14,13 @@ import collection.immutable.TreeMap
 import annotation.tailrec
 
 class TransactionRecorder(val service: Service, val member: ServiceMember, txLog: TransactionLog,
-                          consistencyDelay: Long, idGenerator: IdGenerator[Long] = new TimestampIdGenerator)
+                          consistencyDelay: Long, commitFrequency: Int,
+                          idGenerator: IdGenerator[Long] = new TimestampIdGenerator)
   extends CurrentTime with Instrumented with Logging {
 
   lazy private val consistencyError = metrics.meter("consistency-error", "consistency-error")
   lazy private val consistencyErrorDuplicate = metrics.meter("consistency-error-duplicate", "consistency-error-duplicate")
+  lazy private val consistencyErrorAppend = metrics.meter("consistency-error-append", "consistency-error-append")
   lazy private val consistencyErrorRequest = metrics.meter("consistency-error-request", "consistency-error-request")
   lazy private val consistencyErrorResponse = metrics.meter("consistency-error-response", "consistency-error-response")
   lazy private val consistencyErrorUnexpectedResponse = metrics.meter("consistency-error-unexpected-response",
@@ -59,12 +61,23 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
   }
 
   private def appendRequest(message: Message) {
-    // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
-    // the append method implementation
-    val request = txLog.append {
-      Request(idGenerator.nextId, consistencyActor.consistentTimestamp, message)
+    try {
+      // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
+      // the append method implementation
+      val request = txLog.append {
+        Request(idGenerator.nextId, consistencyActor.consistentTimestamp, message)
+      }
+      consistencyActor ! RequestAppended(request)
+    } catch {
+      case e: Exception => {
+        consistencyErrorAppend.mark()
+        error("Error appending request message {}. ", message, e)
+        raiseConsistencyError()
+
+        // Throw the exception to the caller to prevent the request execution to continue.
+        throw new ConsistencyException
+      }
     }
-    consistencyActor ! RequestAppended(request)
   }
 
   private def appendResponse(message: Message) {
@@ -90,9 +103,11 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
       }
     } catch {
       case e: Exception => {
-        consistencyErrorResponse.mark()
+        consistencyErrorAppend.mark()
         error("Error appending response message {}. ", message, e)
         raiseConsistencyError()
+
+        message.error = Some(new ConsistencyException)
       }
     }
   }
@@ -112,10 +127,6 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
     consistencyError.mark()
 
     // TODO: fail the current service member
-
-    // Removes all pending requests to prevent further timeouts. This will generate many unexpected response but this
-    // is not really an issue as from this point the service member should go down.
-    //    pendingTransactions = new TreeMap() // TODO: review if this is necessary
   }
 
   private[consistency] def checkPending() {
@@ -149,9 +160,8 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
       case None => None
     }
 
-    // TODO: make commit frequency configurable.
-    val commitScheduler = new Scheduler(this, Commit, Random.nextInt(5000), 5000, blockingMessage = true,
-      autoStart = false)
+    val commitScheduler = new Scheduler(this, Commit, if (commitFrequency > 0) Random.nextInt(commitFrequency) else 0,
+      commitFrequency, blockingMessage = true, autoStart = false)
     val checkPendingScheduler = new Scheduler(this, CheckPending, 100, 100, blockingMessage = true, autoStart = false)
 
     def queueSize = mailboxSize
@@ -160,7 +170,9 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
     override def start() = {
       super.start()
-      commitScheduler.start()
+      if (commitFrequency > 0) {
+        commitScheduler.start()
+      }
       checkPendingScheduler.start()
       this
     }
@@ -171,6 +183,9 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
       this !? Kill
     }
 
+    /**
+     * Verify pending transaction consistency and update the current consistent timestamp
+     */
     @tailrec
     private def checkPendingConsistency() {
       pendingTransactions.headOption match {
@@ -266,17 +281,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
           }
           case CheckPending => {
             try {
-              // Verify pending transaction consistency and update consistent timestamp
               checkPendingConsistency()
-//
-//              pendingTransactions.headOption match {
-//                case Some((timestamp, context)) if context.isExpired => {
-//                  consistencyErrorTimeout.mark()
-//                  error("Consistency error timeout on message {}.", context.timestamp)
-//                  raiseConsistencyError()
-//                }
-//                case _ => // Head transaction not expired, do nothing
-//              }
             } catch {
               case e: Exception => {
                 consistencyErrorCheckPending.mark()
