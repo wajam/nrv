@@ -72,7 +72,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
       case e: Exception => {
         consistencyErrorAppend.mark()
         error("Error appending request message {}. ", message, e)
-        raiseConsistencyError()
+        handleConsistencyError()
 
         // Throw the exception to the caller to prevent the request execution to continue.
         throw new ConsistencyException
@@ -94,7 +94,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
         case None if isSuccessful(message) => {
           consistencyErrorResponseMissingTimestamp.mark()
           error("Response is sucessful but missing timestamp {}. ", message)
-          raiseConsistencyError()
+          handleConsistencyError()
         }
         case None => {
           // Ignore failure response without timestamp, they are SCN response error
@@ -105,7 +105,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
       case e: Exception => {
         consistencyErrorAppend.mark()
         error("Error appending response message {}. ", message, e)
-        raiseConsistencyError()
+        handleConsistencyError()
 
         message.error = Some(new ConsistencyException)
       }
@@ -123,7 +123,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
   private def isSuccessful(response: Message) = response.code >= 200 && response.code < 300 && response.error.isEmpty
 
-  private def raiseConsistencyError() {
+  private def handleConsistencyError() {
     consistencyError.mark()
 
     // TODO: fail the current service member
@@ -206,7 +206,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
           // Pending head transaction has expired before receiving a response, something is very wrong
           consistencyErrorTimeout.mark()
           error("Consistency error timeout on transaction {}.", context)
-          raiseConsistencyError()
+          handleConsistencyError()
         }
         case _ => // No pending transactions to check
       }
@@ -222,7 +222,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
                   // Duplicate request
                   consistencyErrorDuplicate.mark()
                   error("Request {} is a duplicate of pending context {}. ", request, context)
-                  raiseConsistencyError()
+                  handleConsistencyError()
                 }
                 case None => {
                   pendingTransactions += (request.timestamp ->
@@ -233,7 +233,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
               case e: Exception => {
                 consistencyErrorRequest.mark()
                 error("Error processing request {}. ", request, e)
-                raiseConsistencyError()
+                handleConsistencyError()
               }
             }
           }
@@ -248,7 +248,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
                   // The response is successful but does not match a pending transaction.
                   consistencyErrorUnexpectedResponse.mark()
                   error("Response is sucessful but not pending {}. ", response)
-                  raiseConsistencyError()
+                  handleConsistencyError()
                 }
                 case _ => {
                   unexpectedFailResponse.mark()
@@ -261,7 +261,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
               case e: Exception => {
                 consistencyErrorResponse.mark()
                 error("Error processing response message {}. ", response, e)
-                raiseConsistencyError()
+                handleConsistencyError()
               }
             }
           }
@@ -273,7 +273,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
               case e: Exception => {
                 consistencyErrorCommit.mark()
                 error("Consistency error commiting transaction log of member {}.", member, e)
-                raiseConsistencyError()
+                handleConsistencyError()
               }
             } finally {
               reply(true)
@@ -286,7 +286,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
               case e: Exception => {
                 consistencyErrorCheckPending.mark()
                 error("Consistency error checking pending transactions {}.", member, e)
-                raiseConsistencyError()
+                handleConsistencyError()
               }
             } finally {
               reply(true)

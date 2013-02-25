@@ -30,7 +30,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
   var service: Service = null
   var member: ServiceMember = null
   var fakeTxLog: FakeTransactionLog = null
-  var recorder: TransactionRecorder /*with ControlableCurrentTime*/ = null
+  var recorder: TransactionRecorder = null
 
   before {
     service = new Service("service", new ActionSupportOptions(responseTimeout = Some(20000L)))
@@ -45,7 +45,6 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
       override def currentTime = TestTransactionRecorder.this.currentTime
     }
     recorder.start()
-    //    verify(mockTxLog).getLastLoggedIndex // Ignore call done at recorder construction
 
     consistencyErrorMeter = new Meter(Metrics.defaultRegistry().newMeter(
       recorder.getClass, "consistency-error", "consistency-error", TimeUnit.MILLISECONDS))
@@ -78,7 +77,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
 
     def read(id: Option[Long], consistentTimestamp: Option[Timestamp]) = NullTransactionLogIterator
 
-    def truncate(index: Index) = true
+    def truncate(index: Index) {}
 
     def commit() {}
 

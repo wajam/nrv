@@ -641,9 +641,32 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.getLastLoggedIndex should be(Some(Index(id = 100, None)))
   }
 
-  ignore("truncate should delete all records from the specified location") {
-    // Remove tx from timestamp to end of file
-    // Delete all following files
+  test("truncate should delete all records from the specified location") {
+    val r0 = fileTxLog.append(LogRecord(id = 0, Some(100), createRequestMessage(timestamp = 1000)))
+    val r1 = fileTxLog.append(LogRecord(id = 1, Some(200), createRequestMessage(timestamp = 1001)))
+    val r2 = fileTxLog.append(LogRecord(id = 2, Some(300), createRequestMessage(timestamp = 1002)))
+    val r3 = fileTxLog.append(LogRecord(id = 3, Some(400), createRequestMessage(timestamp = 1003)))
+    fileTxLog.rollLog()
+    val r4 = fileTxLog.append(LogRecord(id = 4, Some(599), createRequestMessage(timestamp = 1004)))
+    val r5 = fileTxLog.append(LogRecord(id = 5, Some(600), createRequestMessage(timestamp = 1005)))
+    val r6 = fileTxLog.append(LogRecord(id = 6, Some(600), createRequestMessage(timestamp = 1006)))
+    val r7 = fileTxLog.append(LogRecord(id = 7, Some(601), createRequestMessage(timestamp = 1007)))
+    fileTxLog.rollLog()
+    val r8 = fileTxLog.append(LogRecord(id = 8, Some(601), createRequestMessage(timestamp = 1008)))
+    fileTxLog.rollLog()
+    val r9 = fileTxLog.append(LogRecord(id = 9, Some(700), createRequestMessage(timestamp = 1009)))
+    fileTxLog.commit()
+
+    fileTxLog.read().toList should be(List(r0, r1, r2, r3, r4, r5, r6, r7, r8, r9))
+    logDir.list().sorted should be(Array("service-0000001000-0:100.log", "service-0000001000-4:599.log",
+      "service-0000001000-8:601.log", "service-0000001000-9:700.log"))
+
+    fileTxLog.truncate(r6)
+
+    logDir.list().sorted should be(Array("service-0000001000-0:100.log", "service-0000001000-4:599.log"))
+    fileTxLog.read().toList should be(List(r0, r1, r2, r3, r4, r5))
+    fileTxLog.read(consistentTimestamp = Some(600)).toList should be(List(r5))
+    fileTxLog.read(id = Some(r6.id)).toList should be(List())
   }
 
   ignore("commit") {
