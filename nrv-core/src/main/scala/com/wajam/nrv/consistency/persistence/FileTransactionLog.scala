@@ -99,12 +99,17 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     var result: Option[Index] = None
     getLogFiles().toList.reverse.find(file => {
       val fileIndex = getIndexFromName(file.getName)
-      read(Some(fileIndex.id), fileIndex.consistentTimestamp).toIterable.lastOption match {
-        case Some(record) => {
-          result = Some(record)
-          true
+      val it = read(Some(fileIndex.id), fileIndex.consistentTimestamp)
+      try {
+        it.toIterable.lastOption match {
+          case Some(record) => {
+            result = Some(record)
+            true
+          }
+          case _ => false
         }
-        case _ => false
+      } finally {
+        it.close()
       }
     })
 
@@ -211,18 +216,22 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     truncateTimer.time {
       this.synchronized {
         val it = new FileTransactionLogIterator(Some(index.id), index.consistentTimestamp)
-        if (it.hasNext) {
-          val itRecord = it.nextInternal()
+        try {
+          if (it.hasNext) {
+            val record = it.nextInternal()
+            it.close() // Close explicitly before truncate
+
+            // Now truncate at the current position
+            val raf = new RandomAccessFile(record.logFile, "rw")
+            raf.setLength(record.position)
+            raf.close()
+
+            // Delete remaining log files
+            getLogFiles(Some(index.id), index.consistentTimestamp).filter(file =>
+              getIndexFromName(file.getName) > getIndexFromName(record.logFile.getName)).foreach(_.delete())
+          }
+        } finally {
           it.close()
-
-          // now, truncate at the current position
-          val raf = new RandomAccessFile(itRecord.logFile, "rw")
-          raf.setLength(itRecord.position)
-          raf.close()
-
-          // Delete remaining log files
-          getLogFiles(Some(index.id), index.consistentTimestamp).filter(file =>
-            getIndexFromName(file.getName) > getIndexFromName(itRecord.logFile.getName)).foreach(_.delete())
         }
       }
     }
@@ -368,10 +377,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     def hasNext: Boolean = {
       nextRecord match {
         case Right(Some(_)) => true
-        case _ => {
-          close()
-          false
-        }
+        case _ => false
       }
     }
 
