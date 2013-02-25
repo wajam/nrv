@@ -7,6 +7,7 @@ import java.io._
 import com.wajam.nrv.consistency.persistence.LogRecord._
 import java.util.zip.CRC32
 import java.nio.ByteBuffer
+import com.wajam.nrv.utils.PositionInputStream
 
 /**
  * Class for writing and reading transaction logs.
@@ -206,11 +207,23 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   /**
    * Truncate log storage from the specified index inclusively
    */
-  def truncate(index: Index): Boolean = {
+  def truncate(index: Index) {
     truncateTimer.time {
       this.synchronized {
-        // TODO: implement
-        throw new Exception("Not implemented yet!")
+        val it = new FileTransactionLogIterator(Some(index.id), index.consistentTimestamp)
+        if (it.hasNext) {
+          val itRecord = it.nextInternal()
+          it.close()
+
+          // now, truncate at the current position
+          val raf = new RandomAccessFile(itRecord.logFile, "rw")
+          raf.setLength(itRecord.position)
+          raf.close()
+
+          // Delete remaining log files
+          getLogFiles(Some(index.id), index.consistentTimestamp).filter(file =>
+            getIndexFromName(file.getName) > getIndexFromName(itRecord.logFile.getName)).foreach(_.delete())
+        }
       }
     }
   }
@@ -317,9 +330,12 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
   }
 
+  private case class IteratorRecord(record: LogRecord, position: Long, logFile: File)
+
   private class FileTransactionLogIterator(initialId: Option[Long] = None, initialTimestamp: Option[Timestamp] = None) extends TransactionLogIterator {
     private var logStream: Option[DataInputStream] = None
-    private var nextRecord: Either[Exception, Option[LogRecord]] = Right(None)
+    private var positionStream: PositionInputStream = null
+    private var nextRecord: Either[Exception, Option[IteratorRecord]] = Right(None)
     private var readFile: File = null
 
     // Position the iterator to the initial timestamp by reading tx from log as long the read timestamp is before the
@@ -328,11 +344,11 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     private val initialPosition = (initialId, initialTimestamp)
     openNextFile()
     while (nextRecord match {
-      case Right(Some(record)) => isRecordLessThanPosition(record, initialPosition)
+      case Right(Some(IteratorRecord(record, _, _))) => isRecordLessThanPosition(record, initialPosition)
       case Left(e) => throw new IOException(e)
       case _ => false
     }) {
-      readNextTransaction()
+      readNextRecord()
     }
 
     private def isRecordLessThanPosition(record: LogRecord, position: (Option[Long], Option[Timestamp])): Boolean = {
@@ -352,11 +368,18 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     def hasNext: Boolean = {
       nextRecord match {
         case Right(Some(_)) => true
-        case _ => false
+        case _ => {
+          close()
+          false
+        }
       }
     }
 
     def next(): LogRecord = {
+      nextInternal().record
+    }
+
+    private[persistence] def nextInternal(): IteratorRecord = {
       readNextCalls.mark()
 
       val result = nextRecord match {
@@ -366,7 +389,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       }
 
       // Read ahead the next transaction for a future call
-      readNextTransaction()
+      readNextRecord()
 
       result
     }
@@ -374,6 +397,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     def close() {
       logStream.foreach(_.close())
       logStream = None
+      positionStream = null
       readFile = null
     }
 
@@ -391,10 +415,12 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
           openNextFile()
         } else {
           info("Opening log file: {}", readFile)
-          val dis = new DataInputStream(new FileInputStream(readFile))
+          val pis = new PositionInputStream(new FileInputStream(readFile))
+          val dis = new DataInputStream(pis)
           if (readFileHeader(dis)) {
+            positionStream = pis
             logStream = Some(dis)
-            readNextTransaction()
+            readNextRecord()
           } else {
             nextRecord = Right(None)
             false
@@ -430,11 +456,12 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       }
     }
 
-    private def readNextTransaction(): Boolean = {
+    private def readNextRecord(): Boolean = {
       readNextTimer.time {
         logStream match {
           case Some(dis) => {
             try {
+              val position = positionStream.position
               val crc = dis.readLong() // TODO: crc validation
               try {
                 val txLen = dis.readInt() // TODO: protection against negative or len too large
@@ -442,7 +469,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
                 dis.read(buf) // TODO: validate read len
                 val record = serializer.deserialize(buf)
                 val eot = dis.readInt() // TODO: validate eot
-                nextRecord = Right(Some(record))
+                nextRecord = Right(Some(IteratorRecord(record, position, readFile)))
                 true
               } catch {
                 case e: Exception => {

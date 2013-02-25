@@ -22,7 +22,7 @@ trait TransactionLog {
   /**
    * Truncate log storage from the specified index inclusively
    */
-  def truncate(index: Index): Boolean
+  def truncate(index: Index)
 
   /**
    * Ensure that transaction log is fully written on the log storage

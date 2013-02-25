@@ -78,7 +78,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
 
     def read(id: Option[Long], consistentTimestamp: Option[Timestamp]) = NullTransactionLogIterator
 
-    def truncate(index: Index) = true
+    def truncate(index: Index) {}
 
     def commit() {}
 
