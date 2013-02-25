@@ -69,6 +69,8 @@ object LogRecord {
 
     sealed trait Status {
       def code: Int
+
+      override def toString = "status=" + code
     }
 
     object Success extends Status {

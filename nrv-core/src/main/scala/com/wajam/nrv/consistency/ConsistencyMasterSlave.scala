@@ -18,7 +18,7 @@ import persistence.{NullTransactionLog, FileTransactionLog}
  * - Support binding to a single service. The service must extends ConsistentStore.
  */
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
-                             txLogRolloverSize: Int = 50000000)
+                             txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000)
   extends ConsistencyOne with Instrumented {
 
   import Consistency._
@@ -70,7 +70,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                 NullTransactionLog
               }
               val recorder = new TransactionRecorder(service, event.member, txLog,
-                consistencyDelay = timestampGenerator.responseTimeout + 1000)
+                consistencyDelay = timestampGenerator.responseTimeout + 1000, commitFrequency = txLogCommitFrequency)
               recorders += (event.member -> recorder)
               recorder.start()
             }

@@ -8,7 +8,7 @@ import util.Random
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.FunSuite
-import com.wajam.nrv.consistency.Consistency
+import com.wajam.nrv.consistency.{TestTransactionBase, Consistency}
 import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Request}
 
 @RunWith(classOf[JUnitRunner])

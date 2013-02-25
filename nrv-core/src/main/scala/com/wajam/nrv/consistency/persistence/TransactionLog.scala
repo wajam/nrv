@@ -12,7 +12,7 @@ trait TransactionLog {
   /**
    * Appends the specified record to the transaction log
    */
-  def append(block: => LogRecord): LogRecord
+  def append[T <: LogRecord](block: => T): T
 
   /**
    * Read all the records from the specified id, consistent timestamp or both
