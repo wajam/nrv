@@ -66,10 +66,7 @@ object JsonRender {
         innerRender(sb, elem)
         sb.append(',')
       })
-      if(sb.charAt(sb.length - 1) == ',') {
-        sb.setLength(sb.length - 1)
-      }
-      sb.append(']')
+      appendEnumClosingChar(']', sb)
     }
     case JField(n, v) => {
       sb.append('"').append(n).append('"').append(':')
@@ -81,11 +78,15 @@ object JsonRender {
         innerRender(sb, field)
         sb.append(',')
       })
-      if(sb.charAt(sb.length - 1) == ',') {
-        sb.setLength(sb.length - 1)
-      }
-      sb.append('}')
+      appendEnumClosingChar('}', sb)
     }
+  }
+
+  private def appendEnumClosingChar(char: Char, sb: StringBuilder): StringBuilder = {
+    if(sb.charAt(sb.length - 1) == ',') {
+      sb.setLength(sb.length - 1)
+    }
+    sb.append(char)
   }
 
   // https://github.com/lift/lift/blob/master/framework/lift-base/lift-json/src/main/scala/net/liftweb/json/JsonAST.scala#L397
