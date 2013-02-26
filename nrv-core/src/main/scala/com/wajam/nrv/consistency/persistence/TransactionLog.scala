@@ -7,7 +7,7 @@ trait TransactionLog {
   /**
    * Returns the most recent consistant timestamp written on the log storage.
    */
-  def getLastLoggedIndex: Option[Index]
+  def getLastLoggedRecord: Option[LogRecord]
 
   /**
    * Appends the specified record to the transaction log
@@ -18,6 +18,14 @@ trait TransactionLog {
    * Read all the records from the specified id, consistent timestamp or both
    */
   def read(id: Option[Long] = None, consistentTimestamp: Option[Timestamp] = None): TransactionLogIterator
+
+  def read(index: Index): TransactionLogIterator = {
+    read(Some(index.id), None)
+  }
+
+  def read(timestamp: Timestamp): TransactionLogIterator = {
+    read(None, Some(timestamp))
+  }
 
   /**
    * Truncate log storage from the specified index inclusively

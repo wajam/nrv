@@ -14,7 +14,7 @@ abstract class TestTransactionBase extends FunSuite {
     request
   }
 
-  def createResponseMessage(request: InMessage, code: Int = 200, error: Option[Exception] = None) = {
+  def createResponseMessage(request: Message, code: Int = 200, error: Option[Exception] = None) = {
     val response = new OutMessage()
     request.copyTo(response)
     response.function = MessageType.FUNCTION_RESPONSE

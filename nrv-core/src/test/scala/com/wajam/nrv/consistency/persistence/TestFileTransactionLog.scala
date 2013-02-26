@@ -135,7 +135,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fakeLogDir.isDirectory should be(false)
 
     val txLog = createFileTransactionLog(dir = fakeLogDir.getAbsolutePath)
-    txLog.getLastLoggedIndex should be(None)
+    txLog.getLastLoggedRecord should be(None)
   }
 
   test("should append new record") {
@@ -579,16 +579,16 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val last: Index = fileTxLog.append(LogRecord(id = 9999, Some(2000), createRequestMessage(timestamp = 2002)))
     fileTxLog.commit()
 
-    fileTxLog.getLastLoggedIndex should be(Some(last))
+    fileTxLog.getLastLoggedRecord should be(Some(last))
 
     // Close and try with a brand new instance
     fileTxLog.close()
     fileTxLog = createFileTransactionLog()
-    fileTxLog.getLastLoggedIndex should be(Some(last))
+    fileTxLog.getLastLoggedRecord should be(Some(last))
   }
 
   test("the last logged index should be None when there are no log files") {
-    fileTxLog.getLastLoggedIndex should be(None)
+    fileTxLog.getLastLoggedRecord should be(None)
   }
 
   test("should get the last logged index even if last log file is empty") {
@@ -602,12 +602,12 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val actualFiles = logDir.list().sorted
     actualFiles should be(expectedFiles)
 
-    fileTxLog.getLastLoggedIndex should be(Some(last))
+    fileTxLog.getLastLoggedRecord should be(Some(last))
 
     // Close and try with a brand new instance
     fileTxLog.close()
     fileTxLog = createFileTransactionLog()
-    fileTxLog.getLastLoggedIndex should be(Some(last))
+    fileTxLog.getLastLoggedRecord should be(Some(last))
   }
 
   test("should get the last logged index even if last log file contains file header only") {
@@ -633,12 +633,12 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val actualFiles = logDir.list().sorted
     actualFiles should be(expectedFiles)
 
-    fileTxLog.getLastLoggedIndex should be(Some(Index(id = 100, None)))
+    fileTxLog.getLastLoggedRecord should be(Some(Index(id = 100, None)))
 
     // Close and try with a brand new instance
     fileTxLog.close()
     fileTxLog = createFileTransactionLog()
-    fileTxLog.getLastLoggedIndex should be(Some(Index(id = 100, None)))
+    fileTxLog.getLastLoggedRecord should be(Some(Index(id = 100, None)))
   }
 
   test("truncate should delete all records from the specified location") {

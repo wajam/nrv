@@ -155,7 +155,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
     private var pendingTransactions: TreeMap[Timestamp, PendingTxContext] = TreeMap()
 
     @volatile // TODO: make this cleaner
-    var consistentTimestamp: Option[Timestamp] = txLog.getLastLoggedIndex match {
+    var consistentTimestamp: Option[Timestamp] = txLog.getLastLoggedRecord match {
       case Some(index) => index.consistentTimestamp
       case None => None
     }

@@ -84,7 +84,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   private var logStream: Option[DataOutputStream] = None
   private var writeFile: File = null
 
-  private var lastIndex: Option[Index] = getLastLoggedIndex
+  private var lastIndex: Option[Index] = getLastLoggedRecord.map(r => Index(r.id, r.consistentTimestamp))
 
   override def toString = {
     "service=%s, tk=%d, ts=%s, open=%s".format(service, token, lastIndex.getOrElse(""), writeFile)
@@ -93,10 +93,10 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   /**
    * Returns the most recent consistent timestamp written on the log storage.
    */
-  def getLastLoggedIndex = synchronized {
+  def getLastLoggedRecord: Option[LogRecord] = synchronized {
     // Read the last timestamp from the last file. If the file is empty, do the same same the previous one and so on
     // until a timestamp is found.
-    var result: Option[Index] = None
+    var result: Option[LogRecord] = None
     getLogFiles().toList.reverse.find(file => {
       val fileIndex = getIndexFromName(file.getName)
       read(Some(fileIndex.id), fileIndex.consistentTimestamp).toIterable.lastOption match {

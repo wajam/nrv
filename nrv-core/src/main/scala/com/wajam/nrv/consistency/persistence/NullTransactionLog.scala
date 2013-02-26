@@ -5,7 +5,7 @@ import com.wajam.nrv.consistency.persistence.LogRecord.Index
 
 object NullTransactionLog extends TransactionLog {
 
-  def getLastLoggedIndex = None
+  def getLastLoggedRecord = None
 
   def append[T <: LogRecord](block: => T): T = {
     block
