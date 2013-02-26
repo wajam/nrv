@@ -66,8 +66,10 @@ object JsonRender {
         innerRender(sb, elem)
         sb.append(',')
       })
-      sb.setCharAt(sb.length - 1, ']')
-      sb
+      if(sb.charAt(sb.length - 1) == ',') {
+        sb.setLength(sb.length - 1)
+      }
+      sb.append(']')
     }
     case JField(n, v) => {
       sb.append('"').append(n).append('"').append(':')
@@ -75,12 +77,14 @@ object JsonRender {
     }
     case JObject(obj) => {
       sb.append('{')
-      obj.filter(_.value != JNothing).foreach((field) => {
+      obj.filter(_.value != JNothing).foreach(field => {
         innerRender(sb, field)
         sb.append(',')
       })
-      sb.setCharAt(sb.length - 1, '}')
-      sb
+      if(sb.charAt(sb.length - 1) == ',') {
+        sb.setLength(sb.length - 1)
+      }
+      sb.append('}')
     }
   }
 
