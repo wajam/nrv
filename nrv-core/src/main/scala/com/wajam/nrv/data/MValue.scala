@@ -9,36 +9,36 @@ sealed trait MValue
 
 sealed case class MList(values: Iterable[MValue]) extends MValue
 
-sealed case class MString(value: String) extends MValue {
+final case class MString(value: String) extends MValue {
   override def toString() = {
     value.toString
   }
 }
 
-sealed case class MLong(value: Long) extends MValue {
+final case class MLong(value: Long) extends MValue {
   override def toString() = {
     value.toString
   }
 }
 
-sealed case class MInt(value: Int) extends MValue {
+final case class MInt(value: Int) extends MValue {
   override def toString() = {
     value.toString
   }
 }
 
-sealed case class MDouble(value: Double) extends MValue {
+final case class MDouble(value: Double) extends MValue {
   override def toString() = {
     value.toString
   }
 }
-sealed case class MBoolean(value: Boolean) extends MValue {
+final case class MBoolean(value: Boolean) extends MValue {
   override def toString() = {
     value.toString
   }
 }
 
-sealed case class MMigrationCatchAll(value: Any) extends MValue // TODO: MessageMigration Remove
+final case class MMigrationCatchAll(value: Any) extends MValue // TODO: MessageMigration Remove
 
 object MValue {
 
