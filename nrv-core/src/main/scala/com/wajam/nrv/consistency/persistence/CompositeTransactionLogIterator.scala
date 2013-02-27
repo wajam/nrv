@@ -6,11 +6,11 @@ import annotation.tailrec
  * A transaction log iterator which wrap multiple iterators iterable in sequence. The underlying iterators are consumed
  * as needed.
  */
-class CompositeTransactionLogIterator(private var iterators: Iterator[LogRecord]*) extends TransactionLogIterator {
+class CompositeTransactionLogIterator(iterators: Iterator[LogRecord]*) extends TransactionLogIterator {
 
   def this(record: LogRecord, iterator: Iterator[LogRecord]) = this(List(record).toIterator, iterator)
 
-  var itList = iterators.toList
+  private var itList = iterators.toList
 
   @tailrec
   final def hasNext = {
