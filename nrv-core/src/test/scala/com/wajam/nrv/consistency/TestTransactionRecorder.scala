@@ -18,7 +18,7 @@ import com.yammer.metrics.scala.Meter
 import com.yammer.metrics.Metrics
 import java.util.concurrent.TimeUnit
 import persistence.LogRecord.Index
-import persistence.{EmptyTransactionLogIterator, TransactionLogIterator, LogRecord, TransactionLog}
+import persistence.{EmptyTransactionLogIterator, LogRecord, TransactionLog}
 
 
 @RunWith(classOf[JUnitRunner])
@@ -84,15 +84,6 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     def commit() {}
 
     def close() {}
-
-    object NullTransactionLogIterator extends TransactionLogIterator {
-      def hasNext = false
-
-      def next() = null
-
-      def close() {}
-    }
-
   }
 
   test("tx consistency should be pending until responded") {

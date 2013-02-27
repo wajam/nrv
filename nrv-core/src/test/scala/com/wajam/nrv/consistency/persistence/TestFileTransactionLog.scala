@@ -119,21 +119,21 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val other123 = new File(logDir, "service-0000009999-123.log") // Ignored
 
     // Verify when no log file exist
-    fileTxLog.nextLogFile(file10) should be(None)
-    fileTxLog.prevLogFile(file10) should be(None)
+    fileTxLog.getNextLogFile(file10) should be(None)
+    fileTxLog.getPrevLogFile(file10) should be(None)
 
     val allFiles = List(file30, other123, file20, file10, other0)
     allFiles.foreach(_.createNewFile())
 
-    fileTxLog.nextLogFile(file10) should be(Some(file20))
-    fileTxLog.nextLogFile(file20) should be(Some(file30))
-    fileTxLog.nextLogFile(file30) should be(None)
-    fileTxLog.nextLogFile(other0) should be(None)
+    fileTxLog.getNextLogFile(file10) should be(Some(file20))
+    fileTxLog.getNextLogFile(file20) should be(Some(file30))
+    fileTxLog.getNextLogFile(file30) should be(None)
+    fileTxLog.getNextLogFile(other0) should be(None)
 
-    fileTxLog.prevLogFile(file10) should be(None)
-    fileTxLog.prevLogFile(file20) should be(Some(file10))
-    fileTxLog.prevLogFile(file30) should be(Some(file20))
-    fileTxLog.prevLogFile(other123) should be(None)
+    fileTxLog.getPrevLogFile(file10) should be(None)
+    fileTxLog.getPrevLogFile(file20) should be(Some(file10))
+    fileTxLog.getPrevLogFile(file30) should be(Some(file20))
+    fileTxLog.getPrevLogFile(other123) should be(None)
   }
 
   test("should not get any log files when there are no log files") {
