@@ -1,15 +1,19 @@
 package com.wajam.nrv.consistency.persistence
 
 import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.nrv.consistency.persistence.LogRecord.Index
 
 object NullTransactionLog extends TransactionLog {
-  def getLastLoggedTimestamp = None
 
-  def append(tx: TransactionEvent) {}
+  def getLastLoggedIndex = None
 
-  def read(timestamp: Timestamp) = NullTransactionLogIterator
+  def append[T <: LogRecord](block: => T): T = {
+    block
+  }
 
-  def truncate(timestamp: Timestamp) = true
+  def read(id: Option[Long], consistentTimestamp: Option[Timestamp]) = NullTransactionLogIterator
+
+  def truncate(index: Index) = true
 
   def commit() {}
 

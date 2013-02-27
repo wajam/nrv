@@ -8,39 +8,42 @@ import org.scalatest.junit.JUnitRunner
 import org.scalatest.BeforeAndAfter
 import org.mockito.Mockito._
 import org.mockito.Matchers._
-import com.wajam.nrv.data._
-import org.mockito.ArgumentMatcher
-import org.hamcrest.Description
+import com.wajam.nrv.data.InMessage
 import org.scalatest.matchers.ShouldMatchers._
 
-import com.wajam.nrv.utils.ControlableCurrentTime
+import com.wajam.nrv.utils.IdGenerator
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.yammer.metrics.scala.Meter
 import com.yammer.metrics.Metrics
 import java.util.concurrent.TimeUnit
-import persistence.{TransactionEvent, TransactionLog, TestTransactionBase}
-import com.wajam.nrv.data.MValue._
+import persistence.LogRecord.Index
+import persistence.{TransactionLogIterator, LogRecord, TransactionLog}
+
 
 @RunWith(classOf[JUnitRunner])
 class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter with MockitoSugar {
 
+  var currentTime = 0L
   var consistencyErrorMeter: Meter = null
-  val appendDelay = 1000L
+  val consistencyDelay = 1000L
   var service: Service = null
   var member: ServiceMember = null
-  var mockTxLog: TransactionLog = null
-  var recorder: TransactionRecorder with ControlableCurrentTime = null
+  var fakeTxLog: FakeTransactionLog = null
+  var recorder: TransactionRecorder = null
 
   before {
     service = new Service("service", new ActionSupportOptions(responseTimeout = Some(20000L)))
     member = new ServiceMember(0, new LocalNode(Map("nrv" -> 1234)))
+    fakeTxLog = new FakeTransactionLog
 
-    mockTxLog = mock[TransactionLog]
-    when(mockTxLog.getLastLoggedTimestamp).thenReturn(None)
-
-    recorder = new TransactionRecorder(service, member, mockTxLog, appendDelay) with ControlableCurrentTime
-    recorder.currentTime = 0
+    // Recorder currentTime and LogRecord id generation are mapped to the same variable.
+    recorder = new TransactionRecorder(service, member, fakeTxLog, consistencyDelay, commitFrequency = 0,
+      idGenerator = new IdGenerator[Long] {
+        def nextId = TestTransactionRecorder.this.currentTime
+      }) {
+      override def currentTime = TestTransactionRecorder.this.currentTime
+    }
     recorder.start()
     verify(mockTxLog).getLastLoggedTimestamp // Ignore call done at recorder construction
 
@@ -52,240 +55,188 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     consistencyErrorMeter = null
     recorder.kill()
     recorder = null
-    mockTxLog = null
+    fakeTxLog = null
     member = null
     service = null
   }
 
-  private class TransactionEventMatcher(message: Message, previous: Option[Timestamp]) extends ArgumentMatcher {
-    val timestamp = Consistency.getMessageTimestamp(message).get
-    val token = message.token
+  trait TransactionAppender {
+    def append(record: LogRecord)
+  }
 
-    def matches(argument: Any): Boolean = {
-      val tx = argument.asInstanceOf[TransactionEvent]
-      tx.timestamp == timestamp && tx.previous == previous && tx.token == token &&
-        tx.message.parameters == message.parameters && tx.message.metadata == message.metadata &&
-        tx.message.messageData == message.messageData
+  class FakeTransactionLog extends TransactionLog {
+
+    val mockAppender = mock[TransactionAppender]
+
+    def getLastLoggedIndex = None
+
+    def append[T <: LogRecord](block: => T): T = {
+      val record: T = block
+      mockAppender.append(record)
+      record
     }
 
-    override def describeTo(description: Description) {
-      description.appendValue(TransactionEvent(message, previous))
+    def read(id: Option[Long], consistentTimestamp: Option[Timestamp]) = NullTransactionLogIterator
+
+    def truncate(index: Index) {}
+
+    def commit() {}
+
+    def close() {}
+
+    object NullTransactionLogIterator extends TransactionLogIterator {
+      def hasNext = false
+
+      def next() = null
+
+      def close() {}
     }
+
   }
 
-  private def matchTx(message: Message, previous: Option[Timestamp] = None) = {
-    new TransactionEventMatcher(message, previous)
-  }
-
-  private def createRequestMessage(timestamp: Long, token: Long = 0): InMessage = {
-    val request = new InMessage((Map(("ts" -> timestamp), ("tk" -> token))))
-    request.function = MessageType.FUNCTION_CALL
-    request.token = token
-    request.serviceName = service.name
-    Consistency.setMessageTimestamp(request, Timestamp(timestamp))
-    request
-  }
-
-  private def createResponseMessage(request: InMessage, code: Int = 200, error: Option[Exception] = None) = {
-    val response = new OutMessage()
-    request.copyTo(response)
-    response.function = MessageType.FUNCTION_RESPONSE
-    response.code = code
-    response.error = error
-    response
-  }
-
-  test("tx should be pending until responded") {
+  test("tx consistency should be pending until responded") {
     recorder.pendingSize should be(0)
     val request = createRequestMessage(timestamp = 0)
-    recorder.handleMessage(request)
+    recorder.appendMessage(request)
     recorder.checkPending()
     recorder.pendingSize should be(1)
 
     val response = createResponseMessage(request)
-    recorder.handleMessage(response)
-    recorder.advanceTime(appendDelay + 1000)
+    recorder.appendMessage(response)
+    currentTime += consistencyDelay + 1
     recorder.checkPending()
     recorder.pendingSize should be(0)
   }
 
-  test("successful transaction should be appended to log AFTER append delay") {
-    val request = createRequestMessage(timestamp = 0)
-    recorder.handleMessage(request)
+  test("messages should be appended to log immediatly") {
+    val request = createRequestMessage(timestamp = 123)
+    recorder.appendMessage(request)
+    verify(fakeTxLog.mockAppender).append(LogRecord(currentTime, None, request))
     recorder.checkPending()
 
-    recorder.handleMessage(createResponseMessage(request))
-    recorder.advanceTime(appendDelay + 1000)
+    currentTime += 1
+    val response = createResponseMessage(request)
+    recorder.appendMessage(response)
+    verify(fakeTxLog.mockAppender).append(LogRecord(currentTime, None, response))
+
+    currentTime += consistencyDelay + 1
     recorder.checkPending()
-
-    verify(mockTxLog).append(argThat(matchTx(request)))
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
-  }
-
-  test("successful transaction should NOT be appended to log BEFORE append delay") {
-    val request = createRequestMessage(timestamp = 0)
-    recorder.handleMessage(request)
-    recorder.checkPending()
-    recorder.pendingSize should be(1)
-
-    recorder.handleMessage(createResponseMessage(request))
-    recorder.checkPending()
-    recorder.pendingSize should be(1)
-
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
-  }
-
-  test("successful transactions should be logged in timestamp order even if seen and responded out of order") {
-    val request1 = createRequestMessage(timestamp = 1)
-    val request2 = createRequestMessage(timestamp = 2)
-    val request3 = createRequestMessage(timestamp = 3)
-    val request4 = createRequestMessage(timestamp = 4)
-
-    recorder.handleMessage(request3)
-    recorder.handleMessage(request4)
-    recorder.handleMessage(request1)
-    recorder.handleMessage(request2)
-    recorder.checkPending() // Ensure requests are processed by actor
-
-    recorder.handleMessage(createResponseMessage(request3))
-    recorder.handleMessage(createResponseMessage(request4))
-    recorder.handleMessage(createResponseMessage(request2))
-    recorder.advanceTime(appendDelay + 1000)
-    recorder.checkPending()
-    recorder.handleMessage(createResponseMessage(request1))
-    recorder.checkPending()
-
-    verify(mockTxLog).append(argThat(matchTx(request1)))
-    verify(mockTxLog).append(argThat(matchTx(request2, Some(Timestamp(1)))))
-    verify(mockTxLog).append(argThat(matchTx(request3, Some(Timestamp(2)))))
-    verify(mockTxLog).append(argThat(matchTx(request4, Some(Timestamp(3)))))
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
-  }
-
-  test("failed transaction (code) should not be appended to log") {
-    // not logged + not pending anymore
-    val request = createRequestMessage(timestamp = 0)
-    recorder.handleMessage(request)
-    recorder.checkPending()
-    recorder.pendingSize should be(1)
-
-    recorder.handleMessage(createResponseMessage(request, code = 500))
-    recorder.checkPending()
-    recorder.pendingSize should be(0)
-
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
-  }
-
-  test("failed transaction (exception) should not be appended to log") {
-    // not logged + not pending anymore
-    val request = createRequestMessage(timestamp = 0)
-    recorder.handleMessage(request)
-    recorder.checkPending()
-    recorder.pendingSize should be(1)
-
-    recorder.handleMessage(createResponseMessage(request, error = Some(new Exception)))
-    recorder.checkPending()
-    recorder.pendingSize should be(0)
-
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
-  }
-
-  ignore("timeout transaction should be truncated from storage") {
-  }
-
-  ignore("success response for non pending transaction should be truncated from storage") {
+    verify(fakeTxLog.mockAppender).append(Index(currentTime, Some(123)))
+    verifyZeroInteractions(fakeTxLog.mockAppender)
   }
 
   test("success response without timestamp should raise a consistency error") {
     val before = consistencyErrorMeter.count
 
     recorder.pendingSize should be(0)
-    recorder.handleMessage(createResponseMessage(new InMessage()))
+    recorder.appendMessage(createResponseMessage(new InMessage()))
     recorder.checkPending()
     recorder.pendingSize should be(0)
 
     consistencyErrorMeter.count should be(before + 1)
     // TODO: verify service member status goes down
 
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
+    verifyZeroInteractions(fakeTxLog.mockAppender)
   }
 
   test("error response for non pending transaction should be ignored") {
     // two cases: 1) no timestamp in response and 2) no matching timestamp
     val before = consistencyErrorMeter.count
 
+    // Error response without timestamp. Should not even try to append.
+    recorder.appendMessage(createResponseMessage(new InMessage(), code = 500)) // no timestamp
     recorder.pendingSize should be(0)
-    recorder.handleMessage(createResponseMessage(new InMessage(), code = 500)) // no timestamp
-    recorder.handleMessage(createResponseMessage(
-      createRequestMessage(timestamp = 0), code = 500)) // with timestamp, no pending match
+    verifyZeroInteractions(fakeTxLog.mockAppender)
+
+    // Error response with timestamp without pending match.
+    currentTime += 1
+    val response = createResponseMessage(createRequestMessage(timestamp = 0), code = 500)
+    recorder.appendMessage(response)
     recorder.checkPending()
     recorder.pendingSize should be(0)
+    verify(fakeTxLog.mockAppender).append(LogRecord(currentTime, None, response))
 
     consistencyErrorMeter.count should be(before)
 
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
+    verifyZeroInteractions(fakeTxLog.mockAppender)
   }
 
-  test("duplicate transaction should raise a consistency error") {
-    val before = consistencyErrorMeter.count
-
-    recorder.handleMessage(createRequestMessage(timestamp = 0))
-    recorder.checkPending()
-    recorder.pendingSize should be(1)
-
-    // message with duplicate timestamp
-    recorder.handleMessage(createRequestMessage(timestamp = 0))
-    recorder.checkPending()
-
-    consistencyErrorMeter.count should be(before + 1)
-    // TODO: verify service member status goes down
-
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
-  }
-
-  test("append error should raise a consistency error") {
+  test("duplicate requests should raise a consistency error") {
     val before = consistencyErrorMeter.count
 
     val request = createRequestMessage(timestamp = 0)
-    recorder.handleMessage(request)
+    recorder.appendMessage(request)
     recorder.checkPending()
+    recorder.pendingSize should be(1)
+    verify(fakeTxLog.mockAppender).append(LogRecord(currentTime, None, request))
 
-    when(mockTxLog.append(anyObject())).thenThrow(new RuntimeException())
-    recorder.handleMessage(createResponseMessage(request))
-    recorder.advanceTime(appendDelay + 1000)
+    // message with duplicate timestamp
+    currentTime += 1
+    recorder.appendMessage(request)
     recorder.checkPending()
+    verify(fakeTxLog.mockAppender).append(LogRecord(currentTime, None, request))
 
     consistencyErrorMeter.count should be(before + 1)
     // TODO: verify service member status goes down
 
-    verify(mockTxLog).append(argThat(matchTx(request)))
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
+    verifyZeroInteractions(fakeTxLog.mockAppender)
+  }
+
+  test("request message append error should raise a consistency error") {
+    val before = consistencyErrorMeter.count
+
+    val request = createRequestMessage(timestamp = 0)
+
+    when(fakeTxLog.mockAppender.append(anyObject())).thenThrow(new RuntimeException())
+    evaluating {
+      recorder.appendMessage(request)
+    } should produce[ConsistencyException]
+    recorder.checkPending()
+    recorder.pendingSize should be(0)
+    verify(fakeTxLog.mockAppender).append(LogRecord(currentTime, None, request))
+
+    consistencyErrorMeter.count should be(before + 1)
+    // TODO: verify service member status goes down
+    verifyZeroInteractions(fakeTxLog.mockAppender)
+  }
+
+  test("response message append error should raise a consistency error") {
+    val before = consistencyErrorMeter.count
+
+    val request = createRequestMessage(timestamp = 123)
+    recorder.appendMessage(request)
+    recorder.checkPending()
+    verify(fakeTxLog.mockAppender).append(LogRecord(currentTime, None, request))
+
+    currentTime += 1
+    val response = createResponseMessage(request)
+    response.error should be(None)
+    when(fakeTxLog.mockAppender.append(anyObject())).thenThrow(new RuntimeException())
+    recorder.appendMessage(response)
+    verify(fakeTxLog.mockAppender).append(LogRecord(currentTime, None, createResponseMessage(request)))
+    response.error should not be (None)
+
+    consistencyErrorMeter.count should be(before + 1)
+    // TODO: verify service member status goes down
+    verifyZeroInteractions(fakeTxLog.mockAppender)
   }
 
   test("transaction not responded in time should raise a consistency error") {
     val before = consistencyErrorMeter.count
 
-    val request = createRequestMessage(timestamp = 0)
-    recorder.handleMessage(request)
+    val response = createRequestMessage(timestamp = 0)
+    recorder.appendMessage(response)
     recorder.checkPending()
     recorder.pendingSize should be(1)
+    verify(fakeTxLog.mockAppender).append(LogRecord(currentTime, None, response))
 
-    recorder.advanceTime(service.responseTimeout + 2000)
+    // Advance recorder time
+    currentTime += recorder.consistencyTimeout + 1
     recorder.checkPending()
 
     consistencyErrorMeter.count should be(before + 1)
     // TODO: verify service member status goes down
 
-    verify(mockTxLog, atLeast(0)).commit() // Ignore all commit calls
-    verifyZeroInteractions(mockTxLog)
+    verifyZeroInteractions(fakeTxLog.mockAppender)
   }
 }

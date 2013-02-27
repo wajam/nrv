@@ -86,7 +86,7 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
    * object and does not affect the tracer current context.
    */
   def createSubcontext(parent: TraceContext): TraceContext = {
-    TraceContext(parent.traceId, idGenerator.createId, Some(parent.spanId), parent.sampled)
+    TraceContext(parent.traceId, idGenerator.nextId, Some(parent.spanId), parent.sampled)
   }
 
   /**
@@ -94,7 +94,7 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
    * current context.
    */
   def createContext(sampled: Option[Boolean]): TraceContext = {
-    TraceContext(idGenerator.createId, idGenerator.createId, None, sampled)
+    TraceContext(idGenerator.nextId, idGenerator.nextId, None, sampled)
   }
 
   /**
@@ -107,7 +107,7 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
 
     val context: TraceContext = (currentContext, newContext) match {
       // No current or new context provided. Create a brand new one.
-      case (None, None) => TraceContext(idGenerator.createId, idGenerator.createId, None, None)
+      case (None, None) => TraceContext(idGenerator.nextId, idGenerator.nextId, None, None)
       // No new context provided, create a subcontext of current context.
       case (Some(cur), None) => createSubcontext(cur)
       // No current context but one is provided, use provided context.

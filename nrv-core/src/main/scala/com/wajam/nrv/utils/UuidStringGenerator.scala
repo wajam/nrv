@@ -3,8 +3,8 @@ package com.wajam.nrv.utils
 import java.util.UUID
 
 /**
- * Trait generating string representation of UUID identifier.
+ * Trait generating string representation of UUID identifier. This implementation is thread safe.
  */
 trait UuidStringGenerator extends IdGenerator[String] {
-  def createId = UUID.randomUUID().toString
+  def nextId = UUID.randomUUID().toString
 }
