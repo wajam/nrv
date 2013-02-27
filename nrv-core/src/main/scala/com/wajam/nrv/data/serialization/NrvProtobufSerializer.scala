@@ -92,7 +92,7 @@ class NrvProtobufSerializer() {
       case s: String => Some(s)
       case d: Double => Some(d)
       case b: Boolean => Some(b)
-      case s: Iterable[_] if s.forall(upcastAny(_) != None) => Some(upcastList(s)) // Only upcast list of primitive
+      case s: Iterable[_] if s.forall(upcastAny(_).isDefined) => Some(upcastList(s)) // Only upcast lists of primitive
       case _ => None
     }
   }
@@ -117,10 +117,9 @@ class NrvProtobufSerializer() {
   }
 
   private def decodeMessageMap(anyList: Iterable[NrvProtobuf.AnyPair],
-                               mList: Iterable[NrvProtobuf.MPair],
-                               map : collection.mutable.HashMap[String, MValue]) = {
+                               mList: Iterable[NrvProtobuf.MPair]): Map[String, MValue] = {
 
-    anyList.foreach {
+    val list = anyList.map {
 
       case (p: NrvProtobuf.AnyPair) =>
         val raw = deserializeFromBytes(p.getValue.toByteArray)
@@ -134,7 +133,8 @@ class NrvProtobufSerializer() {
         map += p.getKey -> value
     }
 
-   mList.foreach {
+    list ++
+    mList.map {
       case (p: NrvProtobuf.MPair) =>
         map += p.getKey -> decodeMValue(p.getValue())
     }
@@ -176,16 +176,11 @@ class NrvProtobufSerializer() {
 
   private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message, messageDataCodec: Codec): Message = {
 
-    val parameters = new collection.mutable.HashMap[String, MValue]
-    val metadata = new collection.mutable.HashMap[String, MValue]
+    val parameters = decodeMessageMap(protoMessage.getParametersAnyList.asScala,
+      protoMessage.getParametersList.asScala)
 
-    decodeMessageMap(protoMessage.getParametersAnyList.asScala,
-      protoMessage.getParametersList.asScala,
-      parameters)
-
-    decodeMessageMap(protoMessage.getMetadataAnyList.asScala,
-      protoMessage.getMetadataList.asScala,
-      metadata)
+    val metadata = decodeMessageMap(protoMessage.getMetadataAnyList.asScala,
+      protoMessage.getMetadataList.asScala)
 
     val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
 
