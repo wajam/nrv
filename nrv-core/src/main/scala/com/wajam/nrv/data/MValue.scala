@@ -7,7 +7,7 @@ package com.wajam.nrv.data
  */
 sealed trait MValue
 
-sealed case class MList(values: Iterable[MValue]) extends MValue
+final case class MList(values: Iterable[MValue]) extends MValue
 
 final case class MString(value: String) extends MValue {
   override def toString() = {

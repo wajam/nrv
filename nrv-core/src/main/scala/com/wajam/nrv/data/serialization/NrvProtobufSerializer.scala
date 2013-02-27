@@ -130,14 +130,14 @@ class NrvProtobufSerializer() {
           case None => MMigrationCatchAll(raw)
         }
 
-        map += p.getKey -> value
-    }
+        p.getKey -> value
+    }.toMap
 
     list ++
     mList.map {
       case (p: NrvProtobuf.MPair) =>
-        map += p.getKey -> decodeMValue(p.getValue())
-    }
+        p.getKey -> decodeMValue(p.getValue())
+    }.toMap
   }
 
   private[serialization] def encodeMessage(message: Message, messageDataCodec: Codec): NrvProtobuf.Message = {

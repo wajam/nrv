@@ -98,7 +98,7 @@ object TraceFilter extends MessageHandler with Logging {
   private def getMetadataValue(message: Message, key: String): Option[String] = {
     message.metadata.getOrElse(key, null) match {
       case MList(values) if values.isEmpty => None
-      case MList(values) => Some(values.head.toString)
+      case MList(Seq(MString(s), _)) => Some(s)
       case MString(value) => Some(value)
       case _ => None
     }
