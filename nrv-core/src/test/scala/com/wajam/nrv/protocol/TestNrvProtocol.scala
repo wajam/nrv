@@ -118,7 +118,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter {
     }
 
     assert(received != null)
-    assert(received.parameters.getOrElse("test", "") == MString("someval"))
+    assert(received.parameters.getOrElse("test", "") === MString("someval"))
 
     cluster.stop()
   }
