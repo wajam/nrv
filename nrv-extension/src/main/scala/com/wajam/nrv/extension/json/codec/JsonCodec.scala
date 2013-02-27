@@ -57,7 +57,7 @@ object JsonRender {
     case JBool(false) => sb.append("false")
     case JDouble(n) => sb.append(n.toString)
     case JInt(n) => sb.append(n.toString())
-    case JNull => sb.append("null")
+    case JNull | JString(null) => sb.append("null")
     case JNothing => sb
     case JString(s) => quote(sb.append("\""), s).append("\"")
     case JArray(arr) => {
