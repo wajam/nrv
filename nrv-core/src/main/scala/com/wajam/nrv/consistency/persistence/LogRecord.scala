@@ -10,6 +10,10 @@ sealed trait LogRecord {
   val consistentTimestamp: Option[Timestamp]
 }
 
+sealed trait TimestampedRecord extends LogRecord {
+  val timestamp: Timestamp
+}
+
 object LogRecord {
 
   def apply(id: Long, consistentTimestamp: Option[Timestamp], message: Message): LogRecord = {
@@ -20,7 +24,7 @@ object LogRecord {
   }
 
   case class Request(id: Long, consistentTimestamp: Option[Timestamp], timestamp: Timestamp, token: Long,
-                     message: Message) extends LogRecord {
+                     message: Message) extends TimestampedRecord {
     override val hashCode: Int = {
       41 * (
         41 * (
@@ -56,7 +60,7 @@ object LogRecord {
   }
 
   case class Response(id: Long, consistentTimestamp: Option[Timestamp], timestamp: Timestamp, token: Long,
-                      status: Status) extends LogRecord {
+                      status: Status) extends TimestampedRecord {
     def isSuccess = status == Response.Success
   }
 
@@ -83,7 +87,7 @@ object LogRecord {
 
   }
 
-  case class Index(id: Long, consistentTimestamp: Option[Timestamp]) extends LogRecord with Ordered[Index] {
+  case class Index(id: Long, consistentTimestamp: Option[Timestamp] = None) extends LogRecord with Ordered[Index] {
     override def compare(that: Index) = compareTo(that)
 
     override def compareTo(that: Index): Int = {

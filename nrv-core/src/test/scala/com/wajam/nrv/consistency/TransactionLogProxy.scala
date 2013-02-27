@@ -30,7 +30,9 @@ class TransactionLogProxy(ignoreGetLastLoggedRecord: Boolean = true, ignoreCommi
     record
   }
 
-  def read(id: Option[Long], consistentTimestamp: Option[Timestamp]) = mockTxLog.read()
+  def read(index: Index) = mockTxLog.read(index)
+
+  def read(timestamp: Timestamp) = mockTxLog.read(timestamp)
 
   def truncate(index: Index) {
     mockTxLog.truncate(index)

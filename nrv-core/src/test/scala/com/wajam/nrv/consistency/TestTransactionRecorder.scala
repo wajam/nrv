@@ -17,8 +17,7 @@ import com.yammer.metrics.scala.Meter
 import com.yammer.metrics.Metrics
 import java.util.concurrent.TimeUnit
 import persistence.LogRecord.Index
-import persistence.LogRecord
-
+import persistence.{EmptyTransactionLogIterator, LogRecord, TransactionLog}
 
 @RunWith(classOf[JUnitRunner])
 class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter with MockitoSugar {

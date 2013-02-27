@@ -69,7 +69,7 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
   private def resumeMemberRecovery(member: ResolvedServiceMember) {
     if (recoveryDir.exists()) {
       val recoveryTxLog = new FileTransactionLog(member.serviceName, member.token, recoveryDir.getAbsolutePath)
-      if (recoveryTxLog.getLogFiles().size > 0) {
+      if (recoveryTxLog.getLogFiles.size > 0) {
         info("") // TODO:
         val memberTxLog = new FileTransactionLog(member.serviceName, member.token, logDir)
         val lastLoggedRecord = memberTxLog.getLastLoggedRecord
@@ -97,7 +97,7 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
             // No pending recovery log or previous recovery is incomplete (i.e. last recovery record is not Index),
             // Delete any pending recovery files to have a clean recovery environment.
             // TODO: warning
-            for (recoveryFile <- recoveryTxLog.getLogFiles().toList.reverse) {
+            for (recoveryFile <- recoveryTxLog.getLogFiles.toList.reverse) {
               Files.delete(recoveryFile.toPath)
             }
           }
@@ -112,7 +112,7 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
     firstRecoveredRecord.foreach(memberTxLog.truncate(_))
 
     // Move recovery log files into the real log directory
-    for (recoveryFile <- recoveryTxLog.getLogFiles()) {
+    for (recoveryFile <- recoveryTxLog.getLogFiles) {
       Files.move(recoveryFile.toPath, new File(logDir, recoveryFile.getName).toPath)
     }
 
@@ -124,7 +124,10 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
    * Load all transactions (complete and incomplete) starting at the specified consistent timestamp
    */
   private def loadAllPending(txLog: FileTransactionLog, consistentTimestamp: Option[Timestamp]): TreeMap[Timestamp, PendingTransaction] = {
-    val it = txLog.read(consistentTimestamp = consistentTimestamp)
+    val it = consistentTimestamp match {
+      case Some(timestamp) => txLog.read(timestamp)
+      case None => txLog.read
+    }
     try {
       var pending: TreeMap[Timestamp, PendingTransaction] = TreeMap()
       for (record <- it) {
@@ -145,7 +148,10 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
    * Returns the first record starting at the specified consistent timestamp
    */
   private def firstRecord(txLog: FileTransactionLog, consistentTimestamp: Option[Timestamp] = None): Option[LogRecord] = {
-    val it = txLog.read(consistentTimestamp = consistentTimestamp)
+    val it = consistentTimestamp match {
+      case Some(timestamp) => txLog.read(timestamp)
+      case None => txLog.read
+    }
     try {
       if (it.hasNext) Some(it.next()) else None
     } finally {

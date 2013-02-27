@@ -70,7 +70,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   lazy private val commitSyncTimer = metrics.timer("commit-sync-time")
   lazy private val rollMeter = metrics.meter("roll-calls", "roll-calls")
 
-  lazy private val readTimer = metrics.timer("read-time")
+  lazy private val readIndexTimer = metrics.timer("read-index-time")
+  lazy private val readTimestampTimer = metrics.timer("read-timestamp-time")
   lazy private val readNextCalls = metrics.meter("read-next-calls", "read-next-calls")
   lazy private val readNextError = metrics.meter("read-next-error", "read-next-error")
   lazy private val readNextTimer = metrics.timer("read-next-time")
@@ -97,14 +98,19 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     // Read the last timestamp from the last file. If the file is empty, do the same same the previous one and so on
     // until a timestamp is found.
     var result: Option[LogRecord] = None
-    getLogFiles().toList.reverse.find(file => {
+    getLogFiles.toList.reverse.find(file => {
       val fileIndex = getIndexFromName(file.getName)
-      read(Some(fileIndex.id), fileIndex.consistentTimestamp).toIterable.lastOption match {
-        case Some(record) => {
-          result = Some(record)
-          true
+      val it = read(fileIndex)
+      try {
+        it.toIterable.lastOption match {
+          case Some(record) => {
+            result = Some(record)
+            true
+          }
+          case _ => false
         }
-        case _ => false
+      } finally {
+        it.close()
       }
     })
 
@@ -196,12 +202,70 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   }
 
   /**
-   * Read all the records from the specified id, consistent timestamp or both
+   * Read all records from the begining of the log
    */
-  def read(id: Option[Long] = None, consistentTimestamp: Option[Timestamp] = None): TransactionLogIterator = {
-    readTimer.time {
-      new FileTransactionLogIterator(id, consistentTimestamp)
+  def read: TransactionLogIterator = {
+    read(Index(Long.MinValue))
+  }
+
+  /**
+   * Read all the records from the specified index
+   */
+  def read(index: Index): TransactionLogIterator = {
+    readIndexTimer.time {
+      new FileTransactionLogIterator(index)
     }
+  }
+
+  /**
+   * Read all the records from the specified request record timestamp. Returns an empty iterator if no request record
+   * with the specified timestamp is found. The implementation tries its best to read directly from the proper log
+   * file but have to read from extra log file if required. At worst all the log files may be read to locate the first
+   * record if no record exists for the specified timestamp.
+   */
+  def read(timestamp: Timestamp): TransactionLogIterator = {
+    readTimestampTimer.time {
+      // Try to guess in which log file the searched record is written. This is the last possible log file. If the
+      // record is not found in this file, read the previous log file and so on until the record is found or the first
+      // log is scanned.
+      var file: Option[File] = guessLogFile(timestamp)
+      var result: Option[TransactionLogIterator] = None
+      while (result.isEmpty && file.isDefined) {
+        findRequestInFile(timestamp, file.get) match {
+          case (Some(record), it) => {
+            // Found the initial record, reuse the iterator used to search the record
+            result = Some(new CompositeTransactionLogIterator(record, it))
+          }
+          case (None, _) => {
+            // Record not found the log file, try with previous log file
+            file = getPrevLogFile(file.get)
+          }
+        }
+      }
+
+      result.getOrElse(EmptyTransactionLogIterator)
+    }
+  }
+
+  /**
+   * Search in the specified log file, the request record matching the specified timestamp. Returns a tuple with the
+   * found record and the iterator used to do the search. The iterator is positioned at the record following the
+   * found record.
+   */
+  private[persistence] def findRequestInFile(timestamp: Timestamp, logFile: File): (Option[Request], TransactionLogIterator) = {
+    val lastFileId = getNextLogFile(logFile).map(file => getIndexFromName(file.getName)).map(_.id).getOrElse(Long.MaxValue) - 1
+    val it = new FileTransactionLogIterator(getIndexFromName(logFile.getName))
+    var beyondMax = false
+    var foundRequest: Option[Request] = None
+    while (it.hasNext && !beyondMax && foundRequest.isEmpty) {
+      it.next() match {
+        case request: Request if request.timestamp == timestamp => foundRequest = Some(request)
+        case record: TimestampedRecord if record.timestamp > timestamp => beyondMax = true
+        case record: LogRecord if record.id > lastFileId => beyondMax = true
+        case _ =>
+      }
+    }
+    (foundRequest, it)
   }
 
   /**
@@ -210,19 +274,23 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   def truncate(index: Index) {
     truncateTimer.time {
       this.synchronized {
-        val it = new FileTransactionLogIterator(Some(index.id), index.consistentTimestamp)
-        if (it.hasNext) {
-          val itRecord = it.nextInternal()
+        val it = new FileTransactionLogIterator(index)
+        try {
+          if (it.hasNext) {
+            val record = it.nextInternal()
+            it.close() // Close explicitly before truncate
+
+            // Now truncate at the current position
+            val raf = new RandomAccessFile(record.logFile, "rw")
+            raf.setLength(record.position)
+            raf.close()
+
+            // Delete remaining log files
+            getLogFiles(index).filter(file =>
+              getIndexFromName(file.getName) > getIndexFromName(record.logFile.getName)).foreach(_.delete())
+          }
+        } finally {
           it.close()
-
-          // now, truncate at the current position
-          val raf = new RandomAccessFile(itRecord.logFile, "rw")
-          raf.setLength(itRecord.position)
-          raf.close()
-
-          // Delete remaining log files
-          getLogFiles(Some(index.id), index.consistentTimestamp).filter(file =>
-            getIndexFromName(file.getName) > getIndexFromName(itRecord.logFile.getName)).foreach(_.delete())
         }
       }
     }
@@ -281,10 +349,22 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   }
 
   /**
-   * Returns all the log files containing transactions from the specified id, timestamp or combination of both.
-   * The files are returned in ascending order.
+   * Returns the log files in ascending order that contain transactions from the specified index.
    */
-  def getLogFiles(id: Option[Long] = None, timestamp: Option[Timestamp] = None): Iterable[File] = {
+  def getLogFiles(index: Index): Iterable[File] = {
+    val sortedFiles = getLogFiles.toList
+    sortedFiles.indexWhere(file => getIndexFromName(file.getName).id > index.id) match {
+      case -1 if sortedFiles.isEmpty => sortedFiles
+      case -1 => List(sortedFiles.last)
+      case 0 => sortedFiles
+      case i => sortedFiles.drop(i - 1)
+    }
+  }
+
+  /**
+   * Returns all the log files sorted in ascending order
+   */
+  def getLogFiles: Iterable[File] = {
     val directory = new File(logDir)
     val logFiles = if (directory.exists()) {
       directory.listFiles(new FilenameFilter {
@@ -296,24 +376,41 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       Array[File]()
     }
 
-    val position = (id, timestamp)
-    val sortedFiles = logFiles.sortWith((f1, f2) => getIndexFromName(f1.getName) < getIndexFromName(f2.getName))
-    sortedFiles.indexWhere(f => {
-      val fileIndex = getIndexFromName(f.getName)
-      position match {
-        case (None, None) => true
-        case (Some(i), None) => fileIndex.id > i
-        case (None, Some(ts)) => fileIndex.consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) >= ts
-        case (Some(i), Some(ts)) => if (fileIndex.id > i) {
-          fileIndex.consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) >= ts
-          true
-        } else false
-      }
-    }) match {
-      case -1 if sortedFiles.isEmpty => sortedFiles
-      case -1 => List(sortedFiles.last)
-      case 0 => sortedFiles
-      case i => sortedFiles.drop(i - 1)
+    logFiles.sortWith((f1, f2) => getIndexFromName(f1.getName) < getIndexFromName(f2.getName))
+  }
+
+  /**
+   * Returns the log file that most likely contain the record with the specified timestamp. The record is garantee to
+   * NOT be in a following log file but may be in an earlier log file.
+   */
+  private[persistence] def guessLogFile(timestamp: Timestamp): Option[File] = {
+    // Keep log file having a consistent timestamp lower than the specified timestamp
+    val filteredFiles = getLogFiles.filter(file =>
+      getIndexFromName(file.getName).consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) < timestamp)
+
+    // Return the last remaining file
+    filteredFiles.lastOption
+  }
+
+  /**
+   * Returns the log file following the specified log file
+   */
+  private[persistence] def getNextLogFile(file: File): Option[File] = {
+    val remaining = getLogFiles.dropWhile(_ != file)
+    remaining.toList match {
+      case _ :: n :: _ => Some(n)
+      case _ => None
+    }
+  }
+
+  /**
+   * Returns the log file preceding the sepcified log file
+   */
+  private[persistence] def getPrevLogFile(file: File): Option[File] = {
+    val remaining = getLogFiles.toList.reverse.dropWhile(_ != file)
+    remaining match {
+      case _ :: n :: _ => Some(n)
+      case _ => None
     }
   }
 
@@ -332,7 +429,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   private case class IteratorRecord(record: LogRecord, position: Long, logFile: File)
 
-  private class FileTransactionLogIterator(initialId: Option[Long] = None, initialTimestamp: Option[Timestamp] = None) extends TransactionLogIterator {
+  private class FileTransactionLogIterator(initialIndex: Index) extends TransactionLogIterator {
     private var logStream: Option[DataInputStream] = None
     private var positionStream: PositionInputStream = null
     private var nextRecord: Either[Exception, Option[IteratorRecord]] = Right(None)
@@ -340,38 +437,20 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
     // Position the iterator to the initial timestamp by reading tx from log as long the read timestamp is before the
     // initial timestamp
-    private val logFiles = getLogFiles(initialId, initialTimestamp).toIterator
-    private val initialPosition = (initialId, initialTimestamp)
+    private val logFiles = getLogFiles(initialIndex).toIterator
     openNextFile()
     while (nextRecord match {
-      case Right(Some(IteratorRecord(record, _, _))) => isRecordLessThanPosition(record, initialPosition)
+      case Right(Some(IteratorRecord(record, _, _))) => record.id < initialIndex.id
       case Left(e) => throw new IOException(e)
       case _ => false
     }) {
       readNextRecord()
     }
 
-    private def isRecordLessThanPosition(record: LogRecord, position: (Option[Long], Option[Timestamp])): Boolean = {
-      position match {
-        case (None, None) => false
-        case (Some(id), None) => record.id < id
-        case (None, Some(ts)) => record.consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) < ts
-        case (Some(id), timestamp) => {
-          if (record.id == id) {
-            require(record.consistentTimestamp == timestamp)
-          }
-          record.id < id
-        }
-      }
-    }
-
     def hasNext: Boolean = {
       nextRecord match {
         case Right(Some(_)) => true
-        case _ => {
-          close()
-          false
-        }
+        case _ => false
       }
     }
 

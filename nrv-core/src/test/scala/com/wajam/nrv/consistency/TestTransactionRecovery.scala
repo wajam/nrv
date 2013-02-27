@@ -80,7 +80,7 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
 
     verifyZeroInteractions(mockStore)
 
-    txLog.read().toList should be(List(r1, r2, r3))
+    txLog.read.toList should be(List(r1, r2, r3))
 
     logDir.list() should be(Array("service-0000001000-1:.log"))
   }
@@ -101,7 +101,7 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r301 = Request(301, None, request)
     val r302 = Response(302, None, createResponseMessage(request))
     val r303 = Index(303, Some(r1.timestamp))
-    txLog.read().toList should be(List(r301, r302, r303))
+    txLog.read.toList should be(List(r301, r302, r303))
 
     logDir.list() should be(Array("service-0000001000-1:.log", "service-0000001000-301:.log"))
   }
@@ -131,7 +131,7 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r302 = Response(302, Some(r1.timestamp), createResponseMessage(request3))
     val r303 = Request(303, Some(r302.timestamp), request4)
     val r304 = Response(304, Some(r302.timestamp), createResponseMessage(request4))
-    txLog.read().toList should be(List(r1, r301, r302, r303, r304))
+    txLog.read.toList should be(List(r1, r301, r302, r303, r304))
 
     logDir.list() should be(Array("service-0000001000-1:.log", "service-0000001000-301:.log"))
   }

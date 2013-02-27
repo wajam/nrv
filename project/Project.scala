@@ -46,6 +46,10 @@ object NrvBuild extends Build {
     "org.mockito" % "mockito-core" % "1.9.0"
   )
 
+  val microbenchmarksDeps = Seq(
+    "com.google.caliper" % "caliper" % "0.5-rc1"
+  )
+
   val defaultSettings = Defaults.defaultSettings ++ Defaults.itSettings ++ Seq(
     libraryDependencies ++= commonDeps,
     resolvers ++= commonResolvers,
@@ -64,6 +68,7 @@ object NrvBuild extends Build {
     .aggregate(ext)
     .aggregate(zookeeper)
     .aggregate(scribe)
+    .aggregate(microbenchmarks)
 
   lazy val core = Project(PROJECT_NAME + "-core", file(PROJECT_NAME + "-core"))
     .configs(IntegrationTest)
@@ -98,6 +103,13 @@ object NrvBuild extends Build {
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
     .settings(parallelExecution in IntegrationTest := false)
     .dependsOn(core)
+
+  lazy val microbenchmarks = Project(PROJECT_NAME + "-microbenchmarks", file(PROJECT_NAME + "-microbenchmarks"))
+    .configs(IntegrationTest)
+    .settings(defaultSettings: _*)
+    .settings(libraryDependencies ++= microbenchmarksDeps)
+    .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
+    .dependsOn(ext)
 
   import sbtprotobuf.{ProtobufPlugin => PB}
 
