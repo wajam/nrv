@@ -18,7 +18,7 @@ import com.yammer.metrics.scala.Meter
 import com.yammer.metrics.Metrics
 import java.util.concurrent.TimeUnit
 import persistence.LogRecord.Index
-import persistence.{TransactionLogIterator, LogRecord, TransactionLog}
+import persistence.{EmptyTransactionLogIterator, TransactionLogIterator, LogRecord, TransactionLog}
 
 
 @RunWith(classOf[JUnitRunner])
@@ -75,7 +75,9 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
       record
     }
 
-    def read(id: Option[Long], consistentTimestamp: Option[Timestamp]) = NullTransactionLogIterator
+    def read(index: Index) = EmptyTransactionLogIterator
+
+    def read(timestamp: Timestamp) = EmptyTransactionLogIterator
 
     def truncate(index: Index) {}
 
