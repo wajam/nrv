@@ -172,6 +172,28 @@ class TestNrvProtobufSerializer extends FunSuite {
     assertMessageEqual(entity1, entity2)
   }
 
+  test("can upcast old Any") {
+    val codec = new NrvProtobufSerializer()
+    val messageDataCodec = new GenericJavaSerializeCodec()
+
+    val entity1 = makeMessage()
+
+    entity1.metadata += "Key1m" -> MMigrationCatchAll(1)
+
+    entity1.metadata += "Key2m" -> MMigrationCatchAll(Seq("2"))
+
+    entity1.metadata += "Key3m" -> MMigrationCatchAll(Seq(new Pair(1,2)))
+
+    val protoBufTransport = codec.encodeMessage(entity1, messageDataCodec)
+    val entity2 = codec.decodeMessage(protoBufTransport, messageDataCodec)
+
+    assert(entity2.metadata("Key1m") === MInt(1))
+    assert(entity2.metadata("Key2m") === MList(Seq("2")))
+
+    // Check it only upcast primitive types
+    assert(entity2.metadata("Key3m") === MMigrationCatchAll(Seq(new Pair(1, 2))))
+  }
+
   test("can encode/decode empty message") {
     val codec = new NrvProtobufSerializer()
     val messageDataCodec = new GenericJavaSerializeCodec()

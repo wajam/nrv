@@ -38,7 +38,7 @@ sealed case class MBoolean(value: Boolean) extends MValue {
   }
 }
 
-sealed case class MMigrationCatchAll(value: Any) extends MValue // TODO: PBMigration Remove
+sealed case class MMigrationCatchAll(value: Any) extends MValue // TODO: MessageMigration Remove
 
 object MValue {
 
