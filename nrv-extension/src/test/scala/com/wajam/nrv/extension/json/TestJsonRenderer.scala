@@ -48,6 +48,10 @@ class TestJsonRenderer extends FunSuite {
     testValue(JObject(Nil))
   }
 
+  test("should support null string") {
+    testValue(JString(null))
+  }
+
   test("should support empty array") {
     val value = JObject(List(JField("total_found", JInt(0)),
       JField("count", JInt(0)),
