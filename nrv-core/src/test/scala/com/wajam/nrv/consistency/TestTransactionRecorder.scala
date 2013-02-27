@@ -45,7 +45,6 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
       override def currentTime = TestTransactionRecorder.this.currentTime
     }
     recorder.start()
-    verify(mockTxLog).getLastLoggedTimestamp // Ignore call done at recorder construction
 
     consistencyErrorMeter = new Meter(Metrics.defaultRegistry().newMeter(
       recorder.getClass, "consistency-error", "consistency-error", TimeUnit.MILLISECONDS))
