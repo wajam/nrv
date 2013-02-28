@@ -119,21 +119,25 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val other123 = new File(logDir, "service-0000009999-123.log") // Ignored
 
     // Verify when no log file exist
-    fileTxLog.getNextLogFile(file10) should be(None)
-    fileTxLog.getPrevLogFile(file10) should be(None)
+    fileTxLog.getNextLogFile(Some(file10)) should be(None)
+    fileTxLog.getNextLogFile(None) should be(None)
+    fileTxLog.getPrevLogFile(Some(file10)) should be(None)
+    fileTxLog.getPrevLogFile(None) should be(None)
 
     val allFiles = List(file30, other123, file20, file10, other0)
     allFiles.foreach(_.createNewFile())
 
-    fileTxLog.getNextLogFile(file10) should be(Some(file20))
-    fileTxLog.getNextLogFile(file20) should be(Some(file30))
-    fileTxLog.getNextLogFile(file30) should be(None)
-    fileTxLog.getNextLogFile(other0) should be(None)
+    fileTxLog.getNextLogFile(None) should be(None)
+    fileTxLog.getNextLogFile(Some(file10)) should be(Some(file20))
+    fileTxLog.getNextLogFile(Some(file20)) should be(Some(file30))
+    fileTxLog.getNextLogFile(Some(file30)) should be(None)
+    fileTxLog.getNextLogFile(Some(other0)) should be(None)
 
-    fileTxLog.getPrevLogFile(file10) should be(None)
-    fileTxLog.getPrevLogFile(file20) should be(Some(file10))
-    fileTxLog.getPrevLogFile(file30) should be(Some(file20))
-    fileTxLog.getPrevLogFile(other123) should be(None)
+    fileTxLog.getPrevLogFile(None) should be(None)
+    fileTxLog.getPrevLogFile(Some(file10)) should be(None)
+    fileTxLog.getPrevLogFile(Some(file20)) should be(Some(file10))
+    fileTxLog.getPrevLogFile(Some(file30)) should be(Some(file20))
+    fileTxLog.getPrevLogFile(Some(other123)) should be(None)
   }
 
   test("should not get any log files when there are no log files") {
@@ -418,8 +422,8 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val r6 = fileTxLog.append(LogRecord(id = 6, Some(200), createRequestMessage(timestamp = 600)))
     val r7 = fileTxLog.append(LogRecord(id = 7, Some(300), createRequestMessage(timestamp = 700)))
     fileTxLog.rollLog()
-    val r8 = fileTxLog.append(LogRecord(id = 8, Some(300), createRequestMessage(timestamp = 800)))
-    val r9 = fileTxLog.append(LogRecord(id = 9, Some(300), createRequestMessage(timestamp = 900)))
+    val r8 = fileTxLog.append(LogRecord(id = 8, Some(300), createRequestMessage(timestamp = 900))) // Invert last 2 ts
+    val r9 = fileTxLog.append(LogRecord(id = 9, Some(300), createRequestMessage(timestamp = 800)))
     fileTxLog.commit()
 
     fileTxLog.read(Timestamp(0)).toList should be(List(r0, r1, r2, r3, r4, r5, r6, r7, r8, r9))
@@ -430,8 +434,8 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.read(Timestamp(500)).toList should be(List(r5, r6, r7, r8, r9))
     fileTxLog.read(Timestamp(600)).toList should be(List(r6, r7, r8, r9))
     fileTxLog.read(Timestamp(700)).toList should be(List(r7, r8, r9))
-    fileTxLog.read(Timestamp(800)).toList should be(List(r8, r9))
-    fileTxLog.read(Timestamp(900)).toList should be(List(r9))
+    fileTxLog.read(Timestamp(800)).toList should be(List(r9))     // The last 2 records timestamps are inverted in log
+    fileTxLog.read(Timestamp(900)).toList should be(List(r8, r9)) // and records must be read as written.
 
     // Beyond end
     fileTxLog.read(Timestamp(9999)).toList should be(List())
