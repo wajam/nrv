@@ -68,10 +68,6 @@ abstract class Message(params: Iterable[(String, MValue)] = null,
     messageData.asInstanceOf[T]
   }
 
-  def setData(value: Any) = {
-    messageData = value
-  }
-
   def copyBaseMessageData(other: Message) {
 
     other.code = this.code
