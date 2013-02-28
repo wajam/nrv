@@ -60,6 +60,18 @@ abstract class Message(params: Iterable[(String, MValue)] = null,
     other.attachments ++= attachments
   }
 
+  def hasData: Boolean = {
+    messageData != null
+  }
+
+  def getData[T] = {
+    messageData.asInstanceOf[T]
+  }
+
+  def setData(value: Any) = {
+    messageData = value
+  }
+
   def copyBaseMessageData(other: Message) {
 
     other.code = this.code
