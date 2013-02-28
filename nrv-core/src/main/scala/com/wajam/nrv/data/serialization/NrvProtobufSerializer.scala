@@ -72,8 +72,8 @@ class NrvProtobufSerializer() {
         protoValue.addAllListValue(value.values.map(encodeMValue(_)).asJava)
                   .setType(Type.LIST).build()
 
-      case _ =>
-        throw new RuntimeException("Unsupported MValue.")
+      case value: MMigrationCatchAll =>
+        throw new RuntimeException("Any can't be serialized.")
     }
   }
 
