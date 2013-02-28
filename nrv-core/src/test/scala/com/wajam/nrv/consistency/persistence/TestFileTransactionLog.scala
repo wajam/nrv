@@ -59,75 +59,97 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val file123 = new File(logDir, "service-0000001000-123:200.log")
     val file999 = new File(logDir, "service-0000001000-999:300.log")
     val file1234567890 = new File(logDir, "service-0000001000-1234567890:400.log")
-    val other0 = new File(logDir, "service-0000009999-0.log")
-    val other123 = new File(logDir, "service-0000009999-123.log")
+    val other0 = new File(logDir, "service-0000009999-0.log")     // Ignored
+    val other123 = new File(logDir, "service-0000009999-123.log") // Ignored
 
     val all = List(file123, other123, file1, file999, file0, file1234567890, other0)
     all.foreach(_.createNewFile())
 
     // All files
-    fileTxLog.getLogFiles().toList should be(List(file0, file1, file123, file999, file1234567890))
+    fileTxLog.getLogFiles.toList should be(List(file0, file1, file123, file999, file1234567890))
 
     // Id only
-    fileTxLog.getLogFiles(id = Some(0)).toList should be(List(file0, file1, file123, file999, file1234567890))
-    fileTxLog.getLogFiles(id = Some(1)).toList should be(List(file1, file123, file999, file1234567890))
-    fileTxLog.getLogFiles(id = Some(500)).toList should be(List(file123, file999, file1234567890))
-    fileTxLog.getLogFiles(id = Some(999)).toList should be(List(file999, file1234567890))
-    fileTxLog.getLogFiles(id = Some(1000)).toList should be(List(file999, file1234567890))
-    fileTxLog.getLogFiles(id = Some(9999999999L)).toList should be(List(file1234567890))
-
-    // Timestamp only
-    fileTxLog.getLogFiles(timestamp = Some(0)).toList should be(List(file0, file1, file123, file999, file1234567890))
-    fileTxLog.getLogFiles(timestamp = Some(100)).toList should be(List(file0, file1, file123, file999, file1234567890))
-    fileTxLog.getLogFiles(timestamp = Some(150)).toList should be(List(file1, file123, file999, file1234567890))
-    fileTxLog.getLogFiles(timestamp = Some(200)).toList should be(List(file1, file123, file999, file1234567890))
-    fileTxLog.getLogFiles(timestamp = Some(350)).toList should be(List(file999, file1234567890))
-    fileTxLog.getLogFiles(timestamp = Some(400)).toList should be(List(file999, file1234567890))
-    fileTxLog.getLogFiles(timestamp = Some(1000)).toList should be(List(file1234567890))
-
-    // Both id and timestamp
-    fileTxLog.getLogFiles(id = Some(-1), timestamp = Some(50)).toList should be(List(file0, file1, file123, file999, file1234567890))
-    fileTxLog.getLogFiles(id = Some(0), timestamp = Some(100)).toList should be(List(file0, file1, file123, file999, file1234567890))
-    fileTxLog.getLogFiles(id = Some(100), timestamp = Some(120)).toList should be(List(file1, file123, file999, file1234567890))
-    fileTxLog.getLogFiles(id = Some(1000), timestamp = Some(350)).toList should be(List(file999, file1234567890))
-    fileTxLog.getLogFiles(id = Some(9999999999L), timestamp = Some(500)).toList should be(List(file1234567890))
+    fileTxLog.getLogFiles(Index(0)).toList should be(List(file0, file1, file123, file999, file1234567890))
+    fileTxLog.getLogFiles(Index(1)).toList should be(List(file1, file123, file999, file1234567890))
+    fileTxLog.getLogFiles(Index(500)).toList should be(List(file123, file999, file1234567890))
+    fileTxLog.getLogFiles(Index(999)).toList should be(List(file999, file1234567890))
+    fileTxLog.getLogFiles(Index(1000)).toList should be(List(file999, file1234567890))
+    fileTxLog.getLogFiles(Index(9999999999L)).toList should be(List(file1234567890))
   }
 
-  ignore("getting log files should fail on illegal id and timestamp pair") {
-    // TODO: Fix this!!!
-    val file100 = new File(logDir, "service-0000001000-100:1000.log")
-    val file200 = new File(logDir, "service-0000001000-200:1000.log")
-    val file300 = new File(logDir, "service-0000001000-300:2000.log")
-    val file400 = new File(logDir, "service-0000001000-400:3000.log")
+  test("should guess the log file likely to contain the record for specified timestamp") {
+    val file10 = new File(logDir, "service-0000001000-10:100.log")
+    val file11 = new File(logDir, "service-0000001000-11:100.log")
+    val file123 = new File(logDir, "service-0000001000-123:200.log")
+    val file999 = new File(logDir, "service-0000001000-999:300.log")
+    val file1234567890 = new File(logDir, "service-0000001000-1234567890:400.log")
+    val other0 = new File(logDir, "service-0000009999-0.log")     // Ignored
+    val other123 = new File(logDir, "service-0000009999-123.log") // Ignored
 
-    val all = List(file100, file200, file300, file400).reverse
-    all.foreach(_.createNewFile())
+    val allFiles = List(file123, other123, file11, file999, file10, file1234567890, other0)
+    allFiles.foreach(_.createNewFile())
 
-    evaluating {
-      fileTxLog.getLogFiles(id = Some(150), timestamp = Some(500))
-    } should produce[IllegalArgumentException]
+    fileTxLog.guessLogFile(0) should be(None)
+    fileTxLog.guessLogFile(100) should be(None)
+    fileTxLog.guessLogFile(101) should be(Some(file11))
+    fileTxLog.guessLogFile(150) should be(Some(file11))
+    fileTxLog.guessLogFile(199) should be(Some(file11))
+    fileTxLog.guessLogFile(200) should be(Some(file11))
+    fileTxLog.guessLogFile(201) should be(Some(file123))
+    fileTxLog.guessLogFile(350) should be(Some(file999))
+    fileTxLog.guessLogFile(400) should be(Some(file999))
+    fileTxLog.guessLogFile(1000) should be(Some(file1234567890))
 
-    evaluating {
-      fileTxLog.getLogFiles(id = Some(200), timestamp = Some(500))
-    } should produce[IllegalArgumentException]
+    // Create a couple of files without a consistent timestamp
+    val file0 = new File(logDir, "service-0000001000-0:.log")
+    val file1 = new File(logDir, "service-0000001000-1:.log")
+    val newFiles = List(file0, file1)
+    newFiles.foreach(_.createNewFile())
 
-    evaluating {
-      fileTxLog.getLogFiles(id = Some(399), timestamp = Some(2990))
-    } should produce[IllegalArgumentException]
+    fileTxLog.guessLogFile(0) should be(Some(file1))
+    fileTxLog.guessLogFile(100) should be(Some(file1))
+    fileTxLog.guessLogFile(101) should be(Some(file11))
+  }
+
+  test("should get next and previous log file") {
+    val file10 = new File(logDir, "service-0000001000-10:.log")
+    val file20 = new File(logDir, "service-0000001000-20:.log")
+    val file30 = new File(logDir, "service-0000001000-30:.log")
+    val other0 = new File(logDir, "service-0000009999-0.log")     // Ignored
+    val other123 = new File(logDir, "service-0000009999-123.log") // Ignored
+
+    // Verify when no log file exist
+    fileTxLog.getNextLogFile(Some(file10)) should be(None)
+    fileTxLog.getNextLogFile(None) should be(None)
+    fileTxLog.getPrevLogFile(Some(file10)) should be(None)
+    fileTxLog.getPrevLogFile(None) should be(None)
+
+    val allFiles = List(file30, other123, file20, file10, other0)
+    allFiles.foreach(_.createNewFile())
+
+    fileTxLog.getNextLogFile(None) should be(None)
+    fileTxLog.getNextLogFile(Some(file10)) should be(Some(file20))
+    fileTxLog.getNextLogFile(Some(file20)) should be(Some(file30))
+    fileTxLog.getNextLogFile(Some(file30)) should be(None)
+    fileTxLog.getNextLogFile(Some(other0)) should be(None)
+
+    fileTxLog.getPrevLogFile(None) should be(None)
+    fileTxLog.getPrevLogFile(Some(file10)) should be(None)
+    fileTxLog.getPrevLogFile(Some(file20)) should be(Some(file10))
+    fileTxLog.getPrevLogFile(Some(file30)) should be(Some(file20))
+    fileTxLog.getPrevLogFile(Some(other123)) should be(None)
   }
 
   test("should not get any log files when there are no log files") {
     // No file at all
-    fileTxLog.getLogFiles().toList should be(List[File]())
-    fileTxLog.getLogFiles(id = Some(0)).toList should be(List[File]())
-    fileTxLog.getLogFiles(timestamp = Some(0)).toList should be(List[File]())
+    fileTxLog.getLogFiles.toList should be(List[File]())
+    fileTxLog.getLogFiles(Index(0)).toList should be(List[File]())
 
     // No files matching this token
     new File(logDir, "service-0000009999-0:0.log").createNewFile()
     new File(logDir, "service-0000009999-123:321.log").createNewFile()
-    fileTxLog.getLogFiles().toList should be(List[File]())
-    fileTxLog.getLogFiles(id = Some(0)).toList should be(List[File]())
-    fileTxLog.getLogFiles(timestamp = Some(0)).toList should be(List[File]())
+    fileTxLog.getLogFiles.toList should be(List[File]())
+    fileTxLog.getLogFiles(Index(0)).toList should be(List[File]())
   }
 
   test("should create tx logger even if log directory does not exist") {
@@ -152,7 +174,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.append(record)
     fileTxLog.commit()
 
-    val it = fileTxLog.read()
+    val it = fileTxLog.read
     it.hasNext should be(true)
     it.next() should be(record)
     it.hasNext should be(false)
@@ -172,7 +194,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val files = logDir.list().sorted
     files should be(Array("service-0000001000-74:.log", "service-0000001000-9999:2000.log"))
 
-    val actualRecords = fileTxLog.read().toList
+    val actualRecords = fileTxLog.read.toList
     actualRecords should be(List(r1, r2, r3))
   }
 
@@ -194,7 +216,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.commit()
     logFile.length() should be > fileLenAfterRecord1
 
-    val actualrecords = fileTxLog.read().toList
+    val actualrecords = fileTxLog.read.toList
     actualrecords should be(List(r1, r2))
   }
 
@@ -220,7 +242,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.commit()
     logFile.length() should be > fileLenAfterRecord1
 
-    val actualrecords = fileTxLog.read().toList
+    val actualrecords = fileTxLog.read.toList
     actualrecords should be(List(r1, r3))
   }
 
@@ -246,7 +268,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.commit()
     logFile.length() should be > fileLenAfterRecord1
 
-    val actualrecords = fileTxLog.read().toList
+    val actualrecords = fileTxLog.read.toList
     actualrecords should be(List(r1, r3))
   }
 
@@ -275,7 +297,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.commit()
     logFile.length() should be > fileLenAfterRecord1
 
-    val actualRecords = fileTxLog.read().toList
+    val actualRecords = fileTxLog.read.toList
     actualRecords should be(List(r1, r3))
   }
 
@@ -304,7 +326,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     val files = logDir.list().sorted
     files should be(Array("service-0000001000-100:.log", "service-0000001000-101:.log"))
-    fileTxLog.read().toList should be(List(r1, r2))
+    fileTxLog.read.toList should be(List(r1, r2))
   }
 
   test("should automatically roll log file at a given size threshold") {
@@ -357,7 +379,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.commit()
 
     // Validate starting at id 5 (which is also index 5)
-    val it = fileTxLog.read(id = Some(5))
+    val it = fileTxLog.read(Index(5))
     5.until(10).foreach(i => {
       it.hasNext should be(true)
       it.next() should be(LogRecord(id = i, None, createRequestMessage(timestamp = i)))
@@ -368,12 +390,12 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     // Validate starting from every index
     0.until(10).foreach(i => {
       val expectedRecords = i.until(10).map(i => LogRecord(id = i, None, createRequestMessage(timestamp = i))).toList
-      val actualRecords = fileTxLog.read(id = Some(i)).toList
+      val actualRecords = fileTxLog.read(Index(i)).toList
       actualRecords should be(expectedRecords)
     })
 
     // Validate starting beyond end
-    fileTxLog.read(id = Some(9999)).toList should be(List())
+    fileTxLog.read(Index(9999)).toList should be(List())
   }
 
   test("should read all transactions when no position specified") {
@@ -383,59 +405,44 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.commit()
 
     // Validate starting from begining
-    val actualRecords = fileTxLog.read().toList
+    val actualRecords = fileTxLog.read.toList
     actualRecords should be(List(r1, r2, r3))
   }
 
-  test("should read transactions from specified consistent timestamp") {
-    val r0 = fileTxLog.append(LogRecord(id = 0, Some(100), createRequestMessage(timestamp = 1000)))
-    val r1 = fileTxLog.append(LogRecord(id = 1, Some(200), createRequestMessage(timestamp = 1001)))
-    val r2 = fileTxLog.append(LogRecord(id = 2, Some(300), createRequestMessage(timestamp = 1002)))
-    val r3 = fileTxLog.append(LogRecord(id = 3, Some(400), createRequestMessage(timestamp = 1003)))
+  test("should read transactions from specified timestamp") {
+    val r0 = fileTxLog.append(LogRecord(id = 0, None, createRequestMessage(timestamp = 0)))
+    val r1 = fileTxLog.append(LogRecord(id = 1, None, createRequestMessage(timestamp = 100)))
+    val r2 = fileTxLog.append(LogRecord(id = 2, Some(100), createRequestMessage(timestamp = 200)))
     fileTxLog.rollLog()
-    val r4 = fileTxLog.append(LogRecord(id = 4, Some(599), createRequestMessage(timestamp = 1004)))
-    val r5 = fileTxLog.append(LogRecord(id = 5, Some(600), createRequestMessage(timestamp = 1005)))
-    val r6 = fileTxLog.append(LogRecord(id = 6, Some(600), createRequestMessage(timestamp = 1006)))
-    val r7 = fileTxLog.append(LogRecord(id = 7, Some(601), createRequestMessage(timestamp = 1007)))
+    val r3 = fileTxLog.append(LogRecord(id = 3, Some(200), createRequestMessage(timestamp = 300)))
     fileTxLog.rollLog()
-    val r8 = fileTxLog.append(LogRecord(id = 8, Some(601), createRequestMessage(timestamp = 1008)))
-    val r9 = fileTxLog.append(LogRecord(id = 9, Some(700), createRequestMessage(timestamp = 1009)))
+    val r4 = fileTxLog.append(LogRecord(id = 4, Some(200), createRequestMessage(timestamp = 400)))
+    val r5 = fileTxLog.append(LogRecord(id = 5, Some(200), createRequestMessage(timestamp = 500)))
+    fileTxLog.rollLog()
+    val r6 = fileTxLog.append(LogRecord(id = 6, Some(200), createRequestMessage(timestamp = 600)))
+    val r7 = fileTxLog.append(LogRecord(id = 7, Some(300), createRequestMessage(timestamp = 700)))
+    fileTxLog.rollLog()
+    val r8 = fileTxLog.append(LogRecord(id = 8, Some(300), createRequestMessage(timestamp = 900))) // Invert last 2 ts
+    val r9 = fileTxLog.append(LogRecord(id = 9, Some(300), createRequestMessage(timestamp = 800)))
     fileTxLog.commit()
 
-    // Validate starting at consistent timestamp 600
-    val actualRecords = fileTxLog.read(consistentTimestamp = Some(600)).toList
-    actualRecords should be(List(r5, r6, r7, r8, r9))
+    fileTxLog.read(Timestamp(0)).toList should be(List(r0, r1, r2, r3, r4, r5, r6, r7, r8, r9))
+    fileTxLog.read(Timestamp(100)).toList should be(List(r1, r2, r3, r4, r5, r6, r7, r8, r9))
+    fileTxLog.read(Timestamp(200)).toList should be(List(r2, r3, r4, r5, r6, r7, r8, r9))
+    fileTxLog.read(Timestamp(300)).toList should be(List(r3, r4, r5, r6, r7, r8, r9))
+    fileTxLog.read(Timestamp(400)).toList should be(List(r4, r5, r6, r7, r8, r9))
+    fileTxLog.read(Timestamp(500)).toList should be(List(r5, r6, r7, r8, r9))
+    fileTxLog.read(Timestamp(600)).toList should be(List(r6, r7, r8, r9))
+    fileTxLog.read(Timestamp(700)).toList should be(List(r7, r8, r9))
+    fileTxLog.read(Timestamp(800)).toList should be(List(r9))     // The last 2 records timestamps are inverted in log
+    fileTxLog.read(Timestamp(900)).toList should be(List(r8, r9)) // and records must be read as written.
 
-    // Validate starting beyond end
-    fileTxLog.read(consistentTimestamp = Some(9999)).toList should be(List())
-  }
+    // Beyond end
+    fileTxLog.read(Timestamp(9999)).toList should be(List())
 
-  test("should read transactions from specified id AND consistent timestamp") {
-    val r0 = fileTxLog.append(LogRecord(id = 0, Some(100), createRequestMessage(timestamp = 1000)))
-    val r1 = fileTxLog.append(LogRecord(id = 1, Some(200), createRequestMessage(timestamp = 1001)))
-    val r2 = fileTxLog.append(LogRecord(id = 2, Some(300), createRequestMessage(timestamp = 1002)))
-    val r3 = fileTxLog.append(LogRecord(id = 3, Some(400), createRequestMessage(timestamp = 1003)))
-    fileTxLog.rollLog()
-    val r4 = fileTxLog.append(LogRecord(id = 4, Some(599), createRequestMessage(timestamp = 1004)))
-    val r5 = fileTxLog.append(LogRecord(id = 5, Some(600), createRequestMessage(timestamp = 1005)))
-    val r6 = fileTxLog.append(LogRecord(id = 6, Some(600), createRequestMessage(timestamp = 1006)))
-    val r7 = fileTxLog.append(LogRecord(id = 7, Some(601), createRequestMessage(timestamp = 1007)))
-    fileTxLog.rollLog()
-    val r8 = fileTxLog.append(LogRecord(id = 8, Some(601), createRequestMessage(timestamp = 1008)))
-    val r9 = fileTxLog.append(LogRecord(id = 9, Some(700), createRequestMessage(timestamp = 1009)))
-    fileTxLog.commit()
-
-    val allRecords = List(r0, r1, r2, r3, r4, r5, r6, r7, r8, r9)
-
-    // Validate starting from every index
-    0.until(10).foreach(i => {
-      val expectedRecords = allRecords.slice(i, allRecords.size)
-      val actualRecords = fileTxLog.read(id = Some(i)).toList
-      actualRecords should be(expectedRecords)
-    })
-
-    // Validate starting beyond end
-    fileTxLog.read(id = Some(9999), consistentTimestamp = Some(9999)).toList should be(List())
+    // Unknown timestamp
+    fileTxLog.read(Timestamp(-1)).toList should be(List())
+    fileTxLog.read(Timestamp(850)).toList should be(List())
   }
 
   test("read should skip empty log files") {
@@ -486,7 +493,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val actualFiles = logDir.list().sorted
     actualFiles should be(expectedFiles)
 
-    val actualRecords = fileTxLog.read().toList
+    val actualRecords = fileTxLog.read.toList
     actualRecords should be(List(r1, r2, r4))
   }
 
@@ -503,7 +510,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     doReturn(r1).doReturn(r2).doReturn(r3).doThrow(new IOException()).doReturn(r5).when(spySerializer).deserialize(anyObject())
 
     // Start at second transaction
-    val actualRecords = fileTxLog.read(id = Some(2)).toList
+    val actualRecords = fileTxLog.read(Index(2)).toList
     actualRecords should be(List(r2, r3))
   }
 
@@ -523,7 +530,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val actualFiles = logDir.list().sorted
     actualFiles should be(expectedFiles)
 
-    val actualRecords = fileTxLog.read().toList
+    val actualRecords = fileTxLog.read.toList
     actualRecords should be(List(r1, r2))
   }
 
@@ -550,23 +557,23 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     // Ensure we can successfully create a log file with valid header
     createEmptyLogFileWithHeader(id = 0)
-    fileTxLog.read().toList should be(List(record))
+    fileTxLog.read.toList should be(List(record))
 
     // Invalid header magic
     createEmptyLogFileWithHeader(id = 0, magic = Random.nextLong())
-    fileTxLog.read().toList should be(List())
+    fileTxLog.read.toList should be(List())
 
     // Invalid header version
     createEmptyLogFileWithHeader(id = 0, version = FileTransactionLog.LogFileVersion + 1)
-    fileTxLog.read().toList should be(List())
+    fileTxLog.read.toList should be(List())
 
     // Invalid header service
     createEmptyLogFileWithHeader(id = 0, service = "dummy")
-    fileTxLog.read().toList should be(List())
+    fileTxLog.read.toList should be(List())
 
     // Test again with a valid header
     createEmptyLogFileWithHeader(id = 0)
-    fileTxLog.read().toList should be(List(record))
+    fileTxLog.read.toList should be(List(record))
   }
 
   test("should get the last logged timestamp") {
@@ -657,16 +664,17 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val r9 = fileTxLog.append(LogRecord(id = 9, Some(700), createRequestMessage(timestamp = 1009)))
     fileTxLog.commit()
 
-    fileTxLog.read().toList should be(List(r0, r1, r2, r3, r4, r5, r6, r7, r8, r9))
+    fileTxLog.read.toList should be(List(r0, r1, r2, r3, r4, r5, r6, r7, r8, r9))
     logDir.list().sorted should be(Array("service-0000001000-0:100.log", "service-0000001000-4:599.log",
       "service-0000001000-8:601.log", "service-0000001000-9:700.log"))
 
     fileTxLog.truncate(r6)
 
     logDir.list().sorted should be(Array("service-0000001000-0:100.log", "service-0000001000-4:599.log"))
-    fileTxLog.read().toList should be(List(r0, r1, r2, r3, r4, r5))
-    fileTxLog.read(consistentTimestamp = Some(600)).toList should be(List(r5))
-    fileTxLog.read(id = Some(r6.id)).toList should be(List())
+    fileTxLog.read.toList should be(List(r0, r1, r2, r3, r4, r5))
+    fileTxLog.read(Index(r6.id)).toList should be(List())
+    fileTxLog.read(Index(r6.id)).toList should be(List())
+    fileTxLog.read(Timestamp(1005)).toList should be(List(r5))
   }
 
   ignore("commit") {

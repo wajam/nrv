@@ -11,20 +11,22 @@ object NullTransactionLog extends TransactionLog {
     block
   }
 
-  def read(id: Option[Long], consistentTimestamp: Option[Timestamp]) = NullTransactionLogIterator
+  def read(index: Index) = EmptyTransactionLogIterator
 
-  def truncate(index: Index) = true
+  def read(timestamp: Timestamp) = EmptyTransactionLogIterator
+
+  def truncate(index: Index) {}
 
   def commit() {}
 
   def close() {}
-
-  object NullTransactionLogIterator extends TransactionLogIterator {
-    def hasNext = false
-
-    def next() = null
-
-    def close() {}
-  }
-
 }
+
+object EmptyTransactionLogIterator extends TransactionLogIterator {
+  def hasNext = false
+
+  def next() = null
+
+  def close() {}
+}
+

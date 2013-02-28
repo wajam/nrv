@@ -15,9 +15,15 @@ trait TransactionLog {
   def append[T <: LogRecord](block: => T): T
 
   /**
-   * Read all the records from the specified id, consistent timestamp or both
+   * Read all the records from the specified index
    */
-  def read(id: Option[Long] = None, consistentTimestamp: Option[Timestamp] = None): TransactionLogIterator
+  def read(index: Index): TransactionLogIterator
+
+  /**
+   * Read all the records from the specified request record timestamp. Returns an empty iterator if no request record
+   * with the specified timestamp is found.
+   */
+  def read(timestamp: Timestamp): TransactionLogIterator
 
   /**
    * Truncate log storage from the specified index inclusively
