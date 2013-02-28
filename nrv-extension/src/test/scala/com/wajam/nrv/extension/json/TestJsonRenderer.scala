@@ -44,6 +44,22 @@ class TestJsonRenderer extends FunSuite {
     testValue(JArray((1 to length map (_ => getRandomFollowee)).toList))
   }
 
+  test("should support empty object") {
+    testValue(JObject(Nil))
+  }
+
+  test("should support null string") {
+    testValue(JString(null))
+  }
+
+  test("should support empty array") {
+    val value = JObject(List(JField("total_found", JInt(0)),
+      JField("count", JInt(0)),
+      JField("next_offset", JInt(0)),
+      JField("records", JArray(List()))))
+    testValue(value)
+  }
+
   test("should have the same output than Lift for escaped strings") {
     testValue(JString("\'\"\\\b\f\n\r\t"))
   }

@@ -204,6 +204,8 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
         }
         case Some((timestamp, context)) if context.isExpired => {
           // Pending head transaction has expired before receiving a response, something is very wrong
+          pendingTransactions -= timestamp
+
           consistencyErrorTimeout.mark()
           error("Consistency error timeout on transaction {}.", context)
           handleConsistencyError()
