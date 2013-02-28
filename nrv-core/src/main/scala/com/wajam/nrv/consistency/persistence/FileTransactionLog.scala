@@ -260,7 +260,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     while (it.hasNext && !beyondMax && foundRequest.isEmpty) {
       it.next() match {
         case request: Request if request.timestamp == timestamp => foundRequest = Some(request)
-        case record: TimestampedRecord if record.timestamp > timestamp => beyondMax = true
+//        case record: TimestampedRecord if record.timestamp > timestamp => beyondMax = true
         case record: LogRecord if record.id > lastFileId => beyondMax = true
         case _ =>
       }
