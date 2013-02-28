@@ -232,6 +232,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     // Advance recorder time
     currentTime += recorder.consistencyTimeout + 1
     recorder.checkPending()
+    recorder.checkPending() // Call again to ensure the same tx is not timing out again
 
     consistencyErrorMeter.count should be(before + 1)
     // TODO: verify service member status goes down
