@@ -50,10 +50,6 @@ object MValue {
 
   // Helper to convert usage
 
-  def mapToMMigrationCatchAll(map: Iterable[(String, Any)]): Iterable[(String, MValue)] = {
-    map.map { case(k: String, v: Any) => (k, MMigrationCatchAll(v)) }
-  }
-
   implicit def mapToMString(map: Iterable[(String, String)]): Iterable[(String, MValue)] = {
     map.map { case(k: String, v: String) => (k, MString(v)) }
   }
