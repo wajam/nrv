@@ -7,8 +7,8 @@ import com.wajam.nrv.service.{Endpoints, ActionMethod, ActionURL}
 /**
  * Base used for outbound and inbound messages.
  */
-abstract class Message(params: Iterable[(String, Any)] = null,
-                       meta: Iterable[(String, Any)] = null,
+abstract class Message(params: Iterable[(String, MValue)] = null,
+                       meta: Iterable[(String, MValue)] = null,
                        data: Any = null,
                        var code: Int = 200) extends Serializable {
 
@@ -31,8 +31,8 @@ abstract class Message(params: Iterable[(String, Any)] = null,
   var destination: Endpoints = Endpoints.EMPTY
   var token: Long = -1
 
-  val parameters = new collection.mutable.HashMap[String, Any]
-  val metadata = new collection.mutable.HashMap[String, Any]
+  val parameters = new collection.mutable.HashMap[String, MValue]
+  val metadata = new collection.mutable.HashMap[String, MValue]
   var messageData: Any = null
 
   val attachments = new collection.mutable.HashMap[String, Any]
@@ -41,8 +41,8 @@ abstract class Message(params: Iterable[(String, Any)] = null,
 
   def this() = this(null, null, null)
 
-  private def loadData(params: Iterable[(String, Any)] = null,
-                       meta: Iterable[(String, Any)] = null,
+  private def loadData(params: Iterable[(String, MValue)] = null,
+                       meta: Iterable[(String, MValue)] = null,
                        data: Any = null) {
     if (params != null) {
       parameters ++= params
@@ -58,6 +58,14 @@ abstract class Message(params: Iterable[(String, Any)] = null,
   def copyTo(other: Message) {
     copyBaseMessageData(other)
     other.attachments ++= attachments
+  }
+
+  def hasData: Boolean = {
+    messageData != null
+  }
+
+  def getData[T] = {
+    messageData.asInstanceOf[T]
   }
 
   def copyBaseMessageData(other: Message) {
@@ -100,8 +108,8 @@ object MessageType {
   val FUNCTION_RESPONSE = 1
 }
 
-class SerializableMessage(params: Iterable[(String, Any)] = null,
-                          meta: Iterable[(String, Any)] = null,
+class SerializableMessage(params: Iterable[(String, MValue)] = null,
+                          meta: Iterable[(String, MValue)] = null,
                           data: Any = null) extends Message(params, meta, data) with Serializable {
 
 }

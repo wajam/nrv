@@ -71,7 +71,8 @@ abstract class NettyTransport(host: InetAddress,
     writeOnChannel(writeChannel, message, Some(destination), completionCallback, closeAfter)
   }
 
-  private def writeOnChannel(channel: Channel, message: AnyRef,
+  private def writeOnChannel(channel: Channel,
+                             message: AnyRef,
                              destination: Option[InetSocketAddress],
                              completionCallback: Option[Throwable] => Unit = (_) => {},
                              closeAfter: Boolean = false) {

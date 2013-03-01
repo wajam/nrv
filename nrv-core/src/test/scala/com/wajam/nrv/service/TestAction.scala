@@ -7,8 +7,10 @@ import org.junit.runner.RunWith
 import java.lang.String
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.{TimeoutException, RemoteException, InvalidParameter}
-import com.wajam.nrv.data.{OutMessage, InMessage}
+import com.wajam.nrv.data.{MString, OutMessage, InMessage}
 import com.wajam.nrv.utils.{Future, Promise}
+
+import com.wajam.nrv.data.MValue._
 
 @RunWith(classOf[JUnitRunner])
 class TestAction extends FunSuite with BeforeAndAfter {
@@ -34,7 +36,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val action = service.registerAction(new Action("/test/:param", req => {
       req.parameters.getOrElse("call_key", "") match {
-        case s: String =>
+        case MString(s) =>
           syncCall.success(s)
         case _ =>
           syncCall.failure(new Exception("Expected paramter 'call_key'"))
@@ -47,7 +49,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
     action.tracer.trace() {
       action.call(Map("call_key" -> "call_value", "param" -> "param_value"), onReply = (resp, err) => {
         resp.parameters.getOrElse("response_key", "") match {
-          case s: String =>
+          case MString(s) =>
             syncResponse.success(s)
           case _ =>
             syncResponse.failure(new Exception("Expected paramter 'response_key'"))
@@ -173,7 +175,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
     val syncCall = Promise[String]
 
     val action = service.registerAction(new Action("/test/:param", req => {
-      syncCall.success(req.parameters("param").asInstanceOf[String])
+      syncCall.success(req.parameters("param").asInstanceOf[MString].value)
     }))
     action.start()
 

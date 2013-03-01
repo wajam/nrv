@@ -7,7 +7,8 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import org.jboss.netty.handler.codec.http._
 import com.wajam.nrv.service.ActionMethod
-import com.wajam.nrv.data.{OutMessage, InMessage}
+import com.wajam.nrv.data._
+import com.wajam.nrv.data.MString
 
 /**
  *
@@ -30,8 +31,8 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val msg = protocol.parse(nettyRequest)
 
     msg.parameters.size should equal(2)
-    msg.parameters("a") should equal("1")
-    msg.parameters("b") should equal(Seq("2", "3"))
+    msg.parameters("a") should equal(MString("1"))
+    msg.parameters("b") should equal(MList(Seq("2", "3")))
   }
 
   test("should map HTTP header to message metadata in requests") {
@@ -41,7 +42,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val msg = protocol.parse(nettyRequest)
 
     msg.metadata.size should equal(1)
-    msg.metadata("HEADER") should equal("value")
+    msg.metadata("HEADER") should equal(MString("value"))
   }
 
   test("should map HTTP header to message metadata in responses") {
@@ -50,7 +51,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     val msg = protocol.parse(nettyresponse)
 
-    msg.metadata("HEADER") should equal("value")
+    msg.metadata("HEADER") should equal(MString("value"))
   }
 
   test("should HTTP map status code to code") {
@@ -158,5 +159,20 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val req = protocol.generate(msg).asInstanceOf[HttpRequest]
 
     assert("path" === req.getUri)
+  }
+
+  test("should generate and parse a complete message") {
+    val msg = new InMessage()
+    msg.method = ActionMethod.GET
+    msg.path = "path"
+
+    msg.metadata("CONTENT-TYPE") = MString("text/plain")
+
+    val req = protocol.generate(msg).asInstanceOf[HttpRequest]
+    val msg2 = protocol.parse(req)
+
+    assert(msg.path === msg2.path)
+    assert(msg.method === msg2.method)
+    assert(msg.metadata("CONTENT-TYPE") === msg2.metadata("CONTENT-TYPE"))
   }
 }

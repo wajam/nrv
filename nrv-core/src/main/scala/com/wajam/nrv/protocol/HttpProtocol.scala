@@ -8,7 +8,7 @@ import scala.collection.JavaConverters._
 import com.wajam.nrv.cluster.LocalNode
 import com.wajam.nrv.transport.http.HttpNettyTransport
 import scala.Array
-import com.wajam.nrv.data.{Message, InMessage, OutMessage}
+import com.wajam.nrv.data._
 import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.RouteException
 
@@ -133,7 +133,7 @@ class HttpProtocol(name: String, localNode: LocalNode)
 
   private def mapContent(httpMessage: HttpMessage, message: Message) {
     val contentTypeHeader = message.metadata.getOrElse("CONTENT-TYPE",
-      HttpProtocol.DEFAULT_CONTENT_TYPE).asInstanceOf[String]
+      HttpProtocol.DEFAULT_CONTENT_TYPE).toString
     val (contentType, contentEncoding) = splitContentTypeHeader(contentTypeHeader)
     val byteBuffer = httpMessage.getContent.toByteBuffer
     val bytes = new Array[Byte](byteBuffer.limit())
@@ -165,7 +165,7 @@ class HttpProtocol(name: String, localNode: LocalNode)
   private def setContent(httpMessage: HttpMessage, message: Message) {
     if (message.messageData != null) {
       val contentTypeHeader = message.metadata.getOrElse("Content-Type",
-        HttpProtocol.DEFAULT_CONTENT_TYPE).asInstanceOf[String]
+        HttpProtocol.DEFAULT_CONTENT_TYPE).toString
       val (contentType, contentEncoding) = splitContentTypeHeader(contentTypeHeader)
       contentTypeCodecs.get(contentType) match {
         case Some(codec) => {
@@ -210,13 +210,13 @@ class HttpProtocol(name: String, localNode: LocalNode)
     (parts(0), charset)
   }
 
-  private def collapseSingletonLists(parameters: Map[String, Any]): Map[String, Any] = {
+  private def collapseSingletonLists(parameters: Map[String, Any]): Map[String, MValue] = {
     parameters.mapValues(v => {
       v match {
         case l: Seq[_] if l.size == 1 => {
-          l(0)
+          MString(l(0).asInstanceOf[String])
         }
-        case x => v
+        case x => MList(v.asInstanceOf[Iterable[String]].map(MString(_)))
       }
     })
   }

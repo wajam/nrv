@@ -1,9 +1,12 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
+import com.wajam.nrv.data._
 import com.wajam.nrv.tracing.{RpcName, TraceContext, Tracer, Annotation}
 import com.wajam.nrv.Logging
 import java.net.InetSocketAddress
+import com.wajam.nrv.tracing.RpcName
+import com.wajam.nrv.tracing.TraceContext
+import com.wajam.nrv.data.MValue._
 
 /**
  * Listen to incoming and and outgoing message and record trace information on the go
@@ -94,10 +97,9 @@ object TraceFilter extends MessageHandler with Logging {
 
   private def getMetadataValue(message: Message, key: String): Option[String] = {
     message.metadata.getOrElse(key, null) match {
-      case None => None
-      case values: Seq[_] if values.isEmpty => None
-      case values: Seq[_] => Some(values(0).toString)
-      case value: String => Some(value)
+      case MList(Seq()) => None
+      case MList(Seq(MString(s), _)) => Some(s)
+      case MString(value) => Some(value)
       case _ => None
     }
   }

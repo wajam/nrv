@@ -71,6 +71,29 @@ class NrvProtobufSerializer() {
       case value: MList =>
         protoValue.addAllListValue(value.values.map(encodeMValue(_)).asJava)
                   .setType(Type.LIST).build()
+
+      case value: MMigrationCatchAll =>
+        throw new RuntimeException("Any can't be serialized.")
+    }
+  }
+
+  // TODO: MessageMigration: Remove
+  private def upcastList[A](list: Iterable[A]): MList = {
+    val iterable = list.map { upcastAny(_).get }
+    MList(iterable)
+  }
+
+  // TODO: MessageMigration: Remove
+  private def upcastAny(value: Any) : Option[MValue] = {
+
+    value match {
+      case i: Int => Some(i)
+      case l: Long => Some(l)
+      case s: String => Some(s)
+      case d: Double => Some(d)
+      case b: Boolean => Some(b)
+      case s: Iterable[_] if s.forall(upcastAny(_).isDefined) => Some(upcastList(s)) // Only upcast lists of primitive
+      case _ => None
     }
   }
 
@@ -81,15 +104,40 @@ class NrvProtobufSerializer() {
     map.foreach {
       case (key, value) =>
         value match {
+
+          case MMigrationCatchAll(value) =>
+            val bytes = ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))
+            anyFn(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(bytes))
+
           case value: MValue =>
             val protoValue = encodeMValue(value)
             pbFn(NrvProtobuf.MPair.newBuilder().setKey(key).setValue(protoValue))
-
-          case value =>
-            val bytes = ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))
-            anyFn(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(bytes))
         }
     }
+  }
+
+  private def decodeMessageMap(anyList: Iterable[NrvProtobuf.AnyPair],
+                               mList: Iterable[NrvProtobuf.MPair]): Map[String, MValue] = {
+
+    val list = anyList.map {
+
+      case (p: NrvProtobuf.AnyPair) =>
+        val raw = deserializeFromBytes(p.getValue.toByteArray)
+        val data = upcastAny(raw)
+
+        val value = data match {
+          case Some(v) => v
+          case None => MMigrationCatchAll(raw)
+        }
+
+        p.getKey -> value
+    }.toMap
+
+    list ++
+    mList.map {
+      case (p: NrvProtobuf.MPair) =>
+        p.getKey -> decodeMValue(p.getValue())
+    }.toMap
   }
 
   private[serialization] def encodeMessage(message: Message, messageDataCodec: Codec): NrvProtobuf.Message = {
@@ -128,28 +176,11 @@ class NrvProtobufSerializer() {
 
   private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message, messageDataCodec: Codec): Message = {
 
-    val parameters = new collection.mutable.HashMap[String, Any]
-    val metadata = new collection.mutable.HashMap[String, Any]
+    val parameters = decodeMessageMap(protoMessage.getParametersAnyList.asScala,
+      protoMessage.getParametersList.asScala)
 
-    protoMessage.getParametersAnyList.asScala.foreach {
-      case (p: NrvProtobuf.AnyPair) =>
-        parameters += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
-    }
-
-    protoMessage.getMetadataAnyList.asScala.foreach {
-      case (p: NrvProtobuf.AnyPair) =>
-        metadata += p.getKey -> serializeFromBytes(p.getValue.toByteArray)
-    }
-
-    protoMessage.getMetadataList.asScala.foreach {
-      case (p: NrvProtobuf.MPair) =>
-        metadata += p.getKey -> decodeMValue(p.getValue())
-    }
-
-    protoMessage.getParametersList.asScala.foreach {
-      case (p: NrvProtobuf.MPair) =>
-        parameters += p.getKey -> decodeMValue(p.getValue())
-    }
+    val metadata = decodeMessageMap(protoMessage.getMetadataAnyList.asScala,
+      protoMessage.getMetadataList.asScala)
 
     val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
 
@@ -170,7 +201,7 @@ class NrvProtobufSerializer() {
     val error = protoMessage.getError
 
     if (error.size() != 0)
-      message.error = Some(serializeFromBytes(protoMessage.getError.toByteArray).asInstanceOf[Exception])
+      message.error = Some(deserializeFromBytes(protoMessage.getError.toByteArray).asInstanceOf[Exception])
 
     message.function = protoMessage.getFunction
 
@@ -254,7 +285,7 @@ class NrvProtobufSerializer() {
     javaSerialize.encodeAny(entity)
   }
 
-  private[serialization] def serializeFromBytes(bytes: Array[Byte]) = {
+  private[serialization] def deserializeFromBytes(bytes: Array[Byte]) = {
     javaSerialize.decodeAny(bytes)
   }
 }

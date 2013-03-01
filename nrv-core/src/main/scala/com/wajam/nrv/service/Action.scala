@@ -35,14 +35,14 @@ class Action(val path: ActionPath,
   // overrides defaults with passed options
   applySupportOptions(actionSupportOptions)
 
-  def call(params: Iterable[(String, Any)],
-           meta: Iterable[(String, Any)],
+  def call(params: Iterable[(String, MValue)],
+           meta: Iterable[(String, MValue)],
            data: Any): Future[InMessage] = {
     call(params, meta, data, responseTimeout)
   }
 
-  def call(params: Iterable[(String, Any)],
-           meta: Iterable[(String, Any)],
+  def call(params: Iterable[(String, MValue)],
+           meta: Iterable[(String, MValue)],
            data: Any,
            responseTimeout: Long): Future[InMessage] = {
     val p = Promise[InMessage]
@@ -50,9 +50,9 @@ class Action(val path: ActionPath,
     p.future
   }
 
-  def call(params: Iterable[(String, Any)],
+  def call(params: Iterable[(String, MValue)],
            onReply: ((InMessage, Option[Exception]) => Unit),
-           meta: Iterable[(String, Any)] = null,
+           meta: Iterable[(String, MValue)] = null,
            data: Any = null,
            responseTimeout: Long = responseTimeout) {
     this.call(new OutMessage(params, meta, data, onReply = onReply, responseTimeout = responseTimeout))
