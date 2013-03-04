@@ -38,8 +38,6 @@ final case class MBoolean(value: Boolean) extends MValue {
   }
 }
 
-final case class MMigrationCatchAll(value: Any) extends MValue // TODO: MessageMigration Remove
-
 object MValue {
 
   implicit def stringToMValue(s: String) = MString(s)
