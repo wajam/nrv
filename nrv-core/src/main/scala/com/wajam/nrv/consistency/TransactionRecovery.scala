@@ -6,7 +6,6 @@ import com.wajam.nrv.utils.timestamp.Timestamp
 import java.io.File
 import com.wajam.nrv.utils.IdGenerator
 import java.nio.file.Files
-import scala.Some
 import com.wajam.nrv.Logging
 import collection.mutable
 import com.yammer.metrics.scala.Instrumented
@@ -33,10 +32,10 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
    * Ensure that the specified service member transaction log is consistent.
    * <p><p>
    * The recovery process read the the transaction log from the last known consistent timestamp. The incomplete
-   * transactions are trucated from the storage and the member log. The complete transactions are rewriten in the log
-   * and marked as consistent.
+   * transactions are truncated from the storage and the service member log. The complete transactions are rewriten
+   * in the log and marked as consistent.
    * <p><p>
-   * The recovery process can resume from a previously incomple recovery attempt (i.e. jvm kill during recovery).
+   * The recovery process can resume from a previously incomplete recovery attempt (i.e. jvm kill during recovery).
    */
   def recoverMember(member: ResolvedServiceMember) {
 
@@ -147,7 +146,7 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
               }
             }
             case (None, Some(lastRecoveredIndex)) => {
-              // No member log, just recovery ones! Someone deleted the member log during or after the previous attemp!!!
+              // No member log, just recovery ones! Someone deleted the member log during or after the previous attempt!
               resumeError.mark()
               error("Previous recovery wasn't complete. There are no member transaction logs, just the partially " +
                 "recovered ones. Cannot recover member {}.", member)

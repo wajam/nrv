@@ -22,13 +22,10 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
   var logDir: File = null
   var mockStore: ConsistentStore = null
   var idGenerator: SequenceIdGenerator = null
-  //  var recoveryDir: File = null
 
   before {
     logDir = Files.createTempDirectory("TestFileTransactionLog").toFile
-    //    recoveryDir = new File(logDir, "recovery")
     member = ResolvedServiceMember(serviceName = "service", token = 1000L, ranges = Seq(TokenRange.All))
-    //    fileTxLog = createFileTransactionLog()
     mockStore = mock[ConsistentStore]
     idGenerator = new SequenceIdGenerator
   }
@@ -263,6 +260,4 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
     logDir.list().sorted should be(Array("service-0000001000-1:.log", "service-0000001000-501:.log"))
     verifyZeroInteractions(mockStore)
   }
-
-
 }
