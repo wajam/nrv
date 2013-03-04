@@ -74,26 +74,6 @@ class NrvProtobufSerializer() {
     }
   }
 
-  // TODO: MessageMigration: Remove
-  private def upcastList[A](list: Iterable[A]): MList = {
-    val iterable = list.map { upcastAny(_).get }
-    MList(iterable)
-  }
-
-  // TODO: MessageMigration: Remove
-  private def upcastAny(value: Any) : Option[MValue] = {
-
-    value match {
-      case i: Int => Some(i)
-      case l: Long => Some(l)
-      case s: String => Some(s)
-      case d: Double => Some(d)
-      case b: Boolean => Some(b)
-      case s: Iterable[_] if s.forall(upcastAny(_).isDefined) => Some(upcastList(s)) // Only upcast lists of primitive
-      case _ => None
-    }
-  }
-
   private def encodeMessageMap(map: collection.Map[String, Any],
                                pbFn: (NrvProtobuf.MPair.Builder) => Any) = {
 
