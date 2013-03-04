@@ -5,23 +5,21 @@ import com.wajam.nrv.data._
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
-import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
+import com.wajam.nrv.protocol.codec.{Codec}
 import java.net.InetAddress
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
  *
  */
-class NrvProtobufSerializer() {
+class NrvProtobufSerializer(val messageDataCodec: Codec) {
 
-  val javaSerialize = new GenericJavaSerializeCodec()
-
-  def serializeMessage(message: Message, messageDataCodec: Codec = javaSerialize): Array[Byte] = {
-    encodeMessage(message, messageDataCodec).toByteArray
+  def serializeMessage(message: Message): Array[Byte] = {
+    encodeMessage(message).toByteArray
   }
 
-  def deserializeMessage(bytes: Array[Byte], messageDataCodec: Codec = javaSerialize): Message = {
-    decodeMessage(NrvProtobuf.Message.parseFrom(bytes), messageDataCodec)
+  def deserializeMessage(bytes: Array[Byte]): Message = {
+    decodeMessage(NrvProtobuf.Message.parseFrom(bytes))
   }
 
   private[serialization] def decodeMValue(protoValue: NrvProtobuf.MValue): MValue = {
@@ -95,7 +93,7 @@ class NrvProtobufSerializer() {
     }.toMap
   }
 
-  private[serialization] def encodeMessage(message: Message, messageDataCodec: Codec): NrvProtobuf.Message = {
+  private[serialization] def encodeMessage(message: Message): NrvProtobuf.Message = {
 
     val protoMessage = NrvProtobuf.Message.newBuilder()
 
@@ -110,7 +108,7 @@ class NrvProtobufSerializer() {
     protoMessage.setRendezVousId(message.rendezvousId)
 
     for (error <- message.error)
-      protoMessage.setError(ByteString.copyFrom(serializeToBytes(error)))
+      protoMessage.setError(ByteString.copyFrom(messageDataCodec.encode(error)))
 
     protoMessage.setFunction(message.function)
 
@@ -129,7 +127,7 @@ class NrvProtobufSerializer() {
     protoMessage.build()
   }
 
-  private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message, messageDataCodec: Codec): Message = {
+  private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message): Message = {
 
     val parameters = decodeMessageMap(protoMessage.getParametersList.asScala)
 
@@ -154,7 +152,7 @@ class NrvProtobufSerializer() {
     val error = protoMessage.getError
 
     if (error.size() != 0)
-      message.error = Some(deserializeFromBytes(protoMessage.getError.toByteArray).asInstanceOf[Exception])
+      message.error = Some(messageDataCodec.decode(protoMessage.getError.toByteArray).asInstanceOf[Exception])
 
     message.function = protoMessage.getFunction
 
@@ -232,14 +230,6 @@ class NrvProtobufSerializer() {
   private[serialization] def decodeReplica(proto: NrvProtobuf.Endpoints.Replica): Replica = {
 
     new Replica(proto.getToken, decodeNode(proto.getNode), proto.getSelected)
-  }
-
-  private[serialization] def serializeToBytes(entity: AnyRef): Array[Byte] = {
-    javaSerialize.encodeAny(entity)
-  }
-
-  private[serialization] def deserializeFromBytes(bytes: Array[Byte]) = {
-    javaSerialize.decodeAny(bytes)
   }
 }
 
