@@ -7,7 +7,7 @@ trait TransactionLog {
   /**
    * Returns the most recent consistant timestamp written on the log storage.
    */
-  def getLastLoggedIndex: Option[Index]
+  def getLastLoggedRecord: Option[LogRecord]
 
   /**
    * Appends the specified record to the transaction log

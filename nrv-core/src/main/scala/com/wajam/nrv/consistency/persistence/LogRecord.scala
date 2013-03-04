@@ -12,6 +12,7 @@ sealed trait LogRecord {
 
 sealed trait TimestampedRecord extends LogRecord {
   val timestamp: Timestamp
+  val token: Long
 }
 
 object LogRecord {

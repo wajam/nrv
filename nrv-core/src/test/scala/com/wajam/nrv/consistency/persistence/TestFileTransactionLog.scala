@@ -59,7 +59,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val file123 = new File(logDir, "service-0000001000-123:200.log")
     val file999 = new File(logDir, "service-0000001000-999:300.log")
     val file1234567890 = new File(logDir, "service-0000001000-1234567890:400.log")
-    val other0 = new File(logDir, "service-0000009999-0.log")     // Ignored
+    val other0 = new File(logDir, "service-0000009999-0.log") // Ignored
     val other123 = new File(logDir, "service-0000009999-123.log") // Ignored
 
     val all = List(file123, other123, file1, file999, file0, file1234567890, other0)
@@ -83,7 +83,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val file123 = new File(logDir, "service-0000001000-123:200.log")
     val file999 = new File(logDir, "service-0000001000-999:300.log")
     val file1234567890 = new File(logDir, "service-0000001000-1234567890:400.log")
-    val other0 = new File(logDir, "service-0000009999-0.log")     // Ignored
+    val other0 = new File(logDir, "service-0000009999-0.log") // Ignored
     val other123 = new File(logDir, "service-0000009999-123.log") // Ignored
 
     val allFiles = List(file123, other123, file11, file999, file10, file1234567890, other0)
@@ -115,7 +115,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val file10 = new File(logDir, "service-0000001000-10:.log")
     val file20 = new File(logDir, "service-0000001000-20:.log")
     val file30 = new File(logDir, "service-0000001000-30:.log")
-    val other0 = new File(logDir, "service-0000009999-0.log")     // Ignored
+    val other0 = new File(logDir, "service-0000009999-0.log") // Ignored
     val other123 = new File(logDir, "service-0000009999-123.log") // Ignored
 
     // Verify when no log file exist
@@ -157,7 +157,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fakeLogDir.isDirectory should be(false)
 
     val txLog = createFileTransactionLog(dir = fakeLogDir.getAbsolutePath)
-    txLog.getLastLoggedIndex should be(None)
+    txLog.getLastLoggedRecord should be(None)
   }
 
   test("should append new record") {
@@ -586,16 +586,16 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val last: Index = fileTxLog.append(LogRecord(id = 9999, Some(2000), createRequestMessage(timestamp = 2002)))
     fileTxLog.commit()
 
-    fileTxLog.getLastLoggedIndex should be(Some(last))
+    fileTxLog.getLastLoggedRecord should be(Some(last))
 
     // Close and try with a brand new instance
     fileTxLog.close()
     fileTxLog = createFileTransactionLog()
-    fileTxLog.getLastLoggedIndex should be(Some(last))
+    fileTxLog.getLastLoggedRecord should be(Some(last))
   }
 
   test("the last logged index should be None when there are no log files") {
-    fileTxLog.getLastLoggedIndex should be(None)
+    fileTxLog.getLastLoggedRecord should be(None)
   }
 
   test("should get the last logged index even if last log file is empty") {
@@ -609,12 +609,12 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val actualFiles = logDir.list().sorted
     actualFiles should be(expectedFiles)
 
-    fileTxLog.getLastLoggedIndex should be(Some(last))
+    fileTxLog.getLastLoggedRecord should be(Some(last))
 
     // Close and try with a brand new instance
     fileTxLog.close()
     fileTxLog = createFileTransactionLog()
-    fileTxLog.getLastLoggedIndex should be(Some(last))
+    fileTxLog.getLastLoggedRecord should be(Some(last))
   }
 
   test("should get the last logged index even if last log file contains file header only") {
@@ -640,12 +640,12 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val actualFiles = logDir.list().sorted
     actualFiles should be(expectedFiles)
 
-    fileTxLog.getLastLoggedIndex should be(Some(Index(id = 100, None)))
+    fileTxLog.getLastLoggedRecord should be(Some(record1))
 
     // Close and try with a brand new instance
     fileTxLog.close()
     fileTxLog = createFileTransactionLog()
-    fileTxLog.getLastLoggedIndex should be(Some(Index(id = 100, None)))
+    fileTxLog.getLastLoggedRecord should be(Some(record1))
   }
 
   test("truncate should delete all records from the specified location") {
