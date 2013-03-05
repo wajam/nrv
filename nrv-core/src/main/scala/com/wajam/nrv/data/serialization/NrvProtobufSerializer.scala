@@ -71,43 +71,15 @@ class NrvProtobufSerializer() {
       case value: MList =>
         protoValue.addAllListValue(value.values.map(encodeMValue(_)).asJava)
                   .setType(Type.LIST).build()
-
-      case value: MMigrationCatchAll =>
-        throw new RuntimeException("Any can't be serialized.")
-    }
-  }
-
-  // TODO: MessageMigration: Remove
-  private def upcastList[A](list: Iterable[A]): MList = {
-    val iterable = list.map { upcastAny(_).get }
-    MList(iterable)
-  }
-
-  // TODO: MessageMigration: Remove
-  private def upcastAny(value: Any) : Option[MValue] = {
-
-    value match {
-      case i: Int => Some(i)
-      case l: Long => Some(l)
-      case s: String => Some(s)
-      case d: Double => Some(d)
-      case b: Boolean => Some(b)
-      case s: Iterable[_] if s.forall(upcastAny(_).isDefined) => Some(upcastList(s)) // Only upcast lists of primitive
-      case _ => None
     }
   }
 
   private def encodeMessageMap(map: collection.Map[String, Any],
-                               pbFn: (NrvProtobuf.MPair.Builder) => Any,
-                               anyFn: (NrvProtobuf.AnyPair.Builder) => Any) = {
+                               pbFn: (NrvProtobuf.MPair.Builder) => Any) = {
 
     map.foreach {
       case (key, value) =>
         value match {
-
-          case MMigrationCatchAll(value) =>
-            val bytes = ByteString.copyFrom(serializeToBytes(value.asInstanceOf[AnyRef]))
-            anyFn(NrvProtobuf.AnyPair.newBuilder().setKey(key).setValue(bytes))
 
           case value: MValue =>
             val protoValue = encodeMValue(value)
@@ -116,24 +88,7 @@ class NrvProtobufSerializer() {
     }
   }
 
-  private def decodeMessageMap(anyList: Iterable[NrvProtobuf.AnyPair],
-                               mList: Iterable[NrvProtobuf.MPair]): Map[String, MValue] = {
-
-    val list = anyList.map {
-
-      case (p: NrvProtobuf.AnyPair) =>
-        val raw = deserializeFromBytes(p.getValue.toByteArray)
-        val data = upcastAny(raw)
-
-        val value = data match {
-          case Some(v) => v
-          case None => MMigrationCatchAll(raw)
-        }
-
-        p.getKey -> value
-    }.toMap
-
-    list ++
+  private def decodeMessageMap(mList: Iterable[NrvProtobuf.MPair]): Map[String, MValue] = {
     mList.map {
       case (p: NrvProtobuf.MPair) =>
         p.getKey -> decodeMValue(p.getValue())
@@ -166,8 +121,8 @@ class NrvProtobufSerializer() {
 
     protoMessage.setToken(message.token)
 
-    encodeMessageMap(message.parameters, protoMessage.addParameters _, protoMessage.addParametersAny _)
-    encodeMessageMap(message.metadata, protoMessage.addMetadata _, protoMessage.addMetadataAny _)
+    encodeMessageMap(message.parameters, protoMessage.addParameters _)
+    encodeMessageMap(message.metadata, protoMessage.addMetadata _)
 
     protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))
 
@@ -176,11 +131,9 @@ class NrvProtobufSerializer() {
 
   private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message, messageDataCodec: Codec): Message = {
 
-    val parameters = decodeMessageMap(protoMessage.getParametersAnyList.asScala,
-      protoMessage.getParametersList.asScala)
+    val parameters = decodeMessageMap(protoMessage.getParametersList.asScala)
 
-    val metadata = decodeMessageMap(protoMessage.getMetadataAnyList.asScala,
-      protoMessage.getMetadataList.asScala)
+    val metadata = decodeMessageMap(protoMessage.getMetadataList.asScala)
 
     val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
 

@@ -34,9 +34,6 @@ message Message {
     repeated MPair parameters = 12;
     repeated MPair metadata = 13;
 
-    repeated AnyPair parametersAny = 100;
-    repeated AnyPair metadataAny = 101;
-
     optional bytes messageData = 14;
 }
 
@@ -72,11 +69,6 @@ message Int32Pair {
 message MPair {
     optional string key = 1;
     optional MValue value = 2;
-}
-
-message AnyPair {
-    optional string key = 1;
-    optional bytes value = 2;
 }
 
 /* Value container (mostly to differentiate type) */

@@ -67,18 +67,6 @@ public final class NrvProtobuf {
     com.wajam.nrv.data.serialization.NrvProtobuf.MPair getMetadata(int index);
     int getMetadataCount();
     
-    // repeated .com.wajam.nrv.data.serialization.AnyPair parametersAny = 100;
-    java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> 
-        getParametersAnyList();
-    com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getParametersAny(int index);
-    int getParametersAnyCount();
-    
-    // repeated .com.wajam.nrv.data.serialization.AnyPair metadataAny = 101;
-    java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> 
-        getMetadataAnyList();
-    com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getMetadataAny(int index);
-    int getMetadataAnyCount();
-    
     // optional bytes messageData = 14;
     boolean hasMessageData();
     com.google.protobuf.ByteString getMessageData();
@@ -342,48 +330,6 @@ public final class NrvProtobuf {
       return metadata_.get(index);
     }
     
-    // repeated .com.wajam.nrv.data.serialization.AnyPair parametersAny = 100;
-    public static final int PARAMETERSANY_FIELD_NUMBER = 100;
-    private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> parametersAny_;
-    public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> getParametersAnyList() {
-      return parametersAny_;
-    }
-    public java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> 
-        getParametersAnyOrBuilderList() {
-      return parametersAny_;
-    }
-    public int getParametersAnyCount() {
-      return parametersAny_.size();
-    }
-    public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getParametersAny(int index) {
-      return parametersAny_.get(index);
-    }
-    public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder getParametersAnyOrBuilder(
-        int index) {
-      return parametersAny_.get(index);
-    }
-    
-    // repeated .com.wajam.nrv.data.serialization.AnyPair metadataAny = 101;
-    public static final int METADATAANY_FIELD_NUMBER = 101;
-    private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> metadataAny_;
-    public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> getMetadataAnyList() {
-      return metadataAny_;
-    }
-    public java.util.List<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder> 
-        getMetadataAnyOrBuilderList() {
-      return metadataAny_;
-    }
-    public int getMetadataAnyCount() {
-      return metadataAny_.size();
-    }
-    public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getMetadataAny(int index) {
-      return metadataAny_.get(index);
-    }
-    public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder getMetadataAnyOrBuilder(
-        int index) {
-      return metadataAny_.get(index);
-    }
-    
     // optional bytes messageData = 14;
     public static final int MESSAGEDATA_FIELD_NUMBER = 14;
     private com.google.protobuf.ByteString messageData_;
@@ -408,8 +354,6 @@ public final class NrvProtobuf {
       token_ = 0L;
       parameters_ = java.util.Collections.emptyList();
       metadata_ = java.util.Collections.emptyList();
-      parametersAny_ = java.util.Collections.emptyList();
-      metadataAny_ = java.util.Collections.emptyList();
       messageData_ = com.google.protobuf.ByteString.EMPTY;
     }
     private byte memoizedIsInitialized = -1;
@@ -478,12 +422,6 @@ public final class NrvProtobuf {
       if (((bitField0_ & 0x00000040) == 0x00000040)) {
         output.writeBytes(16, error_);
       }
-      for (int i = 0; i < parametersAny_.size(); i++) {
-        output.writeMessage(100, parametersAny_.get(i));
-      }
-      for (int i = 0; i < metadataAny_.size(); i++) {
-        output.writeMessage(101, metadataAny_.get(i));
-      }
     }
     
     private int memoizedSerializedSize = -1;
@@ -547,14 +485,6 @@ public final class NrvProtobuf {
       if (((bitField0_ & 0x00000040) == 0x00000040)) {
         size += com.google.protobuf.CodedOutputStream
           .computeBytesSize(16, error_);
-      }
-      for (int i = 0; i < parametersAny_.size(); i++) {
-        size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(100, parametersAny_.get(i));
-      }
-      for (int i = 0; i < metadataAny_.size(); i++) {
-        size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(101, metadataAny_.get(i));
       }
       memoizedSerializedSize = size;
       return size;
@@ -684,12 +614,8 @@ public final class NrvProtobuf {
         bitField0_ = (bitField0_ & ~0x00000800);
         metadata_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00001000);
-        parametersAny_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00002000);
-        metadataAny_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00004000);
         messageData_ = com.google.protobuf.ByteString.EMPTY;
-        bitField0_ = (bitField0_ & ~0x00008000);
+        bitField0_ = (bitField0_ & ~0x00002000);
         return this;
       }
       
@@ -777,17 +703,7 @@ public final class NrvProtobuf {
           bitField0_ = (bitField0_ & ~0x00001000);
         }
         result.metadata_ = metadata_;
-        if (((bitField0_ & 0x00002000) == 0x00002000)) {
-          parametersAny_ = java.util.Collections.unmodifiableList(parametersAny_);
-          bitField0_ = (bitField0_ & ~0x00002000);
-        }
-        result.parametersAny_ = parametersAny_;
-        if (((bitField0_ & 0x00004000) == 0x00004000)) {
-          metadataAny_ = java.util.Collections.unmodifiableList(metadataAny_);
-          bitField0_ = (bitField0_ & ~0x00004000);
-        }
-        result.metadataAny_ = metadataAny_;
-        if (((from_bitField0_ & 0x00008000) == 0x00008000)) {
+        if (((from_bitField0_ & 0x00002000) == 0x00002000)) {
           to_bitField0_ |= 0x00000800;
         }
         result.messageData_ = messageData_;
@@ -847,26 +763,6 @@ public final class NrvProtobuf {
           } else {
             ensureMetadataIsMutable();
             metadata_.addAll(other.metadata_);
-          }
-          
-        }
-        if (!other.parametersAny_.isEmpty()) {
-          if (parametersAny_.isEmpty()) {
-            parametersAny_ = other.parametersAny_;
-            bitField0_ = (bitField0_ & ~0x00002000);
-          } else {
-            ensureParametersAnyIsMutable();
-            parametersAny_.addAll(other.parametersAny_);
-          }
-          
-        }
-        if (!other.metadataAny_.isEmpty()) {
-          if (metadataAny_.isEmpty()) {
-            metadataAny_ = other.metadataAny_;
-            bitField0_ = (bitField0_ & ~0x00004000);
-          } else {
-            ensureMetadataAnyIsMutable();
-            metadataAny_.addAll(other.metadataAny_);
           }
           
         }
@@ -980,25 +876,13 @@ public final class NrvProtobuf {
               break;
             }
             case 114: {
-              bitField0_ |= 0x00008000;
+              bitField0_ |= 0x00002000;
               messageData_ = input.readBytes();
               break;
             }
             case 130: {
               bitField0_ |= 0x00000040;
               error_ = input.readBytes();
-              break;
-            }
-            case 802: {
-              com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder subBuilder = com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.newBuilder();
-              input.readMessage(subBuilder, extensionRegistry);
-              addParametersAny(subBuilder.buildPartial());
-              break;
-            }
-            case 810: {
-              com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder subBuilder = com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.newBuilder();
-              input.readMessage(subBuilder, extensionRegistry);
-              addMetadataAny(subBuilder.buildPartial());
               break;
             }
           }
@@ -1523,188 +1407,10 @@ public final class NrvProtobuf {
         return this;
       }
       
-      // repeated .com.wajam.nrv.data.serialization.AnyPair parametersAny = 100;
-      private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> parametersAny_ =
-        java.util.Collections.emptyList();
-      private void ensureParametersAnyIsMutable() {
-        if (!((bitField0_ & 0x00002000) == 0x00002000)) {
-          parametersAny_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair>(parametersAny_);
-          bitField0_ |= 0x00002000;
-         }
-      }
-      
-      public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> getParametersAnyList() {
-        return java.util.Collections.unmodifiableList(parametersAny_);
-      }
-      public int getParametersAnyCount() {
-        return parametersAny_.size();
-      }
-      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getParametersAny(int index) {
-        return parametersAny_.get(index);
-      }
-      public Builder setParametersAny(
-          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureParametersAnyIsMutable();
-        parametersAny_.set(index, value);
-        
-        return this;
-      }
-      public Builder setParametersAny(
-          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
-        ensureParametersAnyIsMutable();
-        parametersAny_.set(index, builderForValue.build());
-        
-        return this;
-      }
-      public Builder addParametersAny(com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureParametersAnyIsMutable();
-        parametersAny_.add(value);
-        
-        return this;
-      }
-      public Builder addParametersAny(
-          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureParametersAnyIsMutable();
-        parametersAny_.add(index, value);
-        
-        return this;
-      }
-      public Builder addParametersAny(
-          com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
-        ensureParametersAnyIsMutable();
-        parametersAny_.add(builderForValue.build());
-        
-        return this;
-      }
-      public Builder addParametersAny(
-          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
-        ensureParametersAnyIsMutable();
-        parametersAny_.add(index, builderForValue.build());
-        
-        return this;
-      }
-      public Builder addAllParametersAny(
-          java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> values) {
-        ensureParametersAnyIsMutable();
-        super.addAll(values, parametersAny_);
-        
-        return this;
-      }
-      public Builder clearParametersAny() {
-        parametersAny_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00002000);
-        
-        return this;
-      }
-      public Builder removeParametersAny(int index) {
-        ensureParametersAnyIsMutable();
-        parametersAny_.remove(index);
-        
-        return this;
-      }
-      
-      // repeated .com.wajam.nrv.data.serialization.AnyPair metadataAny = 101;
-      private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> metadataAny_ =
-        java.util.Collections.emptyList();
-      private void ensureMetadataAnyIsMutable() {
-        if (!((bitField0_ & 0x00004000) == 0x00004000)) {
-          metadataAny_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair>(metadataAny_);
-          bitField0_ |= 0x00004000;
-         }
-      }
-      
-      public java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> getMetadataAnyList() {
-        return java.util.Collections.unmodifiableList(metadataAny_);
-      }
-      public int getMetadataAnyCount() {
-        return metadataAny_.size();
-      }
-      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getMetadataAny(int index) {
-        return metadataAny_.get(index);
-      }
-      public Builder setMetadataAny(
-          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureMetadataAnyIsMutable();
-        metadataAny_.set(index, value);
-        
-        return this;
-      }
-      public Builder setMetadataAny(
-          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
-        ensureMetadataAnyIsMutable();
-        metadataAny_.set(index, builderForValue.build());
-        
-        return this;
-      }
-      public Builder addMetadataAny(com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureMetadataAnyIsMutable();
-        metadataAny_.add(value);
-        
-        return this;
-      }
-      public Builder addMetadataAny(
-          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair value) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureMetadataAnyIsMutable();
-        metadataAny_.add(index, value);
-        
-        return this;
-      }
-      public Builder addMetadataAny(
-          com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
-        ensureMetadataAnyIsMutable();
-        metadataAny_.add(builderForValue.build());
-        
-        return this;
-      }
-      public Builder addMetadataAny(
-          int index, com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.Builder builderForValue) {
-        ensureMetadataAnyIsMutable();
-        metadataAny_.add(index, builderForValue.build());
-        
-        return this;
-      }
-      public Builder addAllMetadataAny(
-          java.lang.Iterable<? extends com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair> values) {
-        ensureMetadataAnyIsMutable();
-        super.addAll(values, metadataAny_);
-        
-        return this;
-      }
-      public Builder clearMetadataAny() {
-        metadataAny_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00004000);
-        
-        return this;
-      }
-      public Builder removeMetadataAny(int index) {
-        ensureMetadataAnyIsMutable();
-        metadataAny_.remove(index);
-        
-        return this;
-      }
-      
       // optional bytes messageData = 14;
       private com.google.protobuf.ByteString messageData_ = com.google.protobuf.ByteString.EMPTY;
       public boolean hasMessageData() {
-        return ((bitField0_ & 0x00008000) == 0x00008000);
+        return ((bitField0_ & 0x00002000) == 0x00002000);
       }
       public com.google.protobuf.ByteString getMessageData() {
         return messageData_;
@@ -1713,13 +1419,13 @@ public final class NrvProtobuf {
         if (value == null) {
     throw new NullPointerException();
   }
-  bitField0_ |= 0x00008000;
+  bitField0_ |= 0x00002000;
         messageData_ = value;
         
         return this;
       }
       public Builder clearMessageData() {
-        bitField0_ = (bitField0_ & ~0x00008000);
+        bitField0_ = (bitField0_ & ~0x00002000);
         messageData_ = getDefaultInstance().getMessageData();
         
         return this;
@@ -4182,386 +3888,6 @@ public final class NrvProtobuf {
     }
     
     // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.MPair)
-  }
-  
-  public interface AnyPairOrBuilder
-      extends com.google.protobuf.MessageLiteOrBuilder {
-    
-    // optional string key = 1;
-    boolean hasKey();
-    String getKey();
-    
-    // optional bytes value = 2;
-    boolean hasValue();
-    com.google.protobuf.ByteString getValue();
-  }
-  public static final class AnyPair extends
-      com.google.protobuf.GeneratedMessageLite
-      implements AnyPairOrBuilder {
-    // Use AnyPair.newBuilder() to construct.
-    private AnyPair(Builder builder) {
-      super(builder);
-    }
-    private AnyPair(boolean noInit) {}
-    
-    private static final AnyPair defaultInstance;
-    public static AnyPair getDefaultInstance() {
-      return defaultInstance;
-    }
-    
-    public AnyPair getDefaultInstanceForType() {
-      return defaultInstance;
-    }
-    
-    private int bitField0_;
-    // optional string key = 1;
-    public static final int KEY_FIELD_NUMBER = 1;
-    private java.lang.Object key_;
-    public boolean hasKey() {
-      return ((bitField0_ & 0x00000001) == 0x00000001);
-    }
-    public String getKey() {
-      java.lang.Object ref = key_;
-      if (ref instanceof String) {
-        return (String) ref;
-      } else {
-        com.google.protobuf.ByteString bs = 
-            (com.google.protobuf.ByteString) ref;
-        String s = bs.toStringUtf8();
-        if (com.google.protobuf.Internal.isValidUtf8(bs)) {
-          key_ = s;
-        }
-        return s;
-      }
-    }
-    private com.google.protobuf.ByteString getKeyBytes() {
-      java.lang.Object ref = key_;
-      if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
-            com.google.protobuf.ByteString.copyFromUtf8((String) ref);
-        key_ = b;
-        return b;
-      } else {
-        return (com.google.protobuf.ByteString) ref;
-      }
-    }
-    
-    // optional bytes value = 2;
-    public static final int VALUE_FIELD_NUMBER = 2;
-    private com.google.protobuf.ByteString value_;
-    public boolean hasValue() {
-      return ((bitField0_ & 0x00000002) == 0x00000002);
-    }
-    public com.google.protobuf.ByteString getValue() {
-      return value_;
-    }
-    
-    private void initFields() {
-      key_ = "";
-      value_ = com.google.protobuf.ByteString.EMPTY;
-    }
-    private byte memoizedIsInitialized = -1;
-    public final boolean isInitialized() {
-      byte isInitialized = memoizedIsInitialized;
-      if (isInitialized != -1) return isInitialized == 1;
-      
-      memoizedIsInitialized = 1;
-      return true;
-    }
-    
-    public void writeTo(com.google.protobuf.CodedOutputStream output)
-                        throws java.io.IOException {
-      getSerializedSize();
-      if (((bitField0_ & 0x00000001) == 0x00000001)) {
-        output.writeBytes(1, getKeyBytes());
-      }
-      if (((bitField0_ & 0x00000002) == 0x00000002)) {
-        output.writeBytes(2, value_);
-      }
-    }
-    
-    private int memoizedSerializedSize = -1;
-    public int getSerializedSize() {
-      int size = memoizedSerializedSize;
-      if (size != -1) return size;
-    
-      size = 0;
-      if (((bitField0_ & 0x00000001) == 0x00000001)) {
-        size += com.google.protobuf.CodedOutputStream
-          .computeBytesSize(1, getKeyBytes());
-      }
-      if (((bitField0_ & 0x00000002) == 0x00000002)) {
-        size += com.google.protobuf.CodedOutputStream
-          .computeBytesSize(2, value_);
-      }
-      memoizedSerializedSize = size;
-      return size;
-    }
-    
-    private static final long serialVersionUID = 0L;
-    @java.lang.Override
-    protected java.lang.Object writeReplace()
-        throws java.io.ObjectStreamException {
-      return super.writeReplace();
-    }
-    
-    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
-        com.google.protobuf.ByteString data)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      return newBuilder().mergeFrom(data).buildParsed();
-    }
-    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
-        com.google.protobuf.ByteString data,
-        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      return newBuilder().mergeFrom(data, extensionRegistry)
-               .buildParsed();
-    }
-    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(byte[] data)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      return newBuilder().mergeFrom(data).buildParsed();
-    }
-    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
-        byte[] data,
-        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws com.google.protobuf.InvalidProtocolBufferException {
-      return newBuilder().mergeFrom(data, extensionRegistry)
-               .buildParsed();
-    }
-    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(java.io.InputStream input)
-        throws java.io.IOException {
-      return newBuilder().mergeFrom(input).buildParsed();
-    }
-    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
-        java.io.InputStream input,
-        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws java.io.IOException {
-      return newBuilder().mergeFrom(input, extensionRegistry)
-               .buildParsed();
-    }
-    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseDelimitedFrom(java.io.InputStream input)
-        throws java.io.IOException {
-      Builder builder = newBuilder();
-      if (builder.mergeDelimitedFrom(input)) {
-        return builder.buildParsed();
-      } else {
-        return null;
-      }
-    }
-    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseDelimitedFrom(
-        java.io.InputStream input,
-        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws java.io.IOException {
-      Builder builder = newBuilder();
-      if (builder.mergeDelimitedFrom(input, extensionRegistry)) {
-        return builder.buildParsed();
-      } else {
-        return null;
-      }
-    }
-    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
-        com.google.protobuf.CodedInputStream input)
-        throws java.io.IOException {
-      return newBuilder().mergeFrom(input).buildParsed();
-    }
-    public static com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair parseFrom(
-        com.google.protobuf.CodedInputStream input,
-        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-        throws java.io.IOException {
-      return newBuilder().mergeFrom(input, extensionRegistry)
-               .buildParsed();
-    }
-    
-    public static Builder newBuilder() { return Builder.create(); }
-    public Builder newBuilderForType() { return newBuilder(); }
-    public static Builder newBuilder(com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair prototype) {
-      return newBuilder().mergeFrom(prototype);
-    }
-    public Builder toBuilder() { return newBuilder(this); }
-    
-    public static final class Builder extends
-        com.google.protobuf.GeneratedMessageLite.Builder<
-          com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair, Builder>
-        implements com.wajam.nrv.data.serialization.NrvProtobuf.AnyPairOrBuilder {
-      // Construct using com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.newBuilder()
-      private Builder() {
-        maybeForceBuilderInitialization();
-      }
-      
-      private void maybeForceBuilderInitialization() {
-      }
-      private static Builder create() {
-        return new Builder();
-      }
-      
-      public Builder clear() {
-        super.clear();
-        key_ = "";
-        bitField0_ = (bitField0_ & ~0x00000001);
-        value_ = com.google.protobuf.ByteString.EMPTY;
-        bitField0_ = (bitField0_ & ~0x00000002);
-        return this;
-      }
-      
-      public Builder clone() {
-        return create().mergeFrom(buildPartial());
-      }
-      
-      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair getDefaultInstanceForType() {
-        return com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.getDefaultInstance();
-      }
-      
-      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair build() {
-        com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair result = buildPartial();
-        if (!result.isInitialized()) {
-          throw newUninitializedMessageException(result);
-        }
-        return result;
-      }
-      
-      private com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair buildParsed()
-          throws com.google.protobuf.InvalidProtocolBufferException {
-        com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair result = buildPartial();
-        if (!result.isInitialized()) {
-          throw newUninitializedMessageException(
-            result).asInvalidProtocolBufferException();
-        }
-        return result;
-      }
-      
-      public com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair buildPartial() {
-        com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair result = new com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair(this);
-        int from_bitField0_ = bitField0_;
-        int to_bitField0_ = 0;
-        if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
-          to_bitField0_ |= 0x00000001;
-        }
-        result.key_ = key_;
-        if (((from_bitField0_ & 0x00000002) == 0x00000002)) {
-          to_bitField0_ |= 0x00000002;
-        }
-        result.value_ = value_;
-        result.bitField0_ = to_bitField0_;
-        return result;
-      }
-      
-      public Builder mergeFrom(com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair other) {
-        if (other == com.wajam.nrv.data.serialization.NrvProtobuf.AnyPair.getDefaultInstance()) return this;
-        if (other.hasKey()) {
-          setKey(other.getKey());
-        }
-        if (other.hasValue()) {
-          setValue(other.getValue());
-        }
-        return this;
-      }
-      
-      public final boolean isInitialized() {
-        return true;
-      }
-      
-      public Builder mergeFrom(
-          com.google.protobuf.CodedInputStream input,
-          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
-          throws java.io.IOException {
-        while (true) {
-          int tag = input.readTag();
-          switch (tag) {
-            case 0:
-              
-              return this;
-            default: {
-              if (!parseUnknownField(input, extensionRegistry, tag)) {
-                
-                return this;
-              }
-              break;
-            }
-            case 10: {
-              bitField0_ |= 0x00000001;
-              key_ = input.readBytes();
-              break;
-            }
-            case 18: {
-              bitField0_ |= 0x00000002;
-              value_ = input.readBytes();
-              break;
-            }
-          }
-        }
-      }
-      
-      private int bitField0_;
-      
-      // optional string key = 1;
-      private java.lang.Object key_ = "";
-      public boolean hasKey() {
-        return ((bitField0_ & 0x00000001) == 0x00000001);
-      }
-      public String getKey() {
-        java.lang.Object ref = key_;
-        if (!(ref instanceof String)) {
-          String s = ((com.google.protobuf.ByteString) ref).toStringUtf8();
-          key_ = s;
-          return s;
-        } else {
-          return (String) ref;
-        }
-      }
-      public Builder setKey(String value) {
-        if (value == null) {
-    throw new NullPointerException();
-  }
-  bitField0_ |= 0x00000001;
-        key_ = value;
-        
-        return this;
-      }
-      public Builder clearKey() {
-        bitField0_ = (bitField0_ & ~0x00000001);
-        key_ = getDefaultInstance().getKey();
-        
-        return this;
-      }
-      void setKey(com.google.protobuf.ByteString value) {
-        bitField0_ |= 0x00000001;
-        key_ = value;
-        
-      }
-      
-      // optional bytes value = 2;
-      private com.google.protobuf.ByteString value_ = com.google.protobuf.ByteString.EMPTY;
-      public boolean hasValue() {
-        return ((bitField0_ & 0x00000002) == 0x00000002);
-      }
-      public com.google.protobuf.ByteString getValue() {
-        return value_;
-      }
-      public Builder setValue(com.google.protobuf.ByteString value) {
-        if (value == null) {
-    throw new NullPointerException();
-  }
-  bitField0_ |= 0x00000002;
-        value_ = value;
-        
-        return this;
-      }
-      public Builder clearValue() {
-        bitField0_ = (bitField0_ & ~0x00000002);
-        value_ = getDefaultInstance().getValue();
-        
-        return this;
-      }
-      
-      // @@protoc_insertion_point(builder_scope:com.wajam.nrv.data.serialization.AnyPair)
-    }
-    
-    static {
-      defaultInstance = new AnyPair(true);
-      defaultInstance.initFields();
-    }
-    
-    // @@protoc_insertion_point(class_scope:com.wajam.nrv.data.serialization.AnyPair)
   }
   
   public interface MValueOrBuilder
