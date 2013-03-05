@@ -108,9 +108,8 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   test("can serialize/deserialize message") {
-    val messageDataCodec = new GenericJavaSerializeCodec()
-    val codec = new NrvProtobufSerializer(messageDataCodec)
 
+    val codec = new NrvProtobufSerializer()
 
     val entity1 = makeMessage()
 
@@ -121,8 +120,8 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   test("can encode/decode message") {
-    val messageDataCodec = new GenericJavaSerializeCodec()
-    val codec = new NrvProtobufSerializer(messageDataCodec)
+
+    val codec = new NrvProtobufSerializer()
 
     val entity1 = makeMessage()
 
@@ -133,8 +132,8 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   test("can handle all MValue") {
-    val messageDataCodec = new GenericJavaSerializeCodec()
-    val codec = new NrvProtobufSerializer(messageDataCodec)
+
+    val codec = new NrvProtobufSerializer()
 
     val entity1 = makeMessage()
 
@@ -153,8 +152,8 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   test("can encode/decode empty message") {
-    val messageDataCodec = new GenericJavaSerializeCodec()
-    val codec = new NrvProtobufSerializer(messageDataCodec)
+
+    val codec = new NrvProtobufSerializer()
 
     val entity1 = new SerializableMessage()
 
@@ -165,8 +164,8 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   test("can encode/decode a message with no error in it") {
-    val messageDataCodec = new GenericJavaSerializeCodec()
-    val codec = new NrvProtobufSerializer(messageDataCodec)
+
+    val codec = new NrvProtobufSerializer()
 
     val entity1 = makeMessage()
 
@@ -179,8 +178,8 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   test("can encode/decode node") {
-    val messageDataCodec = new GenericJavaSerializeCodec()
-    val codec = new NrvProtobufSerializer(messageDataCodec)
+
+    val codec = new NrvProtobufSerializer()
 
     val message = makeMessage()
     val entity1 = message.source
@@ -192,8 +191,8 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   test("can encode/decode endpoints") {
-    val messageDataCodec = new GenericJavaSerializeCodec()
-    val codec = new NrvProtobufSerializer(messageDataCodec)
+
+    val codec = new NrvProtobufSerializer()
 
     val message = makeMessage()
     val entity1 = message.destination
@@ -205,8 +204,8 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   test("can encode/decode shards") {
-    val messageDataCodec = new GenericJavaSerializeCodec()
-    val codec = new NrvProtobufSerializer(messageDataCodec)
+
+    val codec = new NrvProtobufSerializer()
 
     val message = makeMessage()
     val entity1 = message.destination.shards(0)
@@ -218,8 +217,8 @@ class TestNrvProtobufSerializer extends FunSuite {
   }
 
   test("can encode/decode replica") {
-    val messageDataCodec = new GenericJavaSerializeCodec()
-    val codec = new NrvProtobufSerializer(messageDataCodec)
+
+    val codec = new NrvProtobufSerializer()
 
     val message = makeMessage()
     val entity1 = message.destination.shards(0).replicas(0)
