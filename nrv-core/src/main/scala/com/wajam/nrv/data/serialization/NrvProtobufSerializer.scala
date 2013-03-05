@@ -5,14 +5,16 @@ import com.wajam.nrv.data._
 import com.google.protobuf.ByteString
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
-import com.wajam.nrv.protocol.codec.{Codec}
+import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
 import java.net.InetAddress
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
  *
  */
-class NrvProtobufSerializer(val messageDataCodec: Codec) {
+class NrvProtobufSerializer(val messageCodecs: Map[String, Codec] = Map.empty) {
+
+  val javaSerialize = new GenericJavaSerializeCodec()
 
   def serializeMessage(message: Message): Array[Byte] = {
     encodeMessage(message).toByteArray
@@ -20,6 +22,10 @@ class NrvProtobufSerializer(val messageDataCodec: Codec) {
 
   def deserializeMessage(bytes: Array[Byte]): Message = {
     decodeMessage(NrvProtobuf.Message.parseFrom(bytes))
+  }
+
+  private[serialization] def resolveCodec(partialMessage: Message): Codec =  {
+    messageCodecs.get(partialMessage.contentType.get).get
   }
 
   private[serialization] def decodeMValue(protoValue: NrvProtobuf.MValue): MValue = {
@@ -108,7 +114,7 @@ class NrvProtobufSerializer(val messageDataCodec: Codec) {
     protoMessage.setRendezVousId(message.rendezvousId)
 
     for (error <- message.error)
-      protoMessage.setError(ByteString.copyFrom(messageDataCodec.encode(error)))
+      protoMessage.setError(ByteString.copyFrom(javaSerialize.encode(error)))
 
     protoMessage.setFunction(message.function)
 
@@ -122,6 +128,8 @@ class NrvProtobufSerializer(val messageDataCodec: Codec) {
     encodeMessageMap(message.parameters, protoMessage.addParameters _)
     encodeMessageMap(message.metadata, protoMessage.addMetadata _)
 
+    val messageDataCodec = resolveCodec(message)
+
     protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))
 
     protoMessage.build()
@@ -133,11 +141,9 @@ class NrvProtobufSerializer(val messageDataCodec: Codec) {
 
     val metadata = decodeMessageMap(protoMessage.getMetadataList.asScala)
 
-    val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
-
     val destination = decodeEndpoints(protoMessage.getDestination)
 
-    val message = new SerializableMessage(parameters, metadata, messageData)
+    val message = new SerializableMessage(parameters, metadata, null)
 
     message.code = protoMessage.getCode
 
@@ -152,7 +158,7 @@ class NrvProtobufSerializer(val messageDataCodec: Codec) {
     val error = protoMessage.getError
 
     if (error.size() != 0)
-      message.error = Some(messageDataCodec.decode(protoMessage.getError.toByteArray).asInstanceOf[Exception])
+      message.error = Some(javaSerialize.decode(protoMessage.getError.toByteArray).asInstanceOf[Exception])
 
     message.function = protoMessage.getFunction
 
@@ -161,6 +167,9 @@ class NrvProtobufSerializer(val messageDataCodec: Codec) {
 
     message.destination = destination
     message.token = protoMessage.getToken
+
+    val messageDataCodec = resolveCodec(message)
+    message.messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
 
     message
   }
