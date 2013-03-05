@@ -125,6 +125,9 @@ class NrvProtobufSerializer(val messageCodecs: Map[String, Codec] = Map.empty) {
 
     protoMessage.setToken(message.token)
 
+    for (contentType <- message.contentType)
+      protoMessage.setContentType(contentType)
+
     encodeMessageMap(message.parameters, protoMessage.addParameters _)
     encodeMessageMap(message.metadata, protoMessage.addMetadata _)
 
@@ -151,6 +154,9 @@ class NrvProtobufSerializer(val messageCodecs: Map[String, Codec] = Map.empty) {
     message.serviceName = protoMessage.getServiceName
     message.method = protoMessage.getMethod
     message.path = protoMessage.getPath
+
+    if (protoMessage.hasContentType)
+       message.contentType = Some(protoMessage.getContentType)
 
     // TODO: Modify message.rendezvousId when we won't use JavaSerialization anymore to use a long
     message.rendezvousId = protoMessage.getRendezVousId.asInstanceOf[Int]

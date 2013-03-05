@@ -22,6 +22,7 @@ message Message {
     optional string path = 4;
     optional int64 rendezVousId = 5;
     optional int32 code = 6;
+    optional string contentType = 7;
 
     optional bytes error = 16; // Serialized with Java
 
