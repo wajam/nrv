@@ -254,21 +254,6 @@ class TestNrvProtobufSerializer extends FunSuite {
     exception.asInstanceOf[Exception].getMessage should equal("/ by zero")
   }
 
-  class DummyCodec() extends Codec {
-    var hasEncoded = false
-    var hasDecoded = false
-
-    def encode(entity: Any, context: Any = null): Array[Byte] = {
-      hasEncoded = true
-      new Array[Byte](0)
-    }
-
-    def decode(data: Array[Byte], context: Any = null): Any = {
-      hasDecoded = true
-      null
-    }
-  }
-
   test("can use fallback when no match") {
 
     val codec = new DummyCodec

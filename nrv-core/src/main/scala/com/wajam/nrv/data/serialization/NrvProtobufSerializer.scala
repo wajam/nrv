@@ -141,7 +141,6 @@ class NrvProtobufSerializer(val messageDataCodecs: Map[String, Codec] = Map.empt
     encodeMessageMap(message.metadata, protoMessage.addMetadata _)
 
     val messageDataCodec = resolveCodec(message)
-
     protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))
 
     protoMessage.build()
