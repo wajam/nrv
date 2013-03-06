@@ -26,10 +26,16 @@ class NrvProtobufSerializer(val messageDataCodecs: Map[String, Codec] = Map.empt
   }
 
   private[serialization] def resolveCodec(partialMessage: Message): Codec =  {
-    messageDataCodecs.get(partialMessage.contentType.get) match {
+
+    partialMessage.contentType match {
       case None => fallbackGenericCodec
-      case Some(value) => value
+      case Some(contentType) =>
+        messageDataCodecs.get(contentType) match {
+          case None => fallbackGenericCodec
+          case Some(codec) => codec
+        }
     }
+
   }
 
   private[serialization] def decodeMValue(protoValue: NrvProtobuf.MValue): MValue = {

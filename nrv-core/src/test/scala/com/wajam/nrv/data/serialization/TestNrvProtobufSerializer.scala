@@ -253,4 +253,74 @@ class TestNrvProtobufSerializer extends FunSuite {
 
     exception.asInstanceOf[Exception].getMessage should equal("/ by zero")
   }
+
+  class DummyCodec() extends Codec {
+    var hasEncoded = false
+    var hasDecoded = false
+
+    def encode(entity: Any, context: Any = null): Array[Byte] = {
+      hasEncoded = true
+      new Array[Byte](0)
+    }
+
+    def decode(data: Array[Byte], context: Any = null): Any = {
+      hasDecoded = true
+      null
+    }
+  }
+
+  test("can use fallback when no match") {
+
+    val codec = new DummyCodec
+
+    val serializer = new NrvProtobufSerializer(fallbackGenericCodec = codec)
+
+    val entity1 = new SerializableMessage()
+
+    entity1.contentType = Some("nrv/dummy")
+
+    val protoBufTransport = serializer.encodeMessage(entity1)
+    val entity2 = serializer.decodeMessage(protoBufTransport)
+
+    codec.hasEncoded should be(true)
+    codec.hasDecoded should be(true)
+  }
+
+
+  test("can use fallback when no contentType") {
+
+    val codec = new DummyCodec
+
+    val serializer = new NrvProtobufSerializer(fallbackGenericCodec = codec)
+
+    val entity1 = new SerializableMessage()
+    val protoBufTransport = serializer.encodeMessage(entity1)
+    val entity2 = serializer.decodeMessage(protoBufTransport)
+
+    codec.hasEncoded should be(true)
+    codec.hasDecoded should be(true)
+  }
+
+  test("can resolve the proper codec") {
+
+    val codec1 = new DummyCodec
+    val codec2 = new DummyCodec
+
+    val codecs = Map(("nrv/dummy" -> codec1))
+
+    val serializer = new NrvProtobufSerializer(codecs, codec2)
+
+    val entity1 = new SerializableMessage()
+
+    entity1.contentType = Some("nrv/dummy")
+
+    val protoBufTransport = serializer.encodeMessage(entity1)
+    val entity2 = serializer.decodeMessage(protoBufTransport)
+
+    codec1.hasEncoded should be(true)
+    codec1.hasDecoded should be(true)
+
+    codec2.hasEncoded should be(false)
+    codec2.hasDecoded should be(false)
+  }
 }
