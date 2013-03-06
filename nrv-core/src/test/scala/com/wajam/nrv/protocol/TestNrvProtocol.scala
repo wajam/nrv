@@ -1,14 +1,12 @@
 package com.wajam.nrv.protocol
 
-import codec.{DummyCodec, GenericJavaSerializeCodec, MessageJavaSerializeCodec}
+import codec.MessageJavaSerializeCodec
 import com.wajam.nrv.data._
-import com.wajam.nrv.service._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
+import com.wajam.nrv.cluster.LocalNode
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.matchers.ShouldMatchers
-import org.scalatest.matchers.ShouldMatchers._
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtocol extends FunSuite with BeforeAndAfter with ShouldMatchers {

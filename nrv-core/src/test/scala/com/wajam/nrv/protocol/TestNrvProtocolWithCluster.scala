@@ -1,11 +1,6 @@
 package com.wajam.nrv.protocol
 
-import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
-import org.scalatest.{BeforeAndAfter, FunSuite}
-import com.wajam.nrv.cluster.Cluster
-
-import codec.{DummyCodec, GenericJavaSerializeCodec, MessageJavaSerializeCodec}
+import codec.{DummyCodec, GenericJavaSerializeCodec}
 import com.wajam.nrv.data._
 import com.wajam.nrv.service._
 import org.junit.runner.RunWith
@@ -13,23 +8,35 @@ import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.matchers.ShouldMatchers
-import org.scalatest.matchers.ShouldMatchers._
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with ShouldMatchers {
 
   var cluster: Cluster = null
   var action: Action = null
+  var notifyingProtocol: NrvProtocol = null
+
+  val notifier = new Object()
+  var received: Message = null
 
   before {
     cluster = new Cluster(new LocalNode("127.0.0.1", Map("nrv" -> 12345, "test" -> 12346)), new StaticClusterManager)
+
     action = new Action("dummy", (msg) => None,
       actionSupportOptions =  new ActionSupportOptions(dataBinaryCodec = Some("dummy", new GenericJavaSerializeCodec)))
+
+    notifyingProtocol = new NrvProtocol(cluster.localNode) {
+      override def handleIncoming(action: Action, message: InMessage) {
+        received = message
+
+        notifier.synchronized {
+          notifier.notify()
+        }
+      }
+    }
   }
 
   test("out-in") {
-    val notifier = new Object()
-    var received: Message = null
 
     val protocol = new NrvProtocol(cluster.localNode) {
 
@@ -43,12 +50,15 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
         parsedMsg
       }
     }
+
     cluster.registerProtocol(protocol)
 
     cluster.start()
 
     val req = new OutMessage(Map("test" -> "someval"))
     req.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, cluster.localNode)))))
+
+    // Trigger the message sending
     protocol.handleOutgoing(action, req)
 
     notifier.synchronized {
@@ -63,19 +73,11 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
   test("test connection failure") {
 
-    val notifier = new Object()
-    var received: Message = null
-    val protocol = new NrvProtocol(cluster.localNode) {
-      override def handleIncoming(action: Action, message: InMessage) {
-        received = message
+    val protocol = notifyingProtocol
 
-        notifier.synchronized {
-          notifier.notify()
-        }
-      }
-    }
     val req = new OutMessage(Map("test" -> "someval"))
     req.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, cluster.localNode)))))
+
     protocol.handleOutgoing(action, req)
 
     notifier.synchronized {
@@ -124,18 +126,8 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
   }
 
   test("test contentType is setted and provided codec is used") {
-    val notifier = new Object()
-    var received: Message = null
 
-    val protocol = new NrvProtocol(cluster.localNode) {
-      override def handleIncoming(action: Action, message: InMessage) {
-        received = message
-
-        notifier.synchronized {
-          notifier.notify()
-        }
-      }
-    }
+    val protocol = notifyingProtocol
 
     cluster.registerProtocol(protocol)
 
@@ -154,9 +146,10 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
     req.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, cluster.localNode)))))
 
+    // This bind register the content type
     protocol.bindAction(actionDummy)
 
-    // The main action
+    // Trigger the message sending
     protocol.handleOutgoing(actionDummy, req)
 
     notifier.synchronized {
@@ -171,19 +164,9 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
     cluster.stop()
   }
 
-  test("test multiple codec with same key failure") {
-    val notifier = new Object()
-    var received: Message = null
-
-    val protocol = new NrvProtocol(cluster.localNode) {
-      override def handleIncoming(action: Action, message: InMessage) {
-        received = message
-
-        notifier.synchronized {
-          notifier.notify()
-        }
-      }
-    }
+  test("test multiple codec with same key failure")
+  {
+    val protocol = notifyingProtocol
 
     cluster.registerProtocol(protocol)
 
