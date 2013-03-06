@@ -2,22 +2,24 @@ package com.wajam.nrv.protocol
 
 import java.nio.ByteBuffer
 import codec.{MessageJavaSerializeCodec, Codec}
-import com.wajam.nrv.data.Message
+import com.wajam.nrv.data.{OutMessage, Message}
 import com.wajam.nrv.transport.nrv.NrvNettyTransport
 import com.wajam.nrv.cluster.LocalNode
 import com.wajam.nrv.data.serialization.NrvProtobufSerializer
 import com.google.common.primitives.{Shorts, UnsignedBytes}
+import com.wajam.nrv.service.Action
 
 /**
  * Default protocol used by NRV. All nodes must have this protocol, since it's
  * used for cluster management.
  */
-class NrvProtocol(localNode: LocalNode, defaultCodec: Codec = new MessageJavaSerializeCodec, protocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V2)
+class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V2)
   extends Protocol("nrv") {
 
   override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name), this)
 
-  val protobufSerializer = new NrvProtobufSerializer(defaultCodec)
+  val protobufSerializer = new NrvProtobufSerializer()
+  val javaSerializer = new MessageJavaSerializeCodec()
 
   val registeredCodecs =  new collection.mutable.HashMap[String, Codec]
 
@@ -28,6 +30,12 @@ class NrvProtocol(localNode: LocalNode, defaultCodec: Codec = new MessageJavaSer
 
   def stop() {
     transport.stop()
+  }
+
+  override def handleOutgoing(action: Action, message: OutMessage) {
+
+    //resolveContentType()
+    super.handleOutgoing(action, message)
   }
 
   def parse(message: AnyRef): Message = {
@@ -86,11 +94,11 @@ class NrvProtocol(localNode: LocalNode, defaultCodec: Codec = new MessageJavaSer
   }
 
   private def parseV1(message: Array[Byte]): Message = {
-    defaultCodec.decode(message).asInstanceOf[Message]
+    javaSerializer.decode(message).asInstanceOf[Message]
   }
 
   private def generateV1(message: Message): Array[Byte] = {
-    defaultCodec.encode(message)
+    javaSerializer.encode(message)
   }
 }
 

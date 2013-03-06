@@ -6,6 +6,7 @@ import com.wajam.nrv.utils.Observable
 import com.wajam.nrv.tracing.Tracer
 import com.wajam.nrv.consistency.ConsistencyOne
 import com.wajam.nrv.protocol.{NrvProtocolVersion, NrvProtocol, Protocol}
+import com.wajam.nrv.protocol.codec.GenericJavaSerializeCodec
 
 /**
  * A cluster composed of services that are provided by nodes.
@@ -17,8 +18,10 @@ class Cluster(val localNode: LocalNode,
   extends ActionSupport with Logging with Observable {
 
   // assign default resolver, switchboard, etc.
-  applySupport(cluster = Some(this), switchboard = Some(new Switchboard), resolver = Some(new Resolver),
-    tracer = Some(new Tracer), consistency = Some(new ConsistencyOne), responseTimeout = Some(1000L))
+  applySupport(cluster = Some(this), switchboard = Some(new Switchboard),
+    resolver = Some(new Resolver), tracer = Some(new Tracer), consistency = Some(new ConsistencyOne),
+    responseTimeout = Some(1000L), dataBinaryCodec = Some(new GenericJavaSerializeCodec))
+
   applySupportOptions(actionSupportOptions)
 
   var services = Map[String, Service]()
