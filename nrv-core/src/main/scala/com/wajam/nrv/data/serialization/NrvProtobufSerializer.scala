@@ -35,7 +35,6 @@ class NrvProtobufSerializer(val messageDataCodecs: Map[String, Codec] = Map.empt
           case Some(codec) => codec
         }
     }
-
   }
 
   private[serialization] def decodeMValue(protoValue: NrvProtobuf.MValue): MValue = {

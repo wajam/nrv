@@ -20,7 +20,7 @@ class Cluster(val localNode: LocalNode,
   // assign default resolver, switchboard, etc.
   applySupport(cluster = Some(this), switchboard = Some(new Switchboard),
     resolver = Some(new Resolver), tracer = Some(new Tracer), consistency = Some(new ConsistencyOne),
-    responseTimeout = Some(1000L), dataBinaryCodec = Some(new GenericJavaSerializeCodec))
+    responseTimeout = Some(1000L), dataBinaryCodec = Some("default", new GenericJavaSerializeCodec))
 
   applySupportOptions(actionSupportOptions)
 

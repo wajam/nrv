@@ -18,7 +18,6 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
 
   override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name), this)
 
-  val protobufSerializer = new NrvProtobufSerializer()
   val javaSerializer = new MessageJavaSerializeCodec()
 
   val registeredCodecs =  new collection.mutable.HashMap[String, Codec]
@@ -32,9 +31,33 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
     transport.stop()
   }
 
+  override def bindAction(action: Action) {
+
+    // Register the codec to the list of codec
+    val (name, codec) = action.dataBinaryCodec
+
+    val oldCodec = registeredCodecs.get(name)
+
+    oldCodec match {
+      case Some(oldCodec) if oldCodec.getClass != codec.getClass =>
+        throw new UnsupportedOperationException("Trying to register a different codec with the same name")
+      case Some(oldCodec) =>
+        // Noop already registered
+      case None => registeredCodecs += (name -> codec)
+    }
+
+    // Resume binding
+    super.bindAction(action)
+  }
+
   override def handleOutgoing(action: Action, message: OutMessage) {
 
-    //resolveContentType()
+    // Set contentType, this will allow to right codec to be used to encode
+    // on this side, but also will give hint to the receiver on how to decode it.
+    val (name, _) = action.dataBinaryCodec
+    message.contentType = Some(name)
+
+    // Resume outgoing
     super.handleOutgoing(action, message)
   }
 
@@ -63,6 +86,8 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
 
   private def parseV2(message: Array[Byte]): Message = {
 
+    val protobufSerializer = new NrvProtobufSerializer(registeredCodecs.toMap)
+
     if (message.length < 1)
       throw new IllegalArgumentException("message needs at least one byte of data")
 
@@ -79,6 +104,8 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
   }
 
   private def generateV2(message: Message): Array[Byte] = {
+
+    val protobufSerializer = new NrvProtobufSerializer(registeredCodecs.toMap)
 
     val bytes = protobufSerializer.serializeMessage(message)
 
