@@ -12,8 +12,7 @@ import java.net.InetAddress
  * Convert NRV principal objects to their Protobuf equivalent back and forth
  *
  */
-class NrvProtobufSerializer(val messageDataCodecs: Map[String, Codec] = Map.empty,
-                            val fallbackGenericCodec: Codec = new GenericJavaSerializeCodec) {
+class NrvProtobufSerializer(val codecResolver: (Message) => Codec) {
 
   val javaSerialize = new GenericJavaSerializeCodec()
 
@@ -23,18 +22,6 @@ class NrvProtobufSerializer(val messageDataCodecs: Map[String, Codec] = Map.empt
 
   def deserializeMessage(bytes: Array[Byte]): Message = {
     decodeMessage(NrvProtobuf.Message.parseFrom(bytes))
-  }
-
-  private[serialization] def resolveCodec(partialMessage: Message): Codec =  {
-
-    partialMessage.contentType match {
-      case None => fallbackGenericCodec
-      case Some(contentType) =>
-        messageDataCodecs.get(contentType) match {
-          case None => fallbackGenericCodec
-          case Some(codec) => codec
-        }
-    }
   }
 
   private[serialization] def decodeMValue(protoValue: NrvProtobuf.MValue): MValue = {
@@ -140,7 +127,7 @@ class NrvProtobufSerializer(val messageDataCodecs: Map[String, Codec] = Map.empt
     encodeMessageMap(message.parameters, protoMessage.addParameters _)
     encodeMessageMap(message.metadata, protoMessage.addMetadata _)
 
-    val messageDataCodec = resolveCodec(message)
+    val messageDataCodec = codecResolver(message)
     protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))
 
     protoMessage.build()
@@ -182,7 +169,7 @@ class NrvProtobufSerializer(val messageDataCodecs: Map[String, Codec] = Map.empt
     message.destination = destination
     message.token = protoMessage.getToken
 
-    val messageDataCodec = resolveCodec(message)
+    val messageDataCodec = codecResolver(message)
     message.messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
 
     message

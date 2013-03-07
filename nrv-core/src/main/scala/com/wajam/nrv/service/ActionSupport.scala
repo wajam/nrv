@@ -24,7 +24,7 @@ trait ActionSupport {
   protected var _tracer: Tracer = null
   protected var _consistency: Consistency = null
   protected var _responseTimeout: Option[Long] = None
-  protected var _dataBinaryCodec: Option[(String, Codec)] = None
+  protected var _dataBinaryCodec: Option[Codec] = None
 
   def cluster: Cluster =
     if (_cluster != null)
@@ -95,7 +95,7 @@ trait ActionSupport {
     }
   }
 
-  def dataBinaryCodec: (String, Codec) = {
+  def dataBinaryCodec: Codec = {
     _dataBinaryCodec match {
       case Some(codec) => codec
       case None => {
@@ -128,7 +128,7 @@ trait ActionSupport {
                    tracer: Option[Tracer] = None,
                    consistency: Option[Consistency] = None,
                    responseTimeout: Option[Long] = None,
-                   dataBinaryCodec: Option[(String, Codec)] = None) {
+                   dataBinaryCodec: Option[(Codec)] = None) {
 
     cluster.map(this._cluster = _)
     service.map(this._service = _)
@@ -159,5 +159,5 @@ class ActionSupportOptions(val cluster: Option[Cluster] = None,
                            val tracer: Option[Tracer] = None,
                            val consistency: Option[Consistency] = None,
                            val responseTimeout: Option[Long] = None,
-                           val dataBinaryCodec: Option[(String, Codec)] = None) {
+                           val dataBinaryCodec: Option[Codec] = None) {
 }

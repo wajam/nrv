@@ -1,13 +1,12 @@
 package com.wajam.nrv.protocol
 
 import java.nio.ByteBuffer
-import codec.{MessageJavaSerializeCodec, Codec}
-import com.wajam.nrv.data.{OutMessage, Message}
+import codec.MessageJavaSerializeCodec
+import com.wajam.nrv.data.Message
 import com.wajam.nrv.transport.nrv.NrvNettyTransport
 import com.wajam.nrv.cluster.LocalNode
 import com.wajam.nrv.data.serialization.NrvProtobufSerializer
 import com.google.common.primitives.{Shorts, UnsignedBytes}
-import com.wajam.nrv.service.Action
 
 /**
  * Default protocol used by NRV. All nodes must have this protocol, since it's
@@ -18,9 +17,15 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
 
   override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name), this)
 
-  val javaSerializer = new MessageJavaSerializeCodec()
+  protected val codecResolver = (msg: Message) => {
 
-  val registeredCodecs =  new collection.mutable.HashMap[String, Codec]
+    val optAction = this.resolveAction(msg.serviceName, msg.actionURL.path, msg.method)
+    optAction.get.dataBinaryCodec
+  }
+
+  protected val protobufSerializer = new NrvProtobufSerializer(codecResolver)
+
+  protected val javaSerializer = new MessageJavaSerializeCodec()
 
   def start() {
     transport.start()
@@ -29,36 +34,6 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
 
   def stop() {
     transport.stop()
-  }
-
-  override def bindAction(action: Action) {
-
-    // Register the codec to the list of codec
-    val (name, codec) = action.dataBinaryCodec
-
-    val oldCodec = registeredCodecs.get(name)
-
-    oldCodec match {
-      case Some(oldCodec) if oldCodec.getClass != codec.getClass =>
-        throw new UnsupportedOperationException("Trying to register a different codec with the same name")
-      case Some(oldCodec) =>
-        // Noop already registered
-      case None => registeredCodecs += (name -> codec)
-    }
-
-    // Resume binding
-    super.bindAction(action)
-  }
-
-  override def handleOutgoing(action: Action, message: OutMessage) {
-
-    // Set contentType, this will allow to right codec to be used to encode
-    // on this side, but also will give hint to the receiver on how to decode it.
-    val (name, _) = action.dataBinaryCodec
-    message.contentType = Some(name)
-
-    // Resume outgoing
-    super.handleOutgoing(action, message)
   }
 
   def parse(message: AnyRef): Message = {
@@ -86,8 +61,6 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
 
   private def parseV2(message: Array[Byte]): Message = {
 
-    val protobufSerializer = new NrvProtobufSerializer(registeredCodecs.toMap)
-
     if (message.length < 1)
       throw new IllegalArgumentException("message needs at least one byte of data")
 
@@ -105,7 +78,7 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
 
   private def generateV2(message: Message): Array[Byte] = {
 
-    val protobufSerializer = new NrvProtobufSerializer(registeredCodecs.toMap)
+    val protobufSerializer = new NrvProtobufSerializer(codecResolver)
 
     val bytes = protobufSerializer.serializeMessage(message)
 

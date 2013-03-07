@@ -1,7 +1,7 @@
 package com.wajam.nrv.protocol
 
 import com.wajam.nrv.{RouteException, Logging}
-import com.wajam.nrv.service.{Service, MessageHandler, Action}
+import com.wajam.nrv.service.{ActionMethod, Service, MessageHandler, Action}
 import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.yammer.metrics.scala.Instrumented
@@ -34,20 +34,26 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     services += (action.service.name -> action.service)
   }
 
+  protected def resolveAction(serviceName: String, path: String, method: ActionMethod) : Option[Action] = {
+
+    services.get(serviceName) match {
+      case Some(service) =>
+        // a service by the name is found, use it directly
+        service.findAction(path, method)
+
+      case None =>
+        // else we reduce services, finding the one with the action that can be called
+        services.values.foldLeft[Option[Action]](None)((current, service) => current match {
+          case Some(currentAction) => current
+          case None => service.findAction(path, method)
+        })
+    }
+  }
+
   override def handleIncoming(action: Action, message: InMessage) {
     try {
-      val optAction: Option[Action] = services.get(message.serviceName) match {
-        case Some(service) =>
-          // a service by the name is found, use it directly
-          service.findAction(message.actionURL.path, message.method)
 
-        case None =>
-          // else we reduce services, finding the one with the action that can be called
-          services.values.foldLeft[Option[Action]](None)((current, service) => current match {
-            case Some(currentAction) => current
-            case None => service.findAction(message.actionURL.path, message.method)
-          })
-      }
+      val optAction = resolveAction(message.serviceName, message.actionURL.path, message.method)
 
       optAction match {
         case Some(foundAction) => foundAction.callIncomingHandlers(message)
