@@ -141,11 +141,17 @@ trait Promise[T] {
 
   def tryComplete(result: Either[Throwable, T]): Boolean
 
-  def success(v: T): this.type = complete(Right(v))
+  def success(v: T): this.type = {
+    println(this + " success! " + v )
+    complete(Right(v))
+  }
 
   def trySuccess(value: T): Boolean = tryComplete(Right(value))
 
-  def failure(t: Throwable): this.type = complete(Left(t))
+  def failure(t: Throwable): this.type = {
+    println(this + " failure! " + t)
+    complete(Left(t))
+  }
 
   def tryFailure(t: Throwable): Boolean = tryComplete(Left(t))
 
@@ -186,14 +192,17 @@ class PromiseImpl[T] extends Promise[T] with Future[T] {
 
   private var callbacks = List[Either[Throwable, T] => Any]()
 
-  def value: Option[Either[Throwable, T]] = prvValue
+  def value: Option[Either[Throwable, T]] = synchronized {
+    prvValue
+  }
 
   def future: Future[T] = this
 
   @throws(classOf[TimeoutException])
   def ready(atMost: Long): this.type = {
-    if (prvValue.isEmpty) {
-      synchronized {
+    synchronized {
+      if (prvValue.isEmpty) {
+
         if (prvValue.isEmpty) {
           val start = System.currentTimeMillis()
           this.wait(atMost)
@@ -208,11 +217,13 @@ class PromiseImpl[T] extends Promise[T] with Future[T] {
 
   @throws(classOf[Exception])
   def result(atMost: Long): T = {
-    this.ready(atMost)
+    synchronized {
+      this.ready(atMost)
 
-    this.value.get match {
-      case Left(throwable) => throw throwable
-      case Right(value) => value
+      this.value.get match {
+        case Left(throwable) => throw throwable
+        case Right(value) => value
+      }
     }
   }
 
@@ -227,7 +238,9 @@ class PromiseImpl[T] extends Promise[T] with Future[T] {
     this
   }
 
-  def isCompleted: Boolean = prvValue.isDefined
+  def isCompleted: Boolean = synchronized {
+    prvValue.isDefined
+  }
 
   def tryComplete(result: Either[Throwable, T]): Boolean = {
     synchronized {

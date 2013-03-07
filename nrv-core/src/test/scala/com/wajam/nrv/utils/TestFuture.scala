@@ -180,4 +180,17 @@ class TestFuture extends FunSuite {
     assert(c == 1)
   }
 
+  test("test onSuccess should be called even if completion has already happened") {
+    var onSuccessExecuted = false
+    val p = Promise[Int]
+    p.success(34)
+
+    p.future onSuccess {
+      case 42 => onSuccessExecuted = true
+      case _ => fail()
+    }
+
+    assert(onSuccessExecuted)
+  }
+
 }
