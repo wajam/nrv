@@ -15,6 +15,8 @@ import com.wajam.nrv.data.MValue._
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtobufSerializer extends FunSuite {
 
+  val defaultResolver = (msg: Message) => (new GenericJavaSerializeCodec)
+
   private def makeMessage() = {
     val message = new SerializableMessage()
 
@@ -109,7 +111,7 @@ class TestNrvProtobufSerializer extends FunSuite {
 
   test("can serialize/deserialize message") {
 
-    val codec = new NrvProtobufSerializer()
+    val codec = new NrvProtobufSerializer(defaultResolver)
 
     val entity1 = makeMessage()
 
@@ -121,7 +123,7 @@ class TestNrvProtobufSerializer extends FunSuite {
 
   test("can encode/decode message") {
 
-    val codec = new NrvProtobufSerializer()
+    val codec = new NrvProtobufSerializer(defaultResolver)
 
     val entity1 = makeMessage()
 
@@ -133,7 +135,7 @@ class TestNrvProtobufSerializer extends FunSuite {
 
   test("can handle all MValue") {
 
-    val codec = new NrvProtobufSerializer()
+    val codec = new NrvProtobufSerializer(defaultResolver)
 
     val entity1 = makeMessage()
 
@@ -153,7 +155,7 @@ class TestNrvProtobufSerializer extends FunSuite {
 
   test("can encode/decode empty message") {
 
-    val codec = new NrvProtobufSerializer()
+    val codec = new NrvProtobufSerializer(defaultResolver)
 
     val entity1 = new SerializableMessage()
 
@@ -165,7 +167,7 @@ class TestNrvProtobufSerializer extends FunSuite {
 
   test("can encode/decode a message with no error in it") {
 
-    val codec = new NrvProtobufSerializer()
+    val codec = new NrvProtobufSerializer(defaultResolver)
 
     val entity1 = makeMessage()
 
@@ -179,7 +181,7 @@ class TestNrvProtobufSerializer extends FunSuite {
 
   test("can encode/decode node") {
 
-    val codec = new NrvProtobufSerializer()
+    val codec = new NrvProtobufSerializer(defaultResolver)
 
     val message = makeMessage()
     val entity1 = message.source
@@ -192,7 +194,7 @@ class TestNrvProtobufSerializer extends FunSuite {
 
   test("can encode/decode endpoints") {
 
-    val codec = new NrvProtobufSerializer()
+    val codec = new NrvProtobufSerializer(defaultResolver)
 
     val message = makeMessage()
     val entity1 = message.destination
@@ -205,7 +207,7 @@ class TestNrvProtobufSerializer extends FunSuite {
 
   test("can encode/decode shards") {
 
-    val codec = new NrvProtobufSerializer()
+    val codec = new NrvProtobufSerializer(defaultResolver)
 
     val message = makeMessage()
     val entity1 = message.destination.shards(0)
@@ -218,7 +220,7 @@ class TestNrvProtobufSerializer extends FunSuite {
 
   test("can encode/decode replica") {
 
-    val codec = new NrvProtobufSerializer()
+    val codec = new NrvProtobufSerializer(defaultResolver)
 
     val message = makeMessage()
     val entity1 = message.destination.shards(0).replicas(0)
@@ -252,60 +254,5 @@ class TestNrvProtobufSerializer extends FunSuite {
     val exception = messageDataCodec.decode(bytes)
 
     exception.asInstanceOf[Exception].getMessage should equal("/ by zero")
-  }
-
-  test("can use fallback when no match") {
-
-    val codec = new DummyCodec
-
-    val serializer = new NrvProtobufSerializer(fallbackGenericCodec = codec)
-
-    val entity1 = new SerializableMessage()
-
-    entity1.contentType = Some("nrv/dummy")
-
-    val protoBufTransport = serializer.encodeMessage(entity1)
-    val entity2 = serializer.decodeMessage(protoBufTransport)
-
-    codec.hasEncoded should be(true)
-    codec.hasDecoded should be(true)
-  }
-
-
-  test("can use fallback when no contentType") {
-
-    val codec = new DummyCodec
-
-    val serializer = new NrvProtobufSerializer(fallbackGenericCodec = codec)
-
-    val entity1 = new SerializableMessage()
-    val protoBufTransport = serializer.encodeMessage(entity1)
-    val entity2 = serializer.decodeMessage(protoBufTransport)
-
-    codec.hasEncoded should be(true)
-    codec.hasDecoded should be(true)
-  }
-
-  test("can resolve the proper codec") {
-
-    val codec1 = new DummyCodec
-    val codec2 = new DummyCodec
-
-    val codecs = Map(("nrv/dummy" -> codec1))
-
-    val serializer = new NrvProtobufSerializer(codecs, codec2)
-
-    val entity1 = new SerializableMessage()
-
-    entity1.contentType = Some("nrv/dummy")
-
-    val protoBufTransport = serializer.encodeMessage(entity1)
-    val entity2 = serializer.decodeMessage(protoBufTransport)
-
-    codec1.hasEncoded should be(true)
-    codec1.hasDecoded should be(true)
-
-    codec2.hasEncoded should be(false)
-    codec2.hasDecoded should be(false)
   }
 }

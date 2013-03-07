@@ -1,15 +1,22 @@
 package com.wajam.nrv.protocol
 
-import codec.MessageJavaSerializeCodec
+import codec.{GenericJavaSerializeCodec, MessageJavaSerializeCodec}
 import com.wajam.nrv.data._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.cluster.LocalNode
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.matchers.ShouldMatchers
+import serialization.NrvProtobufSerializer
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtocol extends FunSuite with BeforeAndAfter with ShouldMatchers {
+
+  class MockProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V2)
+    extends NrvProtocol(localNode, protocolVersion) {
+
+    protected override val protobufSerializer = new NrvProtobufSerializer((Message) => new GenericJavaSerializeCodec)
+  }
 
   private def compareTwoProtocols(vA: NrvProtocolVersion.Value, vB: NrvProtocolVersion.Value) = {
     val message = new SerializableMessage()
@@ -19,8 +26,9 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter with ShouldMatchers {
     val nodeA: LocalNode = new LocalNode("127.0.0.1", Map("nrv" -> 12345))
     val nodeB: LocalNode = new LocalNode("127.0.0.1", Map("nrv" -> 12346))
 
-    val protocolVA = new NrvProtocol(nodeA, protocolVersion = vA)
-    val protocolVB = new NrvProtocol(nodeB, protocolVersion = vB)
+    val protocolVA = new MockProtocol(nodeA, protocolVersion = vA)
+
+    val protocolVB = new MockProtocol(nodeB, protocolVersion = vB)
 
     val bytes = protocolVA.generate(message)
     val decodedMessage = protocolVB.parse(bytes)

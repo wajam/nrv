@@ -14,6 +14,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
   var cluster: Cluster = null
   var action: Action = null
+  var service: Service = null
   var notifyingProtocol: NrvProtocol = null
 
   val notifier = new Object()
@@ -22,8 +23,12 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
   before {
     cluster = new Cluster(new LocalNode("127.0.0.1", Map("nrv" -> 12345, "test" -> 12346)), new StaticClusterManager)
 
-    action = new Action("dummy", (msg) => None,
-      actionSupportOptions =  new ActionSupportOptions(dataBinaryCodec = Some("dummy", new GenericJavaSerializeCodec)))
+    service = new Service("ServiceA")
+
+    action = new Action("ActionA", (msg) => None,
+      actionSupportOptions =  new ActionSupportOptions(dataBinaryCodec = Some( new GenericJavaSerializeCodec)))
+
+    service.registerAction(action)
 
     notifyingProtocol = new NrvProtocol(cluster.localNode) {
       override def handleIncoming(action: Action, message: InMessage) {
@@ -58,6 +63,13 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
     val req = new OutMessage(Map("test" -> "someval"))
     req.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, cluster.localNode)))))
 
+    // Simulate switchboard configuration
+    req.source = cluster.localNode
+    req.serviceName = service.name
+    req.path = action.path.buildPath(req.parameters)
+
+    protocol.bindAction(action)
+
     // Trigger the message sending
     protocol.handleOutgoing(action, req)
 
@@ -77,6 +89,13 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
     val req = new OutMessage(Map("test" -> "someval"))
     req.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, cluster.localNode)))))
+
+    // Simulate switchboard configuration
+    req.source = cluster.localNode
+    req.serviceName = service.name
+    req.path = action.path.buildPath(req.parameters)
+
+    protocol.bindAction(action)
 
     protocol.handleOutgoing(action, req)
 
@@ -125,7 +144,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
     protocol.transportMessageReceived("invalidmessage".getBytes, None)
   }
 
-  test("test contentType is setted and provided codec is used") {
+  test("test overriden codec is used") {
 
     val protocol = notifyingProtocol
 
@@ -137,16 +156,19 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
     val codec = new DummyCodec
 
-    val dummyService = new Service("test")
-
-    val actionDummy = new Action("action", (msg) => None,
-      actionSupportOptions =  new ActionSupportOptions(dataBinaryCodec = Some("dummy", codec))) {
-      this._service = dummyService
+    val actionDummy = new Action("dummy", (msg) => None,
+      actionSupportOptions =  new ActionSupportOptions(dataBinaryCodec = Some(codec))) {
     }
+
+    service.registerAction(actionDummy)
 
     req.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, cluster.localNode)))))
 
-    // This bind register the content type
+    // Simulate switchboard configuration
+    req.source = cluster.localNode
+    req.serviceName = service.name
+    req.path = actionDummy.path.buildPath(req.parameters)
+
     protocol.bindAction(actionDummy)
 
     // Trigger the message sending
@@ -159,38 +181,9 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
     received.error should be(None)
     received.contentType == "dummy"
     codec.hasEncoded should be(true)
-    //codec.hasDecoded should be(true)
+    codec.hasDecoded should be(true)
 
     cluster.stop()
-  }
-
-  test("test multiple codec with same key failure")
-  {
-    val protocol = notifyingProtocol
-
-    cluster.registerProtocol(protocol)
-
-    cluster.start()
-
-    val req = new OutMessage(Map("test" -> "someval"))
-
-    val codec = new DummyCodec
-
-    val dummyService = new Service("test")
-
-    val actionDummy = new Action("action", (msg) => None,
-      actionSupportOptions =  new ActionSupportOptions(dataBinaryCodec = Some("dummy", codec))) {
-      this._service = dummyService
-    }
-
-    req.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, cluster.localNode)))))
-
-    protocol.bindAction(actionDummy)
-
-    intercept[UnsupportedOperationException] {
-      // Oups dummy already exists!
-      protocol.bindAction(action)
-    }
   }
 
   after {

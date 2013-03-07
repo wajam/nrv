@@ -78,8 +78,6 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
 
   private def generateV2(message: Message): Array[Byte] = {
 
-    val protobufSerializer = new NrvProtobufSerializer(codecResolver)
-
     val bytes = protobufSerializer.serializeMessage(message)
 
     val messageLength = bytes.length + 1
