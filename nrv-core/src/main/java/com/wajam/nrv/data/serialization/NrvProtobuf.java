@@ -35,10 +35,6 @@ public final class NrvProtobuf {
     boolean hasCode();
     int getCode();
     
-    // optional string contentType = 7;
-    boolean hasContentType();
-    String getContentType();
-    
     // optional bytes error = 16;
     boolean hasError();
     com.google.protobuf.ByteString getError();
@@ -242,43 +238,11 @@ public final class NrvProtobuf {
       return code_;
     }
     
-    // optional string contentType = 7;
-    public static final int CONTENTTYPE_FIELD_NUMBER = 7;
-    private java.lang.Object contentType_;
-    public boolean hasContentType() {
-      return ((bitField0_ & 0x00000040) == 0x00000040);
-    }
-    public String getContentType() {
-      java.lang.Object ref = contentType_;
-      if (ref instanceof String) {
-        return (String) ref;
-      } else {
-        com.google.protobuf.ByteString bs = 
-            (com.google.protobuf.ByteString) ref;
-        String s = bs.toStringUtf8();
-        if (com.google.protobuf.Internal.isValidUtf8(bs)) {
-          contentType_ = s;
-        }
-        return s;
-      }
-    }
-    private com.google.protobuf.ByteString getContentTypeBytes() {
-      java.lang.Object ref = contentType_;
-      if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
-            com.google.protobuf.ByteString.copyFromUtf8((String) ref);
-        contentType_ = b;
-        return b;
-      } else {
-        return (com.google.protobuf.ByteString) ref;
-      }
-    }
-    
     // optional bytes error = 16;
     public static final int ERROR_FIELD_NUMBER = 16;
     private com.google.protobuf.ByteString error_;
     public boolean hasError() {
-      return ((bitField0_ & 0x00000080) == 0x00000080);
+      return ((bitField0_ & 0x00000040) == 0x00000040);
     }
     public com.google.protobuf.ByteString getError() {
       return error_;
@@ -288,7 +252,7 @@ public final class NrvProtobuf {
     public static final int FUNCTION_FIELD_NUMBER = 8;
     private int function_;
     public boolean hasFunction() {
-      return ((bitField0_ & 0x00000100) == 0x00000100);
+      return ((bitField0_ & 0x00000080) == 0x00000080);
     }
     public int getFunction() {
       return function_;
@@ -298,7 +262,7 @@ public final class NrvProtobuf {
     public static final int SOURCE_FIELD_NUMBER = 9;
     private com.wajam.nrv.data.serialization.NrvProtobuf.Node source_;
     public boolean hasSource() {
-      return ((bitField0_ & 0x00000200) == 0x00000200);
+      return ((bitField0_ & 0x00000100) == 0x00000100);
     }
     public com.wajam.nrv.data.serialization.NrvProtobuf.Node getSource() {
       return source_;
@@ -308,7 +272,7 @@ public final class NrvProtobuf {
     public static final int DESTINATION_FIELD_NUMBER = 10;
     private com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints destination_;
     public boolean hasDestination() {
-      return ((bitField0_ & 0x00000400) == 0x00000400);
+      return ((bitField0_ & 0x00000200) == 0x00000200);
     }
     public com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints getDestination() {
       return destination_;
@@ -318,7 +282,7 @@ public final class NrvProtobuf {
     public static final int TOKEN_FIELD_NUMBER = 11;
     private long token_;
     public boolean hasToken() {
-      return ((bitField0_ & 0x00000800) == 0x00000800);
+      return ((bitField0_ & 0x00000400) == 0x00000400);
     }
     public long getToken() {
       return token_;
@@ -370,7 +334,7 @@ public final class NrvProtobuf {
     public static final int MESSAGEDATA_FIELD_NUMBER = 14;
     private com.google.protobuf.ByteString messageData_;
     public boolean hasMessageData() {
-      return ((bitField0_ & 0x00001000) == 0x00001000);
+      return ((bitField0_ & 0x00000800) == 0x00000800);
     }
     public com.google.protobuf.ByteString getMessageData() {
       return messageData_;
@@ -383,7 +347,6 @@ public final class NrvProtobuf {
       path_ = "";
       rendezVousId_ = 0L;
       code_ = 0;
-      contentType_ = "";
       error_ = com.google.protobuf.ByteString.EMPTY;
       function_ = 0;
       source_ = com.wajam.nrv.data.serialization.NrvProtobuf.Node.getDefaultInstance();
@@ -435,19 +398,16 @@ public final class NrvProtobuf {
       if (((bitField0_ & 0x00000020) == 0x00000020)) {
         output.writeInt32(6, code_);
       }
-      if (((bitField0_ & 0x00000040) == 0x00000040)) {
-        output.writeBytes(7, getContentTypeBytes());
-      }
-      if (((bitField0_ & 0x00000100) == 0x00000100)) {
+      if (((bitField0_ & 0x00000080) == 0x00000080)) {
         output.writeInt32(8, function_);
       }
-      if (((bitField0_ & 0x00000200) == 0x00000200)) {
+      if (((bitField0_ & 0x00000100) == 0x00000100)) {
         output.writeMessage(9, source_);
       }
-      if (((bitField0_ & 0x00000400) == 0x00000400)) {
+      if (((bitField0_ & 0x00000200) == 0x00000200)) {
         output.writeMessage(10, destination_);
       }
-      if (((bitField0_ & 0x00000800) == 0x00000800)) {
+      if (((bitField0_ & 0x00000400) == 0x00000400)) {
         output.writeInt64(11, token_);
       }
       for (int i = 0; i < parameters_.size(); i++) {
@@ -456,10 +416,10 @@ public final class NrvProtobuf {
       for (int i = 0; i < metadata_.size(); i++) {
         output.writeMessage(13, metadata_.get(i));
       }
-      if (((bitField0_ & 0x00001000) == 0x00001000)) {
+      if (((bitField0_ & 0x00000800) == 0x00000800)) {
         output.writeBytes(14, messageData_);
       }
-      if (((bitField0_ & 0x00000080) == 0x00000080)) {
+      if (((bitField0_ & 0x00000040) == 0x00000040)) {
         output.writeBytes(16, error_);
       }
     }
@@ -494,23 +454,19 @@ public final class NrvProtobuf {
         size += com.google.protobuf.CodedOutputStream
           .computeInt32Size(6, code_);
       }
-      if (((bitField0_ & 0x00000040) == 0x00000040)) {
-        size += com.google.protobuf.CodedOutputStream
-          .computeBytesSize(7, getContentTypeBytes());
-      }
-      if (((bitField0_ & 0x00000100) == 0x00000100)) {
+      if (((bitField0_ & 0x00000080) == 0x00000080)) {
         size += com.google.protobuf.CodedOutputStream
           .computeInt32Size(8, function_);
       }
-      if (((bitField0_ & 0x00000200) == 0x00000200)) {
+      if (((bitField0_ & 0x00000100) == 0x00000100)) {
         size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(9, source_);
       }
-      if (((bitField0_ & 0x00000400) == 0x00000400)) {
+      if (((bitField0_ & 0x00000200) == 0x00000200)) {
         size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(10, destination_);
       }
-      if (((bitField0_ & 0x00000800) == 0x00000800)) {
+      if (((bitField0_ & 0x00000400) == 0x00000400)) {
         size += com.google.protobuf.CodedOutputStream
           .computeInt64Size(11, token_);
       }
@@ -522,11 +478,11 @@ public final class NrvProtobuf {
         size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(13, metadata_.get(i));
       }
-      if (((bitField0_ & 0x00001000) == 0x00001000)) {
+      if (((bitField0_ & 0x00000800) == 0x00000800)) {
         size += com.google.protobuf.CodedOutputStream
           .computeBytesSize(14, messageData_);
       }
-      if (((bitField0_ & 0x00000080) == 0x00000080)) {
+      if (((bitField0_ & 0x00000040) == 0x00000040)) {
         size += com.google.protobuf.CodedOutputStream
           .computeBytesSize(16, error_);
       }
@@ -644,24 +600,22 @@ public final class NrvProtobuf {
         bitField0_ = (bitField0_ & ~0x00000010);
         code_ = 0;
         bitField0_ = (bitField0_ & ~0x00000020);
-        contentType_ = "";
-        bitField0_ = (bitField0_ & ~0x00000040);
         error_ = com.google.protobuf.ByteString.EMPTY;
-        bitField0_ = (bitField0_ & ~0x00000080);
+        bitField0_ = (bitField0_ & ~0x00000040);
         function_ = 0;
-        bitField0_ = (bitField0_ & ~0x00000100);
+        bitField0_ = (bitField0_ & ~0x00000080);
         source_ = com.wajam.nrv.data.serialization.NrvProtobuf.Node.getDefaultInstance();
-        bitField0_ = (bitField0_ & ~0x00000200);
+        bitField0_ = (bitField0_ & ~0x00000100);
         destination_ = com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints.getDefaultInstance();
-        bitField0_ = (bitField0_ & ~0x00000400);
+        bitField0_ = (bitField0_ & ~0x00000200);
         token_ = 0L;
-        bitField0_ = (bitField0_ & ~0x00000800);
+        bitField0_ = (bitField0_ & ~0x00000400);
         parameters_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00001000);
+        bitField0_ = (bitField0_ & ~0x00000800);
         metadata_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00002000);
+        bitField0_ = (bitField0_ & ~0x00001000);
         messageData_ = com.google.protobuf.ByteString.EMPTY;
-        bitField0_ = (bitField0_ & ~0x00004000);
+        bitField0_ = (bitField0_ & ~0x00002000);
         return this;
       }
       
@@ -722,39 +676,35 @@ public final class NrvProtobuf {
         if (((from_bitField0_ & 0x00000040) == 0x00000040)) {
           to_bitField0_ |= 0x00000040;
         }
-        result.contentType_ = contentType_;
+        result.error_ = error_;
         if (((from_bitField0_ & 0x00000080) == 0x00000080)) {
           to_bitField0_ |= 0x00000080;
         }
-        result.error_ = error_;
+        result.function_ = function_;
         if (((from_bitField0_ & 0x00000100) == 0x00000100)) {
           to_bitField0_ |= 0x00000100;
         }
-        result.function_ = function_;
+        result.source_ = source_;
         if (((from_bitField0_ & 0x00000200) == 0x00000200)) {
           to_bitField0_ |= 0x00000200;
         }
-        result.source_ = source_;
+        result.destination_ = destination_;
         if (((from_bitField0_ & 0x00000400) == 0x00000400)) {
           to_bitField0_ |= 0x00000400;
         }
-        result.destination_ = destination_;
-        if (((from_bitField0_ & 0x00000800) == 0x00000800)) {
-          to_bitField0_ |= 0x00000800;
-        }
         result.token_ = token_;
-        if (((bitField0_ & 0x00001000) == 0x00001000)) {
+        if (((bitField0_ & 0x00000800) == 0x00000800)) {
           parameters_ = java.util.Collections.unmodifiableList(parameters_);
-          bitField0_ = (bitField0_ & ~0x00001000);
+          bitField0_ = (bitField0_ & ~0x00000800);
         }
         result.parameters_ = parameters_;
-        if (((bitField0_ & 0x00002000) == 0x00002000)) {
+        if (((bitField0_ & 0x00001000) == 0x00001000)) {
           metadata_ = java.util.Collections.unmodifiableList(metadata_);
-          bitField0_ = (bitField0_ & ~0x00002000);
+          bitField0_ = (bitField0_ & ~0x00001000);
         }
         result.metadata_ = metadata_;
-        if (((from_bitField0_ & 0x00004000) == 0x00004000)) {
-          to_bitField0_ |= 0x00001000;
+        if (((from_bitField0_ & 0x00002000) == 0x00002000)) {
+          to_bitField0_ |= 0x00000800;
         }
         result.messageData_ = messageData_;
         result.bitField0_ = to_bitField0_;
@@ -781,9 +731,6 @@ public final class NrvProtobuf {
         if (other.hasCode()) {
           setCode(other.getCode());
         }
-        if (other.hasContentType()) {
-          setContentType(other.getContentType());
-        }
         if (other.hasError()) {
           setError(other.getError());
         }
@@ -802,7 +749,7 @@ public final class NrvProtobuf {
         if (!other.parameters_.isEmpty()) {
           if (parameters_.isEmpty()) {
             parameters_ = other.parameters_;
-            bitField0_ = (bitField0_ & ~0x00001000);
+            bitField0_ = (bitField0_ & ~0x00000800);
           } else {
             ensureParametersIsMutable();
             parameters_.addAll(other.parameters_);
@@ -812,7 +759,7 @@ public final class NrvProtobuf {
         if (!other.metadata_.isEmpty()) {
           if (metadata_.isEmpty()) {
             metadata_ = other.metadata_;
-            bitField0_ = (bitField0_ & ~0x00002000);
+            bitField0_ = (bitField0_ & ~0x00001000);
           } else {
             ensureMetadataIsMutable();
             metadata_.addAll(other.metadata_);
@@ -888,13 +835,8 @@ public final class NrvProtobuf {
               code_ = input.readInt32();
               break;
             }
-            case 58: {
-              bitField0_ |= 0x00000040;
-              contentType_ = input.readBytes();
-              break;
-            }
             case 64: {
-              bitField0_ |= 0x00000100;
+              bitField0_ |= 0x00000080;
               function_ = input.readInt32();
               break;
             }
@@ -917,7 +859,7 @@ public final class NrvProtobuf {
               break;
             }
             case 88: {
-              bitField0_ |= 0x00000800;
+              bitField0_ |= 0x00000400;
               token_ = input.readInt64();
               break;
             }
@@ -934,12 +876,12 @@ public final class NrvProtobuf {
               break;
             }
             case 114: {
-              bitField0_ |= 0x00004000;
+              bitField0_ |= 0x00002000;
               messageData_ = input.readBytes();
               break;
             }
             case 130: {
-              bitField0_ |= 0x00000080;
+              bitField0_ |= 0x00000040;
               error_ = input.readBytes();
               break;
             }
@@ -1135,46 +1077,10 @@ public final class NrvProtobuf {
         return this;
       }
       
-      // optional string contentType = 7;
-      private java.lang.Object contentType_ = "";
-      public boolean hasContentType() {
-        return ((bitField0_ & 0x00000040) == 0x00000040);
-      }
-      public String getContentType() {
-        java.lang.Object ref = contentType_;
-        if (!(ref instanceof String)) {
-          String s = ((com.google.protobuf.ByteString) ref).toStringUtf8();
-          contentType_ = s;
-          return s;
-        } else {
-          return (String) ref;
-        }
-      }
-      public Builder setContentType(String value) {
-        if (value == null) {
-    throw new NullPointerException();
-  }
-  bitField0_ |= 0x00000040;
-        contentType_ = value;
-        
-        return this;
-      }
-      public Builder clearContentType() {
-        bitField0_ = (bitField0_ & ~0x00000040);
-        contentType_ = getDefaultInstance().getContentType();
-        
-        return this;
-      }
-      void setContentType(com.google.protobuf.ByteString value) {
-        bitField0_ |= 0x00000040;
-        contentType_ = value;
-        
-      }
-      
       // optional bytes error = 16;
       private com.google.protobuf.ByteString error_ = com.google.protobuf.ByteString.EMPTY;
       public boolean hasError() {
-        return ((bitField0_ & 0x00000080) == 0x00000080);
+        return ((bitField0_ & 0x00000040) == 0x00000040);
       }
       public com.google.protobuf.ByteString getError() {
         return error_;
@@ -1183,13 +1089,13 @@ public final class NrvProtobuf {
         if (value == null) {
     throw new NullPointerException();
   }
-  bitField0_ |= 0x00000080;
+  bitField0_ |= 0x00000040;
         error_ = value;
         
         return this;
       }
       public Builder clearError() {
-        bitField0_ = (bitField0_ & ~0x00000080);
+        bitField0_ = (bitField0_ & ~0x00000040);
         error_ = getDefaultInstance().getError();
         
         return this;
@@ -1198,19 +1104,19 @@ public final class NrvProtobuf {
       // optional int32 function = 8;
       private int function_ ;
       public boolean hasFunction() {
-        return ((bitField0_ & 0x00000100) == 0x00000100);
+        return ((bitField0_ & 0x00000080) == 0x00000080);
       }
       public int getFunction() {
         return function_;
       }
       public Builder setFunction(int value) {
-        bitField0_ |= 0x00000100;
+        bitField0_ |= 0x00000080;
         function_ = value;
         
         return this;
       }
       public Builder clearFunction() {
-        bitField0_ = (bitField0_ & ~0x00000100);
+        bitField0_ = (bitField0_ & ~0x00000080);
         function_ = 0;
         
         return this;
@@ -1219,7 +1125,7 @@ public final class NrvProtobuf {
       // optional .com.wajam.nrv.data.serialization.Node source = 9;
       private com.wajam.nrv.data.serialization.NrvProtobuf.Node source_ = com.wajam.nrv.data.serialization.NrvProtobuf.Node.getDefaultInstance();
       public boolean hasSource() {
-        return ((bitField0_ & 0x00000200) == 0x00000200);
+        return ((bitField0_ & 0x00000100) == 0x00000100);
       }
       public com.wajam.nrv.data.serialization.NrvProtobuf.Node getSource() {
         return source_;
@@ -1230,18 +1136,18 @@ public final class NrvProtobuf {
         }
         source_ = value;
         
-        bitField0_ |= 0x00000200;
+        bitField0_ |= 0x00000100;
         return this;
       }
       public Builder setSource(
           com.wajam.nrv.data.serialization.NrvProtobuf.Node.Builder builderForValue) {
         source_ = builderForValue.build();
         
-        bitField0_ |= 0x00000200;
+        bitField0_ |= 0x00000100;
         return this;
       }
       public Builder mergeSource(com.wajam.nrv.data.serialization.NrvProtobuf.Node value) {
-        if (((bitField0_ & 0x00000200) == 0x00000200) &&
+        if (((bitField0_ & 0x00000100) == 0x00000100) &&
             source_ != com.wajam.nrv.data.serialization.NrvProtobuf.Node.getDefaultInstance()) {
           source_ =
             com.wajam.nrv.data.serialization.NrvProtobuf.Node.newBuilder(source_).mergeFrom(value).buildPartial();
@@ -1249,20 +1155,20 @@ public final class NrvProtobuf {
           source_ = value;
         }
         
-        bitField0_ |= 0x00000200;
+        bitField0_ |= 0x00000100;
         return this;
       }
       public Builder clearSource() {
         source_ = com.wajam.nrv.data.serialization.NrvProtobuf.Node.getDefaultInstance();
         
-        bitField0_ = (bitField0_ & ~0x00000200);
+        bitField0_ = (bitField0_ & ~0x00000100);
         return this;
       }
       
       // optional .com.wajam.nrv.data.serialization.Endpoints destination = 10;
       private com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints destination_ = com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints.getDefaultInstance();
       public boolean hasDestination() {
-        return ((bitField0_ & 0x00000400) == 0x00000400);
+        return ((bitField0_ & 0x00000200) == 0x00000200);
       }
       public com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints getDestination() {
         return destination_;
@@ -1273,18 +1179,18 @@ public final class NrvProtobuf {
         }
         destination_ = value;
         
-        bitField0_ |= 0x00000400;
+        bitField0_ |= 0x00000200;
         return this;
       }
       public Builder setDestination(
           com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints.Builder builderForValue) {
         destination_ = builderForValue.build();
         
-        bitField0_ |= 0x00000400;
+        bitField0_ |= 0x00000200;
         return this;
       }
       public Builder mergeDestination(com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints value) {
-        if (((bitField0_ & 0x00000400) == 0x00000400) &&
+        if (((bitField0_ & 0x00000200) == 0x00000200) &&
             destination_ != com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints.getDefaultInstance()) {
           destination_ =
             com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints.newBuilder(destination_).mergeFrom(value).buildPartial();
@@ -1292,32 +1198,32 @@ public final class NrvProtobuf {
           destination_ = value;
         }
         
-        bitField0_ |= 0x00000400;
+        bitField0_ |= 0x00000200;
         return this;
       }
       public Builder clearDestination() {
         destination_ = com.wajam.nrv.data.serialization.NrvProtobuf.Endpoints.getDefaultInstance();
         
-        bitField0_ = (bitField0_ & ~0x00000400);
+        bitField0_ = (bitField0_ & ~0x00000200);
         return this;
       }
       
       // optional int64 token = 11;
       private long token_ ;
       public boolean hasToken() {
-        return ((bitField0_ & 0x00000800) == 0x00000800);
+        return ((bitField0_ & 0x00000400) == 0x00000400);
       }
       public long getToken() {
         return token_;
       }
       public Builder setToken(long value) {
-        bitField0_ |= 0x00000800;
+        bitField0_ |= 0x00000400;
         token_ = value;
         
         return this;
       }
       public Builder clearToken() {
-        bitField0_ = (bitField0_ & ~0x00000800);
+        bitField0_ = (bitField0_ & ~0x00000400);
         token_ = 0L;
         
         return this;
@@ -1327,9 +1233,9 @@ public final class NrvProtobuf {
       private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.MPair> parameters_ =
         java.util.Collections.emptyList();
       private void ensureParametersIsMutable() {
-        if (!((bitField0_ & 0x00001000) == 0x00001000)) {
+        if (!((bitField0_ & 0x00000800) == 0x00000800)) {
           parameters_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.MPair>(parameters_);
-          bitField0_ |= 0x00001000;
+          bitField0_ |= 0x00000800;
          }
       }
       
@@ -1401,7 +1307,7 @@ public final class NrvProtobuf {
       }
       public Builder clearParameters() {
         parameters_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00001000);
+        bitField0_ = (bitField0_ & ~0x00000800);
         
         return this;
       }
@@ -1416,9 +1322,9 @@ public final class NrvProtobuf {
       private java.util.List<com.wajam.nrv.data.serialization.NrvProtobuf.MPair> metadata_ =
         java.util.Collections.emptyList();
       private void ensureMetadataIsMutable() {
-        if (!((bitField0_ & 0x00002000) == 0x00002000)) {
+        if (!((bitField0_ & 0x00001000) == 0x00001000)) {
           metadata_ = new java.util.ArrayList<com.wajam.nrv.data.serialization.NrvProtobuf.MPair>(metadata_);
-          bitField0_ |= 0x00002000;
+          bitField0_ |= 0x00001000;
          }
       }
       
@@ -1490,7 +1396,7 @@ public final class NrvProtobuf {
       }
       public Builder clearMetadata() {
         metadata_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00002000);
+        bitField0_ = (bitField0_ & ~0x00001000);
         
         return this;
       }
@@ -1504,7 +1410,7 @@ public final class NrvProtobuf {
       // optional bytes messageData = 14;
       private com.google.protobuf.ByteString messageData_ = com.google.protobuf.ByteString.EMPTY;
       public boolean hasMessageData() {
-        return ((bitField0_ & 0x00004000) == 0x00004000);
+        return ((bitField0_ & 0x00002000) == 0x00002000);
       }
       public com.google.protobuf.ByteString getMessageData() {
         return messageData_;
@@ -1513,13 +1419,13 @@ public final class NrvProtobuf {
         if (value == null) {
     throw new NullPointerException();
   }
-  bitField0_ |= 0x00004000;
+  bitField0_ |= 0x00002000;
         messageData_ = value;
         
         return this;
       }
       public Builder clearMessageData() {
-        bitField0_ = (bitField0_ & ~0x00004000);
+        bitField0_ = (bitField0_ & ~0x00002000);
         messageData_ = getDefaultInstance().getMessageData();
         
         return this;

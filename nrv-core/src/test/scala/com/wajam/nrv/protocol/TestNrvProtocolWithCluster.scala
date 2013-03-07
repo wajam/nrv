@@ -179,7 +179,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
     }
 
     received.error should be(None)
-    received.contentType == "dummy"
+
     codec.hasEncoded should be(true)
     codec.hasDecoded should be(true)
 
