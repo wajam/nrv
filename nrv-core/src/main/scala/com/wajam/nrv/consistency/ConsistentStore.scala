@@ -15,6 +15,11 @@ trait ConsistentStore {
   def requiresConsistency(message: Message): Boolean
 
   /**
+   * Returns the latest record timestamp for the specified token ranges
+   */
+  def getLastTimestamp(ranges: Seq[TokenRange]): Option[Timestamp]
+
+  /**
    * Truncate all records at the given timestamp for the specified token.
    */
   def truncateAt(timestamp: Timestamp, token: Long)
