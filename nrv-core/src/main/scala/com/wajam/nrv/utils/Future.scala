@@ -182,6 +182,7 @@ object Promise {
 }
 
 class PromiseImpl[T] extends Promise[T] with Future[T] {
+  @volatile
   private var prvValue: Option[Either[Throwable, T]] = None
 
   private var callbacks = List[Either[Throwable, T] => Any]()
@@ -221,7 +222,7 @@ class PromiseImpl[T] extends Promise[T] with Future[T] {
       prvValue match {
         case None =>
           callbacks :+= func
-        case Some(_) => func(_)
+        case Some(v) => func(v)
       }
     }
     this
