@@ -48,7 +48,7 @@ trait Future[T] extends Awaitable[T] {
         try
           p success f(v)
         catch {
-          case t => p failure (t)
+          case t: Throwable => p failure (t)
         }
     }
 
@@ -67,7 +67,7 @@ trait Future[T] extends Awaitable[T] {
             case Right(v) => p success v
           }
         } catch {
-          case t => p failure (t)
+          case t: Throwable => p failure (t)
         }
     }
 
