@@ -20,7 +20,7 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
   protected def resolveCodec(msg: Message) = {
 
     val optAction = this.resolveAction(msg.serviceName, msg.actionURL.path, msg.method)
-    optAction.get.dataBinaryCodec
+    optAction.get.nrvCodec
   }
 
   protected val javaSerializer = new MessageJavaSerializeCodec()

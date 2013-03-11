@@ -26,7 +26,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
     service = new Service("ServiceA")
 
     action = new Action("ActionA", (msg) => None,
-      actionSupportOptions =  new ActionSupportOptions(dataBinaryCodec = Some( new GenericJavaSerializeCodec)))
+      actionSupportOptions =  new ActionSupportOptions(nrvCodec = Some( new GenericJavaSerializeCodec)))
 
     service.registerAction(action)
 
@@ -157,7 +157,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
     val codec = new DummyCodec
 
     val actionDummy = new Action("dummy", (msg) => None,
-      actionSupportOptions =  new ActionSupportOptions(dataBinaryCodec = Some(codec))) {
+      actionSupportOptions =  new ActionSupportOptions(nrvCodec = Some(codec))) {
     }
 
     service.registerAction(actionDummy)

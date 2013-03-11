@@ -24,7 +24,7 @@ trait ActionSupport {
   protected var _tracer: Tracer = null
   protected var _consistency: Consistency = null
   protected var _responseTimeout: Option[Long] = None
-  protected var _dataBinaryCodec: Option[Codec] = None
+  protected var _nrvCodec: Option[Codec] = None
 
   def cluster: Cluster =
     if (_cluster != null)
@@ -95,12 +95,12 @@ trait ActionSupport {
     }
   }
 
-  def dataBinaryCodec: Codec = {
-    _dataBinaryCodec match {
+  def nrvCodec: Codec = {
+    _nrvCodec match {
       case Some(codec) => codec
       case None => {
         if (this.supporter != null) {
-          this.supporter.dataBinaryCodec
+          this.supporter.nrvCodec
         } else {
           throw new UninitializedError
         }
@@ -117,7 +117,7 @@ trait ActionSupport {
     this.tracer
     this.consistency
     this.responseTimeout
-    this.dataBinaryCodec
+    this.nrvCodec
   }
 
   def applySupport(cluster: Option[Cluster] = None,
@@ -128,7 +128,7 @@ trait ActionSupport {
                    tracer: Option[Tracer] = None,
                    consistency: Option[Consistency] = None,
                    responseTimeout: Option[Long] = None,
-                   dataBinaryCodec: Option[(Codec)] = None) {
+                   nrvCodec: Option[(Codec)] = None) {
 
     cluster.map(this._cluster = _)
     service.map(this._service = _)
@@ -138,12 +138,12 @@ trait ActionSupport {
     tracer.map(this._tracer = _)
     consistency.map(this._consistency = _)
     responseTimeout.map(timeout => this._responseTimeout = Some(timeout))
-    dataBinaryCodec.map(codec => this._dataBinaryCodec = Some(codec))
+    nrvCodec.map(codec => this._nrvCodec = Some(codec))
   }
 
   def applySupportOptions(options: ActionSupportOptions) {
     this.applySupport(options.cluster, options.service, options.resolver, options.protocol, options.switchboard,
-      options.tracer, options.consistency, options.responseTimeout, options.dataBinaryCodec)
+      options.tracer, options.consistency, options.responseTimeout, options.nrvCodec)
   }
 
   def supportedBy(supporter: ActionSupport) {
@@ -159,5 +159,5 @@ class ActionSupportOptions(val cluster: Option[Cluster] = None,
                            val tracer: Option[Tracer] = None,
                            val consistency: Option[Consistency] = None,
                            val responseTimeout: Option[Long] = None,
-                           val dataBinaryCodec: Option[Codec] = None) {
+                           val nrvCodec: Option[Codec] = None) {
 }
