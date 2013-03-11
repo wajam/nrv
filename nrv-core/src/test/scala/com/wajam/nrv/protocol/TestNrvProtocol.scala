@@ -15,7 +15,10 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter with ShouldMatchers {
   class MockProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V2)
     extends NrvProtocol(localNode, protocolVersion) {
 
-    protected override val protobufSerializer = new NrvProtobufSerializer((Message) => new GenericJavaSerializeCodec)
+    protected override def resolveCodec(msg: Message) = {
+      new GenericJavaSerializeCodec
+    }
+
   }
 
   private def compareTwoProtocols(vA: NrvProtocolVersion.Value, vB: NrvProtocolVersion.Value) = {

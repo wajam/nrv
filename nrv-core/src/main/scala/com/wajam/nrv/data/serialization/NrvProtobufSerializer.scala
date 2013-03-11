@@ -12,16 +12,16 @@ import java.net.InetAddress
  * Convert NRV principal objects to their Protobuf equivalent back and forth
  *
  */
-class NrvProtobufSerializer(val codecResolver: (Message) => Codec) {
+object NrvProtobufSerializer {
 
   val javaSerialize = new GenericJavaSerializeCodec()
 
-  def serializeMessage(message: Message): Array[Byte] = {
-    encodeMessage(message).toByteArray
+  def serializeMessage(message: Message, codecResolver: (Message) => Codec): Array[Byte] = {
+    encodeMessage(message, codecResolver).toByteArray
   }
 
-  def deserializeMessage(bytes: Array[Byte]): Message = {
-    decodeMessage(NrvProtobuf.Message.parseFrom(bytes))
+  def deserializeMessage(bytes: Array[Byte], codecResolver: (Message) => Codec): Message = {
+    decodeMessage(NrvProtobuf.Message.parseFrom(bytes), codecResolver)
   }
 
   private[serialization] def decodeMValue(protoValue: NrvProtobuf.MValue): MValue = {
@@ -95,7 +95,7 @@ class NrvProtobufSerializer(val codecResolver: (Message) => Codec) {
     }.toMap
   }
 
-  private[serialization] def encodeMessage(message: Message): NrvProtobuf.Message = {
+  private[serialization] def encodeMessage(message: Message, codecResolver: (Message) => Codec): NrvProtobuf.Message = {
 
     val protoMessage = NrvProtobuf.Message.newBuilder()
 
@@ -130,7 +130,7 @@ class NrvProtobufSerializer(val codecResolver: (Message) => Codec) {
     protoMessage.build()
   }
 
-  private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message): Message = {
+  private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message, codecResolver: (Message) => Codec): Message = {
 
     val parameters = decodeMessageMap(protoMessage.getParametersList.asScala)
 
