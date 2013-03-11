@@ -5,6 +5,7 @@ import com.wajam.nrv.service.{ActionMethod, Service, MessageHandler, Action}
 import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.yammer.metrics.scala.Instrumented
+import org.scalatest.matchers.MustMatchers.AnyRefMustWrapper
 
 /**
  * Protocol used to send and receive messages to remote nodes over a network
@@ -70,48 +71,82 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     }
   }
 
-  override def handleOutgoing(action: Action, message: OutMessage) {
-    message.protocolName = this.name
-    message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
-      case Some(channel) => {
-        val response = generate(message)
-        transport.sendResponse(channel,
-          response,
+  private def handleResponse(channel: AnyRef, message: OutMessage)
+  {
+    var optResponse: Option[AnyRef] = None
+
+    try {
+      optResponse = Some(generate(message))
+    }
+    catch {
+      case e: Exception => {
+        sendingResponseFailure.mark()
+        log.error("Could not send response because it cannot be constructed: error = {}.",
+          e.toString)
+      }
+    }
+
+    for(response <- optResponse) {
+      transport.sendResponse(channel,
+        response,
+        message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
+        (result: Option[Throwable]) => {
+          result match {
+            case Some(throwable) => {
+              sendingResponseFailure.mark()
+              log.debug("Could not send the response because of an error: response = {}, error = {}.",
+                message, throwable.toString)
+            }
+            case None =>
+          }
+        })
+    }
+  }
+
+  private def handleRequest(action: Action, message: OutMessage) {
+    var optRequest: Option[AnyRef] = None
+
+    try {
+      optRequest = Some(generate(message))
+    }
+    catch {
+      case e: Exception => {
+        log.error("Could not send request because it cannot be constructed: error = {}.",
+          e.toString)
+      }
+    }
+
+    for (request <- optRequest) {
+      for (replica <- message.destination.selectedReplicas) {
+        val node = replica.node
+
+        transport.sendMessage(node.protocolsSocketAddress(name),
+          request,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
           (result: Option[Throwable]) => {
             result match {
               case Some(throwable) => {
-                sendingResponseFailure.mark()
-                log.debug("Could not send the response because of an error: resonse = {}, error = {}.",
-                  message, throwable.toString)
+                val response = new InMessage()
+                message.copyTo(response)
+                response.error = Some(new RuntimeException(throwable))
+                response.function = MessageType.FUNCTION_RESPONSE
+
+                handleIncoming(action, response, Unit => {})
               }
               case None =>
             }
           })
       }
-      case None => {
-        for (replica <- message.destination.selectedReplicas) {
-          val node = replica.node
-          val request = generate(message)
+    }
+  }
 
-          transport.sendMessage(node.protocolsSocketAddress(name),
-            request,
-            message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
-            (result: Option[Throwable]) => {
-              result match {
-                case Some(throwable) => {
-                  val response = new InMessage()
-                  message.copyTo(response)
-                  response.error = Some(new RuntimeException(throwable))
-                  response.function = MessageType.FUNCTION_RESPONSE
+  override def handleOutgoing(action: Action, message: OutMessage) {
+    message.protocolName = this.name
 
-                  handleIncoming(action, response, Unit => {})
-                }
-                case None =>
-              }
-            })
-        }
-      }
+    message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
+
+      case Some(channel) =>  handleResponse(channel, message)
+      case None => handleRequest(action, message)
     }
   }
 
