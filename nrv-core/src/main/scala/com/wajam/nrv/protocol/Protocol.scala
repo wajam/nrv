@@ -71,7 +71,7 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     }
   }
 
-  private def handleResponse(channel: AnyRef, message: OutMessage)
+  private def handleOutgoingResponse(channel: AnyRef, message: OutMessage)
   {
     var optResponse: Option[AnyRef] = None
 
@@ -103,7 +103,7 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     }
   }
 
-  private def handleRequest(action: Action, message: OutMessage) {
+  private def handleOutgoingRequest(action: Action, message: OutMessage) {
     var optRequest: Option[AnyRef] = None
 
     try {
@@ -145,8 +145,8 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
 
     message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
 
-      case Some(channel) =>  handleResponse(channel, message)
-      case None => handleRequest(action, message)
+      case Some(channel) =>  handleOutgoingResponse(channel, message)
+      case None => handleOutgoingRequest(action, message)
     }
   }
 

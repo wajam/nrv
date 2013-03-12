@@ -17,7 +17,7 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
 
   override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name), this)
 
-  protected def resolveCodec(msg: Message) = {
+  protected val resolveCodec = (msg: Message) => {
 
     val optAction = this.resolveAction(msg.serviceName, msg.actionURL.path, msg.method)
     optAction.get.nrvCodec
@@ -71,12 +71,12 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
     buffer.get()
     buffer.get(bytes)
 
-    NrvProtobufSerializer.deserializeMessage(bytes, resolveCodec _)
+    NrvProtobufSerializer.deserializeMessage(bytes, resolveCodec)
   }
 
   private def generateV2(message: Message): Array[Byte] = {
 
-    val bytes = NrvProtobufSerializer.serializeMessage(message, resolveCodec _)
+    val bytes = NrvProtobufSerializer.serializeMessage(message, resolveCodec)
 
     val messageLength = bytes.length + 1
 
