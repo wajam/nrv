@@ -109,8 +109,7 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
 
     guardedGenerate(message) match {
       case Left(e) => {
-        log.error("Could not send request because it cannot be constructed: error = {}.",
-          e.toString)
+        log.error("Could not send request because it cannot be constructed: error = {}.", e.toString)
       }
       case Right(request) => {
         for (replica <- message.destination.selectedReplicas) {
