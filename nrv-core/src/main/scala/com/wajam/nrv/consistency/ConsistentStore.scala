@@ -20,6 +20,16 @@ trait ConsistentStore {
   def getLastTimestamp(ranges: Seq[TokenRange]): Option[Timestamp]
 
   /**
+   * Returns the mutation messages from and up to the given timestamps inclusively for the specified token ranges.
+   */
+  def readTransactions(from: Timestamp, to: Timestamp, ranges: Seq[TokenRange]): Iterator[Message]
+
+  /**
+   * Apply the specified mutation message to this consistent database
+   */
+  def writeTransaction(message: Message)
+
+  /**
    * Truncate all records at the given timestamp for the specified token.
    */
   def truncateAt(timestamp: Timestamp, token: Long)
@@ -29,4 +39,3 @@ trait ConsistentStore {
    */
   def truncateFrom(timestamp: Timestamp, tokens: Seq[TokenRange])
 }
-
