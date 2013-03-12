@@ -9,7 +9,10 @@ class StaticClusterManager extends ClusterManager {
 
   protected def initializeMembers() {
     allMembers.foreach {
-      case (service, member) => member.setStatus(MemberStatus.Up, triggerEvent = true)
+      case (service, member) => {
+        member.trySetStatus(MemberStatus.Up)
+        member.setStatus(MemberStatus.Up, triggerEvent = true)
+      }
     }
   }
 

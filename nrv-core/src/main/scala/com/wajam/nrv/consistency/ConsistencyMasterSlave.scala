@@ -5,7 +5,7 @@ import com.wajam.nrv.data.{OutMessage, Message, MessageType, InMessage}
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
 import java.util.concurrent.atomic.AtomicReference
 import com.yammer.metrics.scala.Instrumented
-import com.wajam.nrv.utils.Event
+import com.wajam.nrv.utils.{VotableEvent, Event}
 import com.wajam.nrv.service.StatusTransitionEvent
 import persistence.{NullTransactionLog, FileTransactionLog}
 
@@ -58,6 +58,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     super.serviceEvent(event)
 
     event match {
+      case event: StatusTransitionAttemptEvent => {
+        // TODO: properly initialize and update the last consistent timestamp
+        store.setLastConsistentTimestamp(Timestamp(Long.MaxValue), service.getMemberTokenRanges(event.member))
+      }
       case event: StatusTransitionEvent if cluster.isLocalNode(event.member.node) => {
         event.to match {
           case MemberStatus.Up => {
