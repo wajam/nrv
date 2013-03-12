@@ -71,71 +71,68 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     }
   }
 
-  private def handleOutgoingResponse(channel: AnyRef, message: OutMessage)
-  {
-    var optResponse: Option[AnyRef] = None
-
+  private def guardedGenerate(message: Message): Either[Throwable, AnyRef] = {
     try {
-      optResponse = Some(generate(message))
+      Right(generate(message))
     }
     catch {
-      case e: Exception => {
-        sendingResponseFailure.mark()
-        log.error("Could not send response because it cannot be constructed: error = {}.",
-          e.toString)
-      }
-    }
-
-    for(response <- optResponse) {
-      transport.sendResponse(channel,
-        response,
-        message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
-        (result: Option[Throwable]) => {
-          result match {
-            case Some(throwable) => {
-              sendingResponseFailure.mark()
-              log.debug("Could not send the response because of an error: response = {}, error = {}.",
-                message, throwable.toString)
-            }
-            case None =>
-          }
-        })
+      case e: Exception => Left(e)
     }
   }
 
-  private def handleOutgoingRequest(action: Action, message: OutMessage) {
-    var optRequest: Option[AnyRef] = None
-
-    try {
-      optRequest = Some(generate(message))
-    }
-    catch {
-      case e: Exception => {
-        log.error("Could not send request because it cannot be constructed: error = {}.",
-          e.toString)
+  private def handleOutgoingResponse(channel: AnyRef, message: OutMessage)
+  {
+    guardedGenerate(message) match {
+      case Left(e) => {
+        sendingResponseFailure.mark()
+        log.error("Could not send response because it cannot be constructed: error = {}.", e.toString)
       }
-    }
-
-    for (request <- optRequest) {
-      for (replica <- message.destination.selectedReplicas) {
-        val node = replica.node
-
-        transport.sendMessage(node.protocolsSocketAddress(name),
-          request,
+      case Right(response) => {
+        transport.sendResponse(channel,
+          response,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
           (result: Option[Throwable]) => {
             result match {
               case Some(throwable) => {
-                val response = new InMessage()
-                message.copyTo(response)
-                response.error = Some(new RuntimeException(throwable))
-                response.function = MessageType.FUNCTION_RESPONSE
-
-                handleIncoming(action, response, Unit => {})
+                sendingResponseFailure.mark()
+                log.debug("Could not send the response because of an error: response = {}, error = {}.",
+                  message, throwable.toString)
               }
               case None =>
             }
           })
+      }
+    }
+  }
+
+  private def handleOutgoingRequest(action: Action, message: OutMessage) {
+
+    guardedGenerate(message) match {
+      case Left(e) => {
+        log.error("Could not send request because it cannot be constructed: error = {}.",
+          e.toString)
+      }
+      case Right(request) => {
+        for (replica <- message.destination.selectedReplicas) {
+          val node = replica.node
+
+          transport.sendMessage(node.protocolsSocketAddress(name),
+            request,
+            message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
+            (result: Option[Throwable]) => {
+              result match {
+                case Some(throwable) => {
+                  val response = new InMessage()
+                  message.copyTo(response)
+                  response.error = Some(new RuntimeException(throwable))
+                  response.function = MessageType.FUNCTION_RESPONSE
+
+                  handleIncoming(action, response, Unit => {})
+                }
+                case None =>
+              }
+            })
+        }
       }
     }
   }
