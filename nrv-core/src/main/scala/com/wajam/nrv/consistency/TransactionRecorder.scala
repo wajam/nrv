@@ -196,29 +196,29 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
      * transactions with a greater timestamp appended before.
      */
     def firstConsistentTransaction: Option[PendingTransaction] = {
-      var found: Option[PendingTransaction] = None
-      var maxTimestamp: Timestamp = Long.MinValue
-      var end = false
-      val iterator = pendingTransactions.valuesIterator.takeWhile(_.isReady)
-      while(iterator.hasNext && found.isEmpty && !end) {
-        val tx = iterator.next()
 
-        // First time initialisation of the maximum timestamp
-        if (maxTimestamp.value == Long.MinValue) {
-          maxTimestamp = tx.maxTimestamp
-        }
-
-        if (tx.timestamp > maxTimestamp) {
-          // Do not search beyond maximum timestamp
-          end = true
-        } else {
-          maxTimestamp = if (maxTimestamp > tx.maxTimestamp) maxTimestamp else tx.maxTimestamp
-          if (tx.timestamp == maxTimestamp) {
-            found = Some(tx)
+      @tailrec
+      def next(iterator: Iterator[PendingTransaction], maxTimestamp: Option[Timestamp]): Option[PendingTransaction] = {
+        if (iterator.hasNext) {
+          val tx = iterator.next()
+          val prevMax = maxTimestamp.getOrElse(tx.maxTimestamp)
+          if (tx.timestamp > prevMax) {
+            None
+          } else {
+            val txMax = if (prevMax > tx.maxTimestamp) prevMax else tx.maxTimestamp
+            if (tx.timestamp == txMax) {
+              Some(tx)
+            } else {
+              next(iterator, Some(txMax))
+            }
           }
+        } else {
+          None
         }
       }
-      found
+
+      val iterator = pendingTransactions.valuesIterator.takeWhile(_.isReady)
+      next(iterator, None)
     }
 
     /**
