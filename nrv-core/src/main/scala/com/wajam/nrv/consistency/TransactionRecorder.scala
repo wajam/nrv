@@ -36,6 +36,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
   private val consistencyActor = new ConsistencyActor
   val consistencyTimeout = math.max(service.responseTimeout + 2000, 15000)
+  var currentMaxTimestamp: Timestamp = Long.MinValue
 
   def queueSize = consistencyActor.queueSize
 
@@ -62,12 +63,16 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
   private def appendRequest(message: Message) {
     try {
-      // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
-      // the append method implementation
+      // No need to explicitly synchronize the id generation and max timestamp computation as this code is invoked
+      // and synchronized inside the append method implementation
+      var requestMaxTimestamp: Timestamp = null
       val request = txLog.append {
-        Request(idGenerator.nextId, consistencyActor.consistentTimestamp, message)
+        val request = Request(idGenerator.nextId, consistencyActor.consistentTimestamp, message)
+        requestMaxTimestamp = if (currentMaxTimestamp > request.timestamp) currentMaxTimestamp else request.timestamp
+        currentMaxTimestamp = requestMaxTimestamp
+        request
       }
-      consistencyActor ! RequestAppended(request)
+      consistencyActor ! RequestAppended(request, requestMaxTimestamp)
     } catch {
       case e: Exception => {
         consistencyErrorAppend.mark()
@@ -133,14 +138,17 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
     consistencyActor !? CheckPending
   }
 
-  private case class PendingTxContext(timestamp: Timestamp, token: Long, addedTime: Long, var completed: Boolean = false) {
-
-    def isConsistent = completed && currentTime - addedTime > consistencyDelay
+  private case class PendingTransaction(timestamp: Timestamp, token: Long, maxTimestamp: Timestamp, addedTime: Long,
+                                      var completed: Boolean = false) {
+    /**
+     * Returns true if this transaction has a response and the consistency delay has elapsed since appended.
+     */
+    def isReady = completed && currentTime - addedTime > consistencyDelay
 
     def isExpired = currentTime - addedTime > consistencyTimeout
   }
 
-  private case class RequestAppended(request: Request)
+  private case class RequestAppended(request: Request, maxTimestamp: Timestamp)
 
   private case class ResponseAppended(response: Response)
 
@@ -152,11 +160,11 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
     private object Kill
 
-    private var pendingTransactions: TreeMap[Timestamp, PendingTxContext] = TreeMap()
+    private var pendingTransactions: TreeMap[Timestamp, PendingTransaction] = TreeMap()
 
     @volatile // TODO: make this cleaner
     var consistentTimestamp: Option[Timestamp] = txLog.getLastLoggedRecord match {
-      case Some(index) => index.consistentTimestamp
+      case Some(record) => record.consistentTimestamp
       case None => None
     }
 
@@ -184,51 +192,94 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
     }
 
     /**
+     * Find the first pending transaction that is consistent i.e. is ready and that had no
+     * transactions with a greater timestamp appended before.
+     */
+    def firstConsistentTransaction: Option[PendingTransaction] = {
+      var found: Option[PendingTransaction] = None
+      var maxTimestamp: Timestamp = Long.MinValue
+      var end = false
+      val iterator = pendingTransactions.valuesIterator.takeWhile(_.isReady)
+      while(iterator.hasNext && found.isEmpty && !end) {
+        val tx = iterator.next()
+
+        // First time initialisation of the maximum timestamp
+        if (maxTimestamp.value == Long.MinValue) {
+          maxTimestamp = tx.maxTimestamp
+        }
+
+        if (tx.timestamp > maxTimestamp) {
+          // Do not search beyond maximum timestamp
+          end = true
+        } else {
+          maxTimestamp = if (maxTimestamp > tx.maxTimestamp) maxTimestamp else tx.maxTimestamp
+          if (tx.timestamp == maxTimestamp) {
+            found = Some(tx)
+          }
+        }
+      }
+      found
+    }
+
+    /**
      * Verify pending transaction consistency and update the current consistent timestamp
      */
     @tailrec
     private def checkPendingConsistency() {
-      pendingTransactions.headOption match {
-        case Some((timestamp, context)) if context.isConsistent => {
-          // Pending head transaction is ready, remove from pending and update the consistent timestamp
-          // TODO: Ensure we are not going back in time!!!
-          consistentTimestamp = Some(timestamp)
-          pendingTransactions -= timestamp
+      firstConsistentTransaction match {
+        case Some(tx) => {
+          // Found a consistent transaction. Use its timestamp as current consistent timestamp and remove all pending
+          // transactions up to that transaction
+          pendingTransactions = pendingTransactions.dropWhile(entry => entry._2.timestamp <= tx.timestamp)
+          consistentTimestamp match {
+            case Some(ts) if (ts > tx.timestamp) => {
+              // Ensure we are not going back in time!!!
+              consistencyErrorCheckPending.mark()
+              error("Consistency error consistent timestamp going backward {}.", tx)
+              handleConsistencyError()
+            }
+            case _ => consistentTimestamp = Some(tx.timestamp)
+          }
 
           if (pendingTransactions.isEmpty) {
-            // No more pending transactions, ensure index is appended to the log
+            // No more pending transactions, append an index to the log
             appendIndex()
           } else {
             checkPendingConsistency()
           }
         }
-        case Some((timestamp, context)) if context.isExpired => {
-          // Pending head transaction has expired before receiving a response, something is very wrong
-          pendingTransactions -= timestamp
+        case None => {
+          // Verify if pending head transaction has expired
+          pendingTransactions.headOption match {
+            case Some((timestamp, tx)) if tx.isExpired => {
+              // Pending head transaction has expired before receiving a response, something is very wrong
+              pendingTransactions -= timestamp
 
-          consistencyErrorTimeout.mark()
-          error("Consistency error timeout on transaction {}.", context)
-          handleConsistencyError()
+              consistencyErrorTimeout.mark()
+              error("Consistency error timeout on transaction {}.", tx)
+              handleConsistencyError()
+            }
+            case _ => // No pending transactions to check
+          }
         }
-        case _ => // No pending transactions to check
       }
     }
 
     def act() {
       loop {
         react {
-          case RequestAppended(request) => {
+          case RequestAppended(request, maxTimestamp) => {
             try {
               pendingTransactions.get(request.timestamp) match {
-                case Some(context) => {
+                case Some(tx) => {
                   // Duplicate request
                   consistencyErrorDuplicate.mark()
-                  error("Request {} is a duplicate of pending context {}. ", request, context)
+                  error("Request {} is a duplicate of pending transaction {}. ", request, tx)
                   handleConsistencyError()
                 }
                 case None => {
                   pendingTransactions += (request.timestamp ->
-                    PendingTxContext(request.timestamp, request.token, currentTime))
+                    PendingTransaction(request.timestamp, request.token, maxTimestamp, currentTime))
                 }
               }
             } catch {
@@ -242,9 +293,9 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
           case ResponseAppended(response) => {
             try {
               pendingTransactions.get(response.timestamp) match {
-                case Some(context) => {
+                case Some(tx) => {
                   // The transaction is complete
-                  context.completed = true
+                  tx.completed = true
                 }
                 case None if response.isSuccess => {
                   // The response is successful but does not match a pending transaction.
