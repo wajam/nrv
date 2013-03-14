@@ -217,8 +217,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
         }
       }
 
-      val iterator = pendingTransactions.valuesIterator.takeWhile(_.isReady)
-      next(iterator, None)
+      next(pendingTransactions.valuesIterator.takeWhile(_.isReady), None)
     }
 
     /**
