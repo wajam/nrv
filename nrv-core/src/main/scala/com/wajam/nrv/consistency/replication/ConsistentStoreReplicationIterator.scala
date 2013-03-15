@@ -15,8 +15,8 @@ class ConsistentStoreReplicationIterator(member: ResolvedServiceMember, fromTime
 {
   val from = fromTimestamp
   val to = Some(toTimestamp)
-  val itr = store.readTransactions(fromTimestamp, toTimestamp, member.ranges)
-  var lastTxTimestamp: Option[Long] = None
+  private val itr = store.readTransactions(fromTimestamp, toTimestamp, member.ranges)
+  private var lastTxTimestamp: Option[Long] = None
 
   lazy private val nextMeter = metrics.meter("next", "next", member.scopeName)
   private val lastTransactionTimestampGauge = metrics.gauge("last-tx-timestamp", member.scopeName) {

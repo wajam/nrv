@@ -9,11 +9,12 @@ import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
 
 /**
- * Replication source iterator backed by a transaction log. This iterator only returns successful transactions.
- * The iterator does not returns transactions beyond the current consistent timestamp. If more records are available
- * beyond current consistent timestamp, the iterator hasMore() continue to return true but next() returns None.
- * New transactions will be returned if new records are written to the log and the current consistent timestamp advance.
- * If the consistent timestamp advance beyond the end of the log, the iterator is closed and hasNext() returns false.
+ * Replication source iterator backed by a transaction log. The transactions are ordered by timestamp. This iterator
+ * only returns successful transactions. The iterator does not returns transactions beyond the current consistent
+ * timestamp. If more records are available * beyond current consistent timestamp, the iterator hasMore() continue
+ * to return true but next() returns None. New transactions will be returned if new records are written to the
+ * log and the current consistent timestamp advance. If the consistent timestamp advance beyond the end of the log,
+ * the iterator is closed and hasNext() returns false.
  * <p><p>
  * This class is not thread safe and must invoked from a single thread or synchronized externaly.
  */
@@ -22,10 +23,10 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val from:
   extends ReplicationSourceIterator with Instrumented {
 
   val to = None
-  var lastReadRecord: Option[TimestampedRecord] = None
-  var pendingTransactions: TreeMap[Timestamp, PendingTransaction] = TreeMap()
-  val itr = initLogIterator()
-  var lastTxTimestamp: Option[Long] = None
+  private var lastReadRecord: Option[TimestampedRecord] = None
+  private var pendingTransactions: TreeMap[Timestamp, PendingTransaction] = TreeMap()
+  private val itr = initLogIterator()
+  private var lastTxTimestamp: Option[Long] = None
 
   lazy private val nextEmptyMeter = metrics.meter("next-empty", "next-empty", member.scopeName)
   lazy private val nextDefinedMeter = metrics.meter("next-defined", "next-defined", member.scopeName)
@@ -69,13 +70,13 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val from:
     itr.close()
   }
 
-  case class PendingTransaction(request: Request, var response: Option[Response] = None)
+  private case class PendingTransaction(request: Request, var response: Option[Response] = None)
 
   /**
    * Returns true if the head transaction is complete (i.e. doesn't have a response) and its timestamp is not beyond
    * the last read record consistent timestamp.
    */
-  def isHeadTransactionReady: Boolean = {
+  private def isHeadTransactionReady: Boolean = {
     val ready = for {
       (_, tx) <- pendingTransactions.headOption
       headResponse <- tx.response
@@ -88,7 +89,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val from:
   /**
    * Returns true if the last read record timestamp is not beyond the current consistent timestamp
    */
-  def isLastRecordBeforeCurrentConsistentTimestamp: Boolean = {
+  private def isLastRecordBeforeCurrentConsistentTimestamp: Boolean = {
     val before = for {
       maxTimestamp <- currentConsistentTimestamp
       lastRecord <- lastReadRecord
@@ -96,7 +97,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val from:
     before.getOrElse(false)
   }
 
-  def readMoreLogRecords() {
+  private def readMoreLogRecords() {
     // Read records as long the head transaction is pending and the last record read is not
     // beyond the current consistent timestamp
     while (itr.hasNext && (lastReadRecord.isEmpty ||
@@ -116,7 +117,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val from:
     }
   }
 
-  def initLogIterator(): TransactionLogIterator = {
+  private def initLogIterator(): TransactionLogIterator = {
     txLog.firstRecord(Some(from)) match {
       case Some(record) => {
         // Since the records can be written out of order, we need to read from the record consistent
