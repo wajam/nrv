@@ -3,6 +3,7 @@ package com.wajam.nrv.consistency
 import com.wajam.nrv.data.Message
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.service.TokenRange
+import com.wajam.nrv.utils.Closable
 
 /**
  * Trait defining the API a consistent data store service must implement to be replicated within an NRV cluster
@@ -29,7 +30,7 @@ trait ConsistentStore {
   /**
    * Returns the mutation messages from and up to the given timestamps inclusively for the specified token ranges.
    */
-  def readTransactions(from: Timestamp, to: Timestamp, ranges: Seq[TokenRange]): Iterator[Message]
+  def readTransactions(from: Timestamp, to: Timestamp, ranges: Seq[TokenRange]): Iterator[Message] with Closable
 
   /**
    * Apply the specified mutation message to this consistent database

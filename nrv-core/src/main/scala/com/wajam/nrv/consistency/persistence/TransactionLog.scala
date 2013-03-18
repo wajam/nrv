@@ -2,6 +2,7 @@ package com.wajam.nrv.consistency.persistence
 
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.consistency.persistence.LogRecord.Index
+import com.wajam.nrv.utils.Closable
 
 trait TransactionLog {
   /**
@@ -39,8 +40,23 @@ trait TransactionLog {
    * Close this transaction log
    */
   def close()
+
+  /**
+   * Returns the first record at the specified timestamp
+   */
+  def firstRecord(timestamp: Option[Timestamp]): Option[TimestampedRecord] = {
+    val itr = timestamp match {
+      case Some(ts) => read(ts)
+      case None => read(Index(Long.MinValue))
+    }
+    try {
+      itr.collectFirst({
+        case record: TimestampedRecord => record
+      })
+    } finally {
+      itr.close()
+    }
+  }
 }
 
-trait TransactionLogIterator extends Iterator[LogRecord] {
-  def close()
-}
+trait TransactionLogIterator extends Iterator[LogRecord] with Closable

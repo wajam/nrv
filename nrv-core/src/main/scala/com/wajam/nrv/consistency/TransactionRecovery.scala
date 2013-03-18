@@ -118,8 +118,7 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
       val recoveryTxLog = new FileTransactionLog(member.serviceName, member.token, recoveryDir.getAbsolutePath)
       val recoveryFiles = recoveryTxLog.getLogFiles
       if (!recoveryFiles.isEmpty) {
-        info("Recovery files found and resuming recovery if possible ({}).",
-          recoveryFiles.map(_.getName).mkString(","))
+        info("Recovery files found and resuming recovery if possible ({}).", recoveryFiles.map(_.getName).mkString(","))
         resumeTimer.time {
           // Compare the last records from the member log and previous recovery log
           val memberTxLog = new FileTransactionLog(member.serviceName, member.token, logDir)
