@@ -74,6 +74,20 @@ trait Future[T] extends Awaitable[T] {
     p.future
   }
 
+  def zip[U](that: Future[U]): Future[(T, U)] = {
+    val p = Promise[(T, U)]
+
+    this onComplete {
+      case Left(t) => p tryFailure t
+      case Right(v1) => that onComplete {
+        case Left(t) => p tryFailure t
+        case Right(v2) => p trySuccess((v1, v2))
+      }
+    }
+
+    p.future
+  }
+
   def fallbackTo[U >: T](that: Future[U]): Future[U] = {
     val p = Promise[U]
     onComplete {
