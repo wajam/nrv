@@ -117,11 +117,11 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
     }
   }
 
-  private def appendIndex(consistentTimestamp: Option[Timestamp]) {
+  private def appendIndex(consistentTimestamp: Timestamp) {
     txLog.append {
       // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
       // the append method implementation
-      Index(idGenerator.nextId, consistentTimestamp)
+      Index(idGenerator.nextId, Some(consistentTimestamp))
     }
     txLog.commit()
   }
@@ -242,7 +242,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
               // prevent replication source iterator (which read up to consistentTimestamp) to reach the end of the log
               // when the consistentTimestamp is updated.
               if (pendingTransactions.isEmpty) {
-                appendIndex(Some(tx.timestamp))
+                appendIndex(tx.timestamp)
               }
               consistentTimestamp = Some(tx.timestamp)
             }

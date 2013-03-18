@@ -50,10 +50,9 @@ trait TransactionLog {
       case None => read(Index(Long.MinValue))
     }
     try {
-      itr.find(_ match {
-        case record: TimestampedRecord => true
-        case _ => false
-      }).map(_.asInstanceOf[TimestampedRecord])
+      itr.collectFirst({
+        case record: TimestampedRecord => record
+      })
     } finally {
       itr.close()
     }

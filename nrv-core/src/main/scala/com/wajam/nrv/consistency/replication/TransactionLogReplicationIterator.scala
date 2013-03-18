@@ -73,7 +73,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val from:
   private case class PendingTransaction(request: Request, var response: Option[Response] = None)
 
   /**
-   * Returns true if the head transaction is complete (i.e. doesn't have a response) and its timestamp is not beyond
+   * Returns true if the head transaction is complete (i.e. have a response) and its timestamp is not beyond
    * the last read record consistent timestamp.
    */
   private def isHeadTransactionReady: Boolean = {
@@ -98,8 +98,8 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val from:
   }
 
   private def readMoreLogRecords() {
-    // Read records as long the head transaction is pending and the last record read is not
-    // beyond the current consistent timestamp
+    // Read records untill the head transaction is ready (see definition above) but never going beyond the the current
+    // consistent timestamp.
     while (itr.hasNext && (lastReadRecord.isEmpty ||
       isLastRecordBeforeCurrentConsistentTimestamp && !isHeadTransactionReady)) {
       val record = itr.next()
