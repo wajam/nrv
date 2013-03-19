@@ -60,7 +60,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     event match {
       case event: StatusTransitionAttemptEvent => {
         // TODO: properly initialize and update the last consistent timestamp
-        store.setLastConsistentTimestamp(Timestamp(Long.MaxValue), service.getMemberTokenRanges(event.member))
+        store.setCurrentConsistentTimestamp((_) => Long.MaxValue)
       }
       case event: StatusTransitionEvent if cluster.isLocalNode(event.member.node) => {
         event.to match {
