@@ -21,11 +21,11 @@ trait ConsistentStore {
   def getLastTimestamp(ranges: Seq[TokenRange]): Option[Timestamp]
 
   /**
-   * Set the most recent timestamp considered as consistent from Consistency for the specified token ranges.
-   * The consistency of the more recent records is unconfirmed and must not be included in processing tasks as
-   * GC or percolation.
+   * Setup the function which returns the most recent timestamp considered as consistent by the Consistency manager
+   * for the specified token range. The consistency of the records more recent that the consistent timestamp is
+   * unconfirmed and these records must be excluded from processing tasks such as GC or percolation.
    */
-  def setLastConsistentTimestamp(timestamp: Timestamp, ranges: Seq[TokenRange])
+  def setCurrentConsistentTimestamp(getCurrentConsistentTimestamp: (TokenRange) => Timestamp)
 
   /**
    * Returns the mutation messages from and up to the given timestamps inclusively for the specified token ranges.

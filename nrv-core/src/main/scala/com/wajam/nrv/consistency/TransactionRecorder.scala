@@ -35,12 +35,14 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
   lazy private val killError = metrics.meter("kill-error", "kill-error")
 
   private val consistencyActor = new ConsistencyActor
-  val consistencyTimeout = math.max(service.responseTimeout + 2000, 15000)
-  var currentMaxTimestamp: Timestamp = Long.MinValue
+  private var currentMaxTimestamp: Timestamp = Long.MinValue
+  private[consistency] val consistencyTimeout = math.max(service.responseTimeout + 2000, 15000)
 
   def queueSize = consistencyActor.queueSize
 
   def pendingSize = consistencyActor.pendingSize
+
+  def currentConsistentTimestamp = consistencyActor.consistentTimestamp
 
   def start() {
     consistencyActor.start()
@@ -67,7 +69,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
       // and synchronized inside the append method implementation
       var requestMaxTimestamp: Timestamp = null
       val request = txLog.append {
-        val request = Request(idGenerator.nextId, consistencyActor.consistentTimestamp, message)
+        val request = Request(idGenerator.nextId, currentConsistentTimestamp, message)
         requestMaxTimestamp = if (currentMaxTimestamp > request.timestamp) currentMaxTimestamp else request.timestamp
         currentMaxTimestamp = requestMaxTimestamp
         request
@@ -92,7 +94,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
           // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
           // the append method implementation
           val response = txLog.append {
-            Response(idGenerator.nextId, consistencyActor.consistentTimestamp, message)
+            Response(idGenerator.nextId, currentConsistentTimestamp, message)
           }
           consistencyActor ! ResponseAppended(response)
         }
