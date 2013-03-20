@@ -193,22 +193,4 @@ class TestFuture extends FunSuite {
 
     assert(executed)
   }
-
-  test("zip should compose both futures together") {
-    val p1 = Promise[Int]
-    val p2 = Promise[Int]
-    val p3 = p1.future zip p2.future
-    p3 onComplete {
-      case Right(v) => {
-        assert(v ===(1, 2))
-      }
-      case Left(e) => fail(e)
-    }
-
-    p1.trySuccess(1)
-    p2.trySuccess(2)
-
-    Future.blocking(p3)
-  }
-
 }
