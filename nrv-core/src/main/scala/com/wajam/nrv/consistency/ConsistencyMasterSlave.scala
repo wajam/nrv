@@ -8,6 +8,7 @@ import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.utils.{VotableEvent, Event}
 import com.wajam.nrv.service.StatusTransitionEvent
 import persistence.{NullTransactionLog, FileTransactionLog}
+import com.wajam.nrv.UnavailableException
 
 /**
  * Consistency that (will eventually) sends read/write to a master replica and replicate modification to the
@@ -24,6 +25,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   import Consistency._
 
   lazy private val recorderNotFound = metrics.meter("recorder-not-found", "recorder-not-found")
+  lazy private val blockedInMessageServiceDown = metrics.meter("block-in-msg-service-down", "block-in-msg-service-down")
   private val recordersCount = metrics.gauge("recorders-count") {
     recorders.size
   }
@@ -52,16 +54,19 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     require(bindedServices.size == 0, "Cannot bind to multiple services. Already bound to %s".format(bindedServices.head))
 
     super.bindService(service)
+
+    // Setup current consistent timestamp lookup storage function
+    store.setCurrentConsistentTimestamp((range) => {
+      recorders.valuesIterator.collectFirst({
+        case recorder if range.contains(recorder.member.token) => recorder
+      }).flatMap(_.currentConsistentTimestamp).getOrElse(Long.MinValue)
+    })
   }
 
   override def serviceEvent(event: Event) {
     super.serviceEvent(event)
 
     event match {
-      case event: StatusTransitionAttemptEvent => {
-        // TODO: properly initialize and update the last consistent timestamp
-        store.setCurrentConsistentTimestamp(currentConsistentTimestamp)
-      }
       case event: StatusTransitionEvent if cluster.isLocalNode(event.member.node) => {
         event.to match {
           case MemberStatus.Up => {
@@ -94,22 +99,32 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
-  private def currentConsistentTimestamp(range: TokenRange): Timestamp = {
-    recorders.valuesIterator.collectFirst({
-      case recorder if range.contains(recorder.member.token) => recorder
-    }).flatMap(_.currentConsistentTimestamp).getOrElse(Long.MinValue)
-  }
-
   private def requiresConsistency(message: Message) = {
     message.serviceName == service.name && store.requiresConsistency(message)
+  }
+
+  def getMessageLocalServiceMember(message: Message): Option[ServiceMember] = {
+    service.resolveMembers(message.token, 1).find(member => cluster.isLocalNode(member.node))
+  }
+
+  private def isMessageLocalMemberUp(message: Message): Boolean = {
+    getMessageLocalServiceMember(message) match {
+      case Some(member) if member.status == MemberStatus.Up => true
+      case _ => false
+    }
   }
 
   override def handleIncoming(action: Action, message: InMessage, next: Unit => Unit) {
     message.function match {
       case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
-        message.method match {
-          case ActionMethod.GET => executeConsistentReadRequest(message, next)
-          case _ => executeConsistentWriteRequest(message, next)
+        if (isMessageLocalMemberUp(message)) {
+          message.method match {
+            case ActionMethod.GET => executeConsistentReadRequest(message, next)
+            case _ => executeConsistentWriteRequest(message, next)
+          }
+        } else {
+          blockedInMessageServiceDown.mark()
+          message.replyWithError(new UnavailableException)
         }
       }
       case _ => {
@@ -202,8 +217,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   private def recordConsistentMessage(message: Message) {
-    val recorderOpt = service.resolveMembers(message.token, service.resolver.replica).find(
-      member => cluster.isLocalNode(member.node)).flatMap(member => recorders.get(member.token))
+    val recorderOpt = for {
+      member <- getMessageLocalServiceMember(message)
+      recorder <- recorders.get(member.token)
+    } yield recorder
     recorderOpt match {
       case Some(recorder) => {
         recorder.appendMessage(message)
