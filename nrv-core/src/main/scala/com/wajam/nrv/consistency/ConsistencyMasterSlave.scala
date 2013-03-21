@@ -5,7 +5,7 @@ import com.wajam.nrv.data.{OutMessage, Message, MessageType, InMessage}
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
 import java.util.concurrent.atomic.AtomicReference
 import com.yammer.metrics.scala.Instrumented
-import com.wajam.nrv.utils.{VotableEvent, Event}
+import com.wajam.nrv.utils.Event
 import com.wajam.nrv.service.StatusTransitionEvent
 import persistence.{NullTransactionLog, FileTransactionLog}
 
@@ -52,16 +52,24 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     require(bindedServices.size == 0, "Cannot bind to multiple services. Already bound to %s".format(bindedServices.head))
 
     super.bindService(service)
+
+    // Setup current consistent timestamp lookup storage function
+    info("Setup consistent timestamp lookup for service", service.name)
+    store.setCurrentConsistentTimestamp((range) => {
+      val timestamp = recorders.valuesIterator.collectFirst({
+        case recorder if recorder.member.ranges.contains(range) => recorder.currentConsistentTimestamp
+      })
+      timestamp match {
+        case Some(Some(ts)) => ts
+        case _ => Long.MinValue
+      }
+    })
   }
 
   override def serviceEvent(event: Event) {
     super.serviceEvent(event)
 
     event match {
-      case event: StatusTransitionAttemptEvent => {
-        // TODO: properly initialize and update the last consistent timestamp
-        store.setCurrentConsistentTimestamp(currentConsistentTimestamp)
-      }
       case event: StatusTransitionEvent if cluster.isLocalNode(event.member.node) => {
         event.to match {
           case MemberStatus.Up => {
@@ -73,8 +81,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               } else {
                 NullTransactionLog
               }
-              val recorder = new TransactionRecorder(service, event.member, txLog,
-                consistencyDelay = timestampGenerator.responseTimeout + 1000, commitFrequency = txLogCommitFrequency)
+              val recorder = new TransactionRecorder(ResolvedServiceMember(service, event.member), txLog,
+                consistencyDelay = timestampGenerator.responseTimeout + 1000,
+                consistencyTimeout = math.max(service.responseTimeout + 2000, 15000),
+                commitFrequency = txLogCommitFrequency)
               recorders += (event.member.token -> recorder)
               recorder.start()
             }
@@ -92,12 +102,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
       case _ =>
     }
-  }
-
-  private def currentConsistentTimestamp(range: TokenRange): Timestamp = {
-    recorders.valuesIterator.collectFirst({
-      case recorder if range.contains(recorder.member.token) => recorder
-    }).flatMap(_.currentConsistentTimestamp).getOrElse(Long.MinValue)
   }
 
   private def requiresConsistency(message: Message) = {

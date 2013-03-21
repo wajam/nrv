@@ -2,7 +2,6 @@ package com.wajam.nrv.consistency
 
 import actors.Actor
 import com.yammer.metrics.scala.Instrumented
-import com.wajam.nrv.service.{ServiceMember, Service}
 import persistence.LogRecord.{Request, Response, Index}
 import persistence.TransactionLog
 import com.wajam.nrv.data.{MessageType, Message}
@@ -13,8 +12,8 @@ import com.wajam.nrv.Logging
 import collection.immutable.TreeMap
 import annotation.tailrec
 
-class TransactionRecorder(val service: Service, val member: ServiceMember, txLog: TransactionLog,
-                          consistencyDelay: Long, commitFrequency: Int,
+class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionLog,
+                          consistencyDelay: Long, consistencyTimeout: Long, commitFrequency: Int,
                           idGenerator: IdGenerator[Long] = new TimestampIdGenerator)
   extends CurrentTime with Instrumented with Logging {
 
@@ -36,7 +35,6 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
 
   private val consistencyActor = new ConsistencyActor
   private var currentMaxTimestamp: Timestamp = Long.MinValue
-  private[consistency] val consistencyTimeout = math.max(service.responseTimeout + 2000, 15000)
 
   def queueSize = consistencyActor.queueSize
 
@@ -141,7 +139,7 @@ class TransactionRecorder(val service: Service, val member: ServiceMember, txLog
   }
 
   private case class PendingTransaction(timestamp: Timestamp, token: Long, maxTimestamp: Timestamp, addedTime: Long,
-                                      var completed: Boolean = false) {
+                                        var completed: Boolean = false) {
     /**
      * Returns true if this transaction has a response and the consistency delay has elapsed since appended.
      */
