@@ -61,10 +61,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       })
       timestamp match {
         case Some(Some(ts)) => ts
-        case _ => {
-          debug("No consistent timestamp found for range {}", range)
-          Long.MinValue
-        }
+        case _ => Long.MinValue
       }
     })
   }
@@ -105,12 +102,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
       case _ =>
     }
-  }
-
-  private def currentConsistentTimestamp(range: TokenRange): Timestamp = {
-    recorders.valuesIterator.collectFirst({
-      case recorder if range.contains(recorder.member.token) => recorder
-    }).flatMap(_.currentConsistentTimestamp).getOrElse(Long.MinValue)
   }
 
   private def requiresConsistency(message: Message) = {
