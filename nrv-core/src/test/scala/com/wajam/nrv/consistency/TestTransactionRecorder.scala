@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency
 
-import com.wajam.nrv.service.{ActionSupportOptions, ServiceMember, Service}
+import com.wajam.nrv.service.{TokenRange, ActionSupportOptions, ServiceMember, Service}
 import com.wajam.nrv.cluster.LocalNode
 
 import org.junit.runner.RunWith
@@ -25,18 +25,20 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
   var currentTime = 0L
   var consistencyErrorMeter: Meter = null
   val consistencyDelay = 1000L
+  val consistencyTimeout = 15000L
   var service: Service = null
   var member: ServiceMember = null
   var txLogProxy: TransactionLogProxy = null
   var recorder: TransactionRecorder = null
 
   before {
-    service = new Service("service", new ActionSupportOptions(responseTimeout = Some(20000L)))
+    service = new Service("service")
     member = new ServiceMember(0, new LocalNode(Map("nrv" -> 1234)))
     txLogProxy = new TransactionLogProxy
 
     // Recorder currentTime and LogRecord id generation are mapped to the same variable.
-    recorder = new TransactionRecorder(service, member, txLogProxy, consistencyDelay, commitFrequency = 0,
+    recorder = new TransactionRecorder(ResolvedServiceMember(service.name, member.token, Seq(TokenRange.All)),
+      txLogProxy, consistencyDelay, consistencyTimeout, commitFrequency = 0,
       idGenerator = new IdGenerator[Long] {
         def nextId = TestTransactionRecorder.this.currentTime
       }) {
@@ -195,7 +197,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     verify(txLogProxy.mockAppender).append(LogRecord(currentTime, None, response))
 
     // Advance recorder time
-    currentTime += recorder.consistencyTimeout + 1
+    currentTime += consistencyTimeout + 1
     recorder.checkPending()
     recorder.checkPending() // Call again to ensure the same tx is not timing out again
 
