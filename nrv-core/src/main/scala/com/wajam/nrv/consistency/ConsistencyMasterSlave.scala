@@ -5,7 +5,7 @@ import com.wajam.nrv.data.{OutMessage, Message, MessageType, InMessage}
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
 import java.util.concurrent.atomic.AtomicReference
 import com.yammer.metrics.scala.Instrumented
-import com.wajam.nrv.utils.{VotableEvent, Event}
+import com.wajam.nrv.utils.Event
 import com.wajam.nrv.service.StatusTransitionEvent
 import persistence.{NullTransactionLog, FileTransactionLog}
 import com.wajam.nrv.UnavailableException
@@ -56,10 +56,15 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     super.bindService(service)
 
     // Setup current consistent timestamp lookup storage function
+    info("Setup consistent timestamp lookup for service", service.name)
     store.setCurrentConsistentTimestamp((range) => {
-      recorders.valuesIterator.collectFirst({
-        case recorder if range.contains(recorder.member.token) => recorder
-      }).flatMap(_.currentConsistentTimestamp).getOrElse(Long.MinValue)
+      val timestamp = recorders.valuesIterator.collectFirst({
+        case recorder if recorder.member.ranges.contains(range) => recorder.currentConsistentTimestamp
+      })
+      timestamp match {
+        case Some(Some(ts)) => ts
+        case _ => Long.MinValue
+      }
     })
   }
 
@@ -78,8 +83,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               } else {
                 NullTransactionLog
               }
-              val recorder = new TransactionRecorder(service, event.member, txLog,
-                consistencyDelay = timestampGenerator.responseTimeout + 1000, commitFrequency = txLogCommitFrequency)
+              val recorder = new TransactionRecorder(ResolvedServiceMember(service, event.member), txLog,
+                consistencyDelay = timestampGenerator.responseTimeout + 1000,
+                consistencyTimeout = math.max(service.responseTimeout + 2000, 15000),
+                commitFrequency = txLogCommitFrequency)
               recorders += (event.member.token -> recorder)
               recorder.start()
             }
