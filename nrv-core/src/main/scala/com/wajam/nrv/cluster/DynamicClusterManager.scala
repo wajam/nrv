@@ -227,9 +227,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
           if (event.nayVotes > 0) {
             info("Attempt to switch status of {} in service {} to {} failed by vote (yea={}, nay={})",
               member, service, newStatus, event.yeaVotes, event.nayVotes)
+          } else {
+            voteServiceMemberStatus(service, new ServiceMemberVote(member, member, newStatus))
           }
-
-          voteServiceMemberStatus(service, new ServiceMemberVote(member, member, newStatus))
 
         case None =>
           info("Status of {} in service {} was canceled (new={}, current={})", member, service, newStatus, member.status)

@@ -10,6 +10,7 @@ import com.wajam.nrv.service.StatusTransitionEvent
 import persistence.{NullTransactionLog, FileTransactionLog}
 import java.util.concurrent.TimeUnit
 import com.yammer.metrics.core.Gauge
+import com.wajam.nrv.UnavailableException
 
 /**
  * Consistency that (will eventually) sends read/write to a master replica and replicate modification to the
@@ -144,12 +145,28 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     message.serviceName == service.name && store.requiresConsistency(message)
   }
 
+  def getMessageLocalServiceMember(message: Message): Option[ServiceMember] = {
+    service.resolveMembers(message.token, 1).find(member => cluster.isLocalNode(member.node))
+  }
+
+  private def isMessageLocalMemberUp(message: Message): Boolean = {
+    getMessageLocalServiceMember(message) match {
+      case Some(member) if member.status == MemberStatus.Up => true
+      case _ => false
+    }
+  }
+
   override def handleIncoming(action: Action, message: InMessage, next: Unit => Unit) {
     message.function match {
       case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
-        message.method match {
-          case ActionMethod.GET => executeConsistentReadRequest(message, next)
-          case _ => executeConsistentWriteRequest(message, next)
+        if (isMessageLocalMemberUp(message)) {
+          message.method match {
+            case ActionMethod.GET => executeConsistentReadRequest(message, next)
+            case _ => executeConsistentWriteRequest(message, next)
+          }
+        } else {
+          metrics.blockedInMessageServiceDown.mark()
+          message.replyWithError(new UnavailableException)
         }
       }
       case _ => {
@@ -242,8 +259,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   private def recordConsistentMessage(message: Message) {
-    val recorderOpt = service.resolveMembers(message.token, service.resolver.replica).find(
-      member => cluster.isLocalNode(member.node)).flatMap(member => recorders.get(member.token))
+    val recorderOpt = for {
+      member <- getMessageLocalServiceMember(message)
+      recorder <- recorders.get(member.token)
+    } yield recorder
     recorderOpt match {
       case Some(recorder) => {
         recorder.appendMessage(message)
@@ -294,6 +313,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       "consistency-recovering", scope, "consistency-recovering", TimeUnit.SECONDS))
     lazy val consistencyError = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
       "consistency-error", scope, "consistency-error", TimeUnit.SECONDS))
+    lazy val blockedInMessageServiceDown = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
+      "block-in-msg-service-down", scope, "block-in-msg-service-down", TimeUnit.SECONDS))
+
 
     private val recordersCount = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
       "recorders-count", scope, new Gauge[Long] {
