@@ -22,8 +22,8 @@ import persistence.LogRecord
 @RunWith(classOf[JUnitRunner])
 class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter with MockitoSugar {
 
+  var consistencyErrorCount = 0
   var currentTime = 0L
-  var consistencyErrorMeter: Meter = null
   val consistencyDelay = 1000L
   val consistencyTimeout = 15000L
   var service: Service = null
@@ -39,19 +39,17 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     // Recorder currentTime and LogRecord id generation are mapped to the same variable.
     recorder = new TransactionRecorder(ResolvedServiceMember(service.name, member.token, Seq(TokenRange.All)),
       txLogProxy, consistencyDelay, consistencyTimeout, commitFrequency = 0,
+      onConsistencyError = consistencyErrorCount += 1,
       idGenerator = new IdGenerator[Long] {
         def nextId = TestTransactionRecorder.this.currentTime
       }) {
       override def currentTime = TestTransactionRecorder.this.currentTime
     }
     recorder.start()
-
-    consistencyErrorMeter = new Meter(Metrics.defaultRegistry().newMeter(
-      recorder.getClass, "consistency-error", "consistency-error", TimeUnit.MILLISECONDS))
   }
 
   after {
-    consistencyErrorMeter = null
+    consistencyErrorCount = 0
     recorder.kill()
     recorder = null
     txLogProxy = null
@@ -71,6 +69,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     currentTime += consistencyDelay + 1
     recorder.checkPending()
     recorder.pendingSize should be(0)
+    consistencyErrorCount should be(0)
   }
 
   test("messages should be appended to log immediatly") {
@@ -86,28 +85,25 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
 
     currentTime += consistencyDelay + 1
     recorder.checkPending()
+
+    consistencyErrorCount should be(0)
     verify(txLogProxy.mockAppender).append(Index(currentTime, Some(123)))
     verifyZeroInteractions(txLogProxy.mockAppender)
     txLogProxy.verifyZeroInteractions()
   }
 
   test("success response without timestamp should raise a consistency error") {
-    val before = consistencyErrorMeter.count
-
     recorder.pendingSize should be(0)
     recorder.appendMessage(createResponseMessage(new InMessage()))
     recorder.checkPending()
+
     recorder.pendingSize should be(0)
-
-    consistencyErrorMeter.count should be(before + 1)
-    // TODO: verify service member status goes down
-
+    consistencyErrorCount should be(1)
     txLogProxy.verifyZeroInteractions()
   }
 
   test("error response for non pending transaction should be ignored") {
     // two cases: 1) no timestamp in response and 2) no matching timestamp
-    val before = consistencyErrorMeter.count
 
     // Error response without timestamp. Should not even try to append.
     recorder.appendMessage(createResponseMessage(new InMessage(), code = 500)) // no timestamp
@@ -119,17 +115,14 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     val response = createResponseMessage(createRequestMessage(timestamp = 0), code = 500)
     recorder.appendMessage(response)
     recorder.checkPending()
+
     recorder.pendingSize should be(0)
+    consistencyErrorCount should be(0)
     verify(txLogProxy.mockAppender).append(LogRecord(currentTime, None, response))
-
-    consistencyErrorMeter.count should be(before)
-
     txLogProxy.verifyZeroInteractions()
   }
 
   test("duplicate requests should raise a consistency error") {
-    val before = consistencyErrorMeter.count
-
     val request = createRequestMessage(timestamp = 0)
     recorder.appendMessage(request)
     recorder.checkPending()
@@ -140,17 +133,13 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     currentTime += 1
     recorder.appendMessage(request)
     recorder.checkPending()
+
+    consistencyErrorCount should be(1)
     verify(txLogProxy.mockAppender).append(LogRecord(currentTime, None, request))
-
-    consistencyErrorMeter.count should be(before + 1)
-    // TODO: verify service member status goes down
-
     txLogProxy.verifyZeroInteractions()
   }
 
   test("request message append error should raise a consistency error") {
-    val before = consistencyErrorMeter.count
-
     val request = createRequestMessage(timestamp = 0)
 
     when(txLogProxy.mockAppender.append(anyObject())).thenThrow(new RuntimeException())
@@ -158,17 +147,14 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
       recorder.appendMessage(request)
     } should produce[ConsistencyException]
     recorder.checkPending()
+
+    consistencyErrorCount should be(1)
     recorder.pendingSize should be(0)
     verify(txLogProxy.mockAppender).append(LogRecord(currentTime, None, request))
-
-    consistencyErrorMeter.count should be(before + 1)
-    // TODO: verify service member status goes down
     txLogProxy.verifyZeroInteractions()
   }
 
   test("response message append error should raise a consistency error") {
-    val before = consistencyErrorMeter.count
-
     val request = createRequestMessage(timestamp = 123)
     recorder.appendMessage(request)
     recorder.checkPending()
@@ -179,17 +165,14 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     response.error should be(None)
     when(txLogProxy.mockAppender.append(anyObject())).thenThrow(new RuntimeException())
     recorder.appendMessage(response)
+
+    consistencyErrorCount should be(1)
     verify(txLogProxy.mockAppender).append(LogRecord(currentTime, None, createResponseMessage(request)))
     response.error should not be (None)
-
-    consistencyErrorMeter.count should be(before + 1)
-    // TODO: verify service member status goes down
     txLogProxy.verifyZeroInteractions()
   }
 
   test("transaction not responded in time should raise a consistency error") {
-    val before = consistencyErrorMeter.count
-
     val response = createRequestMessage(timestamp = 0)
     recorder.appendMessage(response)
     recorder.checkPending()
@@ -201,9 +184,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.checkPending()
     recorder.checkPending() // Call again to ensure the same tx is not timing out again
 
-    consistencyErrorMeter.count should be(before + 1)
-    // TODO: verify service member status goes down
-
+    consistencyErrorCount should be(1)
     txLogProxy.verifyZeroInteractions()
   }
 

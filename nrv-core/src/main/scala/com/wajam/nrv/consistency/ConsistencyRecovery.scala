@@ -4,7 +4,7 @@ import persistence.LogRecord._
 import persistence._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import java.io.File
-import com.wajam.nrv.utils.IdGenerator
+import com.wajam.nrv.utils.{TimestampIdGenerator, IdGenerator}
 import java.nio.file.Files
 import com.wajam.nrv.Logging
 import collection.mutable
@@ -12,9 +12,8 @@ import com.yammer.metrics.scala.Instrumented
 
 /**
  * Helper class that ensure that service members transaction log are consistent with the consistent store.
- * This class is not thread safe and should not be called from mutiple threads.
  */
-class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: IdGenerator[Long])
+class ConsistencyRecovery(logDir: String, store: ConsistentStore, idGenerator: IdGenerator[Long] = new TimestampIdGenerator)
   extends Logging with Instrumented {
 
   lazy private val resumeTimer = metrics.timer("resume-time")
@@ -36,25 +35,21 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
    * in the log and marked as consistent.
    * <p><p>
    * The recovery process can resume from a previously incomplete recovery attempt (i.e. jvm kill during recovery).
+   *
+   * @param member the service member to restore
+   * @return the final consistent index record
    */
-  def recoverMember(member: ResolvedServiceMember) {
+  def restoreMemberConsistency(member: ResolvedServiceMember, onRecoveryFailure: => Unit): Option[Index] = {
 
     // Complete and/or cleanup any previously incomplete recovery attempt
-    resumeMemberRecovery(member)
+    resumeMemberConsistencyRecovery(member, onRecoveryFailure)
 
     recoverTimer.time {
       val memberTxLog = new FileTransactionLog(member.serviceName, member.token, logDir)
       val lastLoggedRecord = memberTxLog.getLastLoggedRecord
       lastLoggedRecord match {
-        case Some(Index(_, Some(consistentTimestamp))) => {
-          // The last record is an Index record so we know that the member log is consistent up to that point.
-          // Truncate database after last consistent timestamp for the member token ranges to ensure the store
-          // is consistent.
-          info("Transaction log already consistent. Skipping transaction log recovery for member {}.", member)
-          // TODO: Truncate db from last consistent timestamp???? If yes, we need to do it at the end of the recovery.
-//        store.truncateFrom(Timestamp(consistentTimestamp.value + 1), member.ranges)
-        }
-        case Some(lastRecord) => {
+        case Some(lastRecord: TimestampedRecord) => {
+          // The last record is NOT an Index record so we need tp perform recovery.
           // Load all records from the last consistent timestamp and truncate the incomplete transactions in the store
           val pending = loadAllPending(memberTxLog, lastRecord.consistentTimestamp)
           val incomplete = pending.filter(_.response.isEmpty)
@@ -88,12 +83,19 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
           }
           // Append an index record at the end of the recovery log. This stamp approve that all the rewritten records
           // are consistent.
-          recoveryTxLog.append(Index(idGenerator.nextId, lastConsistentTimestamp))
+          val index = Index(idGenerator.nextId, lastConsistentTimestamp)
+          recoveryTxLog.append(index)
 
           // Replace recovered records with the rewritten records
           finalizeRecovery(memberTxLog, recoveryTxLog)
+
+          Some(index)
         }
-        case None => // Log is empty, nothing to recover
+        case Some(index: Index) => {
+          // Log is terminated by an Index, nothing to recover
+          Some(index)
+        }
+        case None => None
       }
     }
   }
@@ -113,7 +115,7 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
    * Verify if a previous recovery procedure is incomplete and try to complete it or if this is not possible try to
    * clean up the previous recovery attempt to start the recovery again.
    */
-  private def resumeMemberRecovery(member: ResolvedServiceMember) {
+  private def resumeMemberConsistencyRecovery(member: ResolvedServiceMember, onRecoveryFailure: => Unit) {
     if (recoveryDir.exists()) {
       val recoveryTxLog = new FileTransactionLog(member.serviceName, member.token, recoveryDir.getAbsolutePath)
       val recoveryFiles = recoveryTxLog.getLogFiles
@@ -140,8 +142,7 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
                 resumeError.mark()
                 error("Previous recovery wasn't complete and the pending recovery log are outdated. " +
                   "Cannot recover member {}.", member)
-                // TODO: fail recovery
-                throw new ConsistencyException()
+                onRecoveryFailure
               }
             }
             case (None, Some(lastRecoveredIndex)) => {
@@ -149,8 +150,7 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
               resumeError.mark()
               error("Previous recovery wasn't complete. There are no member transaction logs, just the partially " +
                 "recovered ones. Cannot recover member {}.", member)
-              // TODO: fail recovery
-              throw new ConsistencyException()
+              onRecoveryFailure
             }
             case _ => {
               // No pending recovery log or previous recovery is incomplete (i.e. last recovery record is not Index),
