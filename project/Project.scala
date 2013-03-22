@@ -56,7 +56,8 @@ object NrvBuild extends Build {
     retrieveManaged := true,
     publishMavenStyle := true,
     organization := "com.wajam",
-    version := "0.1-SNAPSHOT"
+    version := "0.1-SNAPSHOT",
+    scalaVersion := "2.9.1"
   )
 
   lazy val root = Project(PROJECT_NAME, file("."))
