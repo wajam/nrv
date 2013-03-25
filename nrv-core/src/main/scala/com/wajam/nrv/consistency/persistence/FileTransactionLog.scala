@@ -66,7 +66,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   lazy private val appendTimer = metrics.timer("append-time")
   lazy private val truncateTimer = metrics.timer("truncate-time")
-  lazy private val commitTimer = metrics.timer("commit-time", "commit-time")
+  lazy private val commitTimer = metrics.timer("commit-time")
   lazy private val commitSyncTimer = metrics.timer("commit-sync-time")
   lazy private val rollMeter = metrics.meter("roll-calls", "roll-calls")
 

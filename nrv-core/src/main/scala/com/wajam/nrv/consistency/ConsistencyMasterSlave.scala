@@ -40,7 +40,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   private val lastWriteTimestamp = new AtomicReference[Option[Timestamp]](None)
   @volatile
-  private var recorders: Map[ServiceMember, TransactionRecorder] = Map() // updates are synchronized but lookups are not
+  private var recorders: Map[Long, TransactionRecorder] = Map() // updates are synchronized but lookups are not
 
   def service = bindedServices.head
 
@@ -52,6 +52,18 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     require(bindedServices.size == 0, "Cannot bind to multiple services. Already bound to %s".format(bindedServices.head))
 
     super.bindService(service)
+
+    // Setup current consistent timestamp lookup storage function
+    info("Setup consistent timestamp lookup for service", service.name)
+    store.setCurrentConsistentTimestamp((range) => {
+      val timestamp = recorders.valuesIterator.collectFirst({
+        case recorder if recorder.member.ranges.contains(range) => recorder.currentConsistentTimestamp
+      })
+      timestamp match {
+        case Some(Some(ts)) => ts
+        case _ => Long.MinValue
+      }
+    })
   }
 
   override def serviceEvent(event: Event) {
@@ -69,9 +81,11 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               } else {
                 NullTransactionLog
               }
-              val recorder = new TransactionRecorder(service, event.member, txLog,
-                consistencyDelay = timestampGenerator.responseTimeout + 1000, commitFrequency = txLogCommitFrequency)
-              recorders += (event.member -> recorder)
+              val recorder = new TransactionRecorder(ResolvedServiceMember(service, event.member), txLog,
+                consistencyDelay = timestampGenerator.responseTimeout + 1000,
+                consistencyTimeout = math.max(service.responseTimeout + 2000, 15000),
+                commitFrequency = txLogCommitFrequency)
+              recorders += (event.member.token -> recorder)
               recorder.start()
             }
           }
@@ -79,8 +93,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
             this.synchronized {
               // Remove transaction recorder for all other cases
               info("Remove transaction recorders for {}", event.member)
-              val recorder = recorders.get(event.member)
-              recorders -= event.member
+              val recorder = recorders.get(event.member.token)
+              recorders -= event.member.token
               recorder.foreach(_.kill())
             }
           }
@@ -193,7 +207,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   private def recordConsistentMessage(message: Message) {
     val recorderOpt = service.resolveMembers(message.token, service.resolver.replica).find(
-      member => cluster.isLocalNode(member.node)).flatMap(recorders.get(_))
+      member => cluster.isLocalNode(member.node)).flatMap(member => recorders.get(member.token))
     recorderOpt match {
       case Some(recorder) => {
         recorder.appendMessage(message)
