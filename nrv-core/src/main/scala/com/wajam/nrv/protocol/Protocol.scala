@@ -1,10 +1,11 @@
 package com.wajam.nrv.protocol
 
 import com.wajam.nrv.{RouteException, Logging}
-import com.wajam.nrv.service.{Service, MessageHandler, Action}
+import com.wajam.nrv.service.{ActionMethod, Service, MessageHandler, Action}
 import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.yammer.metrics.scala.Instrumented
+import org.scalatest.matchers.MustMatchers.AnyRefMustWrapper
 
 /**
  * Protocol used to send and receive messages to remote nodes over a network
@@ -34,20 +35,26 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     services += (action.service.name -> action.service)
   }
 
+  protected def resolveAction(serviceName: String, path: String, method: ActionMethod) : Option[Action] = {
+
+    services.get(serviceName) match {
+      case Some(service) =>
+        // a service by the name is found, use it directly
+        service.findAction(path, method)
+
+      case None =>
+        // else we reduce services, finding the one with the action that can be called
+        services.values.foldLeft[Option[Action]](None)((current, service) => current match {
+          case Some(currentAction) => current
+          case None => service.findAction(path, method)
+        })
+    }
+  }
+
   override def handleIncoming(action: Action, message: InMessage) {
     try {
-      val optAction: Option[Action] = services.get(message.serviceName) match {
-        case Some(service) =>
-          // a service by the name is found, use it directly
-          service.findAction(message.actionURL.path, message.method)
 
-        case None =>
-          // else we reduce services, finding the one with the action that can be called
-          services.values.foldLeft[Option[Action]](None)((current, service) => current match {
-            case Some(currentAction) => current
-            case None => service.findAction(message.actionURL.path, message.method)
-          })
-      }
+      val optAction = resolveAction(message.serviceName, message.actionURL.path, message.method)
 
       optAction match {
         case Some(foundAction) => foundAction.callIncomingHandlers(message)
@@ -64,11 +71,23 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     }
   }
 
-  override def handleOutgoing(action: Action, message: OutMessage) {
-    message.protocolName = this.name
-    message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
-      case Some(channel) => {
-        val response = generate(message)
+  private def guardedGenerate(message: Message): Either[Throwable, AnyRef] = {
+    try {
+      Right(generate(message))
+    }
+    catch {
+      case e: Exception => Left(e)
+    }
+  }
+
+  private def handleOutgoingResponse(channel: AnyRef, message: OutMessage)
+  {
+    guardedGenerate(message) match {
+      case Left(e) => {
+        sendingResponseFailure.mark()
+        log.error("Could not send response because it cannot be constructed: error = {}.", e.toString)
+      }
+      case Right(response) => {
         transport.sendResponse(channel,
           response,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
@@ -76,17 +95,25 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
             result match {
               case Some(throwable) => {
                 sendingResponseFailure.mark()
-                log.debug("Could not send the response because of an error: resonse = {}, error = {}.",
+                log.debug("Could not send the response because of an error: response = {}, error = {}.",
                   message, throwable.toString)
               }
               case None =>
             }
           })
       }
-      case None => {
+    }
+  }
+
+  private def handleOutgoingRequest(action: Action, message: OutMessage) {
+
+    guardedGenerate(message) match {
+      case Left(e) => {
+        log.error("Could not send request because it cannot be constructed: error = {}.", e.toString)
+      }
+      case Right(request) => {
         for (replica <- message.destination.selectedReplicas) {
           val node = replica.node
-          val request = generate(message)
 
           transport.sendMessage(node.protocolsSocketAddress(name),
             request,
@@ -106,6 +133,16 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
             })
         }
       }
+    }
+  }
+
+  override def handleOutgoing(action: Action, message: OutMessage) {
+    message.protocolName = this.name
+
+    message.attachments.getOrElse(Protocol.CONNECTION_KEY, None).asInstanceOf[Option[AnyRef]] match {
+
+      case Some(channel) =>  handleOutgoingResponse(channel, message)
+      case None => handleOutgoingRequest(action, message)
     }
   }
 
