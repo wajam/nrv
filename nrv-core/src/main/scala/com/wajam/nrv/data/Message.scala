@@ -33,6 +33,7 @@ abstract class Message(params: Iterable[(String, MValue)] = null,
 
   val parameters = new collection.mutable.HashMap[String, MValue]
   val metadata = new collection.mutable.HashMap[String, MValue]
+
   var messageData: Any = null
 
   val attachments = new collection.mutable.HashMap[String, Any]

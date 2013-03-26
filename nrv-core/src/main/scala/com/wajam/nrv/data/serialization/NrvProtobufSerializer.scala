@@ -12,16 +12,16 @@ import java.net.InetAddress
  * Convert NRV principal objects to their Protobuf equivalent back and forth
  *
  */
-class NrvProtobufSerializer() {
+object NrvProtobufSerializer {
 
   val javaSerialize = new GenericJavaSerializeCodec()
 
-  def serializeMessage(message: Message, messageDataCodec: Codec = javaSerialize): Array[Byte] = {
-    encodeMessage(message, messageDataCodec).toByteArray
+  def serializeMessage(message: Message, codecResolver: (Message) => Codec): Array[Byte] = {
+    encodeMessage(message, codecResolver).toByteArray
   }
 
-  def deserializeMessage(bytes: Array[Byte], messageDataCodec: Codec = javaSerialize): Message = {
-    decodeMessage(NrvProtobuf.Message.parseFrom(bytes), messageDataCodec)
+  def deserializeMessage(bytes: Array[Byte], codecResolver: (Message) => Codec): Message = {
+    decodeMessage(NrvProtobuf.Message.parseFrom(bytes), codecResolver)
   }
 
   private[serialization] def decodeMValue(protoValue: NrvProtobuf.MValue): MValue = {
@@ -95,7 +95,7 @@ class NrvProtobufSerializer() {
     }.toMap
   }
 
-  private[serialization] def encodeMessage(message: Message, messageDataCodec: Codec): NrvProtobuf.Message = {
+  private[serialization] def encodeMessage(message: Message, codecResolver: (Message) => Codec): NrvProtobuf.Message = {
 
     val protoMessage = NrvProtobuf.Message.newBuilder()
 
@@ -110,7 +110,7 @@ class NrvProtobufSerializer() {
     protoMessage.setRendezVousId(message.rendezvousId)
 
     for (error <- message.error)
-      protoMessage.setError(ByteString.copyFrom(serializeToBytes(error)))
+      protoMessage.setError(ByteString.copyFrom(javaSerialize.encode(error)))
 
     protoMessage.setFunction(message.function)
 
@@ -124,22 +124,21 @@ class NrvProtobufSerializer() {
     encodeMessageMap(message.parameters, protoMessage.addParameters _)
     encodeMessageMap(message.metadata, protoMessage.addMetadata _)
 
+    val messageDataCodec = codecResolver(message)
     protoMessage.setMessageData(ByteString.copyFrom(messageDataCodec.encode(message.messageData)))
 
     protoMessage.build()
   }
 
-  private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message, messageDataCodec: Codec): Message = {
+  private[serialization] def decodeMessage(protoMessage: NrvProtobuf.Message, codecResolver: (Message) => Codec): Message = {
 
     val parameters = decodeMessageMap(protoMessage.getParametersList.asScala)
 
     val metadata = decodeMessageMap(protoMessage.getMetadataList.asScala)
 
-    val messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
-
     val destination = decodeEndpoints(protoMessage.getDestination)
 
-    val message = new SerializableMessage(parameters, metadata, messageData)
+    val message = new SerializableMessage(parameters, metadata, null)
 
     message.code = protoMessage.getCode
 
@@ -154,7 +153,7 @@ class NrvProtobufSerializer() {
     val error = protoMessage.getError
 
     if (error.size() != 0)
-      message.error = Some(deserializeFromBytes(protoMessage.getError.toByteArray).asInstanceOf[Exception])
+      message.error = Some(javaSerialize.decode(protoMessage.getError.toByteArray).asInstanceOf[Exception])
 
     message.function = protoMessage.getFunction
 
@@ -163,6 +162,9 @@ class NrvProtobufSerializer() {
 
     message.destination = destination
     message.token = protoMessage.getToken
+
+    val messageDataCodec = codecResolver(message)
+    message.messageData = messageDataCodec.decode(protoMessage.getMessageData.toByteArray)
 
     message
   }
@@ -232,14 +234,6 @@ class NrvProtobufSerializer() {
   private[serialization] def decodeReplica(proto: NrvProtobuf.Endpoints.Replica): Replica = {
 
     new Replica(proto.getToken, decodeNode(proto.getNode), proto.getSelected)
-  }
-
-  private[serialization] def serializeToBytes(entity: AnyRef): Array[Byte] = {
-    javaSerialize.encodeAny(entity)
-  }
-
-  private[serialization] def deserializeFromBytes(bytes: Array[Byte]) = {
-    javaSerialize.decodeAny(bytes)
   }
 }
 

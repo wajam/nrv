@@ -1,7 +1,7 @@
 package com.wajam.nrv.protocol
 
 import java.nio.ByteBuffer
-import codec.{MessageJavaSerializeCodec, Codec}
+import codec.MessageJavaSerializeCodec
 import com.wajam.nrv.data.Message
 import com.wajam.nrv.transport.nrv.NrvNettyTransport
 import com.wajam.nrv.cluster.LocalNode
@@ -12,12 +12,18 @@ import com.google.common.primitives.{Shorts, UnsignedBytes}
  * Default protocol used by NRV. All nodes must have this protocol, since it's
  * used for cluster management.
  */
-class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeCodec, protocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V2)
+class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V2)
   extends Protocol("nrv") {
 
   override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name), this)
 
-  val protobufSerializer = new NrvProtobufSerializer()
+  protected val resolveCodec = (msg: Message) => {
+
+    val optAction = this.resolveAction(msg.serviceName, msg.actionURL.path, msg.method)
+    optAction.get.nrvCodec
+  }
+
+  protected val javaSerializer = new MessageJavaSerializeCodec()
 
   def start() {
     transport.start()
@@ -65,12 +71,12 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
     buffer.get()
     buffer.get(bytes)
 
-    protobufSerializer.deserializeMessage(bytes)
+    NrvProtobufSerializer.deserializeMessage(bytes, resolveCodec)
   }
 
   private def generateV2(message: Message): Array[Byte] = {
 
-    val bytes = protobufSerializer.serializeMessage(message)
+    val bytes = NrvProtobufSerializer.serializeMessage(message, resolveCodec)
 
     val messageLength = bytes.length + 1
 
@@ -84,11 +90,11 @@ class NrvProtocol(localNode: LocalNode, codec: Codec = new MessageJavaSerializeC
   }
 
   private def parseV1(message: Array[Byte]): Message = {
-    codec.decode(message).asInstanceOf[Message]
+    javaSerializer.decode(message).asInstanceOf[Message]
   }
 
   private def generateV1(message: Message): Array[Byte] = {
-    codec.encode(message)
+    javaSerializer.encode(message)
   }
 }
 
