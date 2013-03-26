@@ -66,6 +66,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     event match {
       case event: StatusTransitionAttemptEvent if txLogEnabled && event.to == MemberStatus.Up => {
+        // Trying to transition the service member up. Ensure service member is consistent before allowing it to go up.
         this.synchronized {
           consistencyStates.get(event.member.token) match {
             case Some(MemberConsistencyState.Ok) => {
@@ -77,7 +78,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               event.vote(pass = false)
             }
             case Some(MemberConsistencyState.Error) => {
-              // Service member had a consistency error, reset the consistency state and retry new recovery
+              // Service member had a consistency error, reset the consistency state and retry new recovery later.
               consistencyStates -= event.member.token
               event.vote(pass = false)
             }
@@ -86,6 +87,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               val member = ResolvedServiceMember(service, event.member)
               metrics.consistencyRecovering.mark()
               consistencyStates += (member.token -> MemberConsistencyState.Recovering)
+
               restoreMemberConsistency(member, onSuccess = {
                 metrics.consistencyOk.mark()
                 this.synchronized {
