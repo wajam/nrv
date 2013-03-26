@@ -97,6 +97,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                   consistencyStates += (member.token -> MemberConsistencyState.Error)
                 }
               })
+              event.vote(pass = false)
             }
           }
         }
@@ -298,7 +299,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
     } catch {
       case e: Exception => {
-        error("Got an exception during the service member recovery! {}", member)
+        error("Got an exception during the service member recovery! {}", member, e)
         onError
       }
     }

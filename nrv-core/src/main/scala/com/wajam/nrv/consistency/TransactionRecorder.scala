@@ -62,8 +62,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
 
   private def appendRequest(message: Message) {
     try {
-      // No need to explicitly synchronize the id generation and max timestamp computation as this code is invoked
-      // and synchronized inside the append method implementation
+      // The id generation and max timestamp computation are synchronized inside the append method implementation
       var requestMaxTimestamp: Timestamp = null
       val request = txLog.append {
         val request = Request(idGenerator.nextId, currentConsistentTimestamp, message)
@@ -88,8 +87,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
     try {
       Consistency.getMessageTimestamp(message) match {
         case Some(timestamp) => {
-          // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
-          // the append method implementation
+          // The id generation is synchronized inside the append method implementation
           val response = txLog.append {
             Response(idGenerator.nextId, currentConsistentTimestamp, message)
           }
@@ -118,8 +116,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
 
   private def appendIndex(consistentTimestamp: Timestamp) {
     txLog.append {
-      // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
-      // the append method implementation
+      // The id generation is synchronized inside the append method implementation
       Index(idGenerator.nextId, Some(consistentTimestamp))
     }
     txLog.commit()
@@ -155,7 +152,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
 
     private var pendingTransactions: TreeMap[Timestamp, PendingTransaction] = TreeMap()
 
-    @volatile // TODO: make this cleaner
+    @volatile
     var consistentTimestamp: Option[Timestamp] = txLog.getLastLoggedRecord match {
       case Some(record) => record.consistentTimestamp
       case None => None
@@ -222,7 +219,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
         case Some(tx) => {
           // Found a consistent transaction. Use its timestamp as current consistent timestamp and remove all pending
           // transactions up to that transaction
-          pendingTransactions = pendingTransactions.dropWhile(entry => entry._2.timestamp <= tx.timestamp)
+          pendingTransactions = pendingTransactions.from(Timestamp(tx.timestamp.value + 1))
           consistentTimestamp match {
             case Some(ts) if (ts > tx.timestamp) => {
               // Ensure we are not going back in time!!!

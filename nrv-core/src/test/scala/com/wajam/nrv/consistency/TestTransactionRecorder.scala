@@ -65,8 +65,9 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.pendingSize should be(1)
 
     val response = createResponseMessage(request)
+    currentTime += 1
     recorder.appendMessage(response)
-    currentTime += consistencyDelay + 1
+    currentTime += consistencyDelay
     recorder.checkPending()
     recorder.pendingSize should be(0)
     consistencyErrorCount should be(0)
@@ -196,6 +197,8 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     val request5 = createRequestMessage(timestamp = 5)
     val request6 = createRequestMessage(timestamp = 6)
     val request7 = createRequestMessage(timestamp = 7)
+    val request8 = createRequestMessage(timestamp = 8)
+    val request9 = createRequestMessage(timestamp = 9)
 
     // Test assume consistency delay is 1 sec
     consistencyDelay should be(1000)
@@ -204,6 +207,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
       currentTime = id
       recorder.checkPending()
       recorder.appendMessage(message)
+      recorder.checkPending()
     }
 
     appendMessage(10, request1)
@@ -212,14 +216,20 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     appendMessage(40, createResponseMessage(request4))
     appendMessage(50, createResponseMessage(request1))
     appendMessage(60, request2)
-    appendMessage(1055, request6)
-    appendMessage(1060, request7)
+    appendMessage(1055, request5)
+    appendMessage(1060, createResponseMessage(request3))
     appendMessage(1070, createResponseMessage(request2))
-    appendMessage(1080, createResponseMessage(request7))
-    appendMessage(1090, request5)
-    appendMessage(3000, createResponseMessage(request3))
-    appendMessage(3010, createResponseMessage(request5))
-    appendMessage(3020, createResponseMessage(request6))
+    appendMessage(1080, createResponseMessage(request5))
+    appendMessage(1090, request6)
+    appendMessage(2000, request7)
+    appendMessage(3000, createResponseMessage(request6))
+    appendMessage(3010, createResponseMessage(request7))
+    appendMessage(4000, request8)
+    appendMessage(4010, request9)
+    appendMessage(4020, createResponseMessage(request9))
+    appendMessage(4030, createResponseMessage(request8))
+    currentTime = 5500
+    recorder.checkPending()
 
     verify(txLogProxy.mockAppender).append(LogRecord(10, None, request1))
     verify(txLogProxy.mockAppender).append(LogRecord(20, None, request3))
@@ -227,13 +237,20 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     verify(txLogProxy.mockAppender).append(LogRecord(40, None, createResponseMessage(request4)))
     verify(txLogProxy.mockAppender).append(LogRecord(50, None, createResponseMessage(request1)))
     verify(txLogProxy.mockAppender).append(LogRecord(60, None, request2))
-    verify(txLogProxy.mockAppender).append(LogRecord(1055, Some(1), request6))
-    verify(txLogProxy.mockAppender).append(LogRecord(1060, Some(1), request7))
+    verify(txLogProxy.mockAppender).append(LogRecord(1055, Some(1), request5))
+    verify(txLogProxy.mockAppender).append(LogRecord(1060, Some(1), createResponseMessage(request3)))
     verify(txLogProxy.mockAppender).append(LogRecord(1070, Some(1), createResponseMessage(request2)))
-    verify(txLogProxy.mockAppender).append(LogRecord(1080, Some(1), createResponseMessage(request7)))
-    verify(txLogProxy.mockAppender).append(LogRecord(1090, Some(1), request5))
-    verify(txLogProxy.mockAppender).append(LogRecord(3000, Some(1), createResponseMessage(request3)))
-    verify(txLogProxy.mockAppender).append(LogRecord(3010, Some(4), createResponseMessage(request5)))
-    verify(txLogProxy.mockAppender).append(LogRecord(3020, Some(4), createResponseMessage(request6)))
+    verify(txLogProxy.mockAppender).append(LogRecord(1080, Some(4), createResponseMessage(request5)))
+    verify(txLogProxy.mockAppender).append(LogRecord(1090, Some(4), request6))
+    verify(txLogProxy.mockAppender).append(LogRecord(2000, Some(4), request7))
+    verify(txLogProxy.mockAppender).append(LogRecord(3000, Some(5), createResponseMessage(request6)))
+    verify(txLogProxy.mockAppender).append(LogRecord(3010, Some(6), createResponseMessage(request7)))
+    verify(txLogProxy.mockAppender).append(Index(3010, Some(7))) // id is a dupe but this is just a test...
+    verify(txLogProxy.mockAppender).append(LogRecord(4000, Some(7), request8))
+    verify(txLogProxy.mockAppender).append(LogRecord(4010, Some(7), request9))
+    verify(txLogProxy.mockAppender).append(LogRecord(4020, Some(7), createResponseMessage(request9)))
+    verify(txLogProxy.mockAppender).append(LogRecord(4030, Some(7), createResponseMessage(request8)))
+    verify(txLogProxy.mockAppender).append(Index(5500, Some(9)))
+    txLogProxy.verifyNoMoreInteractions()
   }
 }
