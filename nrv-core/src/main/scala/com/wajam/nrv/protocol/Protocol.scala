@@ -5,7 +5,6 @@ import com.wajam.nrv.service.{ActionMethod, Service, MessageHandler, Action}
 import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.yammer.metrics.scala.Instrumented
-import org.scalatest.matchers.MustMatchers.AnyRefMustWrapper
 
 /**
  * Protocol used to send and receive messages to remote nodes over a network
