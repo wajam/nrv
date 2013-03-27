@@ -148,12 +148,12 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     message.serviceName == service.name && store.requiresConsistency(message)
   }
 
-  def getMessageLocalServiceMember(message: Message): Option[ServiceMember] = {
+  private def getLocalServiceMemberFromMessage(message: Message): Option[ServiceMember] = {
     service.resolveMembers(message.token, 1).find(member => cluster.isLocalNode(member.node))
   }
 
   private def isMessageLocalMemberUp(message: Message): Boolean = {
-    getMessageLocalServiceMember(message) match {
+    getLocalServiceMemberFromMessage(message) match {
       case Some(member) if member.status == MemberStatus.Up => true
       case _ => false
     }
@@ -263,7 +263,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   private def recordConsistentMessage(message: Message) {
     val recorderOpt = for {
-      member <- getMessageLocalServiceMember(message)
+      member <- getLocalServiceMemberFromMessage(message)
       recorder <- recorders.get(member.token)
     } yield recorder
     recorderOpt match {
