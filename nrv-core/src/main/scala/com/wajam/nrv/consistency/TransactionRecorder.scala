@@ -14,10 +14,9 @@ import annotation.tailrec
 
 class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionLog,
                           consistencyDelay: Long, consistencyTimeout: Long, commitFrequency: Int,
-                          idGenerator: IdGenerator[Long] = new TimestampIdGenerator)
+                          onConsistencyError: => Unit, idGenerator: IdGenerator[Long] = new TimestampIdGenerator)
   extends CurrentTime with Instrumented with Logging {
 
-  lazy private val consistencyError = metrics.meter("consistency-error", "consistency-error")
   lazy private val consistencyErrorDuplicate = metrics.meter("consistency-error-duplicate", "consistency-error-duplicate")
   lazy private val consistencyErrorAppend = metrics.meter("consistency-error-append", "consistency-error-append")
   lazy private val consistencyErrorRequest = metrics.meter("consistency-error-request", "consistency-error-request")
@@ -63,8 +62,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
 
   private def appendRequest(message: Message) {
     try {
-      // No need to explicitly synchronize the id generation and max timestamp computation as this code is invoked
-      // and synchronized inside the append method implementation
+      // The id generation and max timestamp computation are synchronized inside the append method implementation
       var requestMaxTimestamp: Timestamp = null
       val request = txLog.append {
         val request = Request(idGenerator.nextId, currentConsistentTimestamp, message)
@@ -77,7 +75,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
       case e: Exception => {
         consistencyErrorAppend.mark()
         error("Error appending request message {}. ", message, e)
-        handleConsistencyError()
+        onConsistencyError
 
         // Throw the exception to the caller to prevent the request execution to continue.
         throw new ConsistencyException
@@ -89,8 +87,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
     try {
       Consistency.getMessageTimestamp(message) match {
         case Some(timestamp) => {
-          // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
-          // the append method implementation
+          // The id generation is synchronized inside the append method implementation
           val response = txLog.append {
             Response(idGenerator.nextId, currentConsistentTimestamp, message)
           }
@@ -99,7 +96,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
         case None if isSuccessful(message) => {
           consistencyErrorResponseMissingTimestamp.mark()
           error("Response is sucessful but missing timestamp {}. ", message)
-          handleConsistencyError()
+          onConsistencyError
         }
         case None => {
           // Ignore failure response without timestamp, they are SCN response error
@@ -110,7 +107,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
       case e: Exception => {
         consistencyErrorAppend.mark()
         error("Error appending response message {}. ", message, e)
-        handleConsistencyError()
+        onConsistencyError
 
         message.error = Some(new ConsistencyException)
       }
@@ -119,20 +116,13 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
 
   private def appendIndex(consistentTimestamp: Timestamp) {
     txLog.append {
-      // No need to explicitly synchronize the id generation as this code is invoked and synchronized inside
-      // the append method implementation
+      // The id generation is synchronized inside the append method implementation
       Index(idGenerator.nextId, Some(consistentTimestamp))
     }
     txLog.commit()
   }
 
   private def isSuccessful(response: Message) = response.code >= 200 && response.code < 300 && response.error.isEmpty
-
-  private def handleConsistencyError() {
-    consistencyError.mark()
-
-    // TODO: fail the current service member
-  }
 
   private[consistency] def checkPending() {
     consistencyActor !? CheckPending
@@ -162,7 +152,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
 
     private var pendingTransactions: TreeMap[Timestamp, PendingTransaction] = TreeMap()
 
-    @volatile // TODO: make this cleaner
+    @volatile
     var consistentTimestamp: Option[Timestamp] = txLog.getLastLoggedRecord match {
       case Some(record) => record.consistentTimestamp
       case None => None
@@ -229,13 +219,13 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
         case Some(tx) => {
           // Found a consistent transaction. Use its timestamp as current consistent timestamp and remove all pending
           // transactions up to that transaction
-          pendingTransactions = pendingTransactions.dropWhile(entry => entry._2.timestamp <= tx.timestamp)
+          pendingTransactions = pendingTransactions.from(Timestamp(tx.timestamp.value + 1))
           consistentTimestamp match {
             case Some(ts) if (ts > tx.timestamp) => {
               // Ensure we are not going back in time!!!
               consistencyErrorCheckPending.mark()
               error("Consistency error consistent timestamp going backward {}.", tx)
-              handleConsistencyError()
+              onConsistencyError
             }
             case _ => {
               // No more pending transactions. Append an index to the log before updating the consistentTimestamp to
@@ -262,7 +252,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
 
               consistencyErrorTimeout.mark()
               error("Consistency error timeout on transaction {}.", tx)
-              handleConsistencyError()
+              onConsistencyError
             }
             case _ => // No pending transactions to check
           }
@@ -280,7 +270,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
                   // Duplicate request
                   consistencyErrorDuplicate.mark()
                   error("Request {} is a duplicate of pending transaction {}. ", request, tx)
-                  handleConsistencyError()
+                  onConsistencyError
                 }
                 case None => {
                   pendingTransactions += (request.timestamp ->
@@ -291,7 +281,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
               case e: Exception => {
                 consistencyErrorRequest.mark()
                 error("Error processing request {}. ", request, e)
-                handleConsistencyError()
+                onConsistencyError
               }
             }
           }
@@ -306,7 +296,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
                   // The response is successful but does not match a pending transaction.
                   consistencyErrorUnexpectedResponse.mark()
                   error("Response is sucessful but not pending {}. ", response)
-                  handleConsistencyError()
+                  onConsistencyError
                 }
                 case _ => {
                   unexpectedFailResponse.mark()
@@ -319,7 +309,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
               case e: Exception => {
                 consistencyErrorResponse.mark()
                 error("Error processing response message {}. ", response, e)
-                handleConsistencyError()
+                onConsistencyError
               }
             }
           }
@@ -331,7 +321,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
               case e: Exception => {
                 consistencyErrorCommit.mark()
                 error("Consistency error commiting transaction log of member {}.", member, e)
-                handleConsistencyError()
+                onConsistencyError
               }
             } finally {
               reply(true)
@@ -344,7 +334,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
               case e: Exception => {
                 consistencyErrorCheckPending.mark()
                 error("Consistency error checking pending transactions {}.", member, e)
-                handleConsistencyError()
+                onConsistencyError
               }
             } finally {
               reply(true)

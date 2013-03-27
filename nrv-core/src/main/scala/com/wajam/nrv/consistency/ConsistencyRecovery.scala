@@ -4,7 +4,7 @@ import persistence.LogRecord._
 import persistence._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import java.io.File
-import com.wajam.nrv.utils.IdGenerator
+import com.wajam.nrv.utils.{TimestampIdGenerator, IdGenerator}
 import java.nio.file.Files
 import com.wajam.nrv.Logging
 import collection.mutable
@@ -12,9 +12,8 @@ import com.yammer.metrics.scala.Instrumented
 
 /**
  * Helper class that ensure that service members transaction log are consistent with the consistent store.
- * This class is not thread safe and should not be called from mutiple threads.
  */
-class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: IdGenerator[Long])
+class ConsistencyRecovery(logDir: String, store: ConsistentStore, idGenerator: IdGenerator[Long] = new TimestampIdGenerator)
   extends Logging with Instrumented {
 
   lazy private val resumeTimer = metrics.timer("resume-time")
@@ -36,64 +35,95 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
    * in the log and marked as consistent.
    * <p><p>
    * The recovery process can resume from a previously incomplete recovery attempt (i.e. jvm kill during recovery).
+   *
+   * @param member the service member to restore
+   * @return the final consistent index record
    */
-  def recoverMember(member: ResolvedServiceMember) {
+  def restoreMemberConsistency(member: ResolvedServiceMember, onRecoveryFailure: => Unit): Option[Index] = {
 
     // Complete and/or cleanup any previously incomplete recovery attempt
-    resumeMemberRecovery(member)
+    resumeMemberConsistencyRecovery(member, onRecoveryFailure)
 
     recoverTimer.time {
       val memberTxLog = new FileTransactionLog(member.serviceName, member.token, logDir)
       val lastLoggedRecord = memberTxLog.getLastLoggedRecord
       lastLoggedRecord match {
-        case Some(Index(_, Some(consistentTimestamp))) => {
-          // The last record is an Index record so we know that the member log is consistent up to that point.
-          // Truncate database after last consistent timestamp for the member token ranges to ensure the store
-          // is consistent.
-          info("Transaction log already consistent. Skipping transaction log recovery for member {}.", member)
-          // TODO: Truncate db from last consistent timestamp???? If yes, we need to do it at the end of the recovery.
-//        store.truncateFrom(Timestamp(consistentTimestamp.value + 1), member.ranges)
-        }
-        case Some(lastRecord) => {
-          // Load all records from the last consistent timestamp and truncate the incomplete transactions in the store
-          val pending = loadAllPending(memberTxLog, lastRecord.consistentTimestamp)
+        case Some(lastRecord: TimestampedRecord) => {
+          // The last record is NOT an Index record so we need tp perform recovery.
+          // Load all records from the last consistent timestamp and truncate the transactions without a response
+          // in the store
+          val (consistentTxOpt, pending) = loadAllPending(memberTxLog, lastRecord.consistentTimestamp)
           val incomplete = pending.filter(_.response.isEmpty)
           info("Truncating {} incomplete records for member {}.", incomplete.size, member)
           incomplete.foreach(tx => recoverTruncateTimer.time(store.truncateAt(tx.timestamp, tx.token)))
 
-          // Rewrite complete transactions records in separate recovery log files
+          // Rewrite transaction records with a response in a separate recovery log files. Rewrite first the last
+          // consistent transaction, then the transactions with only responses (their request records exist before
+          // the rewrite position), and then finaly the remaining complete transactions. Both the response only
+          // sequence and the complete transaction sequence are ordered by timestamps in their respective collection.
           recoveryDir.mkdir()
           val recoveryTxLog = new FileTransactionLog(member.serviceName, member.token, recoveryDir.getAbsolutePath)
-          val complete = pending.filter(_.response.isDefined)
-          info("Rewriting {} complete records for member {}.", complete.size, member)
-          // Find consistent timestamp of the first transaction to rewrite
-          var lastConsistentTimestamp = for {
-            firstCompleteTx <- complete.headOption
-            firstCompleteResponse <- firstCompleteTx.response
-            firstCompleteConsistentTimestamp <- firstCompleteResponse.consistentTimestamp
-          } yield firstCompleteConsistentTimestamp
-          for (tx <- complete; response <- tx.response) {
-            tx.request.foreach(request => {
-              // Rewrite request only if available. Not available if request record have originally been written before
-              // the last consistent timestamp and the response record after. We are only processing the records written
-              // after the last known consistent timestamp.
-              recoveryTxLog.append(Request(idGenerator.nextId, lastConsistentTimestamp, request.timestamp,
-                request.token, request.message))
-              recoverRewrite.mark()
-            })
-            recoveryTxLog.append(Response(idGenerator.nextId, lastConsistentTimestamp, response.timestamp,
-              response.token, response.status))
-            recoverRewrite.mark()
-            lastConsistentTimestamp = Some(tx.timestamp)
+          val (complete, responseOnly) = pending.filter(_.response.isDefined).partition(_.request.isDefined)
+
+          // Initialize the consistent timestamp of the first transaction to rewrite which is the consistent timestamp
+          // of the consistent transaction (consistent transaction is the rewrite position in the original log). Also
+          // initialize the minimum value of the next consistent timestamp which is the timestamp of the consistent
+          // transaction.
+          var (minimumConsistentTimestamp, currentConsistentTimestamp) = consistentTxOpt match {
+            case Some(PendingTransaction(Some(request), _)) => (Some(request.timestamp), request.consistentTimestamp)
+            case None => (None, None)
+            case _ => {
+              throw new IllegalStateException("Consistent transaction MUST have a request (member=%s)".format(member))
+            }
           }
-          // Append an index record at the end of the recovery log. This stamp approve that all the rewritten records
-          // are consistent.
-          recoveryTxLog.append(Index(idGenerator.nextId, lastConsistentTimestamp))
+
+          // Rewrite the consistent transaction
+          info("Rewriting consistent transaction for member {}.", member)
+          for (tx <- consistentTxOpt; response <- tx.response) {
+            rewriteTransaction(tx, currentConsistentTimestamp, recoveryTxLog)
+            recoverRewrite.mark()
+          }
+
+          // Rewrite reponses only
+          info("Rewriting {} response records for member {}.", responseOnly.size, member)
+          for (tx <- responseOnly; response <- tx.response) {
+            rewriteTransaction(tx, currentConsistentTimestamp, recoveryTxLog)
+            recoverRewrite.mark()
+          }
+
+          // Rewrite complete transactions. Update the consistent timestamp after each complete transaction rewritten
+          info("Rewriting {} complete records for member {}.", complete.size, member)
+          for (tx <- complete; response <- tx.response) {
+            rewriteTransaction(tx, currentConsistentTimestamp, recoveryTxLog)
+            recoverRewrite.mark()
+
+            // Update the current consistent timestamp. Must not be lesser than the minmum consistent timestamp
+            currentConsistentTimestamp = minimumConsistentTimestamp match {
+              case Some(minimum) if tx.timestamp > minimum => Some(tx.timestamp)
+              case None => Some(tx.timestamp)
+              case _ => currentConsistentTimestamp
+            }
+          }
+
+          // Append an index record at the end of the recovery log with the final consistent timestamp.
+          // This stamp approve that all the rewritten records are consistent.
+          val finalConsistentTimestamp = List(currentConsistentTimestamp, minimumConsistentTimestamp).flatten match {
+            case Nil => None
+            case xs => Some(xs.max)
+          }
+          val index = Index(idGenerator.nextId, finalConsistentTimestamp)
+          recoveryTxLog.append(index)
 
           // Replace recovered records with the rewritten records
           finalizeRecovery(memberTxLog, recoveryTxLog)
+
+          Some(index)
         }
-        case None => // Log is empty, nothing to recover
+        case Some(index: Index) => {
+          // Log is terminated by an Index, nothing to recover
+          Some(index)
+        }
+        case None => None
       }
     }
   }
@@ -110,10 +140,28 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
   }
 
   /**
+   * Rewrite the specified transaction
+   */
+  def rewriteTransaction(tx: PendingTransaction, consistentTimestamp: Option[Timestamp], txLog: FileTransactionLog) {
+    tx.request match {
+      case Some(request) => {
+        txLog.append(Request(idGenerator.nextId, consistentTimestamp, request.timestamp,
+          request.token, request.message))
+      }
+      case None => // No transaction to write
+    }
+
+    // Response is not optional
+    val response = tx.response.get
+    txLog.append(Response(idGenerator.nextId, consistentTimestamp, response.timestamp,
+      response.token, response.status))
+  }
+
+  /**
    * Verify if a previous recovery procedure is incomplete and try to complete it or if this is not possible try to
    * clean up the previous recovery attempt to start the recovery again.
    */
-  private def resumeMemberRecovery(member: ResolvedServiceMember) {
+  private def resumeMemberConsistencyRecovery(member: ResolvedServiceMember, onRecoveryFailure: => Unit) {
     if (recoveryDir.exists()) {
       val recoveryTxLog = new FileTransactionLog(member.serviceName, member.token, recoveryDir.getAbsolutePath)
       val recoveryFiles = recoveryTxLog.getLogFiles
@@ -140,8 +188,7 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
                 resumeError.mark()
                 error("Previous recovery wasn't complete and the pending recovery log are outdated. " +
                   "Cannot recover member {}.", member)
-                // TODO: fail recovery
-                throw new ConsistencyException()
+                onRecoveryFailure
               }
             }
             case (None, Some(lastRecoveredIndex)) => {
@@ -149,8 +196,7 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
               resumeError.mark()
               error("Previous recovery wasn't complete. There are no member transaction logs, just the partially " +
                 "recovered ones. Cannot recover member {}.", member)
-              // TODO: fail recovery
-              throw new ConsistencyException()
+              onRecoveryFailure
             }
             case _ => {
               // No pending recovery log or previous recovery is incomplete (i.e. last recovery record is not Index),
@@ -169,8 +215,10 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
   }
 
   private def finalizeRecovery(memberTxLog: FileTransactionLog, recoveryTxLog: FileTransactionLog) {
-    // Truncate member log from the first recovered record consistent timestamp
-    val firstRecoveredRecord = firstRecord(recoveryTxLog).flatMap(r => firstRecord(memberTxLog, Some(r.timestamp)))
+    // Truncate member log from the first recovered request record
+    val firstRecoveredRecord = firstRequestRecord(recoveryTxLog).flatMap(r => {
+      firstRequestRecord(memberTxLog, Some(r.timestamp))
+    })
     firstRecoveredRecord.foreach(memberTxLog.truncate(_))
 
     // Move recovery log files into the real log directory
@@ -183,10 +231,13 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
   }
 
   /**
-   * Returns all transactions (complete and incomplete) starting at the specified consistent timestamp
-   * and ordered by timestamp.
+   * Returns a tuple with the transaction of the specified consistent timestamp and the sequence of all the following
+   * transactions (complete and incomplete). The consistent timestamp transaction is not in the sequence and the
+   * sequence ordered by timestamp.
    */
-  private def loadAllPending(txLog: FileTransactionLog, consistentTimestamp: Option[Timestamp]): Seq[PendingTransaction] = {
+  private def loadAllPending(txLog: FileTransactionLog, consistentTimestamp: Option[Timestamp]):
+  (Option[PendingTransaction], Seq[PendingTransaction]) = {
+
     val it = consistentTimestamp match {
       case Some(timestamp) => txLog.read(timestamp)
       case None => txLog.read
@@ -205,7 +256,18 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
           case _ => // Ignore index records
         }
       }
-      pending.values.toIndexedSeq.sorted
+
+      // Extract the consistent transaction from the pending transactions
+      val consistentTx = consistentTimestamp match {
+        case Some(timestamp) => {
+          val consistentTx = pending(timestamp)
+          pending -= timestamp
+          Some(consistentTx)
+        }
+        case None => None
+      }
+
+      (consistentTx ,pending.values.toList.sorted)
     } finally {
       it.close()
     }
@@ -214,14 +276,14 @@ class TransactionRecovery(logDir: String, store: ConsistentStore, idGenerator: I
   /**
    * Returns the first record starting at the specified consistent timestamp.
    */
-  private def firstRecord(txLog: FileTransactionLog, consistentTimestamp: Option[Timestamp] = None): Option[TimestampedRecord] = {
+  private def firstRequestRecord(txLog: FileTransactionLog, consistentTimestamp: Option[Timestamp] = None): Option[TimestampedRecord] = {
     val it = consistentTimestamp match {
       case Some(timestamp) => txLog.read(timestamp)
       case None => txLog.read
     }
     try {
       it.find(_ match {
-        case record: TimestampedRecord => true
+        case record: Request => true
         case _ => false
       }).map(_.asInstanceOf[TimestampedRecord])
     } finally {

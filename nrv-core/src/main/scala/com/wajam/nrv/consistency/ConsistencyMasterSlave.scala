@@ -4,10 +4,13 @@ import com.wajam.nrv.service._
 import com.wajam.nrv.data.{OutMessage, Message, MessageType, InMessage}
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
 import java.util.concurrent.atomic.AtomicReference
-import com.yammer.metrics.scala.Instrumented
+import com.yammer.metrics.scala.{Meter, Instrumented}
 import com.wajam.nrv.utils.Event
 import com.wajam.nrv.service.StatusTransitionEvent
 import persistence.{NullTransactionLog, FileTransactionLog}
+import java.util.concurrent.TimeUnit
+import com.yammer.metrics.core.Gauge
+import com.wajam.nrv.UnavailableException
 
 /**
  * Consistency that (will eventually) sends read/write to a master replica and replicate modification to the
@@ -19,28 +22,17 @@ import persistence.{NullTransactionLog, FileTransactionLog}
  */
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
                              txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000)
-  extends ConsistencyOne with Instrumented {
+  extends ConsistencyOne {
 
   import Consistency._
 
-  lazy private val recorderNotFound = metrics.meter("recorder-not-found", "recorder-not-found")
-  private val recordersCount = metrics.gauge("recorders-count") {
-    recorders.size
-  }
-  private val recordersQueueSize = metrics.gauge("recorders-queue-size") {
-    recorders.values.foldLeft[Int](0)((sum, recorder) => {
-      sum + recorder.queueSize
-    })
-  }
-  private val recordersPendingSize = metrics.gauge("recorders-pending-tx-size") {
-    recorders.values.foldLeft[Int](0)((sum, recorder) => {
-      sum + recorder.pendingSize
-    })
-  }
-
   private val lastWriteTimestamp = new AtomicReference[Option[Timestamp]](None)
-  @volatile
-  private var recorders: Map[Long, TransactionRecorder] = Map() // updates are synchronized but lookups are not
+  @volatile // updates are synchronized but lookups are not
+  private var recorders: Map[Long, TransactionRecorder] = Map()
+
+  private var consistencyStates: Map[Long, MemberConsistencyState] = Map()
+
+  private var metrics: Metrics = null
 
   def service = bindedServices.head
 
@@ -53,6 +45,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     super.bindService(service)
 
+    metrics = new Metrics(service.name)
+
+    // TODO: cleanup service registration
     // Setup current consistent timestamp lookup storage function
     info("Setup consistent timestamp lookup for service", service.name)
     store.setCurrentConsistentTimestamp((range) => {
@@ -70,6 +65,45 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     super.serviceEvent(event)
 
     event match {
+      case event: StatusTransitionAttemptEvent if txLogEnabled && event.to == MemberStatus.Up => {
+        // Trying to transition the service member up. Ensure service member is consistent before allowing it to go up.
+        this.synchronized {
+          consistencyStates.get(event.member.token) match {
+            case Some(MemberConsistencyState.Ok) => {
+              // Service member is consistent, let member status goes up!
+              event.vote(pass = true)
+            }
+            case Some(MemberConsistencyState.Recovering) => {
+              // Service member is recovering, stay down until recovery is completed
+              event.vote(pass = false)
+            }
+            case Some(MemberConsistencyState.Error) => {
+              // Service member had a consistency error, reset the consistency state and retry new recovery later.
+              consistencyStates -= event.member.token
+              event.vote(pass = false)
+            }
+            case None => {
+              // No consistency state! Perform consistency validation and restore member consistency if possible.
+              val member = ResolvedServiceMember(service, event.member)
+              metrics.consistencyRecovering.mark()
+              consistencyStates += (member.token -> MemberConsistencyState.Recovering)
+
+              restoreMemberConsistency(member, onSuccess = {
+                metrics.consistencyOk.mark()
+                this.synchronized {
+                  consistencyStates += (member.token -> MemberConsistencyState.Ok)
+                }
+              }, onError = {
+                metrics.consistencyError.mark()
+                this.synchronized {
+                  consistencyStates += (member.token -> MemberConsistencyState.Error)
+                }
+              })
+              event.vote(pass = false)
+            }
+          }
+        }
+      }
       case event: StatusTransitionEvent if cluster.isLocalNode(event.member.node) => {
         event.to match {
           case MemberStatus.Up => {
@@ -84,7 +118,13 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               val recorder = new TransactionRecorder(ResolvedServiceMember(service, event.member), txLog,
                 consistencyDelay = timestampGenerator.responseTimeout + 1000,
                 consistencyTimeout = math.max(service.responseTimeout + 2000, 15000),
-                commitFrequency = txLogCommitFrequency)
+                commitFrequency = txLogCommitFrequency, onConsistencyError = {
+                  metrics.consistencyError.mark()
+                  this.synchronized {
+                    consistencyStates += (event.member.token -> MemberConsistencyState.Error)
+                  }
+                  event.member.setStatus(MemberStatus.Down, triggerEvent = true)
+                })
               recorders += (event.member.token -> recorder)
               recorder.start()
             }
@@ -108,12 +148,28 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     message.serviceName == service.name && store.requiresConsistency(message)
   }
 
+  private def getLocalServiceMemberFromMessage(message: Message): Option[ServiceMember] = {
+    service.resolveMembers(message.token, 1).find(member => cluster.isLocalNode(member.node))
+  }
+
+  private def isMessageLocalMemberUp(message: Message): Boolean = {
+    getLocalServiceMemberFromMessage(message) match {
+      case Some(member) if member.status == MemberStatus.Up => true
+      case _ => false
+    }
+  }
+
   override def handleIncoming(action: Action, message: InMessage, next: Unit => Unit) {
     message.function match {
       case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
-        message.method match {
-          case ActionMethod.GET => executeConsistentReadRequest(message, next)
-          case _ => executeConsistentWriteRequest(message, next)
+        if (isMessageLocalMemberUp(message)) {
+          message.method match {
+            case ActionMethod.GET => executeConsistentReadRequest(message, next)
+            case _ => executeConsistentWriteRequest(message, next)
+          }
+        } else {
+          metrics.blockedInMessageServiceDown.mark()
+          message.replyWithError(new UnavailableException)
         }
       }
       case _ => {
@@ -206,16 +262,96 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   private def recordConsistentMessage(message: Message) {
-    val recorderOpt = service.resolveMembers(message.token, service.resolver.replica).find(
-      member => cluster.isLocalNode(member.node)).flatMap(member => recorders.get(member.token))
+    val recorderOpt = for {
+      member <- getLocalServiceMemberFromMessage(message)
+      recorder <- recorders.get(member.token)
+    } yield recorder
     recorderOpt match {
       case Some(recorder) => {
         recorder.appendMessage(message)
       }
       case _ => {
-        recorderNotFound.mark()
+        metrics.recorderNotFound.mark()
         debug("No transaction log recorder found for token {} (message={}).", message.token, message)
       }
     }
   }
+
+  private def restoreMemberConsistency(member: ResolvedServiceMember, onSuccess: => Unit, onError: => Unit) {
+    try {
+      val finalLogIndex = new ConsistencyRecovery(txLogDir, store).restoreMemberConsistency(member, onError)
+      finalLogIndex.map(_.consistentTimestamp) match {
+        case Some(lastLogTimestamp) => {
+          // Ensure that transaction log and storage have the same final transaction timestamp
+          val lastStoreTimestamp = store.getLastTimestamp(member.ranges)
+          if (lastLogTimestamp == lastStoreTimestamp) {
+            info("The service member transaction log and store are consistent {}", member)
+            onSuccess
+          } else {
+            error("Transaction log and storage last timestamps are different! (log={}, store={}) {}",
+              lastLogTimestamp, lastStoreTimestamp, member)
+            onError
+          }
+        }
+        case None => {
+          // No transaction log, assume the store is consistent
+          info("The service member has no transaction log and is assumed to be consistent {}", member)
+          onSuccess
+        }
+      }
+    } catch {
+      case e: Exception => {
+        error("Got an exception during the service member recovery! {}", member, e)
+        onError
+      }
+    }
+  }
+
+  private class Metrics(scope: String) extends Instrumented {
+    lazy val recorderNotFound = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
+      "recorder-not-found", scope, "recorder-not-found", TimeUnit.SECONDS))
+    lazy val consistencyOk = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
+      "consistency-ok", scope, "consistency-ok", TimeUnit.SECONDS))
+    lazy val consistencyRecovering = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
+      "consistency-recovering", scope, "consistency-recovering", TimeUnit.SECONDS))
+    lazy val consistencyError = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
+      "consistency-error", scope, "consistency-error", TimeUnit.SECONDS))
+    lazy val blockedInMessageServiceDown = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
+      "block-in-msg-service-down", scope, "block-in-msg-service-down", TimeUnit.SECONDS))
+
+
+    private val recordersCount = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
+      "recorders-count", scope, new Gauge[Long] {
+        def value = {
+          recorders.size
+        }
+      }
+    )
+    private val recordersQueueSize = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
+      "recorders-queue-size", scope, new Gauge[Long] {
+        def value = {
+          recorders.values.foldLeft[Int](0)((sum, recorder) => sum + recorder.queueSize)
+        }
+      }
+    )
+    private val recordersPendingSize = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
+      "recorders-pending-tx-size", scope, new Gauge[Long] {
+        def value = {
+          recorders.values.foldLeft[Int](0)((sum, recorder) => sum + recorder.pendingSize)
+        }
+      }
+    )
+  }
+}
+
+sealed trait MemberConsistencyState
+
+object MemberConsistencyState {
+
+  object Recovering extends MemberConsistencyState
+
+  object Ok extends MemberConsistencyState
+
+  object Error extends MemberConsistencyState
+
 }

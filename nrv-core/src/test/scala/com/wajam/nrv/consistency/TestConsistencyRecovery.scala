@@ -7,7 +7,7 @@ import java.io.File
 import java.nio.file.Files
 import org.mockito.Mockito._
 import persistence.LogRecord.{Response, Request, Index}
-import persistence.FileTransactionLog
+import persistence.{LogRecord, FileTransactionLog}
 import com.wajam.nrv.service.TokenRange
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.utils.IdGenerator
@@ -16,7 +16,7 @@ import Consistency._
 
 
 @RunWith(classOf[JUnitRunner])
-class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter with MockitoSugar {
+class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter with MockitoSugar {
 
   var member: ResolvedServiceMember = null
   var logDir: File = null
@@ -57,10 +57,11 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
   }
 
   test("empty log directory should not fail") {
-    val recovery = new TransactionRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
 
     logDir.list() should be(Array())
-    recovery.recoverMember(member)
+    val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
+    lastIndex should be(None)
     logDir.list() should be(Array())
     verifyZeroInteractions(mockStore)
   }
@@ -73,8 +74,9 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r3 = txLog.append(Index(3, consistentTimestamp = Some(r1.timestamp)))
     txLog.commit()
 
-    val recovery = new TransactionRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
-    recovery.recoverMember(member)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
+    lastIndex should be(Some(r3))
 
     verifyZeroInteractions(mockStore)
 
@@ -91,8 +93,8 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
     txLog.commit()
 
     idGenerator.lastId = 300
-    val recovery = new TransactionRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
-    recovery.recoverMember(member)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
 
     verifyZeroInteractions(mockStore)
 
@@ -106,41 +108,77 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
 
   test("incomplete transaction should BE truncated and complete transactions should BE rewritten") {
     val txLog = createTxLog()
-    val request1 = createRequestMessage(timestamp = 11, token = 0) // complete and confirmed by request3 response, not rewritten
-    val request2 = createRequestMessage(timestamp = 12, token = 1) // incomplete, truncated
-    val request3 = createRequestMessage(timestamp = 13, token = 2) // complete but unconfirmed, rewritten
-    val request4 = createRequestMessage(timestamp = 14, token = 0) // complete but unconfirmed, rewritten
-    val request5 = createRequestMessage(timestamp = 15, token = 0) // also incomplete
+    val request1 = createRequestMessage(timestamp = 1, token = 0) // complete
+    val request2 = createRequestMessage(timestamp = 2, token = 1) // complete and confirmed by request3
+    val request3 = createRequestMessage(timestamp = 3, token = 2) // complete but unconfirmed, rewritten
+    val request4 = createRequestMessage(timestamp = 4, token = 0) // complete but unconfirmed, rewritten
+    val request5 = createRequestMessage(timestamp = 5, token = 0) // incomplete, truncated
     val r1 = txLog.append(Request(1, None, request3))
-    val r2 = txLog.append(Request(2, None, request1))
-    val r3 = txLog.append(Request(3, None, request2))
-    val r4 = txLog.append(Response(4, None, createResponseMessage(request1)))
-    val r5 = txLog.append(Request(5, None, request4))
-    val r6 = txLog.append(Request(6, None, request5))
-    val r7 = txLog.append(Response(7, getMessageTimestamp(request1), createResponseMessage(request4)))
-    val r8 = txLog.append(Response(8, getMessageTimestamp(request1), createResponseMessage(request3)))
+    val r2 = txLog.append(Request(2, None, request2))
+    val r3 = txLog.append(Request(3, None, request1))
+    val r4 = txLog.append(Response(4, None, createResponseMessage(request2)))
+    val r5 = txLog.append(Response(5, None, createResponseMessage(request1)))
+    val r6 = txLog.append(Response(6, getMessageTimestamp(request2), createResponseMessage(request3)))
+    val r7 = txLog.append(Request(7, getMessageTimestamp(request2), request4))
+    val r8 = txLog.append(Request(8, getMessageTimestamp(request2), request5))
+    val r9 = txLog.append(Response(9, getMessageTimestamp(request2), createResponseMessage(request4)))
     txLog.commit()
 
     idGenerator.lastId = 300
-    val recovery = new TransactionRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
-    recovery.recoverMember(member)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
 
-    val r301 = Request(301, None, request1)
-    val r302 = Response(302, None, createResponseMessage(request1))
-    val r303 = Response(303, getMessageTimestamp(request1), createResponseMessage(request3))
-    val r304 = Request(304, getMessageTimestamp(request3), request4)
-    val r305 = Response(305, getMessageTimestamp(request3), createResponseMessage(request4))
-    val r306 = Index(306, getMessageTimestamp(request4))
-    txLog.read.toList should be(List(r1, r301, r302, r303, r304, r305, r306))
+    val r301 = Request(301, None, request2)
+    val r302 = Response(302, None, createResponseMessage(request2))
+    val r303 = Response(303, None, createResponseMessage(request3))
+    val r304 = Request(304, None, request1)
+    val r305 = Response(305, None, createResponseMessage(request1))
+    val r306 = Request(306, None, request4)
+    val r307 = Response(307, None, createResponseMessage(request4))
+    val r308 = Index(308, getMessageTimestamp(request4))
+    lastIndex should be(Some(r308))
+    txLog.read.toList should be(List(r1, r301, r302, r303, r304, r305, r306, r307, r308))
 
-    verify(mockStore).truncateAt(Consistency.getMessageTimestamp(request2).get, request2.token)
     verify(mockStore).truncateAt(Consistency.getMessageTimestamp(request5).get, request5.token)
 
     logDir.list() should be(Array("service-0000001000-1:.log", "service-0000001000-301:.log"))
   }
 
+  test("when rewritten tx timestamps are all smaller than consistent timestamp, finalize with consistent timestamp") {
+    val txLog = createTxLog()
+    val request1 = createRequestMessage(timestamp = 1, token = 0) // complete
+    val request2 = createRequestMessage(timestamp = 2, token = 1) // complete and confirmed by request4
+    val request3 = createRequestMessage(timestamp = 3, token = 2) // complete
+    val request4 = createRequestMessage(timestamp = 4, token = 0) // incomplete, truncated
+    val r1 = txLog.append(Request(1, None, request3))
+    val r2 = txLog.append(Request(2, None, request2))
+    val r3 = txLog.append(Request(3, None, request1))
+    val r4 = txLog.append(Response(4, None, createResponseMessage(request3)))
+    val r5 = txLog.append(Response(5, None, createResponseMessage(request2)))
+    val r6 = txLog.append(Response(6, None, createResponseMessage(request1)))
+    val r7 = txLog.append(Request(7, getMessageTimestamp(request2), request4))
+    txLog.commit()
+
+    idGenerator.lastId = 300
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
+
+    val r301 = Request(301, None, request2)
+    val r302 = Response(302, None, createResponseMessage(request2))
+    val r303 = Response(303, None, createResponseMessage(request3))
+    val r304 = Request(304, None, request1)
+    val r305 = Response(305, None, createResponseMessage(request1))
+    val r306 = Index(306, getMessageTimestamp(request2))
+    lastIndex should be(Some(r306))
+    txLog.read.toList should be(List(r1, r301, r302, r303, r304, r305, r306))
+
+    verify(mockStore).truncateAt(Consistency.getMessageTimestamp(request4).get, request4.token)
+
+    logDir.list() should be(Array("service-0000001000-1:.log", "service-0000001000-301:.log"))
+  }
+
   test("pending recovery log should BE finalized") {
-    val recovery = new TransactionRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
     val request1 = createRequestMessage(timestamp = 11, token = 0) // complete
     val request2 = createRequestMessage(timestamp = 12, token = 1) // complete and in non finalized recovery log
 
@@ -165,7 +203,8 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
 
     // Recovery should simply finalize the pending recover log
     idGenerator.lastId = 500 // larger id seed, to ensure records are not rewritten
-    recovery.recoverMember(member)
+    val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
+    lastIndex should be(Some(r203))
 
     txLog.read.toList should be(List(r1, r2, r201, r202, r203))
     logDir.list().sorted should be(Array("service-0000001000-1:.log", "service-0000001000-201:.log",
@@ -174,7 +213,7 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
   }
 
   test("outdated pending recovery log should fail new recovery attempt") {
-    val recovery = new TransactionRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
     val request1 = createRequestMessage(timestamp = 11, token = 0) // complete and in non finalized recovery log
     val request2 = createRequestMessage(timestamp = 12, token = 1) // complete in member log
 
@@ -199,14 +238,14 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
     recovery.recoveryDir.list().sorted should be(Array("service-0000001000-201:.log"))
 
     evaluating {
-      recovery.recoverMember(member)
+      recovery.restoreMemberConsistency(member, onRecoveryFailure = throw new ConsistencyException)
     } should produce[ConsistencyException]
 
     txLog.read.toList should be(List(r1, r2, r3, r4, r5))
   }
 
   test("pending recovery log without member log should fail recovery attempt") {
-    val recovery = new TransactionRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
     val request1 = createRequestMessage(timestamp = 11, token = 0) // only in non finalized recovery log
 
     // Append 2 complete transactions in member log
@@ -224,14 +263,14 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
     recovery.recoveryDir.list().sorted should be(Array("service-0000001000-201:.log"))
 
     evaluating {
-      recovery.recoverMember(member)
+      recovery.restoreMemberConsistency(member, onRecoveryFailure = throw new ConsistencyException)
     } should produce[ConsistencyException]
 
     txLog.read.toList should be(List())
   }
 
   test("incomplete pending recovery log should BE cleaned and recovery redone") {
-    val recovery = new TransactionRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
     val request1 = createRequestMessage(timestamp = 11, token = 0) // complete
 
     // Append 1 transaction in member log
@@ -250,12 +289,13 @@ class TestTransactionRecovery extends TestTransactionBase with BeforeAndAfter wi
 
     // Recovery should simply finalize the pending recover log
     idGenerator.lastId = 500 // larger id seed, to ensure records ARE rewritten
-    recovery.recoverMember(member)
+    val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
 
     val r501 = recoveryTxLog.append(Request(501, None, request1))
     val r502 = recoveryTxLog.append(Response(502, None, createResponseMessage(request1)))
     val r503 = recoveryTxLog.append(Index(503, getMessageTimestamp(request1)))
 
+    lastIndex should be(Some(r503))
     txLog.read.toList should be(List(r501, r502, r503))
     logDir.list().sorted should be(Array("service-0000001000-1:.log", "service-0000001000-501:.log"))
     verifyZeroInteractions(mockStore)
