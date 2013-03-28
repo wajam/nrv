@@ -120,11 +120,12 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                 consistencyTimeout = math.max(service.responseTimeout + 2000, 15000),
                 commitFrequency = txLogCommitFrequency, onConsistencyError = {
                   metrics.consistencyError.mark()
-                  // NOT THE RIGHT WAY TO PUT SERVICE MEMBER DOWN!!! JUST NOT DO IT UNTIL PROPERLY DONE!!!
-//                  this.synchronized {
-//                    consistencyStates += (event.member.token -> MemberConsistencyState.Error)
-//                  }
-//                  event.member.setStatus(MemberStatus.Down, triggerEvent = true)
+                  if (txLogEnabled) {
+                    this.synchronized {
+                      consistencyStates += (event.member.token -> MemberConsistencyState.Error)
+                    }
+                    event.member.setStatus(MemberStatus.Down, triggerEvent = true)
+                  }
                 })
               recorders += (event.member.token -> recorder)
               recorder.start()
