@@ -77,10 +77,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
       case e: Exception => {
         consistencyErrorAppend.mark()
         warn("Error appending request message {}. {}", message, e)
-        handleConsistencyError(Some(e))
-
-        val ce = new ConsistencyException
-        ce.initCause(e)
+        val ce = handleConsistencyError(Some(e))
         throw ce
       }
     }
@@ -111,10 +108,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
       case e: Exception => {
         consistencyErrorAppend.mark()
         warn("Error appending response message {}. {}", message, e)
-        val exception = handleConsistencyError(Some(e))
-
-        val ce = new ConsistencyException
-        ce.initCause(e)
+        val ce = handleConsistencyError(Some(e))
         throw ce
       }
     }
