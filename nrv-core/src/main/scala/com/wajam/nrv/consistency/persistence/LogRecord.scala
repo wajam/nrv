@@ -15,6 +15,10 @@ sealed trait TimestampedRecord extends LogRecord {
   val token: Long
 }
 
+trait MessageProxy {
+  def getMessage: Message
+}
+
 object LogRecord {
 
   def apply(id: Long, consistentTimestamp: Option[Timestamp], message: Message): LogRecord = {
@@ -25,8 +29,11 @@ object LogRecord {
   }
 
   case class Request(id: Long, consistentTimestamp: Option[Timestamp], timestamp: Timestamp, token: Long,
-                     message: Message) extends TimestampedRecord {
-    override val hashCode: Int = {
+                     messageProxy: MessageProxy) extends TimestampedRecord {
+
+    def message: Message = messageProxy.getMessage
+
+    lazy override val hashCode: Int = {
       41 * (
         41 * (
           41 * (
@@ -54,6 +61,12 @@ object LogRecord {
   }
 
   object Request {
+    def apply(id: Long, consistentTimestamp: Option[Timestamp], timestamp: Timestamp, token: Long,
+                      message: => Message): Request = {
+      Request(id, consistentTimestamp, Consistency.getMessageTimestamp(message).get, message.token, new MessageProxy {
+        def getMessage = message
+      })
+    }
     def apply(id: Long, consistentTimestamp: Option[Timestamp], message: Message): Request = {
       require(message.function == MessageType.FUNCTION_CALL)
       Request(id, consistentTimestamp, Consistency.getMessageTimestamp(message).get, message.token, message)

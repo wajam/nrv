@@ -6,10 +6,9 @@ import scala.Some
 import com.wajam.nrv.data.Message
 import com.wajam.nrv.consistency.persistence.LogRecord.{Index, Response, Request}
 import com.wajam.nrv.protocol.codec.{MessageJavaSerializeCodec, Codec}
+import LogRecordSerializer._
 
-private[persistence] class LogRecordSerializer {
-
-  import LogRecordSerializer._
+private[persistence] class LogRecordSerializer(codec: Codec = DefaultCodec) {
 
   @throws(classOf[IOException])
   def serialize(record: LogRecord): Array[Byte] = {
@@ -100,9 +99,11 @@ private[persistence] class LogRecordSerializer {
     if (readLen != messageLen) {
       throw new IOException("Read message length %d not equals to %d".format(readLen, messageLen))
     }
-    val message = codec.decode(encodedMessage).asInstanceOf[Message]
+    lazy val message = codec.decode(encodedMessage).asInstanceOf[Message]
 
-    Request(id, consistentTimestamp, timestamp, token, message)
+    Request(id, consistentTimestamp, timestamp, token, new MessageProxy {
+      def getMessage = message
+    })
   }
 
   @throws(classOf[IOException])
@@ -144,5 +145,5 @@ private[persistence] object LogRecordSerializer {
   val IndexType = 3
 
   // TODO: Change to protobuf codec when ready
-  val codec: Codec = new MessageJavaSerializeCodec
+  val DefaultCodec: Codec = new MessageJavaSerializeCodec
 }
