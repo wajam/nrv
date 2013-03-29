@@ -66,20 +66,11 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
       // The id generation and max timestamp computation are synchronized inside the append method implementation
       var requestMaxTimestamp: Timestamp = null
       val request = txLog.append {
-        consistencyError match {
-          case Some(e) => {
-            // Do not append request if recorder is inconsistent
-            val ce = new ConsistencyException
-            ce.initCause(e)
-            throw ce
-          }
-          case None => {
-            val request = Request(idGenerator.nextId, currentConsistentTimestamp, message)
-            requestMaxTimestamp = if (currentMaxTimestamp > request.timestamp) currentMaxTimestamp else request.timestamp
-            currentMaxTimestamp = requestMaxTimestamp
-            request
-          }
-        }
+        validateConsistency()
+        val request = Request(idGenerator.nextId, currentConsistentTimestamp, message)
+        requestMaxTimestamp = if (currentMaxTimestamp > request.timestamp) currentMaxTimestamp else request.timestamp
+        currentMaxTimestamp = requestMaxTimestamp
+        request
       }
       consistencyActor ! RequestAppended(request, requestMaxTimestamp)
     } catch {
@@ -101,17 +92,8 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
         case Some(timestamp) => {
           // The id generation is synchronized inside the append method implementation
           val response = txLog.append {
-            consistencyError match {
-              case Some(e) => {
-                // Do not append response if recorder is inconsistent
-                val ce = new ConsistencyException
-                ce.initCause(e)
-                throw ce
-              }
-              case None => {
-                Response(idGenerator.nextId, currentConsistentTimestamp, message)
-              }
-            }
+            validateConsistency()
+            Response(idGenerator.nextId, currentConsistentTimestamp, message)
           }
           consistencyActor ! ResponseAppended(response)
         }
@@ -141,19 +123,22 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
   private def appendIndex(consistentTimestamp: Timestamp) {
     txLog.append {
       // The id generation is synchronized inside the append method implementation
-      consistencyError match {
-        case Some(e) => {
-          // Do not append index if recorder is inconsistent
-          val ce = new ConsistencyException
-          ce.initCause(e)
-          throw ce
-        }
-        case None => {
-          Index(idGenerator.nextId, Some(consistentTimestamp))
-        }
-      }
+      validateConsistency()
+      Index(idGenerator.nextId, Some(consistentTimestamp))
     }
     txLog.commit()
+  }
+
+  private def validateConsistency() {
+    consistencyError match {
+      case Some(e) => {
+        // Do not append index if recorder is inconsistent
+        val ce = new ConsistencyException
+        ce.initCause(e)
+        throw ce
+      }
+      case None =>
+    }
   }
 
   private def handleConsistencyError(e: Option[Exception] = None): ConsistencyException = {
