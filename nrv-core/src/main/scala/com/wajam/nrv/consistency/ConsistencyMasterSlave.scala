@@ -13,11 +13,23 @@ import com.yammer.metrics.core.Gauge
 import com.wajam.nrv.UnavailableException
 
 /**
- * Consistency that (will eventually) sends read/write to a master replica and replicate modification to the
- * other replicas.
+ * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
+ * recorded in a transaction log per service member and replicated to slave replicas.
+ *
+ * TODO: more about transfering the data from log or from store. More about replicas selection.
+ *
+ * The consistency manager ensure that the storage and the transaction log are always consistent. A service member is
+ * only allowed to goes Up if the store and the transaction log are consistent. In case of inconsistency during the
+ * service member storage leftime, the service member status is set to Down. The consistency manager tries to perform
+ * the necessary recovery while the service member tries to goes up.
+ *
+ * ASSUMPTIONS:
+ * - The messages for a given token are sequenced before reaching the consistency manager.
+ * - Messages timestamps are unique in the whole cluster and also sequenced per message token.
  *
  * IMPORTANT NOTES:
- * - Extends ConsistencyOne until real master/slave consistency is implemented.
+ * - This class is still a work in progress.
+ * - Temporary extends ConsistencyOne until real master/slave replicas selection implementation.
  * - Support binding to a single service. The service must extends ConsistentStore.
  */
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
@@ -65,40 +77,63 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     super.serviceEvent(event)
 
     event match {
-      case event: StatusTransitionAttemptEvent if txLogEnabled && event.to == MemberStatus.Up => {
-        // Trying to transition the service member up. Ensure service member is consistent before allowing it to go up.
+      case event: StatusTransitionAttemptEvent if txLogEnabled && event.to == MemberStatus.Down => {
+        // Trying to transition the service member Down. Reset the service member consistency.
+        this.synchronized {
+          metrics.consistencyNone.mark()
+          val member = event.member
+          info("StatusTransitionAttemptEvent: status=Down, stateOld={}, stateNew=None, member={}",
+            consistencyStates.get(member.token), event.member)
+          consistencyStates -= event.member.token
+          event.vote(pass = true)
+        }
+      }
+      case event: StatusTransitionAttemptEvent if txLogEnabled && event.to == MemberStatus.Joining => {
+        // Trying to transition the service member to joining. Initiate consistency recovery if necessary.
         this.synchronized {
           consistencyStates.get(event.member.token) match {
-            case Some(MemberConsistencyState.Ok) => {
-              // Service member is consistent, let member status goes up!
-              event.vote(pass = true)
-            }
-            case Some(MemberConsistencyState.Recovering) => {
-              // Service member is recovering, stay down until recovery is completed
-              event.vote(pass = false)
-            }
-            case Some(MemberConsistencyState.Error) => {
-              // Service member had a consistency error, reset the consistency state and retry new recovery later.
-              consistencyStates -= event.member.token
-              event.vote(pass = false)
-            }
-            case None => {
-              // No consistency state! Perform consistency validation and restore member consistency if possible.
+            case None | Some(MemberConsistencyState.Error) => {
+              // Joining when service member is not consistent or in process to become consistent! Perform consistency
+              // validation and try to restore service member consistency
               val member = ResolvedServiceMember(service, event.member)
               metrics.consistencyRecovering.mark()
+              info("StatusTransitionAttemptEvent: status=Joining, stateOld=None|Error, stateNew=Recovering, member={}",
+                member)
               consistencyStates += (member.token -> MemberConsistencyState.Recovering)
 
               restoreMemberConsistency(member, onSuccess = {
                 metrics.consistencyOk.mark()
+                info("restoreMemberConsistency: onSuccess {}", member)
                 this.synchronized {
                   consistencyStates += (member.token -> MemberConsistencyState.Ok)
                 }
               }, onError = {
+                info("restoreMemberConsistency: onError {}", member)
                 metrics.consistencyError.mark()
                 this.synchronized {
                   consistencyStates += (member.token -> MemberConsistencyState.Error)
                 }
               })
+            }
+            case Some(MemberConsistencyState.Ok) | Some(MemberConsistencyState.Recovering) => {
+              // Already consistent or recovering. Nothing to do.
+              info("StatusTransitionAttemptEvent: status=Joining, state=Ok|Recovering, member={}", event.member)
+            }
+          }
+        }
+      }
+      case event: StatusTransitionAttemptEvent if txLogEnabled && event.to == MemberStatus.Up => {
+        // Trying to transition the service member Up. Ensure service member is consistent before allowing it to go up.
+        this.synchronized {
+          consistencyStates.get(event.member.token) match {
+            case Some(MemberConsistencyState.Ok) => {
+              // Service member is consistent, let member status goes up!
+              info("StatusTransitionAttemptEvent: status=Up, state=Ok, member={}", event.member)
+              event.vote(pass = true)
+            }
+            case state => {
+              // Service member not consistent yet. Do not allow service member status going Up.
+              info("StatusTransitionAttemptEvent: status=Up, state={}, member={}", state, event.member)
               event.vote(pass = false)
             }
           }
@@ -115,23 +150,26 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               } else {
                 NullTransactionLog
               }
-              val recorder = new TransactionRecorder(ResolvedServiceMember(service, event.member), txLog,
+              val member = ResolvedServiceMember(service, event.member)
+              val recorder = new TransactionRecorder(member, txLog,
                 consistencyDelay = timestampGenerator.responseTimeout + 1000,
                 consistencyTimeout = math.max(service.responseTimeout + 2000, 15000),
                 commitFrequency = txLogCommitFrequency, onConsistencyError = {
                   metrics.consistencyError.mark()
                   if (txLogEnabled) {
                     this.synchronized {
-                      consistencyStates += (event.member.token -> MemberConsistencyState.Error)
+                      info("onConsistencyError: status={}, stateNew=Error, stateOld={}, member={}", event.member.status,
+                        consistencyStates.get(member.token), member)
+                      consistencyStates += (member.token -> MemberConsistencyState.Error)
                     }
-                    event.member.setStatus(MemberStatus.Down, triggerEvent = true)
+                    cluster.clusterManager.trySetServiceMemberStatusDown(service, event.member)
                   }
                 })
-              recorders += (event.member.token -> recorder)
+              recorders += (member.token -> recorder)
               recorder.start()
             }
           }
-          case _ => {
+          case MemberStatus.Down => {
             this.synchronized {
               // Remove transaction recorder for all other cases
               info("Remove transaction recorders for {}", event.member)
@@ -140,6 +178,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               recorder.foreach(_.kill())
             }
           }
+          case MemberStatus.Joining => // Nothing to do
         }
       }
       case _ =>
@@ -150,28 +189,19 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     message.serviceName == service.name && store.requiresConsistency(message)
   }
 
-  private def getLocalServiceMemberFromMessage(message: Message): Option[ServiceMember] = {
-    service.resolveMembers(message.token, 1).find(member => cluster.isLocalNode(member.node))
-  }
-
-  private def isMessageLocalMemberUp(message: Message): Boolean = {
-    getLocalServiceMemberFromMessage(message) match {
-      case Some(member) if member.status == MemberStatus.Up => true
-      case _ => false
-    }
+  private def getRecorderFromMessage(message: Message): Option[TransactionRecorder] = {
+    for {
+      member <- service.resolveMembers(message.token, 1).find(member => cluster.isLocalNode(member.node))
+      recorder <- recorders.get(member.token)
+    } yield recorder
   }
 
   override def handleIncoming(action: Action, message: InMessage, next: Unit => Unit) {
     message.function match {
       case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
-        if (isMessageLocalMemberUp(message)) {
-          message.method match {
-            case ActionMethod.GET => executeConsistentReadRequest(message, next)
-            case _ => executeConsistentWriteRequest(message, next)
-          }
-        } else {
-          metrics.blockedInMessageServiceDown.mark()
-          message.replyWithError(new UnavailableException)
+        message.method match {
+          case ActionMethod.GET => executeConsistentReadRequest(message, next)
+          case _ => executeConsistentWriteRequest(message, next)
         }
       }
       case _ => {
@@ -194,8 +224,23 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   private def executeConsistentWriteRequest(req: InMessage, next: Unit => Unit) {
     fetchTimestampAndExecuteNext(req, _ => {
-      recordConsistentMessage(req)
-      next()
+      getRecorderFromMessage(req) match {
+        case Some(recorder) => {
+          try {
+            recorder.appendMessage(req)
+            next()
+          } catch {
+            case e: Exception => {
+              req.replyWithError(e)
+            }
+          }
+        }
+        case None => {
+          metrics.inRequestServiceDown.mark()
+          warn("No transaction recorder found for request (token {}, message={}).", req.token, req)
+          req.replyWithError(new UnavailableException)
+        }
+      }
     })
   }
 
@@ -259,28 +304,29 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   private def executeConsistentWriteResponse(res: OutMessage, next: Unit => Unit) {
-    recordConsistentMessage(res)
-    next()
-  }
-
-  private def recordConsistentMessage(message: Message) {
-    val recorderOpt = for {
-      member <- getLocalServiceMemberFromMessage(message)
-      recorder <- recorders.get(member.token)
-    } yield recorder
-    recorderOpt match {
+    getRecorderFromMessage(res) match {
       case Some(recorder) => {
-        recorder.appendMessage(message)
+        try {
+          recorder.appendMessage(res)
+        } catch {
+          case e: Exception => {
+            res.error = Some(e)
+          }
+        }
       }
-      case _ => {
-        metrics.recorderNotFound.mark()
-        debug("No transaction log recorder found for token {} (message={}).", message.token, message)
+      case None => {
+        metrics.outResponseServiceDown.mark()
+        warn("No transaction recorder found for response (token {}, message={}).", res.token, res)
+        res.error = Some(new UnavailableException)
       }
     }
+
+    next()
   }
 
   private def restoreMemberConsistency(member: ResolvedServiceMember, onSuccess: => Unit, onError: => Unit) {
     try {
+      // TODO: Use Future
       val finalLogIndex = new ConsistencyRecovery(txLogDir, store).restoreMemberConsistency(member, onError)
       finalLogIndex.map(_.consistentTimestamp) match {
         case Some(lastLogTimestamp) => {
@@ -310,16 +356,18 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   private class Metrics(scope: String) extends Instrumented {
-    lazy val recorderNotFound = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
-      "recorder-not-found", scope, "recorder-not-found", TimeUnit.SECONDS))
+    lazy val inRequestServiceDown = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
+      "in-request-service-down", scope, "in-request-service-down", TimeUnit.SECONDS))
+    lazy val outResponseServiceDown = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
+      "out-response-service-down", scope, "out-response-service-down", TimeUnit.SECONDS))
+    lazy val consistencyNone = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
+      "consistency-none", scope, "consistency-none", TimeUnit.SECONDS))
     lazy val consistencyOk = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
       "consistency-ok", scope, "consistency-ok", TimeUnit.SECONDS))
     lazy val consistencyRecovering = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
       "consistency-recovering", scope, "consistency-recovering", TimeUnit.SECONDS))
     lazy val consistencyError = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
       "consistency-error", scope, "consistency-error", TimeUnit.SECONDS))
-    lazy val blockedInMessageServiceDown = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
-      "block-in-msg-service-down", scope, "block-in-msg-service-down", TimeUnit.SECONDS))
 
 
     private val recordersCount = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
@@ -350,10 +398,28 @@ sealed trait MemberConsistencyState
 
 object MemberConsistencyState {
 
-  object Recovering extends MemberConsistencyState
+  /**
+   * The consistency manager is verifying the service member consistency and taking action to ensure the consistency.
+   * Goig into this state when the service member is joining the cluster. The service member status cannot be Up
+   * while being in this consistency state.
+   */
+  object Recovering extends MemberConsistencyState {
+    override val toString = "Recovering"
+  }
 
-  object Ok extends MemberConsistencyState
+  /**
+   * The service member is consistent and member status can trasition to Up from the consistency manager perspective.
+   */
+  object Ok extends MemberConsistencyState {
+    override val toString = "Ok"
+  }
 
-  object Error extends MemberConsistencyState
+  /**
+   * There is a problem with the service member consistency. Stay in this state untill the service member status
+   * goes Down.
+   */
+  object Error extends MemberConsistencyState {
+    override val toString = "Error"
+  }
 
 }

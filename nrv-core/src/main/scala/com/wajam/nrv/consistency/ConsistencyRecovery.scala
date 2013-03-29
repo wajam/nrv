@@ -49,13 +49,13 @@ class ConsistencyRecovery(logDir: String, store: ConsistentStore, idGenerator: I
       val lastLoggedRecord = memberTxLog.getLastLoggedRecord
       lastLoggedRecord match {
         case Some(lastRecord: TimestampedRecord) => {
-          // The last record is NOT an Index record so we need tp perform recovery.
+          // The last record is NOT an Index record so we need to perform recovery.
           // Load all records from the last consistent timestamp and truncate the transactions without a response
           // in the store
           val (consistentTxOpt, pending) = loadAllPending(memberTxLog, lastRecord.consistentTimestamp)
-          val incomplete = pending.filter(_.response.isEmpty)
-          info("Truncating {} incomplete records for member {}.", incomplete.size, member)
-          incomplete.foreach(tx => recoverTruncateTimer.time(store.truncateAt(tx.timestamp, tx.token)))
+          val (noResponse, withResponse) = pending.partition(_.response.isEmpty)
+          info("Truncating {} incomplete records for member {}.", noResponse.size, member)
+          noResponse.foreach(tx => recoverTruncateTimer.time(store.truncateAt(tx.timestamp, tx.token)))
 
           // Rewrite transaction records with a response in a separate recovery log files. Rewrite first the last
           // consistent transaction, then the transactions with only responses (their request records exist before
@@ -63,7 +63,7 @@ class ConsistencyRecovery(logDir: String, store: ConsistentStore, idGenerator: I
           // sequence and the complete transaction sequence are ordered by timestamps in their respective collection.
           recoveryDir.mkdir()
           val recoveryTxLog = new FileTransactionLog(member.serviceName, member.token, recoveryDir.getAbsolutePath)
-          val (complete, responseOnly) = pending.filter(_.response.isDefined).partition(_.request.isDefined)
+          val (complete, responseOnly) = withResponse.partition(_.request.isDefined)
 
           // Initialize the consistent timestamp of the first transaction to rewrite which is the consistent timestamp
           // of the consistent transaction (consistent transaction is the rewrite position in the original log). Also
@@ -233,7 +233,7 @@ class ConsistencyRecovery(logDir: String, store: ConsistentStore, idGenerator: I
   /**
    * Returns a tuple with the transaction of the specified consistent timestamp and the sequence of all the following
    * transactions (complete and incomplete). The consistent timestamp transaction is not in the sequence and the
-   * sequence ordered by timestamp.
+   * sequence is ordered by timestamp.
    */
   private def loadAllPending(txLog: FileTransactionLog, consistentTimestamp: Option[Timestamp]):
   (Option[PendingTransaction], Seq[PendingTransaction]) = {
@@ -267,7 +267,7 @@ class ConsistencyRecovery(logDir: String, store: ConsistentStore, idGenerator: I
         case None => None
       }
 
-      (consistentTx ,pending.values.toList.sorted)
+      (consistentTx, pending.values.toList.sorted)
     } finally {
       it.close()
     }
