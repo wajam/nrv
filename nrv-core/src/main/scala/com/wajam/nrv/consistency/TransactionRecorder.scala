@@ -126,7 +126,6 @@ class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionL
   private def validateConsistency() {
     consistencyError match {
       case Some(e) => {
-        // Do not append index if recorder is inconsistent
         val ce = new ConsistencyException
         ce.initCause(e)
         throw ce
