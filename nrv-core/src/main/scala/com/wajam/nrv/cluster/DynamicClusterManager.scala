@@ -36,6 +36,10 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     } else false
   }
 
+  def trySetServiceMemberStatusDown(service: Service, member: ServiceMember) {
+    OperationLoop ! OperationLoop.TrySetServiceMembersDown(service, member)
+  }
+
   def forceClusterCheck() {
     OperationLoop !? OperationLoop.CheckCluster
   }
@@ -203,6 +207,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
     case class SyncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) extends ClusterOperation
 
+    case class TrySetServiceMembersDown(service: Service, member: ServiceMember) extends ClusterOperation
+
     val checkScheduler = new Scheduler(this, CheckCluster, CLUSTER_CHECK_IN_MS, CLUSTER_CHECK_IN_MS, blockingMessage = true, autoStart = false)
     val syncScheduler = new Scheduler(this, ForceSync, CLUSTER_FORCESYNC_IN_MS, CLUSTER_FORCESYNC_IN_MS, blockingMessage = true, autoStart = false)
     val printScheduler = new Scheduler(this, PrintCluster, CLUSTER_PRINT_IN_MS, CLUSTER_PRINT_IN_MS, blockingMessage = true, autoStart = false)
@@ -284,6 +290,16 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
                 error("Got an exception when checking cluster: ", e)
             } finally {
               sender ! true
+            }
+          }
+
+          case TrySetServiceMembersDown(service, member) => {
+            info("Try set member {} down for service {}", member, service)
+            try {
+              tryChangeServiceMemberStatus(service, member, MemberStatus.Down)
+            } catch {
+              case e: Exception =>
+                error("Got an exception when trying to set member {} for service {} down: ", member, service, e)
             }
           }
 

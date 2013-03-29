@@ -7,6 +7,8 @@ import com.wajam.nrv.service.{ServiceMember, MemberStatus, Service}
  */
 class StaticClusterManager extends ClusterManager {
 
+  def trySetServiceMemberStatusDown(service: Service, member: ServiceMember) {}
+
   protected def initializeMembers() {
     allMembers.foreach {
       case (service, member) => {

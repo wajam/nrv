@@ -165,11 +165,13 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     val response = createResponseMessage(request)
     response.error should be(None)
     when(txLogProxy.mockAppender.append(anyObject())).thenThrow(new RuntimeException())
-    recorder.appendMessage(response)
+    evaluating {
+      recorder.appendMessage(response)
+    } should produce[ConsistencyException]
 
     consistencyErrorCount should be(1)
     verify(txLogProxy.mockAppender).append(LogRecord(currentTime, None, createResponseMessage(request)))
-    response.error should not be (None)
+    response.error should be (None)
     txLogProxy.verifyZeroInteractions()
   }
 
