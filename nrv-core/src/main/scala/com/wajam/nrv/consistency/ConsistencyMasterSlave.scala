@@ -156,14 +156,12 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                 consistencyTimeout = math.max(service.responseTimeout + 2000, 15000),
                 commitFrequency = txLogCommitFrequency, onConsistencyError = {
                   metrics.consistencyError.mark()
-                  if (txLogEnabled) {
-                    this.synchronized {
-                      info("onConsistencyError: status={}, stateNew=Error, stateOld={}, member={}", event.member.status,
-                        consistencyStates.get(member.token), member)
-                      consistencyStates += (member.token -> MemberConsistencyState.Error)
-                    }
-                    cluster.clusterManager.trySetServiceMemberStatusDown(service, event.member)
+                  this.synchronized {
+                    info("onConsistencyError: status={}, stateNew=Error, stateOld={}, member={}", event.member.status,
+                      consistencyStates.get(member.token), member)
+                    consistencyStates += (member.token -> MemberConsistencyState.Error)
                   }
+                  cluster.clusterManager.trySetServiceMemberStatusDown(service, event.member)
                 })
               recorders += (member.token -> recorder)
               recorder.start()
@@ -392,6 +390,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
     )
   }
+
 }
 
 sealed trait MemberConsistencyState
