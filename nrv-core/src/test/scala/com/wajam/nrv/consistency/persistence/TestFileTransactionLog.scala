@@ -547,13 +547,13 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val itr = fileTxLog.read(Index(0))
     itr.next() match {
       case request: Request => {
-        evaluating {
-          request.id should be(10)
-          request.timestamp should be(Timestamp(1000))
-          request.consistentTimestamp should be(Some(Timestamp(1)))
-          request.token should be(99)
+        request.id should be(10)
+        request.timestamp should be(Timestamp(1000))
+        request.consistentTimestamp should be(Some(Timestamp(1)))
+        request.token should be(99)
 
-          // The exception should only be thrown when accessing the request message
+        // The exception should only be thrown when accessing the request message
+        evaluating {
           request.message
         } should produce[RuntimeException]
       }
