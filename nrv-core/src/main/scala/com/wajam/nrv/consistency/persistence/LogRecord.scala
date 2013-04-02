@@ -62,11 +62,12 @@ object LogRecord {
 
   object Request {
     def apply(id: Long, consistentTimestamp: Option[Timestamp], timestamp: Timestamp, token: Long,
-                      message: => Message): Request = {
-      Request(id, consistentTimestamp, Consistency.getMessageTimestamp(message).get, message.token, new MessageProxy {
+              message: => Message): Request = {
+      Request(id, consistentTimestamp, timestamp, token, new MessageProxy {
         def getMessage = message
       })
     }
+
     def apply(id: Long, consistentTimestamp: Option[Timestamp], message: Message): Request = {
       require(message.function == MessageType.FUNCTION_CALL)
       Request(id, consistentTimestamp, Consistency.getMessageTimestamp(message).get, message.token, message)
