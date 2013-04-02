@@ -10,18 +10,21 @@ import org.mockito.Mockito._
 import util.Random
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.consistency.persistence.LogRecord.Index
+import com.wajam.nrv.consistency.persistence.LogRecord.{Request, Index}
 import com.wajam.nrv.consistency.TestTransactionBase
+import com.wajam.nrv.protocol.codec.Codec
 
 @RunWith(classOf[JUnitRunner])
 class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   var logDir: File = null
   var fileTxLog: FileTransactionLog = null
   var spySerializer: LogRecordSerializer = null
+  var spyCodec: Codec = null
 
   before {
     logDir = Files.createTempDirectory("TestFileTransactionLog").toFile
-    spySerializer = spy(new LogRecordSerializer)
+    spyCodec = spy(LogRecordSerializer.DefaultCodec)
+    spySerializer = spy(new LogRecordSerializer(spyCodec))
     fileTxLog = createFileTransactionLog()
   }
 
@@ -275,7 +278,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   test("should not corrupt transaction log when append fail due to transaction event persistence error") {
     val r1 = LogRecord(id = 100, None, createRequestMessage(timestamp = 0))
     val r2 = LogRecord(id = 101, None, createRequestMessage(timestamp = 1)) // Error
-    when(spySerializer.serialize(r2)).thenThrow(new IOException("Forced error"))
+    when(spySerializer.serialize(r2)).thenThrow(new RuntimeException("Forced error"))
     val r3 = LogRecord(id = 102, None, createRequestMessage(timestamp = 2))
     val logFile = new File(logDir, fileTxLog.getNameFromIndex(r1))
 
@@ -288,7 +291,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     // Append error on transaction serialization, should not  modify the log file
     evaluating {
       fileTxLog.append(r2)
-    } should produce[IOException]
+    } should produce[RuntimeException]
     fileTxLog.commit()
     logFile.length() should be(fileLenAfterRecord1)
 
@@ -434,7 +437,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.read(Timestamp(500)).toList should be(List(r5, r6, r7, r8, r9))
     fileTxLog.read(Timestamp(600)).toList should be(List(r6, r7, r8, r9))
     fileTxLog.read(Timestamp(700)).toList should be(List(r7, r8, r9))
-    fileTxLog.read(Timestamp(800)).toList should be(List(r9))     // The last 2 records timestamps are inverted in log
+    fileTxLog.read(Timestamp(800)).toList should be(List(r9)) // The last 2 records timestamps are inverted in log
     fileTxLog.read(Timestamp(900)).toList should be(List(r8, r9)) // and records must be read as written.
 
     // Beyond end
@@ -453,7 +456,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val fileRecord2 = new File(logDir, fileTxLog.getNameFromIndex(r2))
 
     val r3 = LogRecord(id = 200, Some(300), createRequestMessage(timestamp = 1002)) // Bad
-    when(spySerializer.serialize(r3)).thenThrow(new IOException("Forced error"))
+    when(spySerializer.serialize(r3)).thenThrow(new RuntimeException("Forced error"))
     val fileRecord3 = new File(logDir, fileTxLog.getNameFromIndex(r3))
 
     val r4 = LogRecord(id = 250, Some(400), createRequestMessage(timestamp = 1003)) // Good
@@ -477,7 +480,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.rollLog()
     evaluating {
       fileTxLog.append(r3)
-    } should produce[IOException]
+    } should produce[RuntimeException]
     fileTxLog.commit()
     fileRecord3.length() should be > 0L
     fileRecord3.length() should be < fileRecord2.length()
@@ -532,6 +535,30 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     val actualRecords = fileTxLog.read.toList
     actualRecords should be(List(r1, r2))
+  }
+
+  test("read request record message should be lazy") {
+    fileTxLog.append(LogRecord(id = 10, Some(1), createRequestMessage(timestamp = 1000, token = 99)))
+    fileTxLog.commit()
+
+    // Produce an error when codec decode a message
+    doThrow(new RuntimeException()).when(spyCodec).decode(anyObject(), anyObject())
+
+    val itr = fileTxLog.read(Index(0))
+    itr.next() match {
+      case request: Request => {
+        request.id should be(10)
+        request.timestamp should be(Timestamp(1000))
+        request.consistentTimestamp should be(Some(Timestamp(1)))
+        request.token should be(99)
+
+        // The exception should only be thrown when accessing the request message
+        evaluating {
+          request.message
+        } should produce[RuntimeException]
+      }
+      case _ => fail()
+    }
   }
 
   test("read transaction file with invalid header values") {
@@ -621,7 +648,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val record1 = LogRecord(id = 100, None, createRequestMessage(timestamp = 0))
     val fileRecord1 = new File(logDir, fileTxLog.getNameFromIndex(record1))
     val record2 = LogRecord(id = 200, Some(100), createRequestMessage(timestamp = 120))
-    when(spySerializer.serialize(record2)).thenThrow(new IOException())
+    when(spySerializer.serialize(record2)).thenThrow(new RuntimeException())
     val fileRecord2 = new File(logDir, fileTxLog.getNameFromIndex(record2))
 
     fileTxLog.append(record1)
@@ -631,7 +658,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.rollLog()
     evaluating {
       fileTxLog.append(record2)
-    } should produce[IOException]
+    } should produce[RuntimeException]
     fileTxLog.commit()
     fileRecord2.length() should be > 0L
     fileRecord2.length() should be < fileRecord1.length()
