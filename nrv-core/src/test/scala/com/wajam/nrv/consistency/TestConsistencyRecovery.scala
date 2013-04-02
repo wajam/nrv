@@ -235,7 +235,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     recoveryTxLog.append(Index(203, getMessageTimestamp(request1)))
     recoveryTxLog.commit()
 
-    recovery.recoveryDir.list() should be(Set("service-0000001000-201:.log"))
+    recovery.recoveryDir.list() should be(Array("service-0000001000-201:.log"))
 
     evaluating {
       recovery.restoreMemberConsistency(member, onRecoveryFailure = throw new ConsistencyException)
