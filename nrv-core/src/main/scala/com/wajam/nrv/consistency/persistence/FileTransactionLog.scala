@@ -220,7 +220,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
     val buf = serializer.serialize(record)
 
-    // Pad up to the skip interval if the record size is would overlap the interval
+    // Pad up to the skip interval if the record size would overlap the interval
     val lenBeforeSkip = skipIntervalSize - dos.size() % skipIntervalSize
     if (lenBeforeSkip < buf.length + 16) {
       pad(lenBeforeSkip)
