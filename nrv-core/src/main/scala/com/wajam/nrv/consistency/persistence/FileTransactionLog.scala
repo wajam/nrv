@@ -8,7 +8,6 @@ import com.wajam.nrv.consistency.persistence.LogRecord._
 import java.util.zip.CRC32
 import java.nio.ByteBuffer
 import com.wajam.nrv.utils.PositionInputStream
-import annotation.tailrec
 
 /**
  * Class for writing and reading transaction logs.
@@ -113,7 +112,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         try {
           // Try to skip to the last interval. It may fail if a record is larger than the actual interval size.
           // If it fails fallback to sequential read to the last record
-          if (!it.skipToLastFileInterval()) {
+          if (!it.skipToCurrentFileLastInterval()) {
             info("Failed to skip to the last log file interval. Falling back to sequential read. {}", file)
             it.close()
             it = new FileTransactionLogIterator(fileIndex)
@@ -208,22 +207,12 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   private def writeRecord(dos: DataOutputStream, record: LogRecord) {
 
-    @tailrec
-    def pad(len: Int): Int = {
-      if (len > 0) {
-        dos.write(0)
-        pad(len - 1)
-      } else {
-        len
-      }
-    }
-
     val buf = serializer.serialize(record)
 
     // Pad up to the skip interval if the record size would overlap the interval
     val lenBeforeSkip = skipIntervalSize - dos.size() % skipIntervalSize
     if (lenBeforeSkip < buf.length + 16) {
-      pad(lenBeforeSkip)
+      0.until(lenBeforeSkip).foreach(_ => dos.write(0))
     }
 
     dos.writeLong(computeRecordCrc(buf))
@@ -477,15 +466,9 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   private case class FileRecord(record: LogRecord, position: Long, logFile: File)
 
   private case class FileHeader(fileMagic: Long, fileVersion: Int, fileService: String, fileSkipIntervalSize: Int) {
-    if (fileMagic != LogFileMagic) {
-      throw new IOException("Log file header magic %x not %x".format(fileMagic, LogFileMagic))
-    }
-    if (fileVersion < 1 || fileVersion > LogFileVersion) {
-      throw new IOException("Unsupported log file version %d".format(fileVersion))
-    }
-    if (fileService != service) {
-      throw new IOException("Service %s not %s".format(fileService, service))
-    }
+    require(fileMagic == LogFileMagic, "Log file header magic %x not %x".format(fileMagic, LogFileMagic))
+    require(fileVersion >= 1 & fileVersion <= LogFileVersion, "Unsupported log file version %d".format(fileVersion))
+    require(fileService == service, "Service %s not %s".format(fileService, service))
   }
 
   private class FileTransactionLogIterator(initialIndex: Index) extends TransactionLogIterator {
@@ -534,25 +517,28 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
 
     /**
-     * Skip to the last file interval. Returns true if successfully skipped to the last interval or false if not.
-     * Skipping may fail if a record is larger than the file skip interval size. The iterator should not continue to be
-     * used the if this method returns false.
+     * Skip to the last file interval. Returns false if an error occured during the skip (e.g. skipped in the middle
+     * of a record greater than the interval size). The iterator should not continue to be used the if this method
+     * returns false.
      */
-    private[persistence] def skipToLastFileInterval(): Boolean = {
-      var successful = true
-      for (dis <- logStream; header <- fileHeader) {
-        val fileSkipIntervalSize = header.fileSkipIntervalSize
-        val fileLength = readFile.length()
-        val lastSkipPosition = fileLength - (readFile.length() % fileSkipIntervalSize)
-        val skipLen = lastSkipPosition - positionStream.position
-        if (skipLen > 0) {
-          info("Skipping {} bytes to last interval (intervalSize={}, size={}): {}",
-            skipLen, fileSkipIntervalSize, fileLength, readFile)
-          dis.skip(skipLen)
-          successful = readNextRecord()
+    private[persistence] def skipToCurrentFileLastInterval(): Boolean = {
+      (logStream, fileHeader) match {
+        case (Some(dis), Some(header)) => {
+          val fileSkipIntervalSize = header.fileSkipIntervalSize
+          val fileLength = readFile.length()
+          val lastSkipPosition = fileLength - (readFile.length() % fileSkipIntervalSize)
+          val skipLen = lastSkipPosition - positionStream.position
+          if (skipLen > 0) {
+            info("Skipping {} bytes to last interval (intervalSize={}, size={}): {}",
+              skipLen, fileSkipIntervalSize, fileLength, readFile)
+            dis.skip(skipLen)
+            readNextRecord()
+          } else {
+            true
+          }
         }
+        case _ => true
       }
-      successful
     }
 
     def close() {
