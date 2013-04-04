@@ -82,8 +82,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   // TODO: Add write-bytes and read-bytes meters
 
-  // TODO: validate fileRolloverSize (0 or minimum size). Must be a multiple of skipIntervalSize??? NO
-  // TODO: validate minimum skipIntervalSize (4096?) must be smaller than fileRolloverSize unless fileRolloverSize == 0
+  require(fileRolloverSize >= 0)
+  require(skipIntervalSize > 0)
 
   private val filePrefix = "%s-%010d".format(service, token)
 
@@ -218,11 +218,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       }
     }
 
-    val crc = new CRC32()
     val buf = serializer.serialize(record)
-    crc.update(buf.length)
-    crc.update(buf, 0, buf.length)
-    crc.update(EOT)
 
     // Pad up to the skip interval if the record size is would overlap the interval
     val lenBeforeSkip = skipIntervalSize - dos.size() % skipIntervalSize
@@ -230,11 +226,19 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       pad(lenBeforeSkip)
     }
 
-    dos.writeLong(crc.getValue)
+    dos.writeLong(computeRecordCrc(buf))
     dos.writeInt(buf.length)
     dos.write(buf)
-    dos.writeInt(EOT)
+    dos.writeInt(EOR) // End of record
     dos.flush()
+  }
+
+  private def computeRecordCrc(buffer: Array[Byte]): Long = {
+    val crc = new CRC32()
+    crc.update(buffer.length)
+    crc.update(buffer, 0, buffer.length)
+    crc.update(EOR)
+    crc.getValue
   }
 
   /**
@@ -621,24 +625,33 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
                 positionStream.skip(lenBeforeSkip)
               }
 
-              // TODO: crc validation
-              var crc = dis.readLong()
+              // Read the first byte of the CRC outside of the inner try/catch. Assume this is the end of the current
+              // log file (and continue reading from the next file) if we get an EOFException while reading the first
+              // byte. Any exception (including EOFException) while reading remaining bytes of the record means that
+              // the record is corrupted and we don't continue reading.
+              val crcBuf = new Array[Byte](8)
+              dis.readFully(crcBuf, 0, 1)
               try {
-                var txLen = dis.readInt()
+                dis.readFully(crcBuf, 1, 7)
+                var crc = ByteBuffer.wrap(crcBuf).getLong
+                var recordLen = dis.readInt()
 
                 // Detect padding to next skip interval
-                if (crc == 0 && txLen == 0) {
+                if (crc == 0 && recordLen == 0) {
                   require(lenBeforeSkip > 12)
                   dis.skip(lenBeforeSkip - 12)
                   crc = dis.readLong()
-                  txLen = dis.readInt()
+                  recordLen = dis.readInt()
                 }
 
-                // TODO: protection against negative or len too large
-                val buf = new Array[Byte](txLen)
+                require(recordLen >= MinRecordLen && recordLen <= MaxRecordLen,
+                  "Record length %d is out of bound".format(recordLen))
+                val buf = new Array[Byte](recordLen)
                 dis.readFully(buf)
                 val record = serializer.deserialize(buf)
-                val eot = dis.readInt() // TODO: validate eot
+                val eor = dis.readInt()
+                require(eor == EOR, "End of record magic number 0x%x not 0x%x".format(eor, EOR))
+                require(crc == computeRecordCrc(buf), "CRC should be %d but is %d".format(crc, computeRecordCrc(buf)))
                 nextRecord = Right(Some(FileRecord(record, position, readFile)))
                 true
               } catch {
@@ -668,5 +681,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 object FileTransactionLog {
   val LogFileMagic: Long = ByteBuffer.wrap("NRVTXLOG".getBytes).getLong
   val LogFileVersion: Int = 2
-  val EOT: Int = 0x5a
+
+  val MinRecordLen = 0
+  val MaxRecordLen = 1000000
+  val EOR: Int = 0x5a
 }

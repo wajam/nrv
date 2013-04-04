@@ -2,7 +2,7 @@ package com.wajam.nrv.consistency.persistence
 
 import org.scalatest.BeforeAndAfter
 import org.scalatest.matchers.ShouldMatchers._
-import java.io.{DataOutputStream, ByteArrayOutputStream, IOException, File}
+import java.io._
 import java.nio.file.Files
 import com.wajam.nrv.utils.timestamp.Timestamp
 import org.mockito.Matchers._
@@ -10,9 +10,10 @@ import org.mockito.Mockito._
 import util.Random
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.consistency.persistence.LogRecord.{Request, Index}
+import com.wajam.nrv.consistency.persistence.LogRecord.Request
 import com.wajam.nrv.consistency.TestTransactionBase
 import com.wajam.nrv.protocol.codec.Codec
+import com.wajam.nrv.consistency.persistence.LogRecord.Index
 
 @RunWith(classOf[JUnitRunner])
 class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
@@ -277,7 +278,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     actualrecords should be(List(r1, r3))
   }
 
-  test("should not corrupt transaction log when append fail due to transaction event persistence error") {
+  test("should not corrupt transaction log when append fail due to record persistence error") {
     val r1 = LogRecord(id = 100, None, createRequestMessage(timestamp = 0))
     val r2 = LogRecord(id = 101, None, createRequestMessage(timestamp = 1)) // Error
     when(spySerializer.serialize(r2)).thenThrow(new RuntimeException("Forced error"))
@@ -368,7 +369,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     logDir.list().sorted should be(Array("service-0000001000-100:.log", "service-0000001000-204:.log"))
   }
 
-  test("should read transactions from specified id") {
+  test("should read records from specified id") {
     fileTxLog.append(LogRecord(id = 0, None, createRequestMessage(timestamp = 0)))
     fileTxLog.append(LogRecord(id = 1, None, createRequestMessage(timestamp = 1)))
     fileTxLog.append(LogRecord(id = 2, None, createRequestMessage(timestamp = 2)))
@@ -403,7 +404,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.read(Index(9999)).toList should be(List())
   }
 
-  test("should read all transactions when no position specified") {
+  test("should read all records when no position specified") {
     val r1 = fileTxLog.append(LogRecord(id = 0, Some(100), createRequestMessage(timestamp = 1000)))
     val r2 = fileTxLog.append(LogRecord(id = 1, Some(200), createRequestMessage(timestamp = 1001)))
     val r3 = fileTxLog.append(LogRecord(id = 2, Some(300), createRequestMessage(timestamp = 1002)))
@@ -414,7 +415,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     actualRecords should be(List(r1, r2, r3))
   }
 
-  test("should read transactions from specified timestamp") {
+  test("should read records from specified timestamp") {
     val r0 = fileTxLog.append(LogRecord(id = 0, None, createRequestMessage(timestamp = 0)))
     val r1 = fileTxLog.append(LogRecord(id = 1, None, createRequestMessage(timestamp = 100)))
     val r2 = fileTxLog.append(LogRecord(id = 2, Some(100), createRequestMessage(timestamp = 200)))
@@ -502,7 +503,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     actualRecords should be(List(r1, r2, r4))
   }
 
-  test("read corrupted transaction event stop at corrupted tx") {
+  test("read corrupted record stop at corrupted record") {
     val r1 = fileTxLog.append(LogRecord(id = 1, None, createRequestMessage(timestamp = 1000)))
     val r2 = fileTxLog.append(LogRecord(id = 2, None, createRequestMessage(timestamp = 1001)))
     val r3 = fileTxLog.append(LogRecord(id = 3, None, createRequestMessage(timestamp = 1002)))
@@ -517,6 +518,106 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     // Start at second transaction
     val actualRecords = fileTxLog.read(Index(2)).toList
     actualRecords should be(List(r2, r3))
+  }
+
+  test("read truncated record should stop reading at the corrupted record") {
+    val r1 = fileTxLog.append(LogRecord(id = 1, None, createRequestMessage(timestamp = 1000)))
+    val logFile = new File(logDir, fileTxLog.getNameFromIndex(r1))
+    val r1FileLen = logFile.length().toInt
+    val r2 = fileTxLog.append(LogRecord(id = 2, None, createRequestMessage(timestamp = 2000)))
+    val r2FileLen = logFile.length().toInt
+    val r2Len = r2FileLen - r1FileLen
+
+    fileTxLog.rollLog()
+    val r3 = fileTxLog.append(LogRecord(id = 3, None, createRequestMessage(timestamp = 3000)))
+    fileTxLog.commit()
+
+    // Verify we can read all records before truncation
+    fileTxLog.read.toList should be(List(r1, r2, r3))
+
+    // Truncate r2 at various len
+    val r2NewLens = Seq(1, 2, 8, 9, 11, 12, 13, 15, 16, 17, r2Len / 2, r2Len - 1).sorted.reverse
+    for (r2NewLen <- r2NewLens) {
+      val newFileLen: Long = r1FileLen + r2NewLen
+      logFile.length() should be > newFileLen
+      val raf = new RandomAccessFile(logFile, "rw")
+      raf.setLength(newFileLen)
+      raf.close()
+
+      fileTxLog.read.toList should be(List(r1))
+    }
+  }
+
+  test("read random crap should stop reading at the corrupted record") {
+    val r1 = fileTxLog.append(LogRecord(id = 1, None, createRequestMessage(timestamp = 1000)))
+    val logFile = new File(logDir, fileTxLog.getNameFromIndex(r1))
+    val r1FileLen = logFile.length().toInt
+    val r2 = fileTxLog.append(LogRecord(id = 2, None, createRequestMessage(timestamp = 2000)))
+    val r2FileLen = logFile.length().toInt
+    val r2Len = r2FileLen - r1FileLen
+
+    fileTxLog.rollLog()
+    val r3 = fileTxLog.append(LogRecord(id = 3, None, createRequestMessage(timestamp = 3000)))
+    fileTxLog.commit()
+
+    // Read original log file data in a buffer
+    val fin = new FileInputStream(logFile)
+    val originalBuf = new Array[Byte](r2FileLen)
+    fin.read(originalBuf)
+    fin.close()
+
+    val r2FillLens = Seq(1, 2, 8, 9, 11, 12, 13, 15, 16, 17, r2Len / 2, r2Len - 1)
+
+    // Partially fill begining of r2 with random crap
+    for (r2FillLen <- r2FillLens) {
+      val randomBuf = new Array[Byte](r2FillLen)
+      Random.nextBytes(randomBuf)
+
+      val raf = new RandomAccessFile(logFile, "rw")
+      raf.write(originalBuf, 0, r1FileLen)
+      raf.write(randomBuf)
+      raf.write(originalBuf, r1FileLen + r2FillLen, r2FileLen - r2FillLen - r1FileLen)
+      raf.close()
+      logFile.length() should be(r2FileLen)
+
+      fileTxLog.read.toList should be(List(r1))
+    }
+
+    // Partially fill end of r2 with random crap
+    for (r2FillLen <- r2FillLens) {
+      val randomBuf = new Array[Byte](r2FillLen)
+      Random.nextBytes(randomBuf)
+
+      val raf = new RandomAccessFile(logFile, "rw")
+      raf.write(originalBuf, 0, r1FileLen + (r2Len - r2FillLen))
+      raf.write(randomBuf)
+      raf.close()
+      logFile.length() should be(r2FileLen)
+
+      fileTxLog.read.toList should be(List(r1))
+    }
+
+    // Partially fill middle of r2 with random crap
+    for (r2FillLen <- r2FillLens) {
+      val randomBuf = new Array[Byte](r2FillLen)
+      Random.nextBytes(randomBuf)
+
+      val raf = new RandomAccessFile(logFile, "rw")
+      val fillStartPosition = r1FileLen + (r2Len - r2FillLen) / 2
+      raf.write(originalBuf, 0, fillStartPosition)
+      raf.write(randomBuf)
+      raf.write(originalBuf, fillStartPosition + r2FillLen, r2FileLen - fillStartPosition - r2FillLen)
+      raf.close()
+      logFile.length() should be(r2FileLen)
+
+      fileTxLog.read.toList should be(List(r1))
+    }
+
+    // Verify we can read all records if we restore the original log file from original buffer
+    val raf = new RandomAccessFile(logFile, "rw")
+    raf.write(originalBuf)
+    raf.close()
+    fileTxLog.read.toList should be(List(r1, r2, r3))
   }
 
   test("read corrupted transaction file header should stop reading at currupted file") {
@@ -606,13 +707,13 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.read.toList should be(List(record))
   }
 
-  test("should properly write and read with padding for skip interval size") {
+  test("should properly write and read skip interval") {
 
     def recreateFileTransactionLog(skipIntervalSize: Long) {
       fileTxLog.close()
 
       logDir.listFiles().foreach(_.delete())
-      logDir.listFiles().size should  be(0)
+      logDir.listFiles().size should be(0)
 
       fileTxLog = createFileTransactionLog(skipIntervalSize = skipIntervalSize.toInt)
     }
@@ -691,7 +792,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.getLastLoggedRecord should be(Some(r2))
   }
 
-  test("should get the last logged timestamp") {
+  test("should get the last logged record") {
     fileTxLog.append(LogRecord(id = 0, None, createRequestMessage(timestamp = 0)))
     fileTxLog.rollLog()
     fileTxLog.append(LogRecord(id = 3, None, createRequestMessage(timestamp = 1)))
@@ -709,11 +810,11 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.getLastLoggedRecord should be(Some(last))
   }
 
-  test("the last logged index should be None when there are no log files") {
+  test("the last logged record should be None when there are no log files") {
     fileTxLog.getLastLoggedRecord should be(None)
   }
 
-  test("should get the last logged index even if last log file is empty") {
+  test("should get the last logged record even if last log file is empty") {
     val last: Index = fileTxLog.append(LogRecord(id = 100, None, createRequestMessage(timestamp = 0)))
     fileTxLog.commit()
 
@@ -732,7 +833,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.getLastLoggedRecord should be(Some(last))
   }
 
-  test("should get the last logged index even if last log file contains file header only") {
+  test("should get the last logged record even if last log file contains file header only") {
     val record1 = LogRecord(id = 100, None, createRequestMessage(timestamp = 0))
     val fileRecord1 = new File(logDir, fileTxLog.getNameFromIndex(record1))
     val record2 = LogRecord(id = 200, Some(100), createRequestMessage(timestamp = 120))
@@ -763,7 +864,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.getLastLoggedRecord should be(Some(record1))
   }
 
-  test("should get the last logged index using skip interval") {
+  test("should get the last logged record using skip interval") {
     val skipIntervalSize = 2000L
 
     fileTxLog.close()
