@@ -1,6 +1,6 @@
 import sbt._
 import Keys._
-import com.typesafe.startscript.StartScriptPlugin
+import com.typesafe.sbt.SbtStartScript
 
 object NrvBuild extends Build {
   val PROJECT_NAME = "nrv"
@@ -64,7 +64,7 @@ object NrvBuild extends Build {
     .configs(IntegrationTest)
     .settings(defaultSettings: _*)
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
-    .settings(StartScriptPlugin.startScriptForClassesSettings: _*)
+    .settings(SbtStartScript.startScriptForClassesSettings: _*)
     .aggregate(core)
     .aggregate(ext)
     .aggregate(zookeeper)
@@ -92,7 +92,7 @@ object NrvBuild extends Build {
     .settings(libraryDependencies ++= zookeeperDeps)
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
     .settings(parallelExecution in IntegrationTest := false)
-    .settings(StartScriptPlugin.startScriptForClassesSettings: _*)
+    .settings(SbtStartScript.startScriptForClassesSettings: _*)
     .dependsOn(core)
 
   lazy val scribe = Project(PROJECT_NAME + "-scribe", file(PROJECT_NAME + "-scribe"))
