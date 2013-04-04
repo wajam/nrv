@@ -40,8 +40,10 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   def createFileTransactionLog(service: String = "service", token: Long = 1000,
-                               dir: String = logDir.getAbsolutePath, fileRolloverSize: Int = 0) = {
-    new FileTransactionLog(service, token, dir, fileRolloverSize = fileRolloverSize, serializer = spySerializer)
+                               dir: String = logDir.getAbsolutePath, fileRolloverSize: Int = 0,
+                               skipIntervalSize: Int = Int.MaxValue) = {
+    new FileTransactionLog(service, token, dir, fileRolloverSize = fileRolloverSize,
+      skipIntervalSize = skipIntervalSize, serializer = spySerializer)
   }
 
   test("should get proper index from log name") {
@@ -572,6 +574,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
       dos.writeLong(magic)
       dos.writeInt(version)
       dos.writeUTF(service)
+      dos.writeInt(9999)
       dos.flush()
       baos.toByteArray
 
@@ -601,6 +604,91 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     // Test again with a valid header
     createEmptyLogFileWithHeader(id = 0)
     fileTxLog.read.toList should be(List(record))
+  }
+
+  test("should properly write and read with padding for skip interval size") {
+
+    def recreateFileTransactionLog(skipIntervalSize: Long) {
+      fileTxLog.close()
+
+      logDir.listFiles().foreach(_.delete())
+      logDir.listFiles().size should  be(0)
+
+      fileTxLog = createFileTransactionLog(skipIntervalSize = skipIntervalSize.toInt)
+    }
+
+    // Compute size of an initial index followed by a two records. These sizes are used to test various
+    // skipIntervalSize boundaries.
+    val index = fileTxLog.append(Index(id = 100, None))
+    val logFile = new File(logDir, fileTxLog.getNameFromIndex(index))
+    val indexFileLen = logFile.length()
+
+    val r1 = fileTxLog.append(LogRecord(id = 101, None, createRequestMessage(timestamp = 1)))
+    fileTxLog.commit()
+    val r1FileLen = logFile.length()
+    val r1Len = r1FileLen - indexFileLen
+
+    val r2 = fileTxLog.append(LogRecord(id = 102, None, createRequestMessage(timestamp = 2)))
+    val r2FileLen = logFile.length()
+    val r2Len = r2FileLen - r1FileLen
+
+    // Perfect fit
+    recreateFileTransactionLog(r1FileLen)
+    fileTxLog.append(index)
+    fileTxLog.append(r1)
+    logFile.length() should be(r1FileLen)
+    fileTxLog.read.toList should be(List(index, r1))
+    fileTxLog.append(r2)
+    logFile.length() should be(r2FileLen)
+    fileTxLog.read.toList should be(List(index, r1, r2))
+
+    // Missing 1 byte to fit record (+ read after truncate + append)
+    recreateFileTransactionLog(r1FileLen - 1)
+    fileTxLog.append(index)
+    fileTxLog.append(r1)
+    logFile.length() should be(r1FileLen - 1 + r1Len)
+    fileTxLog.read.toList should be(List(index, r1))
+    fileTxLog.append(r2)
+    logFile.length() should be((r1FileLen - 1) * 2 + r2Len)
+    fileTxLog.read.toList should be(List(index, r1, r2))
+    fileTxLog.getLastLoggedRecord should be(Some(r2))
+
+    fileTxLog.truncate(r1) // Truncate
+    fileTxLog.rollLog()
+    logFile.length() should be(indexFileLen)
+    fileTxLog.read.toList should be(List(index))
+    val r3 = fileTxLog.append(LogRecord(id = 103, None, createRequestMessage(timestamp = 3)))
+    fileTxLog.read.toList should be(List(index, r3))
+
+    // Only one byte available
+    recreateFileTransactionLog(indexFileLen + 1)
+    fileTxLog.append(index)
+    fileTxLog.append(r1)
+    logFile.length() should be(indexFileLen + 1 + r1Len)
+    fileTxLog.read.toList should be(List(index, r1))
+    fileTxLog.append(r2)
+    fileTxLog.read.toList should be(List(index, r1, r2))
+    fileTxLog.getLastLoggedRecord should be(Some(r2))
+
+    // Only 12 bytes available
+    recreateFileTransactionLog(indexFileLen + 12)
+    fileTxLog.append(index)
+    fileTxLog.append(r1)
+    logFile.length() should be(indexFileLen + 12 + r1Len)
+    fileTxLog.read.toList should be(List(index, r1))
+    fileTxLog.append(r2)
+    fileTxLog.read.toList should be(List(index, r1, r2))
+    fileTxLog.getLastLoggedRecord should be(Some(r2))
+
+    // Too small to fit records
+    recreateFileTransactionLog(r1Len / 2)
+    fileTxLog.append(index)
+    fileTxLog.append(r1)
+    logFile.length() should be(r1Len / 2 + r1Len)
+    fileTxLog.read.toList should be(List(index, r1))
+    fileTxLog.append(r2)
+    fileTxLog.read.toList should be(List(index, r1, r2))
+    fileTxLog.getLastLoggedRecord should be(Some(r2))
   }
 
   test("should get the last logged timestamp") {
@@ -673,6 +761,32 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.close()
     fileTxLog = createFileTransactionLog()
     fileTxLog.getLastLoggedRecord should be(Some(record1))
+  }
+
+  test("should get the last logged index using skip interval") {
+    val skipIntervalSize = 2000L
+
+    fileTxLog.close()
+    fileTxLog = createFileTransactionLog(skipIntervalSize = skipIntervalSize.toInt)
+
+    val r1 = fileTxLog.append(LogRecord(id = 101, None, createRequestMessage(timestamp = 1)))
+    val r2 = fileTxLog.append(LogRecord(id = 102, None, createRequestMessage(timestamp = 2)))
+    val r3 = fileTxLog.append(LogRecord(id = 103, None, createRequestMessage(timestamp = 3)))
+    val r4 = fileTxLog.append(LogRecord(id = 104, None, createRequestMessage(timestamp = 4)))
+    val r5 = fileTxLog.append(LogRecord(id = 105, None, createRequestMessage(timestamp = 5)))
+    val r6 = fileTxLog.append(LogRecord(id = 106, None, createRequestMessage(timestamp = 6)))
+    val r7 = fileTxLog.append(LogRecord(id = 107, None, createRequestMessage(timestamp = 7)))
+    val r8 = fileTxLog.append(LogRecord(id = 108, None, createRequestMessage(timestamp = 8)))
+
+    val logFile = new File(logDir, fileTxLog.getNameFromIndex(r1))
+    logFile.length() should be > skipIntervalSize
+
+    fileTxLog.getLastLoggedRecord should be(Some(r8))
+
+    // Close and try with a brand new instance
+    fileTxLog.close()
+    fileTxLog = createFileTransactionLog()
+    fileTxLog.getLastLoggedRecord should be(Some(r8))
   }
 
   test("truncate should delete all records from the specified location") {
