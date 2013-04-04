@@ -103,7 +103,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r303 = Index(303, getMessageTimestamp(request))
     txLog.read.toList should be(List(r301, r302, r303))
 
-    logDir.list() should be(Array("service-0000001000-1:.log", "service-0000001000-301:.log"))
+    logDir.list().toSet should be(Set("service-0000001000-1:.log", "service-0000001000-301:.log"))
   }
 
   test("incomplete transaction should BE truncated and complete transactions should BE rewritten") {
@@ -141,7 +141,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
 
     verify(mockStore).truncateAt(Consistency.getMessageTimestamp(request5).get, request5.token)
 
-    logDir.list() should be(Array("service-0000001000-1:.log", "service-0000001000-301:.log"))
+    logDir.list().toSet should be(Set("service-0000001000-1:.log", "service-0000001000-301:.log"))
   }
 
   test("when rewritten tx timestamps are all smaller than consistent timestamp, finalize with consistent timestamp") {
@@ -174,7 +174,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
 
     verify(mockStore).truncateAt(Consistency.getMessageTimestamp(request4).get, request4.token)
 
-    logDir.list() should be(Array("service-0000001000-1:.log", "service-0000001000-301:.log"))
+    logDir.list().toSet should be(Set("service-0000001000-1:.log", "service-0000001000-301:.log"))
   }
 
   test("pending recovery log should BE finalized") {
@@ -199,7 +199,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r203 = recoveryTxLog.append(Index(203, getMessageTimestamp(request2)))
     recoveryTxLog.commit()
 
-    recovery.recoveryDir.list().sorted should be(Array("service-0000001000-201:.log", "service-0000001000-202:.log"))
+    recovery.recoveryDir.list().toSet should be(Set("service-0000001000-201:.log", "service-0000001000-202:.log"))
 
     // Recovery should simply finalize the pending recover log
     idGenerator.lastId = 500 // larger id seed, to ensure records are not rewritten
@@ -207,7 +207,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     lastIndex should be(Some(r203))
 
     txLog.read.toList should be(List(r1, r2, r201, r202, r203))
-    logDir.list().sorted should be(Array("service-0000001000-1:.log", "service-0000001000-201:.log",
+    logDir.list().toSet should be(Set("service-0000001000-1:.log", "service-0000001000-201:.log",
       "service-0000001000-202:.log"))
     verifyZeroInteractions(mockStore)
   }
@@ -235,7 +235,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     recoveryTxLog.append(Index(203, getMessageTimestamp(request1)))
     recoveryTxLog.commit()
 
-    recovery.recoveryDir.list().sorted should be(Array("service-0000001000-201:.log"))
+    recovery.recoveryDir.list() should be(Array("service-0000001000-201:.log"))
 
     evaluating {
       recovery.restoreMemberConsistency(member, onRecoveryFailure = throw new ConsistencyException)
@@ -260,7 +260,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r203 = recoveryTxLog.append(Index(203, getMessageTimestamp(request1)))
     recoveryTxLog.commit()
 
-    recovery.recoveryDir.list().sorted should be(Array("service-0000001000-201:.log"))
+    recovery.recoveryDir.list() should be(Array("service-0000001000-201:.log"))
 
     evaluating {
       recovery.restoreMemberConsistency(member, onRecoveryFailure = throw new ConsistencyException)
@@ -285,7 +285,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     recoveryTxLog.append(Request(201, None, request1))
     recoveryTxLog.commit()
 
-    recovery.recoveryDir.list().sorted should be(Array("service-0000001000-201:.log"))
+    recovery.recoveryDir.list() should be(Array("service-0000001000-201:.log"))
 
     // Recovery should simply finalize the pending recover log
     idGenerator.lastId = 500 // larger id seed, to ensure records ARE rewritten
@@ -297,7 +297,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
 
     lastIndex should be(Some(r503))
     txLog.read.toList should be(List(r501, r502, r503))
-    logDir.list().sorted should be(Array("service-0000001000-1:.log", "service-0000001000-501:.log"))
+    logDir.list().toSet should be(Set("service-0000001000-1:.log", "service-0000001000-501:.log"))
     verifyZeroInteractions(mockStore)
   }
 }
