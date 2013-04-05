@@ -95,10 +95,7 @@ private[persistence] class LogRecordSerializer(codec: Codec = DefaultCodec) {
       throw new IOException("Message length %d is out of bound".format(messageLen))
     }
     val encodedMessage = new Array[Byte](messageLen)
-    val readLen = dis.read(encodedMessage)
-    if (readLen != messageLen) {
-      throw new IOException("Read message length %d not equals to %d".format(readLen, messageLen))
-    }
+    dis.readFully(encodedMessage)
     lazy val message = codec.decode(encodedMessage).asInstanceOf[Message]
 
     Request(id, consistentTimestamp, timestamp, token, new MessageProxy {

@@ -22,6 +22,7 @@ import com.wajam.nrv.utils.PositionInputStream
  * magic 8bytes "NRVTXLOG"
  * version 4bytes
  * servicename mutf-8
+ * skipinterval 4bytes
  * }
  *
  * RecordList:
@@ -59,11 +60,12 @@ import com.wajam.nrv.utils.PositionInputStream
  * </pre></blockquote>
  */
 class FileTransactionLog(val service: String, val token: Long, val logDir: String, fileRolloverSize: Int = 0,
-                         serializer: LogRecordSerializer = new LogRecordSerializer)
+                         skipIntervalSize: Int = 4096 * 50, serializer: LogRecordSerializer = new LogRecordSerializer)
   extends TransactionLog with Logging with Instrumented {
 
   import FileTransactionLog._
 
+  lazy private val lastLoggedRecordTimer = metrics.timer("last-logged-record-time")
   lazy private val appendTimer = metrics.timer("append-time")
   lazy private val truncateTimer = metrics.timer("truncate-time")
   lazy private val commitTimer = metrics.timer("commit-time")
@@ -78,6 +80,9 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   lazy private val readOpenMeter = metrics.meter("read-open-calls", "read-open-calls")
 
   // TODO: Add write-bytes and read-bytes meters
+
+  require(fileRolloverSize >= 0)
+  require(skipIntervalSize > 0)
 
   private val filePrefix = "%s-%010d".format(service, token)
 
@@ -95,24 +100,35 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    * Returns the most recent consistent timestamp written on the log storage.
    */
   def getLastLoggedRecord: Option[LogRecord] = synchronized {
-    // Read the last timestamp from the last file. If the file is empty, do the same same the previous one and so on
-    // until a timestamp is found.
+
     var result: Option[LogRecord] = None
-    getLogFiles.toList.reverse.find(file => {
-      val fileIndex = getIndexFromName(file.getName)
-      val it = read(fileIndex)
-      try {
-        it.toIterable.lastOption match {
-          case Some(record) => {
-            result = Some(record)
-            true
+
+    lastLoggedRecordTimer.time {
+      // Read the last timestamp from the last file. If the file is empty, do the same same the previous one and so on
+      // until a timestamp is found.
+      getLogFiles.toList.reverse.find(file => {
+        val fileIndex = getIndexFromName(file.getName)
+        var it = new FileTransactionLogIterator(fileIndex)
+        try {
+          // Try to skip to the last interval. It may fail if a record is larger than the actual interval size.
+          // If it fails fallback to sequential read to the last record
+          if (!it.skipToCurrentFileLastInterval()) {
+            info("Failed to skip to the last log file interval. Falling back to sequential read. {}", file)
+            it.close()
+            it = new FileTransactionLogIterator(fileIndex)
           }
-          case _ => false
+          it.toIterable.lastOption match {
+            case Some(record) => {
+              result = Some(record)
+              true
+            }
+            case _ => false
+          }
+        } finally {
+          it.close()
         }
-      } finally {
-        it.close()
-      }
-    })
+      })
+    }
 
     result
   }
@@ -150,6 +166,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         val record: T = block
         validateRecord(record)
 
+
         // Write the transaction event into the open log file
         writeRecord(logStream.getOrElse(openNewLogFile(record)), record)
         lastIndex = Some(record)
@@ -172,7 +189,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     info("Creating new log file: {}", file)
     val fos = new FileOutputStream(file)
     val dos = new DataOutputStream(new BufferedOutputStream(fos))
-    writeFileHeader(dos)
+    writeFileHeader(dos, FileHeader(LogFileMagic, LogFileVersion, service, skipIntervalSize))
 
     logStream = Some(dos)
     fileStreams = fos :: fileStreams
@@ -180,25 +197,37 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     dos
   }
 
-  private def writeFileHeader(dos: DataOutputStream) {
-    dos.writeLong(LogFileMagic)
-    dos.writeInt(LogFileVersion)
-    dos.writeUTF(service)
+  private def writeFileHeader(dos: DataOutputStream, header: FileHeader) {
+    dos.writeLong(header.fileMagic)
+    dos.writeInt(header.fileVersion)
+    dos.writeUTF(header.fileService)
+    dos.writeInt(header.fileSkipIntervalSize)
     dos.flush()
   }
 
   private def writeRecord(dos: DataOutputStream, record: LogRecord) {
-    val crc = new CRC32()
-    val buf = serializer.serialize(record)
-    crc.update(buf.length)
-    crc.update(buf, 0, buf.length)
-    crc.update(EOT)
 
-    dos.writeLong(crc.getValue)
+    val buf = serializer.serialize(record)
+
+    // Pad up to the skip interval if the record size would overlap the interval
+    val lenBeforeSkip = skipIntervalSize - dos.size() % skipIntervalSize
+    if (lenBeforeSkip < buf.length + 16) {
+      0.until(lenBeforeSkip).foreach(_ => dos.write(0))
+    }
+
+    dos.writeLong(computeRecordCrc(buf))
     dos.writeInt(buf.length)
     dos.write(buf)
-    dos.writeInt(EOT)
+    dos.writeInt(EOR) // End of record
     dos.flush()
+  }
+
+  private def computeRecordCrc(buffer: Array[Byte]): Long = {
+    val crc = new CRC32()
+    crc.update(buffer.length)
+    crc.update(buffer, 0, buffer.length)
+    crc.update(EOR)
+    crc.getValue
   }
 
   /**
@@ -277,7 +306,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         val it = new FileTransactionLogIterator(index)
         try {
           if (it.hasNext) {
-            val record = it.nextInternal()
+            val record = it.nextFileRecord()
             it.close() // Close explicitly before truncate
 
             // Now truncate at the current position
@@ -434,20 +463,27 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
   }
 
-  private case class IteratorRecord(record: LogRecord, position: Long, logFile: File)
+  private case class FileRecord(record: LogRecord, position: Long, logFile: File)
+
+  private case class FileHeader(fileMagic: Long, fileVersion: Int, fileService: String, fileSkipIntervalSize: Int) {
+    require(fileMagic == LogFileMagic, "Log file header magic %x not %x".format(fileMagic, LogFileMagic))
+    require(fileVersion >= 1 & fileVersion <= LogFileVersion, "Unsupported log file version %d".format(fileVersion))
+    require(fileService == service, "Service %s not %s".format(fileService, service))
+  }
 
   private class FileTransactionLogIterator(initialIndex: Index) extends TransactionLogIterator {
     private var logStream: Option[DataInputStream] = None
     private var positionStream: PositionInputStream = null
-    private var nextRecord: Either[Exception, Option[IteratorRecord]] = Right(None)
+    private var nextRecord: Either[Exception, Option[FileRecord]] = Right(None)
     private var readFile: File = null
+    private var fileHeader: Option[FileHeader] = None
 
     // Position the iterator to the initial timestamp by reading tx from log as long the read timestamp is before the
     // initial timestamp
     private val logFiles = getLogFiles(initialIndex).toIterator
     openNextFile()
     while (nextRecord match {
-      case Right(Some(IteratorRecord(record, _, _))) => record.id < initialIndex.id
+      case Right(Some(FileRecord(record, _, _))) => record.id < initialIndex.id
       case Left(e) => throw new IOException(e)
       case _ => false
     }) {
@@ -462,10 +498,10 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
 
     def next(): LogRecord = {
-      nextInternal().record
+      nextFileRecord().record
     }
 
-    private[persistence] def nextInternal(): IteratorRecord = {
+    private[persistence] def nextFileRecord(): FileRecord = {
       readNextCalls.mark()
 
       val result = nextRecord match {
@@ -478,6 +514,31 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       readNextRecord()
 
       result
+    }
+
+    /**
+     * Skip to the last file interval. Returns false if an error occured during the skip (e.g. skipped in the middle
+     * of a record greater than the interval size). The iterator should not continue to be used the if this method
+     * returns false.
+     */
+    private[persistence] def skipToCurrentFileLastInterval(): Boolean = {
+      (logStream, fileHeader) match {
+        case (Some(dis), Some(header)) => {
+          val fileSkipIntervalSize = header.fileSkipIntervalSize
+          val fileLength = readFile.length()
+          val lastSkipPosition = fileLength - (readFile.length() % fileSkipIntervalSize)
+          val skipLen = lastSkipPosition - positionStream.position
+          if (skipLen > 0) {
+            info("Skipping {} bytes to last interval (intervalSize={}, size={}): {}",
+              skipLen, fileSkipIntervalSize, fileLength, readFile)
+            dis.skip(skipLen)
+            readNextRecord()
+          } else {
+            true
+          }
+        }
+        case _ => true
+      }
     }
 
     def close() {
@@ -503,13 +564,17 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
           info("Opening log file: {}", readFile)
           val pis = new PositionInputStream(new FileInputStream(readFile))
           val dis = new DataInputStream(pis)
-          if (readFileHeader(dis)) {
-            positionStream = pis
-            logStream = Some(dis)
-            readNextRecord()
-          } else {
-            nextRecord = Right(None)
-            false
+          readFileHeader(dis) match {
+            case Some(header) => {
+              positionStream = pis
+              logStream = Some(dis)
+              fileHeader = Some(header)
+              readNextRecord()
+            }
+            case None => {
+              nextRecord = Right(None)
+              false
+            }
           }
         }
       } else {
@@ -517,27 +582,19 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       }
     }
 
-    private def readFileHeader(dis: DataInputStream): Boolean = {
+    private def readFileHeader(dis: DataInputStream): Option[FileHeader] = {
       try {
         val readMagic = dis.readLong()
-        if (readMagic != LogFileMagic) {
-          throw new IOException("Log file header magic %x not %x".format(readMagic, LogFileMagic))
-        }
         val readVersion = dis.readInt()
-        if (readVersion != LogFileVersion) {
-          throw new IOException("Unsupported log file version %d".format(readVersion))
-        }
         val readService = dis.readUTF()
-        if (readService != service) {
-          throw new IOException("Service %s not %s".format(readService, service))
-        }
-        true
+        val readSkipIntervalSize = if (readVersion > 1) dis.readInt() else Int.MaxValue
+        Some(FileHeader(readMagic, readVersion, readService, readSkipIntervalSize))
       } catch {
         case e: Exception => {
           readNextError.mark()
           warn("Error reading log file header from {}: {}", readFile, e)
           nextRecord = Left(e)
-          false
+          None
         }
       }
     }
@@ -548,14 +605,40 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
           case Some(dis) => {
             try {
               val position = positionStream.position
-              val crc = dis.readLong() // TODO: crc validation
+              val fileSkipIntervalSize = fileHeader.get.fileSkipIntervalSize
+              val lenBeforeSkip = fileSkipIntervalSize - position % fileSkipIntervalSize
+              if (lenBeforeSkip <= 12) {
+                positionStream.skip(lenBeforeSkip)
+              }
+
+              // Read the first byte of the CRC outside of the inner try/catch. Assume this is the end of the current
+              // log file (and continue reading from the next file) if we get an EOFException while reading the first
+              // byte. Any exception (including EOFException) while reading remaining bytes of the record means that
+              // the record is corrupted and we don't continue reading.
+              val crcBuf = new Array[Byte](8)
+              dis.readFully(crcBuf, 0, 1)
               try {
-                val txLen = dis.readInt() // TODO: protection against negative or len too large
-                val buf = new Array[Byte](txLen)
-                dis.read(buf) // TODO: validate read len
+                dis.readFully(crcBuf, 1, 7)
+                var crc = ByteBuffer.wrap(crcBuf).getLong
+                var recordLen = dis.readInt()
+
+                // Detect padding to next skip interval
+                if (crc == 0 && recordLen == 0) {
+                  require(lenBeforeSkip > 12)
+                  dis.skip(lenBeforeSkip - 12)
+                  crc = dis.readLong()
+                  recordLen = dis.readInt()
+                }
+
+                require(recordLen >= MinRecordLen && recordLen <= MaxRecordLen,
+                  "Record length %d is out of bound".format(recordLen))
+                val buf = new Array[Byte](recordLen)
+                dis.readFully(buf)
                 val record = serializer.deserialize(buf)
-                val eot = dis.readInt() // TODO: validate eot
-                nextRecord = Right(Some(IteratorRecord(record, position, readFile)))
+                val eor = dis.readInt()
+                require(eor == EOR, "End of record magic number 0x%x not 0x%x".format(eor, EOR))
+                require(crc == computeRecordCrc(buf), "CRC should be %d but is %d".format(crc, computeRecordCrc(buf)))
+                nextRecord = Right(Some(FileRecord(record, position, readFile)))
                 true
               } catch {
                 case e: Exception => {
@@ -583,6 +666,9 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
 object FileTransactionLog {
   val LogFileMagic: Long = ByteBuffer.wrap("NRVTXLOG".getBytes).getLong
-  val LogFileVersion: Int = 1
-  val EOT: Int = 0x5a
+  val LogFileVersion: Int = 2
+
+  val MinRecordLen = 0
+  val MaxRecordLen = 1000000
+  val EOR: Int = 0x5a
 }
