@@ -61,12 +61,16 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
     for (action <- this.actions) {
       action.start()
     }
+
+    consistency.start()
   }
 
   def stop() {
     for (action <- this.actions) {
       action.stop()
     }
+
+    consistency.stop()
   }
 
   def registerAction(action: Action): Action = {

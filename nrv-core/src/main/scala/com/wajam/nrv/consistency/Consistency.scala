@@ -33,6 +33,10 @@ abstract class Consistency extends MessageHandler {
       case _ =>
     }
   }
+
+  def start()
+
+  def stop()
 }
 
 object Consistency {

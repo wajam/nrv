@@ -14,4 +14,8 @@ class ConsistencyOne extends Consistency with Logging {
     // let only the first selected as selected
     selected.slice(1, selected.size).foreach(replica => replica.selected = false)
   }
+
+  def start() {}
+
+  def stop() {}
 }
