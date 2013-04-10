@@ -52,8 +52,6 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     import SubscriptionManagerProtocol._
 
-    private case class PendingSubscription(subscribe: Subscribe)
-
     private var subscriptions: List[SubscriptionActor] = List()
 
     private def createResolvedServiceMember(token: Long): ResolvedServiceMember = {
@@ -112,6 +110,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           case Subscribe(message) => {
             try {
               // TODO: limit the number of concurent replication subscription???
+              info("Received a subscribe request {}", message)
               implicit val request = message
               val start = getOptionalParamLongValue(Start).getOrElse(Long.MinValue)
               val token = getParamLongValue(Token)
@@ -138,7 +137,6 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
             try {
               implicit val request = message
               val id = getParamStringValue(SubscriptionId)
-
               subscriptions.find(_.subId == id).foreach(subscription => {
                 subscription !? SubscriptionProtocol.Kill
                 subscriptions = subscriptions.filterNot(_ == subscription)
@@ -154,8 +152,10 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           case Error(subscriptionActor, exception) => {
             try {
               info("Got an error from the subscription actor. Stopping it. {}", subscriptionActor.member)
-              subscriptionActor !? SubscriptionProtocol.Kill
-              subscriptions = subscriptions.filterNot(_ == subscriptionActor)
+              subscriptions.find(_ == subscriptionActor).foreach(subscription => {
+                subscription !? SubscriptionProtocol.Kill
+                subscriptions = subscriptions.filterNot(_ == subscription)
+              })
             } catch {
               case e: Exception => {
                 // TODO: metric
@@ -166,6 +166,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           case Kill => {
             try {
               subscriptions.foreach(_ !? SubscriptionProtocol.Kill)
+              subscriptions = List()
             } catch {
               case e: Exception => {
                 // TODO
@@ -214,10 +215,10 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       this
     }
 
-    private def canPublishMore: Boolean = {
+    private def currentWindowSize: Int = {
       pendingSequences.headOption match {
-        case Some(firstPendingSequence) => lastSequence - firstPendingSequence < publishWindowSize
-        case None => true
+        case Some(firstPendingSequence) => (lastSequence - firstPendingSequence).toInt
+        case None => 0
       }
     }
 
@@ -241,7 +242,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
         react {
           case PublishNext if !error => {
             try {
-              if (source.hasNext && canPublishMore) {
+              if (source.hasNext && currentWindowSize < publishWindowSize) {
                 source.next() match {
                   case Some(txMessage) => {
                     val sequence = nextSequence
@@ -254,7 +255,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                       onReply = onPublishReply(sequence), responseTimeout = service.responseTimeout)
                     publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
 
-                    info("Publishing message to subscriber (seq={}).", sequence, txMessage)
+                    info("Publishing message to subscriber (seq={}, window={}).", sequence, currentWindowSize, txMessage)
 
                     publishAction.call(publishMessage)
                     pendingSequences += sequence
