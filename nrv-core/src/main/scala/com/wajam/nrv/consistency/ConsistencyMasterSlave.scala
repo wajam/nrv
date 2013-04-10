@@ -78,6 +78,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     subscribeAction.start()
     unsubscribeAction.start()
 
+    replicationPublisher.start()
     replicationSubscriber.start()
   }
 
@@ -85,6 +86,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     super.stop()
 
     replicationSubscriber.stop()
+    replicationPublisher.stop()
 
     publishAction.stop()
     subscribeAction.stop()

@@ -105,7 +105,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             try {
               subscriptions.get(subscribe.member) match {
                 case Some(Left(_)) => {
-                  info("Send subscribe request for pending subscription {}.", subscribe.member)
+                  info("Send subscribe request for pending subscription. {}", subscribe.member)
                   var params: Map[String, MValue] = Map(ReplicationParam.Token -> subscribe.member.token.toString)
                   subscribe.txLog.getLastLoggedRecord.map(_.consistentTimestamp) match {
                     case Some(Some(lastTimestamp)) => {
@@ -146,7 +146,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               exception match {
                 case Some(e) => {
                   // TODO: metric
-                  warn("Got a subscribe response error for member {}: ", subscribe.member, e)
+                  warn("Got a subscribe response error for {}: ", subscribe.member, e)
                   subscriptions -= (subscribe.member)
                   subscribe.onSubscriptionEnd()
                 }
@@ -154,7 +154,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                   // TODO: error handling + more usefull description
                   subscriptions.get(subscribe.member) match {
                     case Some(Left(_)) => {
-                      info("Activate subscription for {}.", subscribe.member)
+                      info("Activate subscription from response {}.", subscribe.member, message)
                       val subscriptionId = getParamStringValue(SubscriptionId)
                       val startTimestamp = getParamLongValue(Start)
                       val endTimestamp = getOptionalParamLongValue(End).map(ts => Timestamp(ts))
@@ -190,12 +190,12 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             try {
               subscriptions.get(member) match {
                 case Some(Left(PendingSubscription(subscribe))) => {
-                  info("Unsubscribe. Remove pending subscription {}.", member)
+                  info("Unsubscribe. Remove pending subscription. {}", member)
                   subscriptions -= (member)
                   subscribe.onSubscriptionEnd()
                 }
                 case Some(Right(subscription)) => {
-                  info("Unsubscribe. Remove active subscription for {}.", member)
+                  info("Unsubscribe. Remove active subscription for. {}", member)
                   // TODO: unsubscribe from replication source?
                   subscriptions -= (member)
                   subscription ! SubscriptionProtocol.Kill
@@ -225,7 +225,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             } catch {
               case e: Exception => {
                 // TODO: metric
-                warn("Error processing publish message {}", message, e)
+                warn("Error processing publish {}", message, e)
               }
             }
           }
@@ -244,7 +244,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             } catch {
               case e: Exception => {
                 // TODO: metric
-                warn("Error processing subscription error {}", subscriptionActor.member, e)
+                warn("Error processing subscription error. {}", subscriptionActor.member, e)
               }
             }
           }

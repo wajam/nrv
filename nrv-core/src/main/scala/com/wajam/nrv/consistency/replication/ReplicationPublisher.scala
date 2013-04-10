@@ -18,118 +18,200 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                            publishAction: Action, publishTPS: Int = 50, publishWindowSize: Int = 20)
   extends UuidStringGenerator with Logging {
 
-  private var subscriptions: List[SubscriptionActor] = List()
+  private val manager = new SubscriptionManagerActor
 
-  def handleSubscribeMessage(implicit message: InMessage) {
-    // TODO: catch error and reply
+  def start() {
+    manager.start()
+  }
 
-    val start = getOptionalParamLongValue(Start).getOrElse(Long.MinValue)
-    val token = getParamLongValue(Token)
-    val member = createResolvedServiceMember(token)
-    val source = createSourceIterator(member, start)
+  def stop() {
+    manager !? SubscriptionManagerProtocol.Kill
+  }
 
-    // TODO: synchronize addition and maybe more
-    this.synchronized {
-      val sub = new SubscriptionActor(nextId, member, source, message.source)
-      subscriptions = sub :: subscriptions
-
-      // TODO: reply
-      val reply = new OutMessage(Seq((SubscriptionId -> sub.subscriptionId), (Start -> start)))
-      source.to.foreach(ts => reply.parameters += (End -> ts.value))
-      message.reply(reply)
-
-      sub.start()
-    }
+  def handleSubscribeMessage(message: InMessage) {
+    manager ! SubscriptionManagerProtocol.Subscribe(message)
   }
 
   def handleUnsubscribeMessage(implicit message: InMessage) {
-    val id = getParamStringValue(SubscriptionId)
-
-    // TODO: kill actor and close erything
-    this.synchronized {
-      subscriptions.find(_.subscriptionId == id).foreach(sub => {
-        sub !? SubscriptionProtocol.Kill
-        subscriptions = subscriptions.filterNot(_ == sub)
-      })
-    }
+    manager ! SubscriptionManagerProtocol.Unsubscribe(message)
   }
 
-  private def createResolvedServiceMember(token: Long): ResolvedServiceMember = {
-    service.getMemberAtToken(token) match {
-      case Some(member) if service.cluster.isLocalNode(member.node) => {
-        ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
-      }
-      case Some(member) => {
-        throw new Exception("local node not master of token '%d' service member (master=%s)".format(token, member.node))
-      }
-      case None => {
-        throw new Exception("token '%d' service member not found".format(token))
-      }
-    }
+  object SubscriptionManagerProtocol {
+
+    case class Subscribe(message: InMessage)
+
+    case class Unsubscribe(message: InMessage)
+
+    case class Error(subscription: SubscriptionActor, exception: Option[Exception] = None)
+
+    object Kill
+
   }
 
-  private def createSourceIterator(member: ResolvedServiceMember, from: Timestamp): ReplicationSourceIterator = {
-    val txLog = getTransactionLog(member)
-    txLog.firstRecord(None) match {
-      case Some(logRecord) if (logRecord.timestamp <= from) => {
-        // The first transaction log record is before the starting timestamp, use the transaction log as
-        // replication source
-        info("Using TransactionLogReplicationIterator. start={}, end={}, member={}", from,
-          getMemberCurrentConsistentTimestamp(member), member)
-        new TransactionLogReplicationIterator(member, from, txLog, getMemberCurrentConsistentTimestamp(member))
-      }
-      case Some(logRecord) => {
-        // The first transaction log record is after the replication starting timestamp.
-        // Use the consistent store as the replication source up to the first transaction log record.
-        val to = logRecord.timestamp
-        info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}", from, to, member)
-        new ConsistentStoreReplicationIterator(member, from, to, store)
-      }
-      case None => {
-        // There are no transaction log!!! Cannot replicate if transaction log is not enabled
-        throw new Exception("No transaction log! Cannot replicate without transaction log")
-      }
-    }
-  }
+  class SubscriptionManagerActor extends Actor {
 
-  private def firstStoreRecord(from: Option[Timestamp], ranges: Seq[TokenRange]): Option[Message] = {
-    val itr = from match {
-      case Some(timestamp) => store.readTransactions(timestamp, Long.MaxValue, ranges)
-      case None => store.readTransactions(Long.MinValue, Long.MaxValue, ranges)
-    }
-    try {
-      itr.find(_ => true)
-    } finally {
-      itr.close()
-    }
-  }
+    import SubscriptionManagerProtocol._
 
-  private[replication] def publishNext(subscriptionId: String) {
-    subscriptions.find(_.subscriptionId == subscriptionId).foreach(_ !? SubscriptionProtocol.PublishNext)
+    private case class PendingSubscription(subscribe: Subscribe)
+
+    private var subscriptions: List[SubscriptionActor] = List()
+
+    private def createResolvedServiceMember(token: Long): ResolvedServiceMember = {
+      service.getMemberAtToken(token) match {
+        case Some(member) if service.cluster.isLocalNode(member.node) => {
+          ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
+        }
+        case Some(member) => {
+          throw new Exception("local node not master of token '%d' service member (master=%s)".format(token, member.node))
+        }
+        case None => {
+          throw new Exception("token '%d' service member not found".format(token))
+        }
+      }
+    }
+
+    private def createSourceIterator(member: ResolvedServiceMember, from: Timestamp): ReplicationSourceIterator = {
+      val txLog = getTransactionLog(member)
+      txLog.firstRecord(None) match {
+        case Some(logRecord) if (logRecord.timestamp <= from) => {
+          // The first transaction log record is before the starting timestamp, use the transaction log as
+          // replication source
+          info("Using TransactionLogReplicationIterator. start={}, end={}, member={}", from,
+            getMemberCurrentConsistentTimestamp(member), member)
+          new TransactionLogReplicationIterator(member, from, txLog, getMemberCurrentConsistentTimestamp(member))
+        }
+        case Some(logRecord) => {
+          // The first transaction log record is after the replication starting timestamp.
+          // Use the consistent store as the replication source up to the first transaction log record.
+          val to = logRecord.timestamp
+          info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}", from, to, member)
+          new ConsistentStoreReplicationIterator(member, from, to, store)
+        }
+        case None => {
+          // There are no transaction log!!! Cannot replicate if transaction log is not enabled
+          throw new Exception("No transaction log! Cannot replicate without transaction log")
+        }
+      }
+    }
+
+    private def firstStoreRecord(from: Option[Timestamp], ranges: Seq[TokenRange]): Option[Message] = {
+      val itr = from match {
+        case Some(timestamp) => store.readTransactions(timestamp, Long.MaxValue, ranges)
+        case None => store.readTransactions(Long.MinValue, Long.MaxValue, ranges)
+      }
+      try {
+        itr.find(_ => true)
+      } finally {
+        itr.close()
+      }
+    }
+
+    def act() {
+      loop {
+        react {
+          case Subscribe(message) => {
+            try {
+              // TODO: limit the number of concurent replication subscription???
+              implicit val request = message
+              val start = getOptionalParamLongValue(Start).getOrElse(Long.MinValue)
+              val token = getParamLongValue(Token)
+              val member = createResolvedServiceMember(token)
+              val source = createSourceIterator(member, start)
+
+              val subscription = new SubscriptionActor(nextId, member, source, message.source)
+              subscriptions = subscription :: subscriptions
+
+              // Reply with a subscription response
+              val response = new OutMessage(Seq((SubscriptionId -> subscription.subId), (Start -> start)))
+              source.to.foreach(ts => response.parameters += (End -> ts.value))
+              message.reply(response)
+
+              subscription.start()
+            } catch {
+              case e: Exception => {
+                // TODO: metric
+                warn("Error processing subscribe request {}: ", message, e)
+              }
+            }
+          }
+          case Unsubscribe(message) => {
+            try {
+              implicit val request = message
+              val id = getParamStringValue(SubscriptionId)
+
+              subscriptions.find(_.subId == id).foreach(subscription => {
+                subscription !? SubscriptionProtocol.Kill
+                subscriptions = subscriptions.filterNot(_ == subscription)
+              })
+              message.reply(Seq())
+            } catch {
+              case e: Exception => {
+                // TODO: metric
+                warn("Error processing unsubscribe request {}: ", message, e)
+              }
+            }
+          }
+          case Error(subscriptionActor, exception) => {
+            try {
+              info("Got an error from the subscription actor. Stopping it. {}", subscriptionActor.member)
+              subscriptionActor !? SubscriptionProtocol.Kill
+              subscriptions = subscriptions.filterNot(_ == subscriptionActor)
+            } catch {
+              case e: Exception => {
+                // TODO: metric
+                warn("Error processing subscription error {}: ", subscriptionActor.member, e)
+              }
+            }
+          }
+          case Kill => {
+            try {
+              subscriptions.foreach(_ !? SubscriptionProtocol.Kill)
+            } catch {
+              case e: Exception => {
+                // TODO
+              }
+            } finally {
+              reply(true)
+            }
+          }
+        }
+      }
+    }
+
   }
 
   object SubscriptionProtocol {
 
     object PublishNext
 
-    object Kill
-
     case class Ack(sequence: Long)
+
+    object Kill
 
   }
 
-  private class SubscriptionActor(val subscriptionId: String, member: ResolvedServiceMember,
+  class SubscriptionActor(val subId: String, val member: ResolvedServiceMember,
                                   source: ReplicationSourceIterator, subscriber: Node) extends Actor with Logging {
+
     import SubscriptionProtocol._
 
     private val publishScheduler = new Scheduler(this, PublishNext, 1000, 1000 / publishTPS,
       blockingMessage = true, autoStart = false)
     private var pendingSequences: TreeSet[Long] = TreeSet()
     private var lastSequence = 0L
+    private var error = false
 
     private def nextSequence = {
       lastSequence += 1
       lastSequence
+    }
+
+    override def start() = {
+      super.start()
+      if (publishTPS > 0) {
+        publishScheduler.start()
+      }
+      this
     }
 
     private def canPublishMore: Boolean = {
@@ -143,7 +225,9 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       optException match {
         case Some(e) => {
           // TODO: Log exception + end subscription
-          info("Received an error response from the subscriber (seq={}). ", e)
+          info("Received an error response from the subscriber (seq={}): ", e)
+          manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
+          error = true
         }
         case None => {
           info("Received an publish response from the subscriber (seq={}).", sequence)
@@ -152,18 +236,10 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       }
     }
 
-    override def start() = {
-      super.start()
-      if (publishTPS > 0) {
-        publishScheduler.start()
-      }
-      this
-    }
-
     def act() {
       loop {
         react {
-          case PublishNext => {
+          case PublishNext if !error => {
             try {
               if (source.hasNext && canPublishMore) {
                 source.next() match {
@@ -172,13 +248,13 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                     // Must fail if timestamp is missing
                     val timestamp = Consistency.getMessageTimestamp(txMessage).get
                     val params: Seq[(String, MValue with Product with Serializable)] =
-                      Seq((Sequence -> sequence), (SubscriptionId -> subscriptionId),
+                      Seq((Sequence -> sequence), (SubscriptionId -> subId),
                         (ReplicationParam.Timestamp -> timestamp.value))
                     val publishMessage = new OutMessage(params = params, data = txMessage,
                       onReply = onPublishReply(sequence), responseTimeout = service.responseTimeout)
                     publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
 
-                    info("Publishing message to subscriber {} (seq={}).", txMessage, sequence)
+                    info("Publishing message to subscriber (seq={}).", sequence, txMessage)
 
                     publishAction.call(publishMessage)
                     pendingSequences += sequence
@@ -189,20 +265,22 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
             } catch {
               case e: Exception => {
-                info("Error publishing a transaction.", e)
-                // TODO: cancel subscription
+                info("Error publishing a transaction (subid={}). {}: ", subId, member, e)
+                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
+                error = true
               }
             } finally {
               reply(true)
             }
           }
-          case Ack(sequence) => {
+          case Ack(sequence) if !error => {
             try {
               pendingSequences -= sequence
             } catch {
               case e: Exception => {
-                info("Error acknoledging transaction {}.", sequence, e)
-                // TODO: cancel subscription
+                info("Error acknoledging transaction (subid={}, seq={}). {}: ", subId, sequence, member, e)
+                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
+                error = true
               }
             }
           }
@@ -216,11 +294,15 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               }
             } catch {
               case e: Exception => {
-                info("Error kiiling actor.", e)
+                info("Error killing actor (subid={}). {}: ", subId, member ,e)
               }
             } finally {
               reply(true)
             }
+          }
+          case _ if error => {
+            // TODO: debug
+            info("Ignore actor message since this subscription is already terminated. {}", member)
           }
         }
       }
