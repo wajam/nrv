@@ -105,7 +105,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             try {
               subscriptions.get(subscribe.member) match {
                 case Some(Left(_)) => {
-                  info("Send subscribe request for pending subscription. {}", subscribe.member)
+                  info("Send subscribe request to source for pending subscription. {}", subscribe.member)
                   var params: Map[String, MValue] = Map(ReplicationParam.Token -> subscribe.member.token.toString)
                   subscribe.txLog.getLastLoggedRecord.map(_.consistentTimestamp) match {
                     case Some(Some(lastTimestamp)) => {
@@ -328,6 +328,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
           pendingTransactions = pendingTransactions.tail
 
           // Add transaction to transaction log and to consistent storage.
+          debug("Storing (seq={}) {}", tx.sequence, tx.message)
           txLog.append {
             Request(idGenerator.nextId, consistentTimestamp, tx.timestamp, tx.token, tx.message)
           }
@@ -354,6 +355,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
         react {
           case tx: PendingTransaction if !error => {
             try {
+              debug("Received (seq={}) {}", tx.sequence, tx.message)
               pendingTransactions += tx
               lastAddedTime = currentTime
 
@@ -397,8 +399,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             }
           }
           case _ if error => {
-            // TODO: debug
-            info("Ignore actor message since this subscription is already terminated. {}", member)
+            debug("Ignore actor message since this subscription is already terminated. {}", member)
           }
         }
       }

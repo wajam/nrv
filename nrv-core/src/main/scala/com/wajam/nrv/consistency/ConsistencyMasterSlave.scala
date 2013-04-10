@@ -36,6 +36,7 @@ import collection.generic.FilterMonadic
  */
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
                              txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000,
+                             replicationTps: Int = 50, replicationWindowSize: Int = 20,
                              replicationResolver: Option[Resolver] = None)
   extends ConsistencyOne {
 
@@ -62,8 +63,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private lazy val replicationPublisher = new ReplicationPublisher(service, service,
     getTransactionLog = member => recorders(member.token).txLog,
     getMemberCurrentConsistentTimestamp = member => recorders(member.token).currentConsistentTimestamp,
-    publishAction = publishAction, publishTPS = 1, publishWindowSize = 1)
-  // TODO: configurable rates
+    publishAction = publishAction, publishTps = replicationTps, publishWindowSize = replicationWindowSize)
   private val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
   subscribeAction.applySupport(resolver = replicationResolver)

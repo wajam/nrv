@@ -15,7 +15,7 @@ import com.wajam.nrv.Logging
 class ReplicationPublisher(service: Service, store: ConsistentStore,
                            getTransactionLog: (ResolvedServiceMember) => TransactionLog,
                            getMemberCurrentConsistentTimestamp: (ResolvedServiceMember) => Option[Timestamp],
-                           publishAction: Action, publishTPS: Int = 50, publishWindowSize: Int = 20)
+                           publishAction: Action, publishTps: Int, publishWindowSize: Int)
   extends UuidStringGenerator with Logging {
 
   private val manager = new SubscriptionManagerActor
@@ -60,7 +60,9 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
         }
         case Some(member) => {
-          throw new Exception("local node not master of token '%d' service member (master=%s)".format(token, member.node))
+          // TODO: uncomment exception and remove temporary code once live test completed
+//          throw new Exception("local node not master of token '%d' service member (master=%s)".format(token, member.node))
+          ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
         }
         case None => {
           throw new Exception("token '%d' service member not found".format(token))
@@ -87,7 +89,11 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
         }
         case None => {
           // There are no transaction log!!! Cannot replicate if transaction log is not enabled
-          throw new Exception("No transaction log! Cannot replicate without transaction log")
+          // TODO: uncomment exception and remove temporary code once live test completed
+//          throw new Exception("No transaction log! Cannot replicate without transaction log")
+          val to = store.getLastTimestamp(member.ranges).get // OK to crash if empty, temporary code
+          info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}", from, to, member)
+          new ConsistentStoreReplicationIterator(member, from, to, store)
         }
       }
     }
@@ -110,7 +116,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           case Subscribe(message) => {
             try {
               // TODO: limit the number of concurent replication subscription???
-              info("Received a subscribe request {}", message)
+              debug("Received a subscribe request {}", message)
               implicit val request = message
               val start = getOptionalParamLongValue(Start).getOrElse(Long.MinValue)
               val token = getParamLongValue(Token)
@@ -196,7 +202,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     import SubscriptionProtocol._
 
-    private val publishScheduler = new Scheduler(this, PublishNext, 1000, 1000 / publishTPS,
+    private val publishScheduler = new Scheduler(this, PublishNext, 1000, 1000 / publishTps,
       blockingMessage = true, autoStart = false)
     private var pendingSequences: TreeSet[Long] = TreeSet()
     private var lastSequence = 0L
@@ -209,7 +215,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     override def start() = {
       super.start()
-      if (publishTPS > 0) {
+      if (publishTps > 0) {
         publishScheduler.start()
       }
       this
@@ -231,7 +237,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           error = true
         }
         case None => {
-          info("Received an publish response from the subscriber (seq={}).", sequence)
+          debug("Received an publish response from the subscriber (seq={}).", sequence)
           this ! Ack(sequence)
         }
       }
@@ -255,7 +261,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                       onReply = onPublishReply(sequence), responseTimeout = service.responseTimeout)
                     publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
 
-                    info("Publishing message to subscriber (seq={}, window={}).", sequence, currentWindowSize, txMessage)
+                    debug("Publishing message to subscriber (seq={}, window={}).", sequence, currentWindowSize, txMessage)
 
                     publishAction.call(publishMessage)
                     pendingSequences += sequence
@@ -302,8 +308,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
             }
           }
           case _ if error => {
-            // TODO: debug
-            info("Ignore actor message since this subscription is already terminated. {}", member)
+            debug("Ignore actor message since this subscription is already terminated. {}", member)
           }
         }
       }
