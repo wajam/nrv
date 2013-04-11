@@ -26,7 +26,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
   private val manager = new SubscriptionManagerActor
 
-  private lazy val serviceScope = service.name.replace(".", "-")
+  private val serviceScope = service.name.replace(".", "-")
   private val subscriptions = metrics.gauge("subscriptions", serviceScope) {
     manager.subscriptionsCount
   }
@@ -332,7 +332,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
       def compare(that: PendingTransaction) = sequence.compare(that.sequence)
 
       def reply() {
-        publishMessage.reply(Seq())
+        publishMessage.reply(Nil)
       }
     }
 

@@ -1,7 +1,6 @@
 package com.wajam.nrv.consistency.replication
 
 import com.wajam.nrv.service._
-import com.wajam.nrv.service.Shard
 
 /**
  * Special purpose resolver used to explicitly specify replication sources. Specify a list of service member which
@@ -12,7 +11,7 @@ import com.wajam.nrv.service.Shard
 class ReplicationSourceResolver(sourceReplicas: Seq[String], resolver: => Resolver)
   extends Resolver(resolver.replica, resolver.tokenExtractor, resolver.constraints, resolver.sorter) {
 
-  lazy private val sourceMembers = sourceReplicas.map(s => ServiceMember.fromString(s))
+  private val sourceMembers = sourceReplicas.map(s => ServiceMember.fromString(s))
 
   override def resolve(service: Service, token: Long) = {
     // Resolve the specified token to find the serving service member token. If the resolved token one of the

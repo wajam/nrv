@@ -27,7 +27,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
   private val manager = new SubscriptionManagerActor
 
-  private lazy val serviceScope = service.name.replace(".", "-")
+  private val serviceScope = service.name.replace(".", "-")
   private val subscriptions = metrics.gauge("subscriptions", serviceScope) {
     manager.subscriptionsCount
   }
@@ -70,7 +70,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     import SubscriptionManagerProtocol._
 
-    private var subscriptions: List[SubscriptionActor] = List()
+    private var subscriptions: List[SubscriptionActor] = Nil
 
     def subscriptionsCount = subscriptions.size
 
@@ -176,7 +176,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                 subscription !? SubscriptionProtocol.Kill
                 subscriptions = subscriptions.filterNot(_ == subscription)
               })
-              message.reply(Seq())
+              message.reply(Nil)
             } catch {
               case e: Exception => {
                 unsubscribeErrorMeter.mark()
@@ -201,7 +201,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           case Kill => {
             try {
               subscriptions.foreach(_ !? SubscriptionProtocol.Kill)
-              subscriptions = List()
+              subscriptions = Nil
             } catch {
               case e: Exception => {
                 warn("Error killing subscription manager ({}). {}", service.name, e)

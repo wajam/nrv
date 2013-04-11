@@ -297,8 +297,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   private def isSlaveReplicaOf(member: ServiceMember): Boolean = {
-    resolver.resolve(service, member.token).selectedReplicas.toList match {
-      case source :: replicas if replicas.exists(r => cluster.isLocalNode(r.node)) => true
+    resolver.resolve(service, member.token).selectedReplicas match {
+      case Seq(source, replicas@ _*) if replicas.exists(r => cluster.isLocalNode(r.node)) => true
       case _ => false
     }
   }
