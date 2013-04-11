@@ -91,17 +91,21 @@ object JsonRender {
 
   // https://github.com/lift/lift/blob/master/framework/lift-base/lift-json/src/main/scala/net/liftweb/json/JsonAST.scala#L397
   private def quote(sb: StringBuilder, s: String): StringBuilder = {
-    s.foreach({
-      case '"' => sb.append("\\\"")
-      case '\\' => sb.append("\\\\")
-      case '\b' => sb.append("\\b")
-      case '\f' => sb.append("\\f")
-      case '\n' => sb.append("\\n")
-      case '\r' => sb.append("\\r")
-      case '\t' => sb.append("\\t")
-      case c if ((c >= '\u0000' && c < '\u001f') || (c >= '\u0080' && c < '\u00a0') || (c >= '\u2000' && c < '\u2100')) => sb.append("\\u%04x".format(c: Int))
-      case c => sb.append(c)
-    })
+    var i = 0
+    while (i < s.length) {
+      s.charAt(i) match {
+        case '"' => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\b' => sb.append("\\b")
+        case '\f' => sb.append("\\f")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case c if ((c >= '\u0000' && c < '\u001f') || (c >= '\u0080' && c < '\u00a0') || (c >= '\u2000' && c < '\u2100')) => sb.append("\\u%04x".format(c: Int))
+        case c => sb.append(c)
+      }
+      i += 1
+    }
     sb
   }
 }
