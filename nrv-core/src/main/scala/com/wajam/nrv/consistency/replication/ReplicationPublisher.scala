@@ -14,12 +14,15 @@ import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
 
 /**
- * Manage all replication subscriptions the local service is acting as a replication source.
+ * Manage all replication subscriptions the local service is acting as a replication source. When strictSource is
+ * enabled (recommended default), the replication source must be the master replica and the replication source must
+ * have enabled transaction logs.
  */
 class ReplicationPublisher(service: Service, store: ConsistentStore,
                            getTransactionLog: (ResolvedServiceMember) => TransactionLog,
                            getMemberCurrentConsistentTimestamp: (ResolvedServiceMember) => Option[Timestamp],
-                           publishAction: Action, publishTps: Int, publishWindowSize: Int)
+                           publishAction: Action, publishTps: Int, publishWindowSize: Int,
+                           strictSource: Boolean = true)
   extends UuidStringGenerator with Logging with Instrumented {
 
   private val manager = new SubscriptionManagerActor
@@ -65,10 +68,6 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "subscribe", serviceScope)
     private lazy val unsubscribeErrorMeter = metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
 
-    private lazy val publishMeter = metrics.meter("publish", "publish", serviceScope)
-    private lazy val publishIgnoreMeter = metrics.meter("publish-ignore", "publish-ignore", serviceScope)
-    private lazy val publishErrorMeter = metrics.meter("publish-error", "publish-error", serviceScope)
-
     import SubscriptionManagerProtocol._
 
     private var subscriptions: List[SubscriptionActor] = List()
@@ -81,10 +80,11 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
         }
         case Some(member) => {
-          // TODO: uncomment exception and remove temporary code once live test from passive servers are completed
-          // TODO: create an unsafe mode instead???
-          //          throw new Exception("local node not master of token '%d' service member (master=%s)".format(token, member.node))
-          ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
+          if (strictSource) {
+            throw new Exception("local node not master of token '%d' service member (master=%s)".format(token, member.node))
+          } else {
+            ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
+          }
         }
         case None => {
           throw new Exception("token '%d' service member not found".format(token))
@@ -111,11 +111,14 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
         }
         case None => {
           // There are no transaction log!!! Cannot replicate if transaction log is not enabled
-          // TODO: uncomment exception and remove temporary code once live test completed
-          //          throw new Exception("No transaction log! Cannot replicate without transaction log")
-          val to = store.getLastTimestamp(member.ranges).get // OK to crash if empty, temporary code
-          info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}", from, to, member)
-          new ConsistentStoreReplicationIterator(member, from, to, store)
+          if (strictSource) {
+            throw new Exception("No transaction log! Cannot replicate without transaction log")
+          } else {
+            // Replicate from the store using the currently most recent store timestamp as upper boundary
+            val to = store.getLastTimestamp(member.ranges).getOrElse(Timestamp(Long.MinValue))
+            info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}", from, to, member)
+            new ConsistentStoreReplicationIterator(member, from, to, store)
+          }
         }
       }
     }
@@ -231,10 +234,6 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     private lazy val ackMeter = metrics.meter("ack", "ack", member.scopeName)
     private lazy val ackErrorMeter = metrics.meter("ack-error", "ack-error", member.scopeName)
-
-    private lazy val idletimeoutMeter = metrics.meter("idle-timeout", "idle-timeout", member.scopeName)
-    private lazy val errorMeter = metrics.meter("error", "error", member.scopeName)
-    private lazy val txWriteTimer = metrics.timer("tx-write", member.scopeName)
 
     import SubscriptionProtocol._
 

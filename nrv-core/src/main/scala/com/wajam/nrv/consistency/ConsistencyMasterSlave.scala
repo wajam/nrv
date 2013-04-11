@@ -12,7 +12,6 @@ import java.util.concurrent.TimeUnit
 import com.yammer.metrics.core.Gauge
 import com.wajam.nrv.UnavailableException
 import replication.{ReplicationSubscriber, ReplicationPublisher, ReplicationParam}
-import collection.generic.FilterMonadic
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
@@ -37,7 +36,7 @@ import collection.generic.FilterMonadic
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
                              txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000,
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
-                             replicationResolver: Option[Resolver] = None)
+                             replicationStrictSource: Boolean = true, replicationResolver: Option[Resolver] = None)
   extends ConsistencyOne {
 
   import Consistency._
@@ -60,10 +59,21 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     replicationSubscriber.handlePublishMessage(_), ActionMethod.POST)
 
   // Replication publisher actions
-  private lazy val replicationPublisher = new ReplicationPublisher(service, service,
-    getTransactionLog = member => recorders(member.token).txLog,
-    getMemberCurrentConsistentTimestamp = member => recorders(member.token).currentConsistentTimestamp,
-    publishAction = publishAction, publishTps = replicationTps, publishWindowSize = replicationWindowSize)
+  private lazy val replicationPublisher = {
+    def getTransactionLog(member: ResolvedServiceMember) = recorders.get(member.token) match {
+      case Some(recorder) => recorder.txLog
+      case None => NullTransactionLog
+    }
+
+    def getMemberCurrentConsistentTimestamp(member: ResolvedServiceMember) = recorders.get(member.token) match {
+      case Some(recorder) => recorder.currentConsistentTimestamp
+      case None => None
+    }
+
+    new ReplicationPublisher(service, service, getTransactionLog, getMemberCurrentConsistentTimestamp,
+      publishAction = publishAction, publishTps = replicationTps, publishWindowSize = replicationWindowSize,
+      strictSource = replicationStrictSource)
+  }
   private val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
   subscribeAction.applySupport(resolver = replicationResolver)
@@ -102,7 +112,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     metrics = new Metrics(service.name.replace(".", "-"))
 
-    // TODO: cleanup service registration
     // Setup current consistent timestamp lookup storage function
     info("Setup consistent timestamp lookup for service", service.name)
     this.service.setCurrentConsistentTimestamp((range) => {
@@ -255,6 +264,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
       case MemberStatus.Down => {
         this.synchronized {
+          // TODO: cancel replication publisher subscription
+
           // Remove transaction recorder for all other cases
           info("Remove transaction recorders for {}", event.member)
           val recorder = recorders.get(event.member.token)
