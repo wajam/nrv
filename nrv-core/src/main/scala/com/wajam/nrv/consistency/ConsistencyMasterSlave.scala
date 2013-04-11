@@ -100,8 +100,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     super.bindService(service)
 
-    // TODO: map service name to a metrics friendly name (i.e. remove dots)
-    metrics = new Metrics(service.name.replaceAll(".", "-"))
+    metrics = new Metrics(service.name.replace(".", "-"))
 
     // TODO: cleanup service registration
     // Setup current consistent timestamp lookup storage function

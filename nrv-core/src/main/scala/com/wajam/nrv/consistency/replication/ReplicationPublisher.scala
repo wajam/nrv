@@ -11,14 +11,23 @@ import scala.actors.Actor
 import collection.immutable.TreeSet
 import ReplicationParam._
 import com.wajam.nrv.Logging
+import com.yammer.metrics.scala.Instrumented
 
+/**
+ * Manage all replication subscriptions the local service is acting as a replication source.
+ */
 class ReplicationPublisher(service: Service, store: ConsistentStore,
                            getTransactionLog: (ResolvedServiceMember) => TransactionLog,
                            getMemberCurrentConsistentTimestamp: (ResolvedServiceMember) => Option[Timestamp],
                            publishAction: Action, publishTps: Int, publishWindowSize: Int)
-  extends UuidStringGenerator with Logging {
+  extends UuidStringGenerator with Logging with Instrumented {
 
   private val manager = new SubscriptionManagerActor
+
+  private lazy val serviceScope = service.name.replace(".", "-")
+  private val subscriptions = metrics.gauge("subscriptions", serviceScope) {
+    manager.subscriptionsCount
+  }
 
   def start() {
     manager.start()
@@ -50,9 +59,21 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
   class SubscriptionManagerActor extends Actor {
 
+    private lazy val subscribeMeter = metrics.meter("subscribe", "subscribe", serviceScope)
+    private lazy val subscribeErrorMeter = metrics.meter("subscribe-error", "subscribe-error", serviceScope)
+
+    private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "subscribe", serviceScope)
+    private lazy val unsubscribeErrorMeter = metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
+
+    private lazy val publishMeter = metrics.meter("publish", "publish", serviceScope)
+    private lazy val publishIgnoreMeter = metrics.meter("publish-ignore", "publish-ignore", serviceScope)
+    private lazy val publishErrorMeter = metrics.meter("publish-error", "publish-error", serviceScope)
+
     import SubscriptionManagerProtocol._
 
     private var subscriptions: List[SubscriptionActor] = List()
+
+    def subscriptionsCount = subscriptions.size
 
     private def createResolvedServiceMember(token: Long): ResolvedServiceMember = {
       service.getMemberAtToken(token) match {
@@ -60,8 +81,9 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
         }
         case Some(member) => {
-          // TODO: uncomment exception and remove temporary code once live test completed
-//          throw new Exception("local node not master of token '%d' service member (master=%s)".format(token, member.node))
+          // TODO: uncomment exception and remove temporary code once live test from passive servers are completed
+          // TODO: create an unsafe mode instead???
+          //          throw new Exception("local node not master of token '%d' service member (master=%s)".format(token, member.node))
           ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
         }
         case None => {
@@ -90,7 +112,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
         case None => {
           // There are no transaction log!!! Cannot replicate if transaction log is not enabled
           // TODO: uncomment exception and remove temporary code once live test completed
-//          throw new Exception("No transaction log! Cannot replicate without transaction log")
+          //          throw new Exception("No transaction log! Cannot replicate without transaction log")
           val to = store.getLastTimestamp(member.ranges).get // OK to crash if empty, temporary code
           info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}", from, to, member)
           new ConsistentStoreReplicationIterator(member, from, to, store)
@@ -115,8 +137,10 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
         react {
           case Subscribe(message) => {
             try {
-              // TODO: limit the number of concurent replication subscription???
+              // TODO: limit the number of concurent replication subscription? Global limit or per service member?
+              subscribeMeter.mark()
               debug("Received a subscribe request {}", message)
+
               implicit val request = message
               val start = getOptionalParamLongValue(Start).getOrElse(Long.MinValue)
               val token = getParamLongValue(Token)
@@ -134,13 +158,15 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               subscription.start()
             } catch {
               case e: Exception => {
-                // TODO: metric
+                subscribeErrorMeter.mark()
                 warn("Error processing subscribe request {}: ", message, e)
               }
             }
           }
           case Unsubscribe(message) => {
             try {
+              unsubscribeMeter.mark()
+
               implicit val request = message
               val id = getParamStringValue(SubscriptionId)
               subscriptions.find(_.subId == id).foreach(subscription => {
@@ -150,7 +176,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               message.reply(Seq())
             } catch {
               case e: Exception => {
-                // TODO: metric
+                unsubscribeErrorMeter.mark()
                 warn("Error processing unsubscribe request {}: ", message, e)
               }
             }
@@ -175,7 +201,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               subscriptions = List()
             } catch {
               case e: Exception => {
-                // TODO
+                warn("Error killing subscription manager ({}). {}", service.name, e)
               }
             } finally {
               reply(true)
@@ -197,8 +223,18 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
   }
 
-  class SubscriptionActor(val subId: String, val member: ResolvedServiceMember,
-                                  source: ReplicationSourceIterator, subscriber: Node) extends Actor with Logging {
+  class SubscriptionActor(val subId: String, val member: ResolvedServiceMember, source: ReplicationSourceIterator,
+                          subscriber: Node) extends Actor with Logging {
+
+    private lazy val publishMeter = metrics.meter("publish", "publish", member.scopeName)
+    private lazy val publishErrorMeter = metrics.meter("publish-error", "publish-error", member.scopeName)
+
+    private lazy val ackMeter = metrics.meter("ack", "ack", member.scopeName)
+    private lazy val ackErrorMeter = metrics.meter("ack-error", "ack-error", member.scopeName)
+
+    private lazy val idletimeoutMeter = metrics.meter("idle-timeout", "idle-timeout", member.scopeName)
+    private lazy val errorMeter = metrics.meter("error", "error", member.scopeName)
+    private lazy val txWriteTimer = metrics.timer("tx-write", member.scopeName)
 
     import SubscriptionProtocol._
 
@@ -248,30 +284,38 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
         react {
           case PublishNext if !error => {
             try {
-              if (source.hasNext && currentWindowSize < publishWindowSize) {
-                source.next() match {
-                  case Some(txMessage) => {
-                    val sequence = nextSequence
-                    // Must fail if timestamp is missing
-                    val timestamp = Consistency.getMessageTimestamp(txMessage).get
-                    val params: Seq[(String, MValue with Product with Serializable)] =
-                      Seq((Sequence -> sequence), (SubscriptionId -> subId),
-                        (ReplicationParam.Timestamp -> timestamp.value))
-                    val publishMessage = new OutMessage(params = params, data = txMessage,
-                      onReply = onPublishReply(sequence), responseTimeout = service.responseTimeout)
-                    publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
+              if (currentWindowSize < publishWindowSize) {
+                if (source.hasNext) {
+                  source.next() match {
+                    case Some(txMessage) => {
+                      val sequence = nextSequence
+                      // Must fail if timestamp is missing
+                      val timestamp = Consistency.getMessageTimestamp(txMessage).get
+                      val params: Seq[(String, MValue with Product with Serializable)] =
+                        Seq((Sequence -> sequence), (SubscriptionId -> subId),
+                          (ReplicationParam.Timestamp -> timestamp.value))
+                      val publishMessage = new OutMessage(params = params, data = txMessage,
+                        onReply = onPublishReply(sequence), responseTimeout = service.responseTimeout)
+                      publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
 
-                    debug("Publishing message to subscriber (seq={}, window={}).", sequence, currentWindowSize, txMessage)
+                      debug("Publishing message to subscriber (seq={}, window={}).", sequence, currentWindowSize, txMessage)
 
-                    publishAction.call(publishMessage)
-                    pendingSequences += sequence
+                      publishAction.call(publishMessage)
+                      pendingSequences += sequence
+                      publishMeter.mark()
+                    }
+                    case None => // No more message available at this time
                   }
-                  case None => // No more message available at this time
                 }
+                else {
+                  // TODO: Send idle message to subscriber from time to time to say "Hi, I am still here but I have nothing for you at this time!"
+                }
+              } else {
+                // TODO: Cancel subscription if havent received pending ack after some time. Should not be link to the window size.
               }
-
             } catch {
               case e: Exception => {
+                publishErrorMeter.mark()
                 info("Error publishing a transaction (subid={}). {}: ", subId, member, e)
                 manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
                 error = true
@@ -283,8 +327,10 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           case Ack(sequence) if !error => {
             try {
               pendingSequences -= sequence
+              ackMeter.mark()
             } catch {
               case e: Exception => {
+                ackErrorMeter.mark()
                 info("Error acknoledging transaction (subid={}, seq={}). {}: ", subId, sequence, member, e)
                 manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
                 error = true
@@ -301,14 +347,14 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               }
             } catch {
               case e: Exception => {
-                info("Error killing actor (subid={}). {}: ", subId, member ,e)
+                info("Error killing actor (subid={}). {}: ", subId, member, e)
               }
             } finally {
               reply(true)
             }
           }
           case _ if error => {
-            debug("Ignore actor message since this subscription is already terminated. {}", member)
+            debug("Ignore actor message since subscription {} is already terminated. {}", subId, member)
           }
         }
       }

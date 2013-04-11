@@ -14,11 +14,22 @@ import com.wajam.nrv.consistency.persistence.LogRecord.Response.Success
 import annotation.tailrec
 import com.wajam.nrv.Logging
 import java.util.{TimerTask, Timer}
+import com.yammer.metrics.scala.{Meter, Instrumented}
+import java.util.concurrent.TimeUnit
 
+/**
+ * Manage all replication subscriptions the local service is subscribing. Only one replication subscription per
+ * service member is allowed.
+ */
 class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDurationInMs: Long)
-  extends CurrentTime with Logging {
+  extends CurrentTime with Logging with Instrumented {
 
   private val manager = new SubscriptionManagerActor
+
+  private lazy val serviceScope = service.name.replace(".", "-")
+  private val subscriptions = metrics.gauge("subscriptions", serviceScope) {
+    manager.subscriptionsCount
+  }
 
   def start() {
     manager.start()
@@ -28,6 +39,12 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     manager !? SubscriptionManagerProtocol.Kill
   }
 
+  /**
+   * Subscribe can be delayed i.e. the subscribe call to the replication source is done after
+   * a specified amount of time. This class is keeping track of the pending subscriptions (i.e. delayed or awaiting
+   * replication source response). All new subscibe calls for a given member are silently ignored if a subscription
+   * (pending or active) already exists for the member.
+   */
   def subscribe(member: ResolvedServiceMember, txLog: TransactionLog, delay: Long, subscribeAction: Action,
                 unsubscribeAction: Action, onSubscriptionEnd: => Unit) {
     manager ! SubscriptionManagerProtocol.Subscribe(member, txLog, subscribeAction, unsubscribeAction,
@@ -38,6 +55,9 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     manager ! SubscriptionManagerProtocol.Unsubscribe(member)
   }
 
+  /**
+   * Process replication publish message received from the replication source.
+   */
   def handlePublishMessage(message: InMessage) {
     manager ! SubscriptionManagerProtocol.Publish(message)
   }
@@ -61,6 +81,18 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
   class SubscriptionManagerActor extends Actor {
 
+    private lazy val subscribeMeter = metrics.meter("subscribe", "subscribe", serviceScope)
+    private lazy val subscribeIgnoreMeter = metrics.meter("subscribe-ignore", "subscribe-ignore", serviceScope)
+    private lazy val subscribeOkMeter = metrics.meter("subscribe-ok", "subscribe-ok", serviceScope)
+    private lazy val subscribeErrorMeter = metrics.meter("subscribe-error", "subscribe-error", serviceScope)
+
+    private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "subscribe", serviceScope)
+    private lazy val unsubscribeErrorMeter= metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
+
+    private lazy val publishMeter = metrics.meter("publish", "publish", serviceScope)
+    private lazy val publishIgnoreMeter= metrics.meter("publish-ignore", "publish-ignore", serviceScope)
+    private lazy val publishErrorMeter= metrics.meter("publish-error", "publish-error", serviceScope)
+
     import SubscriptionManagerProtocol._
 
     private case class PendingSubscription(subscribe: Subscribe)
@@ -68,17 +100,22 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     private val timer = new Timer("SubscriptionManagerActor-Timer")
     private var subscriptions: Map[ResolvedServiceMember, Either[PendingSubscription, SubscriptionActor]] = Map()
 
+    def subscriptionsCount = subscriptions.size
+
     def act() {
       loop {
         react {
           case subscribe: Subscribe => {
             try {
+              subscribeMeter.mark()
               subscriptions.get(subscribe.member) match {
                 case Some(Left(_)) => {
+                  subscribeIgnoreMeter.mark()
                   info("Ignore new subscribe request. Already have a pending subscription registered for {}.",
                     subscribe.member)
                 }
                 case Some(Right(_)) => {
+                  subscribeIgnoreMeter.mark()
                   info("Ignore new subscribe request. Already have an active subscription registered for {}.",
                     subscribe.member)
                 }
@@ -94,7 +131,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               }
             } catch {
               case e: Exception => {
-                // TODO: metric
+                subscribeErrorMeter.mark()
                 warn("Error processing subscribe for {}", subscribe.member, e)
                 subscriptions -= (subscribe.member)
                 subscribe.onSubscriptionEnd()
@@ -122,17 +159,19 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                     onReply = SubscriptionManagerActor.this ! SubscribeResponse(subscribe, _, _))
                 }
                 case Some(Right(_)) => {
+                  subscribeIgnoreMeter.mark()
                   warn("Do not process pending subscription. Already have an active subscription for {}.",
                     subscribe.member)
                 }
                 case None => {
+                  subscribeIgnoreMeter.mark()
                   info("Do not process pending subscription. No more pending subscription registered for {}.",
                     subscribe.member)
                 }
               }
             } catch {
               case e: Exception => {
-                // TODO: metric
+                subscribeErrorMeter.mark()
                 warn("Error processing delayed subscribe for {}", subscribe.member, e)
                 subscriptions -= (subscribe.member)
                 subscribe.onSubscriptionEnd()
@@ -145,16 +184,15 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
               exception match {
                 case Some(e) => {
-                  // TODO: metric
+                  subscribeErrorMeter.mark()
                   warn("Got a subscribe response error for {}: ", subscribe.member, e)
                   subscriptions -= (subscribe.member)
                   subscribe.onSubscriptionEnd()
                 }
                 case None => {
-                  // TODO: error handling + more usefull description
                   subscriptions.get(subscribe.member) match {
                     case Some(Left(_)) => {
-                      info("Activate subscription from response {}.", subscribe.member, message)
+                      info("Subscribe response {}. Activate subscription {}.", response, subscribe.member)
                       val subscriptionId = getParamStringValue(SubscriptionId)
                       val startTimestamp = getParamLongValue(Start)
                       val endTimestamp = getOptionalParamLongValue(End).map(ts => Timestamp(ts))
@@ -163,23 +201,28 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                         new TimestampIdGenerator)
                       subscriptions += (subscribe.member -> Right(subscription))
                       subscription.start()
+                      subscribeOkMeter.mark()
                     }
                     case Some(Right(_)) => {
+                      subscribeIgnoreMeter.mark()
                       warn("Do not activate subscription. Already have an active subscription for {}.",
                         subscribe.member)
-                      // TODO: unsubscribe from replication source?
+
+                      // TODO: unsubscribe from replication source
                     }
                     case None => {
+                      subscribeIgnoreMeter.mark()
                       info("Do not activate subscription. No more subscription registered for {}.",
                         subscribe.member)
-                      // TODO: unsubscribe from replication source?
+
+                      // TODO: unsubscribe from replication source
                     }
                   }
                 }
               }
             } catch {
               case e: Exception => {
-                // TODO: metric
+                subscribeErrorMeter.mark()
                 warn("Error processing subscribe response for {}", subscribe.member, e)
                 subscriptions -= (subscribe.member)
                 subscribe.onSubscriptionEnd()
@@ -190,15 +233,18 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             try {
               subscriptions.get(member) match {
                 case Some(Left(PendingSubscription(subscribe))) => {
+                  unsubscribeMeter.mark()
                   info("Unsubscribe. Remove pending subscription. {}", member)
                   subscriptions -= (member)
                   subscribe.onSubscriptionEnd()
                 }
                 case Some(Right(subscription)) => {
+                  unsubscribeMeter.mark()
                   info("Unsubscribe. Remove active subscription for. {}", member)
-                  // TODO: unsubscribe from replication source?
                   subscriptions -= (member)
                   subscription ! SubscriptionProtocol.Kill
+
+                  // TODO: unsubscribe from replication source
                 }
                 case None => {
                   info("Unsubscribe. No action taken, no subscription registered for {}.", member)
@@ -206,7 +252,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               }
             } catch {
               case e: Exception => {
-                // TODO: metric
+                unsubscribeErrorMeter.mark()
                 warn("Error processing unsubscribe for {}", member, e)
               }
             }
@@ -218,20 +264,26 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 case (member, Right(subscription)) if subscription.subId == subId => subscription
               }) match {
                 case Some(subscription) => {
+                  publishMeter.mark()
                   subscription ! SubscriptionProtocol.PendingTransaction(message)
                 }
-                case None => // TODO: unsubscribe from replication source?
+                case None => {
+                  publishIgnoreMeter.mark()
+
+                  // TODO: unsubscribe from replication source
+                }
               }
             } catch {
               case e: Exception => {
-                // TODO: metric
+                publishErrorMeter.mark()
                 warn("Error processing publish {}", message, e)
               }
             }
           }
           case Error(subscriptionActor, exception) => {
             try {
-              info("Got an error from the subscription actor. Unsubscribing from {}.", subscriptionActor.member)
+              debug("Got an error from the subscription actor {}. Unsubscribing from {}.",
+                subscriptionActor.subId, subscriptionActor.member)
               subscriptions.get(subscriptionActor.member) match {
                 case Some(Right(subscription)) if subscription.subId == subscriptionActor.subId => {
                   subscriptions -= (subscriptionActor.member)
@@ -240,7 +292,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 }
                 case _ => // Not subscribed anymore to that subscription. Take no local action.
               }
-              // TODO: unsubscribe from replication source?
+
+              // TODO: unsubscribe from replication source
             } catch {
               case e: Exception => {
                 // TODO: metric
@@ -255,7 +308,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               }).foreach(_ !? SubscriptionProtocol.Kill)
             } catch {
               case e: Exception => {
-                // TODO
+                warn("Error killing subscription manager ({}). {}", service.name, e)
               }
             } finally {
               reply(true)
@@ -293,6 +346,12 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                           val subscribe: SubscriptionManagerProtocol.Subscribe,
                           idGenerator: IdGenerator[Long]) extends Actor {
 
+    private lazy val txReceivedMeter = metrics.meter("tx-received", "tx-received", member.scopeName)
+    private lazy val txMissingMeter = metrics.meter("tx-missing", "tx-missing", member.scopeName)
+    private lazy val idletimeoutMeter = metrics.meter("idle-timeout", "idle-timeout", member.scopeName)
+    private lazy val errorMeter = metrics.meter("error", "error", member.scopeName)
+    private lazy val txWriteTimer = metrics.timer("tx-write", member.scopeName)
+
     import SubscriptionProtocol._
 
     private val checkIdleScheduler = new Scheduler(this, CheckIdle, 1000, 1000, blockingMessage = true,
@@ -328,13 +387,15 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
           pendingTransactions = pendingTransactions.tail
 
           // Add transaction to transaction log and to consistent storage.
-          debug("Storing (seq={}) {}", tx.sequence, tx.message)
-          txLog.append {
-            Request(idGenerator.nextId, consistentTimestamp, tx.timestamp, tx.token, tx.message)
-          }
-          store.writeTransaction(tx.message)
-          txLog.append {
-            Response(idGenerator.nextId, consistentTimestamp, tx.timestamp, tx.token, Success)
+          debug("Storing (seq={}, subId={}) {}", tx.sequence, subId, tx.message)
+          txWriteTimer.time {
+            txLog.append {
+              Request(idGenerator.nextId, consistentTimestamp, tx.timestamp, tx.token, tx.message)
+            }
+            store.writeTransaction(tx.message)
+            txLog.append {
+              Response(idGenerator.nextId, consistentTimestamp, tx.timestamp, tx.token, Success)
+            }
           }
 
           // Update consistent timestamp and last added sequence number
@@ -355,7 +416,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
         react {
           case tx: PendingTransaction if !error => {
             try {
-              debug("Received (seq={}) {}", tx.sequence, tx.message)
+              debug("Received (seq={}, subId={}) {}", tx.sequence, subId, tx.message)
+              txReceivedMeter.mark()
               pendingTransactions += tx
               lastAddedTime = currentTime
 
@@ -363,6 +425,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             } catch {
               case e: Exception => {
                 warn("Error processing new pending transaction {}: ", tx, e)
+                errorMeter.mark()
                 manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
                 error = true
               }
@@ -372,13 +435,24 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             try {
               val elapsedTime = currentTime - lastAddedTime
               if (elapsedTime > maxIdleDurationInMs) {
-                warn("No pending transaction received for {} ms. Terminating subscription for.", elapsedTime, member)
+                if (pendingTransactions.isEmpty) {
+                  idletimeoutMeter.mark()
+                  info("No pending transaction received for {} ms. Terminating subscription {} for {}.",
+                    elapsedTime, subId, member)
+                } else {
+                  txMissingMeter.mark()
+                  info("Missing transactions (last written sequence {}, available sequences {}) after {} ms. " +
+                    "Terminating subscription {} for {}.",
+                    lastSequence, pendingTransactions.map(_.sequence), elapsedTime, subId, member)
+                }
+
                 manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, None)
                 error = true
               }
             } catch {
               case e: Exception => {
-                warn("Error checking for idle subscription {}: ", member, e)
+                warn("Error checking for idle subscription {} for {}: ", subId, member, e)
+                errorMeter.mark()
                 manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
                 error = true
               }
@@ -392,18 +466,17 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               exit()
             } catch {
               case e: Exception => {
-                warn("Error killing subscription actor {}: ", member, e)
+                warn("Error killing subscription {} actor {}: ", subId, member, e)
               }
             } finally {
               reply(true)
             }
           }
           case _ if error => {
-            debug("Ignore actor message since this subscription is already terminated. {}", member)
+            debug("Ignore actor message since subscription {} is already terminated. {}", subId, member)
           }
         }
       }
     }
   }
-
 }
