@@ -62,7 +62,7 @@ object JsonRender {
     case JString(s) => quote(sb.append("\""), s).append("\"")
     case JArray(arr) => {
       sb.append('[')
-      arr.filter(_ != JNothing) foreach (elem => {
+      arr.withFilter(_ != JNothing) foreach (elem => {
         innerRender(sb, elem)
         sb.append(',')
       })
@@ -74,7 +74,7 @@ object JsonRender {
     }
     case JObject(obj) => {
       sb.append('{')
-      obj.filter(_.value != JNothing).foreach(field => {
+      obj.withFilter(_.value != JNothing).foreach(field => {
         innerRender(sb, field)
         sb.append(',')
       })
@@ -83,7 +83,7 @@ object JsonRender {
   }
 
   private def appendEnumClosingChar(char: Char, sb: StringBuilder): StringBuilder = {
-    if(sb.charAt(sb.length - 1) == ',') {
+    if (sb.charAt(sb.length - 1) == ',') {
       sb.setLength(sb.length - 1)
     }
     sb.append(char)
@@ -91,17 +91,21 @@ object JsonRender {
 
   // https://github.com/lift/lift/blob/master/framework/lift-base/lift-json/src/main/scala/net/liftweb/json/JsonAST.scala#L397
   private def quote(sb: StringBuilder, s: String): StringBuilder = {
-    for (c <- s) sb.append(c match {
-      case '"' => "\\\""
-      case '\\' => "\\\\"
-      case '\b' => "\\b"
-      case '\f' => "\\f"
-      case '\n' => "\\n"
-      case '\r' => "\\r"
-      case '\t' => "\\t"
-      case _ if ((c >= '\u0000' && c < '\u001f') || (c >= '\u0080' && c < '\u00a0') || (c >= '\u2000' && c < '\u2100')) => "\\u%04x".format(c: Int)
-      case _ => c
-    })
+    var i = 0
+    while (i < s.length) {
+      s.charAt(i) match {
+        case '"' => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\b' => sb.append("\\b")
+        case '\f' => sb.append("\\f")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case c if ((c >= '\u0000' && c < '\u001f') || (c >= '\u0080' && c < '\u00a0') || (c >= '\u2000' && c < '\u2100')) => sb.append("\\u%04x".format(c: Int))
+        case c => sb.append(c)
+      }
+      i += 1
+    }
     sb
   }
 }
