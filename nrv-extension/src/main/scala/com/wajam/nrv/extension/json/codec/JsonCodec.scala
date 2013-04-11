@@ -62,10 +62,10 @@ object JsonRender {
     case JString(s) => quote(sb.append("\""), s).append("\"")
     case JArray(arr) => {
       sb.append('[')
-      arr.withFilter(_ != JNothing) foreach (elem => {
-        innerRender(sb, elem)
-        sb.append(',')
-      })
+      arr.foreach {
+        case JNothing =>
+        case elem => innerRender(sb, elem).append(',')
+      }
       appendEnumClosingChar(']', sb)
     }
     case JField(n, v) => {
@@ -74,25 +74,28 @@ object JsonRender {
     }
     case JObject(obj) => {
       sb.append('{')
-      obj.withFilter(_.value != JNothing).foreach(field => {
-        innerRender(sb, field)
-        sb.append(',')
-      })
+      obj.foreach {
+        case JField(_, JNothing) =>
+        case field => innerRender(sb, field).append(',')
+      }
       appendEnumClosingChar('}', sb)
     }
   }
 
   private def appendEnumClosingChar(char: Char, sb: StringBuilder): StringBuilder = {
     if (sb.charAt(sb.length - 1) == ',') {
-      sb.setLength(sb.length - 1)
+      sb.setCharAt(sb.length - 1, char)
+      sb
+    } else {
+      sb.append(char)
     }
-    sb.append(char)
   }
 
   // https://github.com/lift/lift/blob/master/framework/lift-base/lift-json/src/main/scala/net/liftweb/json/JsonAST.scala#L397
   private def quote(sb: StringBuilder, s: String): StringBuilder = {
     var i = 0
-    while (i < s.length) {
+    val length = s.length
+    while (i < length) {
       s.charAt(i) match {
         case '"' => sb.append("\\\"")
         case '\\' => sb.append("\\\\")
