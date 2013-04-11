@@ -14,8 +14,7 @@ import com.wajam.nrv.consistency.persistence.LogRecord.Response.Success
 import annotation.tailrec
 import com.wajam.nrv.Logging
 import java.util.{TimerTask, Timer}
-import com.yammer.metrics.scala.{Meter, Instrumented}
-import java.util.concurrent.TimeUnit
+import com.yammer.metrics.scala.Instrumented
 
 /**
  * Manage all replication subscriptions the local service is subscribing. Only one replication subscription per
@@ -87,11 +86,11 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     private lazy val subscribeErrorMeter = metrics.meter("subscribe-error", "subscribe-error", serviceScope)
 
     private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "subscribe", serviceScope)
-    private lazy val unsubscribeErrorMeter= metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
+    private lazy val unsubscribeErrorMeter = metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
 
     private lazy val publishMeter = metrics.meter("publish", "publish", serviceScope)
-    private lazy val publishIgnoreMeter= metrics.meter("publish-ignore", "publish-ignore", serviceScope)
-    private lazy val publishErrorMeter= metrics.meter("publish-error", "publish-error", serviceScope)
+    private lazy val publishIgnoreMeter = metrics.meter("publish-ignore", "publish-ignore", serviceScope)
+    private lazy val publishErrorMeter = metrics.meter("publish-error", "publish-error", serviceScope)
 
     import SubscriptionManagerProtocol._
 
@@ -303,9 +302,10 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
           }
           case Kill => {
             try {
-              subscriptions.valuesIterator.map({
-                case Right(subscription) => subscription
-              }).foreach(_ !? SubscriptionProtocol.Kill)
+              subscriptions.valuesIterator.foreach({
+                case Right(subscription) => subscription !? SubscriptionProtocol.Kill
+              })
+              subscriptions = Map()
             } catch {
               case e: Exception => {
                 warn("Error killing subscription manager ({}). {}", service.name, e)
@@ -479,4 +479,5 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
       }
     }
   }
+
 }
