@@ -123,18 +123,6 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       }
     }
 
-    private def firstStoreRecord(from: Option[Timestamp], ranges: Seq[TokenRange]): Option[Message] = {
-      val itr = from match {
-        case Some(timestamp) => store.readTransactions(timestamp, Long.MaxValue, ranges)
-        case None => store.readTransactions(Long.MinValue, Long.MaxValue, ranges)
-      }
-      try {
-        itr.find(_ => true)
-      } finally {
-        itr.close()
-      }
-    }
-
     def act() {
       loop {
         react {
@@ -266,7 +254,6 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     private def onPublishReply(sequence: Long)(response: Message, optException: Option[Exception]) {
       optException match {
         case Some(e) => {
-          // TODO: Log exception + end subscription
           info("Received an error response from the subscriber (seq={}): ", e)
           manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
           error = true
@@ -305,12 +292,11 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                     }
                     case None => // No more message available at this time
                   }
-                }
-                else {
+                } else {
                   // TODO: Send idle message to subscriber from time to time to say "Hi, I am still here but I have nothing for you at this time!"
                 }
               } else {
-                // TODO: Cancel subscription if havent received pending ack after some time. Should not be link to the window size.
+                // TODO: Cancel subscription if havent received pending ack after some time. Should really be link to the window size?
               }
             } catch {
               case e: Exception => {

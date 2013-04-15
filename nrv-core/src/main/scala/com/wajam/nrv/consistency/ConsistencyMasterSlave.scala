@@ -59,7 +59,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     replicationSubscriber.handlePublishMessage(_), ActionMethod.POST)
 
   // Replication publisher actions
-  private lazy val replicationPublisher = {
+  private lazy val replicationPublisher: ReplicationPublisher = {
     def getTransactionLog(member: ResolvedServiceMember) = recorders.get(member.token) match {
       case Some(recorder) => recorder.txLog
       case None => NullTransactionLog
@@ -258,7 +258,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           recorder.start()
         }
 
-        // Subscribe to replication source already up fo which we are a slave replica
+        // Subscribe to replication source already up for which we are a slave replica
         service.members.withFilter(member =>
           member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach(subscribe(_))
       }
@@ -315,6 +315,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       replicationSubscriber.subscribe(resolvedMember, txLog, 5000, subscribeAction, unsubscribeAction,
         onSubscriptionEnd = {
           info("Replication subscription terminated. {}", resolvedMember)
+
+          // Renew the replication subscription if the master replica is up
           if (member.status == MemberStatus.Up) {
             subscribe(member)
           }

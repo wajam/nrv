@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency.replication
 
-import com.wajam.nrv.service.{Action, Service}
+import com.wajam.nrv.service.{TokenRange, Action, Service}
 import com.wajam.nrv.consistency.{ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data.{MValue, InMessage, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
@@ -61,11 +61,24 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     manager ! SubscriptionManagerProtocol.Publish(message)
   }
 
+  private def firstStoreRecord(from: Option[Timestamp], ranges: Seq[TokenRange]): Option[Message] = {
+    val itr = from match {
+      case Some(timestamp) => store.readTransactions(timestamp, Long.MaxValue, ranges)
+      case None => store.readTransactions(Long.MinValue, Long.MaxValue, ranges)
+    }
+    try {
+      itr.find(_ => true)
+    } finally {
+      itr.close()
+    }
+  }
+
   object SubscriptionManagerProtocol {
 
     case class Subscribe(member: ResolvedServiceMember, txLog: TransactionLog, subscribeAction: Action,
                          unsubscribeAction: Action, onSubscriptionEnd: () => Unit, delay: Long = 0)
 
+    // TODO: Either[Exception, Message]???
     case class SubscribeResponse(subscribe: Subscribe, response: Message, optException: Option[Exception])
 
     case class Unsubscribe(member: ResolvedServiceMember)
@@ -142,6 +155,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               subscriptions.get(subscribe.member) match {
                 case Some(Left(_)) => {
                   info("Send subscribe request to source for pending subscription. {}", subscribe.member)
+                  // TODO: remove var
                   var params: Map[String, MValue] = Map(ReplicationParam.Token -> subscribe.member.token.toString)
                   subscribe.txLog.getLastLoggedRecord.map(_.consistentTimestamp) match {
                     case Some(Some(lastTimestamp)) => {
@@ -151,7 +165,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                     case _ => {
                       // No records in transaction log. Omit start if the local store is empty.
                       // The replication publisher will send all the transactions from the beginning.
-                      // TODO: verify store is empty
+                      // TODO: prevent replication if store not empty and has no transaction log
                     }
                   }
                   subscribe.subscribeAction.call(params,
@@ -235,7 +249,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                   unsubscribeMeter.mark()
                   info("Unsubscribe. Remove pending subscription. {}", member)
                   subscriptions -= (member)
-                  subscribe.onSubscriptionEnd()
+                  subscribe.onSubscriptionEnd() // TODO: why? remove
                 }
                 case Some(Right(subscription)) => {
                   unsubscribeMeter.mark()

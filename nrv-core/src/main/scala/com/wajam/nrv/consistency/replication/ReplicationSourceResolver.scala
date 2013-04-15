@@ -24,10 +24,10 @@ class ReplicationSourceResolver(sourceReplicas: Seq[String], resolver: => Resolv
             val thisReplica = new Replica(token, service.cluster.localNode)
             new Endpoints(Seq(new Shard(token, Seq(sourceReplica, thisReplica))))
           }
-          case None => new Endpoints(Seq())
+          case None => new Endpoints(Nil)
         }
       }
-      case None => new Endpoints(Seq())
+      case None => new Endpoints(Nil)
     }
   }
 }
