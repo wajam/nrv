@@ -12,7 +12,7 @@ import com.wajam.nrv.Logging
 import collection.immutable.TreeMap
 import annotation.tailrec
 
-class TransactionRecorder(val member: ResolvedServiceMember, txLog: TransactionLog,
+class TransactionRecorder(val member: ResolvedServiceMember, val txLog: TransactionLog,
                           consistencyDelay: Long, consistencyTimeout: Long, commitFrequency: Int,
                           onConsistencyError: => Unit, idGenerator: IdGenerator[Long] = new TimestampIdGenerator)
   extends CurrentTime with Instrumented with Logging {

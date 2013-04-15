@@ -11,6 +11,7 @@ import persistence.{NullTransactionLog, FileTransactionLog}
 import java.util.concurrent.TimeUnit
 import com.yammer.metrics.core.Gauge
 import com.wajam.nrv.UnavailableException
+import replication.{ReplicationSubscriber, ReplicationPublisher, ReplicationParam}
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
@@ -33,7 +34,9 @@ import com.wajam.nrv.UnavailableException
  * - Support binding to a single service. The service must extends ConsistentStore.
  */
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
-                             txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000)
+                             txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000,
+                             replicationTps: Int = 50, replicationWindowSize: Int = 20,
+                             replicationStrictSource: Boolean = true, replicationResolver: Option[Resolver] = None)
   extends ConsistencyOne {
 
   import Consistency._
@@ -46,9 +49,59 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   private var metrics: Metrics = null
 
-  def service = bindedServices.head
+  def service: Service with ConsistentStore = bindedServices.head.asInstanceOf[Service with ConsistentStore]
 
-  def store = service.asInstanceOf[ConsistentStore]
+  def resolver = replicationResolver.getOrElse(service.resolver)
+
+  // Replication subscriber action
+  private lazy val replicationSubscriber = new ReplicationSubscriber(service, service, 30000L)
+  private val publishAction = new Action("/replication/publish/:" + ReplicationParam.SubscriptionId,
+    replicationSubscriber.handlePublishMessage(_), ActionMethod.POST)
+
+  // Replication publisher actions
+  private lazy val replicationPublisher: ReplicationPublisher = {
+    def getTransactionLog(member: ResolvedServiceMember) = recorders.get(member.token) match {
+      case Some(recorder) => recorder.txLog
+      case None => NullTransactionLog
+    }
+
+    def getMemberCurrentConsistentTimestamp(member: ResolvedServiceMember) = recorders.get(member.token) match {
+      case Some(recorder) => recorder.currentConsistentTimestamp
+      case None => None
+    }
+
+    new ReplicationPublisher(service, service, getTransactionLog, getMemberCurrentConsistentTimestamp,
+      publishAction = publishAction, publishTps = replicationTps, publishWindowSize = replicationWindowSize,
+      strictSource = replicationStrictSource)
+  }
+  private val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
+    replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
+  subscribeAction.applySupport(resolver = replicationResolver)
+  private val unsubscribeAction = new Action("/replication/unsubscribe/:" + ReplicationParam.Token,
+    replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
+  unsubscribeAction.applySupport(resolver = replicationResolver)
+
+  override def start() {
+    super.start()
+
+    publishAction.start()
+    subscribeAction.start()
+    unsubscribeAction.start()
+
+    replicationPublisher.start()
+    replicationSubscriber.start()
+  }
+
+  override def stop() {
+    super.stop()
+
+    replicationSubscriber.stop()
+    replicationPublisher.stop()
+
+    publishAction.stop()
+    subscribeAction.stop()
+    unsubscribeAction.stop()
+  }
 
   override def bindService(service: Service) {
     require(service.isInstanceOf[ConsistentStore],
@@ -57,12 +110,11 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     super.bindService(service)
 
-    metrics = new Metrics(service.name)
+    metrics = new Metrics(service.name.replace(".", "-"))
 
-    // TODO: cleanup service registration
     // Setup current consistent timestamp lookup storage function
     info("Setup consistent timestamp lookup for service", service.name)
-    store.setCurrentConsistentTimestamp((range) => {
+    this.service.setCurrentConsistentTimestamp((range) => {
       val timestamp = recorders.valuesIterator.collectFirst({
         case recorder if recorder.member.ranges.contains(range) => recorder.currentConsistentTimestamp
       })
@@ -71,13 +123,38 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         case _ => Long.MinValue
       }
     })
+
+    // Register replication subscribe/publish actions
+    service.registerAction(publishAction)
+    service.registerAction(subscribeAction)
+    service.registerAction(unsubscribeAction)
   }
 
   override def serviceEvent(event: Event) {
     super.serviceEvent(event)
 
     event match {
-      case event: StatusTransitionAttemptEvent if txLogEnabled && event.to == MemberStatus.Down => {
+      case event: StatusTransitionAttemptEvent if txLogEnabled => {
+        handleStatusTransitionAttemptEvent(event)
+      }
+      case event: StatusTransitionEvent if cluster.isLocalNode(event.member.node) => {
+        handleLocalServiceMemberStatusTransitionEvent(event)
+      }
+      case event: StatusTransitionEvent => {
+        handleRemoteServiceMemberStatusTransitionEvent(event)
+      }
+      case _ => // Ignore unsupported events
+    }
+  }
+
+  /**
+   * Manage consistency state and service member state. This method is called when the cluster manager try to change a
+   * service member status. The consistency manager upvote or downvote the service member status transition depending
+   * on its internal consistency state.
+   */
+  private def handleStatusTransitionAttemptEvent(event: StatusTransitionAttemptEvent) {
+    event.to match {
+      case MemberStatus.Down => {
         // Trying to transition the service member Down. Reset the service member consistency.
         this.synchronized {
           metrics.consistencyNone.mark()
@@ -88,7 +165,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           event.vote(pass = true)
         }
       }
-      case event: StatusTransitionAttemptEvent if txLogEnabled && event.to == MemberStatus.Joining => {
+      case MemberStatus.Joining => {
         // Trying to transition the service member to joining. Initiate consistency recovery if necessary.
         this.synchronized {
           consistencyStates.get(event.member.token) match {
@@ -103,26 +180,32 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
               restoreMemberConsistency(member, onSuccess = {
                 metrics.consistencyOk.mark()
-                info("restoreMemberConsistency: onSuccess {}", member)
+                info("Local master restoreMemberConsistency: onSuccess {}", member)
                 this.synchronized {
                   consistencyStates += (member.token -> MemberConsistencyState.Ok)
                 }
               }, onError = {
-                info("restoreMemberConsistency: onError {}", member)
+                info("Local master restoreMemberConsistency: onError {}", member)
                 metrics.consistencyError.mark()
                 this.synchronized {
                   consistencyStates += (member.token -> MemberConsistencyState.Error)
                 }
               })
             }
-            case Some(MemberConsistencyState.Ok) | Some(MemberConsistencyState.Recovering) => {
-              // Already consistent or recovering. Nothing to do.
-              info("StatusTransitionAttemptEvent: status=Joining, state=Ok|Recovering, member={}", event.member)
+            case Some(MemberConsistencyState.Ok) => {
+              // Already consistent.
+              metrics.consistencyOk.mark()
+              info("StatusTransitionAttemptEvent: status=Joining, state=Ok, member={}", event.member)
+            }
+            case Some(MemberConsistencyState.Recovering) => {
+              // Already recovering.
+              metrics.consistencyRecovering.mark()
+              info("StatusTransitionAttemptEvent: status=Joining, state=Recovering, member={}", event.member)
             }
           }
         }
       }
-      case event: StatusTransitionAttemptEvent if txLogEnabled && event.to == MemberStatus.Up => {
+      case MemberStatus.Up => {
         // Trying to transition the service member Up. Ensure service member is consistent before allowing it to go up.
         this.synchronized {
           consistencyStates.get(event.member.token) match {
@@ -139,52 +222,113 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           }
         }
       }
-      case event: StatusTransitionEvent if cluster.isLocalNode(event.member.node) => {
-        event.to match {
-          case MemberStatus.Up => {
-            this.synchronized {
-              // Iniatialize transaction recorder for local service member going up
-              info("Iniatialize transaction recorders for {}", event.member)
-              val txLog = if (txLogEnabled) {
-                new FileTransactionLog(service.name, event.member.token, txLogDir, txLogRolloverSize)
-              } else {
-                NullTransactionLog
-              }
-              val member = ResolvedServiceMember(service, event.member)
-              val recorder = new TransactionRecorder(member, txLog,
-                consistencyDelay = timestampGenerator.responseTimeout + 1000,
-                consistencyTimeout = math.max(service.responseTimeout + 2000, 15000),
-                commitFrequency = txLogCommitFrequency, onConsistencyError = {
-                  metrics.consistencyError.mark()
-                  this.synchronized {
-                    info("onConsistencyError: status={}, stateNew=Error, stateOld={}, member={}", event.member.status,
-                      consistencyStates.get(member.token), member)
-                    consistencyStates += (member.token -> MemberConsistencyState.Error)
-                  }
-                  cluster.clusterManager.trySetServiceMemberStatusDown(service, event.member)
-                })
-              recorders += (member.token -> recorder)
-              recorder.start()
-            }
-          }
-          case MemberStatus.Down => {
-            this.synchronized {
-              // Remove transaction recorder for all other cases
-              info("Remove transaction recorders for {}", event.member)
-              val recorder = recorders.get(event.member.token)
-              recorders -= event.member.token
-              recorder.foreach(_.kill())
-            }
-          }
-          case MemberStatus.Joining => // Nothing to do
-        }
-      }
-      case _ =>
     }
   }
 
+  /**
+   * Manage transaction recorder on local service member status changes. Setup a member recorder when the status goes
+   * up and remove it when the status goes down. If the service member become inconsistent, change the consistency
+   * state to Error and try to put the service member status down.
+   */
+  private def handleLocalServiceMemberStatusTransitionEvent(event: StatusTransitionEvent) {
+    event.to match {
+      case MemberStatus.Up => {
+        // Iniatialize transaction recorder for local service member going up
+        this.synchronized {
+          info("Iniatialize transaction recorders for {}", event.member)
+          val txLog = if (txLogEnabled) {
+            new FileTransactionLog(service.name, event.member.token, txLogDir, txLogRolloverSize)
+          } else {
+            NullTransactionLog
+          }
+          val member = ResolvedServiceMember(service, event.member)
+          val recorder = new TransactionRecorder(member, txLog,
+            consistencyDelay = timestampGenerator.responseTimeout + 1000,
+            consistencyTimeout = math.max(service.responseTimeout + 2000, 15000),
+            commitFrequency = txLogCommitFrequency, onConsistencyError = {
+              metrics.consistencyError.mark()
+              this.synchronized {
+                info("onConsistencyError: status={}, stateNew=Error, stateOld={}, member={}", event.member.status,
+                  consistencyStates.get(member.token), member)
+                consistencyStates += (member.token -> MemberConsistencyState.Error)
+              }
+              cluster.clusterManager.trySetServiceMemberStatusDown(service, event.member)
+            })
+          recorders += (member.token -> recorder)
+          recorder.start()
+        }
+
+        // Subscribe to replication source already up for which we are a slave replica
+        service.members.withFilter(member =>
+          member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach(subscribe(_))
+      }
+      case MemberStatus.Down => {
+        this.synchronized {
+          // TODO: cancel replication publisher subscription
+
+          // Remove transaction recorder for all other cases
+          info("Remove transaction recorders for {}", event.member)
+          val recorder = recorders.get(event.member.token)
+          recorders -= event.member.token
+          recorder.foreach(_.kill())
+        }
+      }
+      case MemberStatus.Joining => // Nothing to do
+    }
+  }
+
+  /**
+   * Manage replication subscriptions on remote service member status change. If local service member is an eligible
+   * slave replica of a remote service member going up, initiate a replication subscription to start receiving
+   * updates from source replica.
+   */
+  private def handleRemoteServiceMemberStatusTransitionEvent(event: StatusTransitionEvent) {
+    event.to match {
+      case MemberStatus.Up => {
+        // Subscribe to remote source replica if we are a slave replica of the service member that just went up
+        if (isSlaveReplicaOf(event.member)) {
+          subscribe(event.member)
+        }
+      }
+      case MemberStatus.Down =>
+        replicationSubscriber.unsubscribe(ResolvedServiceMember(service, event.member))
+      case MemberStatus.Joining =>
+    }
+  }
+
+  private def isSlaveReplicaOf(member: ServiceMember): Boolean = {
+    resolver.resolve(service, member.token).selectedReplicas match {
+      case Seq(source, replicas@ _*) if replicas.exists(r => cluster.isLocalNode(r.node)) => true
+      case _ => false
+    }
+  }
+
+  private def subscribe(member: ServiceMember) {
+    info("Local replica is subscribing to {}", member)
+
+    val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize)
+    val resolvedMember = ResolvedServiceMember(service, member)
+    restoreMemberConsistency(resolvedMember, onSuccess = {
+      // TODO: metric
+      info("Local replica restoreMemberConsistency: onSuccess {}", member)
+      // TODO: configurable subscribe delay
+      replicationSubscriber.subscribe(resolvedMember, txLog, 5000, subscribeAction, unsubscribeAction,
+        onSubscriptionEnd = {
+          info("Replication subscription terminated. {}", resolvedMember)
+
+          // Renew the replication subscription if the master replica is up
+          if (member.status == MemberStatus.Up) {
+            subscribe(member)
+          }
+        })
+    }, onError = {
+      // TODO: metric
+      info("Local replica restoreMemberConsistency: onError {}", member)
+    })
+  }
+
   private def requiresConsistency(message: Message) = {
-    message.serviceName == service.name && store.requiresConsistency(message)
+    message.serviceName == service.name && service.requiresConsistency(message)
   }
 
   private def getRecorderFromMessage(message: Message): Option[TransactionRecorder] = {
@@ -325,11 +469,11 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def restoreMemberConsistency(member: ResolvedServiceMember, onSuccess: => Unit, onError: => Unit) {
     try {
       // TODO: Use Future
-      val finalLogIndex = new ConsistencyRecovery(txLogDir, store).restoreMemberConsistency(member, onError)
+      val finalLogIndex = new ConsistencyRecovery(txLogDir, service).restoreMemberConsistency(member, onError)
       finalLogIndex.map(_.consistentTimestamp) match {
         case Some(lastLogTimestamp) => {
           // Ensure that transaction log and storage have the same final transaction timestamp
-          val lastStoreTimestamp = store.getLastTimestamp(member.ranges)
+          val lastStoreTimestamp = service.getLastTimestamp(member.ranges)
           if (lastLogTimestamp == lastStoreTimestamp) {
             info("The service member transaction log and store are consistent {}", member)
             onSuccess
