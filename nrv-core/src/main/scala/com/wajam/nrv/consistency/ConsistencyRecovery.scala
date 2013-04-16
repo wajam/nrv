@@ -13,7 +13,8 @@ import com.yammer.metrics.scala.Instrumented
 /**
  * Helper class that ensure that service members transaction log are consistent with the consistent store.
  */
-class ConsistencyRecovery(logDir: String, store: ConsistentStore, idGenerator: IdGenerator[Long] = new TimestampIdGenerator)
+class ConsistencyRecovery(logDir: String, store: ConsistentStore, serializer: Option[LogRecordSerializer] = None,
+                          idGenerator: IdGenerator[Long] = new TimestampIdGenerator)
   extends Logging with Instrumented {
 
   lazy private val resumeTimer = metrics.timer("resume-time")
@@ -45,7 +46,7 @@ class ConsistencyRecovery(logDir: String, store: ConsistentStore, idGenerator: I
     resumeMemberConsistencyRecovery(member, onRecoveryFailure)
 
     recoverTimer.time {
-      val memberTxLog = new FileTransactionLog(member.serviceName, member.token, logDir)
+      val memberTxLog = new FileTransactionLog(member.serviceName, member.token, logDir, serializer = serializer)
       val lastLoggedRecord = memberTxLog.getLastLoggedRecord
       lastLoggedRecord match {
         case Some(lastRecord: TimestampedRecord) => {
@@ -62,7 +63,8 @@ class ConsistencyRecovery(logDir: String, store: ConsistentStore, idGenerator: I
           // the rewrite position), and then finaly the remaining complete transactions. Both the response only
           // sequence and the complete transaction sequence are ordered by timestamps in their respective collection.
           recoveryDir.mkdir()
-          val recoveryTxLog = new FileTransactionLog(member.serviceName, member.token, recoveryDir.getAbsolutePath)
+          val recoveryTxLog = new FileTransactionLog(member.serviceName, member.token, recoveryDir.getAbsolutePath,
+            serializer = serializer)
           val (complete, responseOnly) = withResponse.partition(_.request.isDefined)
 
           // Initialize the consistent timestamp of the first transaction to rewrite which is the consistent timestamp
@@ -163,13 +165,14 @@ class ConsistencyRecovery(logDir: String, store: ConsistentStore, idGenerator: I
    */
   private def resumeMemberConsistencyRecovery(member: ResolvedServiceMember, onRecoveryFailure: => Unit) {
     if (recoveryDir.exists()) {
-      val recoveryTxLog = new FileTransactionLog(member.serviceName, member.token, recoveryDir.getAbsolutePath)
+      val recoveryTxLog = new FileTransactionLog(member.serviceName, member.token, recoveryDir.getAbsolutePath,
+        serializer = serializer)
       val recoveryFiles = recoveryTxLog.getLogFiles
       if (!recoveryFiles.isEmpty) {
         info("Recovery files found and resuming recovery if possible ({}).", recoveryFiles.map(_.getName).mkString(","))
         resumeTimer.time {
           // Compare the last records from the member log and previous recovery log
-          val memberTxLog = new FileTransactionLog(member.serviceName, member.token, logDir)
+          val memberTxLog = new FileTransactionLog(member.serviceName, member.token, logDir, serializer = serializer)
           (memberTxLog.getLastLoggedRecord, recoveryTxLog.getLastLoggedRecord) match {
             case (Some(lastRecord), Some(lastRecoveredIndex: Index)) => {
               if (lastRecoveredIndex.consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) >

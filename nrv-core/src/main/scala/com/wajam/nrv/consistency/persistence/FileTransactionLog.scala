@@ -60,7 +60,8 @@ import com.wajam.nrv.utils.PositionInputStream
  * </pre></blockquote>
  */
 class FileTransactionLog(val service: String, val token: Long, val logDir: String, fileRolloverSize: Int = 0,
-                         skipIntervalSize: Int = 4096 * 50, serializer: LogRecordSerializer = new LogRecordSerializer)
+                         skipIntervalSize: Int = 4096 * 50,
+                         serializer: Option[LogRecordSerializer] = None)
   extends TransactionLog with Logging with Instrumented {
 
   import FileTransactionLog._
@@ -83,6 +84,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   require(fileRolloverSize >= 0)
   require(skipIntervalSize > 0)
+
+  private val recordSerializer = serializer.getOrElse(new LogRecordSerializer)
 
   private val filePrefix = "%s-%010d".format(service, token)
 
@@ -189,7 +192,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     info("Creating new log file: {}", file)
     val fos = new FileOutputStream(file)
     val dos = new DataOutputStream(new BufferedOutputStream(fos))
-    writeFileHeader(dos, FileHeader(LogFileMagic, LogFileVersion, service, skipIntervalSize))
+    writeFileHeader(dos, FileHeader(LogFileMagic, LogFileCurVersion, service, skipIntervalSize))
 
     logStream = Some(dos)
     fileStreams = fos :: fileStreams
@@ -207,7 +210,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   private def writeRecord(dos: DataOutputStream, record: LogRecord) {
 
-    val buf = serializer.serialize(record)
+    val buf = recordSerializer.serialize(record)
 
     // Pad up to the skip interval if the record size would overlap the interval
     val lenBeforeSkip = skipIntervalSize - dos.size() % skipIntervalSize
@@ -467,7 +470,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   private case class FileHeader(fileMagic: Long, fileVersion: Int, fileService: String, fileSkipIntervalSize: Int) {
     require(fileMagic == LogFileMagic, "Log file header magic %x not %x".format(fileMagic, LogFileMagic))
-    require(fileVersion >= 1 & fileVersion <= LogFileVersion, "Unsupported log file version %d".format(fileVersion))
+    require(fileVersion >= LogFileMinVersion & fileVersion <= LogFileCurVersion,
+      "Unsupported log file version %d (min=%d, max=%d)".format(fileVersion, LogFileMinVersion, LogFileMaxVersion))
     require(fileService == service, "Service %s not %s".format(fileService, service))
   }
 
@@ -634,7 +638,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
                   "Record length %d is out of bound".format(recordLen))
                 val buf = new Array[Byte](recordLen)
                 dis.readFully(buf)
-                val record = serializer.deserialize(buf)
+                val record = recordSerializer.deserialize(buf)
                 val eor = dis.readInt()
                 require(eor == EOR, "End of record magic number 0x%x not 0x%x".format(eor, EOR))
                 require(crc == computeRecordCrc(buf), "CRC should be %d but is %d".format(crc, computeRecordCrc(buf)))
@@ -666,7 +670,9 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
 object FileTransactionLog {
   val LogFileMagic: Long = ByteBuffer.wrap("NRVTXLOG".getBytes).getLong
-  val LogFileVersion: Int = 2
+  val LogFileCurVersion: Int = 3
+  val LogFileMinVersion: Int = 3
+  val LogFileMaxVersion: Int = 3
 
   val MinRecordLen = 0
   val MaxRecordLen = 1000000

@@ -20,12 +20,10 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   var logDir: File = null
   var fileTxLog: FileTransactionLog = null
   var spySerializer: LogRecordSerializer = null
-  var spyCodec: Codec = null
 
   before {
     logDir = Files.createTempDirectory("TestFileTransactionLog").toFile
-    spyCodec = spy(LogRecordSerializer.DefaultCodec)
-    spySerializer = spy(new LogRecordSerializer(spyCodec))
+    spySerializer = spy(new LogRecordSerializer)
     fileTxLog = createFileTransactionLog()
   }
 
@@ -44,7 +42,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
                                dir: String = logDir.getAbsolutePath, fileRolloverSize: Int = 0,
                                skipIntervalSize: Int = Int.MaxValue) = {
     new FileTransactionLog(service, token, dir, fileRolloverSize = fileRolloverSize,
-      skipIntervalSize = skipIntervalSize, serializer = spySerializer)
+      skipIntervalSize = skipIntervalSize, serializer = Some(spySerializer))
   }
 
   test("should get proper index from log name") {
@@ -643,9 +641,13 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   test("read request record message should be lazy") {
     fileTxLog.append(LogRecord(id = 10, Some(1), createRequestMessage(timestamp = 1000, token = 99)))
     fileTxLog.commit()
+    fileTxLog.close()
 
     // Produce an error when codec decode a message
+    val spyCodec = spy(LogRecordSerializer.DefaultDataCodec)
     doThrow(new RuntimeException()).when(spyCodec).decode(anyObject(), anyObject())
+    spySerializer = spy(new LogRecordSerializer(spyCodec))
+    fileTxLog = createFileTransactionLog()
 
     val itr = fileTxLog.read(Index(0))
     itr.next() match {
@@ -668,7 +670,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     // Create an empty log file with specified header values
     def createEmptyLogFileWithHeader(id: Long, magic: Long = FileTransactionLog.LogFileMagic,
-                                     version: Int = FileTransactionLog.LogFileVersion, service: String = fileTxLog.service) {
+                                     version: Int = FileTransactionLog.LogFileCurVersion, service: String = fileTxLog.service) {
       val baos = new ByteArrayOutputStream()
       val dos = new DataOutputStream(baos)
 
@@ -695,7 +697,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.read.toList should be(List())
 
     // Invalid header version
-    createEmptyLogFileWithHeader(id = 0, version = FileTransactionLog.LogFileVersion + 1)
+    createEmptyLogFileWithHeader(id = 0, version = FileTransactionLog.LogFileCurVersion + 1)
     fileTxLog.read.toList should be(List())
 
     // Invalid header service
@@ -782,10 +784,10 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.getLastLoggedRecord should be(Some(r2))
 
     // Too small to fit records
-    recreateFileTransactionLog(r1Len / 2)
+    recreateFileTransactionLog(r1FileLen / 2)
     fileTxLog.append(index)
     fileTxLog.append(r1)
-    logFile.length() should be(r1Len / 2 + r1Len)
+    logFile.length() should be(r1FileLen / 2 + r1Len)
     fileTxLog.read.toList should be(List(index, r1))
     fileTxLog.append(r2)
     fileTxLog.read.toList should be(List(index, r1, r2))
@@ -865,7 +867,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   }
 
   test("should get the last logged record using skip interval") {
-    val skipIntervalSize = 2000L
+    val skipIntervalSize = 500L
 
     fileTxLog.close()
     fileTxLog = createFileTransactionLog(skipIntervalSize = skipIntervalSize.toInt)

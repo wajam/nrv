@@ -5,10 +5,12 @@ import com.wajam.nrv.utils.timestamp.Timestamp
 import scala.Some
 import com.wajam.nrv.data.Message
 import com.wajam.nrv.consistency.persistence.LogRecord.{Index, Response, Request}
-import com.wajam.nrv.protocol.codec.{MessageJavaSerializeCodec, Codec}
+import com.wajam.nrv.protocol.codec.{GenericJavaSerializeCodec, MessageJavaSerializeCodec, Codec}
 import LogRecordSerializer._
 
-private[persistence] class LogRecordSerializer(codec: Codec = DefaultCodec) {
+class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
+
+  private[consistency] val messageCodec = new MessageProtobufCodec(dataCodec)
 
   @throws(classOf[IOException])
   def serialize(record: LogRecord): Array[Byte] = {
@@ -39,7 +41,7 @@ private[persistence] class LogRecordSerializer(codec: Codec = DefaultCodec) {
     writeTimestampOption(record.consistentTimestamp, dos)
     dos.writeLong(record.timestamp.value)
     dos.writeLong(record.token)
-    val encodedMessage = codec.encode(record.message)
+    val encodedMessage = messageCodec.encode(record.message)
     dos.writeInt(encodedMessage.length)
     dos.write(encodedMessage)
   }
@@ -96,7 +98,7 @@ private[persistence] class LogRecordSerializer(codec: Codec = DefaultCodec) {
     }
     val encodedMessage = new Array[Byte](messageLen)
     dis.readFully(encodedMessage)
-    lazy val message = codec.decode(encodedMessage).asInstanceOf[Message]
+    lazy val message = messageCodec.decode(encodedMessage).asInstanceOf[Message]
 
     Request(id, consistentTimestamp, timestamp, token, new MessageProxy {
       def getMessage = message
@@ -141,6 +143,5 @@ private[persistence] object LogRecordSerializer {
   val ResponseType = 2
   val IndexType = 3
 
-  // TODO: Change to protobuf codec when ready
-  val DefaultCodec: Codec = new MessageJavaSerializeCodec
+  val DefaultDataCodec: Codec = new GenericJavaSerializeCodec
 }

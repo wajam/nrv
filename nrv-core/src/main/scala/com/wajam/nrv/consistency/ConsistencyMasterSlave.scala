@@ -7,11 +7,12 @@ import java.util.concurrent.atomic.AtomicReference
 import com.yammer.metrics.scala.{Meter, Instrumented}
 import com.wajam.nrv.utils.Event
 import com.wajam.nrv.service.StatusTransitionEvent
-import persistence.{NullTransactionLog, FileTransactionLog}
+import persistence.{MessageProtobufCodec, LogRecordSerializer, NullTransactionLog, FileTransactionLog}
 import java.util.concurrent.TimeUnit
 import com.yammer.metrics.core.Gauge
 import com.wajam.nrv.UnavailableException
 import replication.{ReplicationSubscriber, ReplicationPublisher, ReplicationParam}
+import com.wajam.nrv.protocol.codec.GenericJavaSerializeCodec
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
@@ -53,9 +54,11 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   def resolver = replicationResolver.getOrElse(service.resolver)
 
+  def serializer = new LogRecordSerializer(service.nrvCodec)
+
   // Replication subscriber action
   private lazy val replicationSubscriber = new ReplicationSubscriber(service, service, 30000L)
-  private val publishAction = new Action("/replication/publish/:" + ReplicationParam.SubscriptionId,
+  private lazy val publishAction = new Action("/replication/publish/:" + ReplicationParam.SubscriptionId,
     replicationSubscriber.handlePublishMessage(_), ActionMethod.POST)
 
   // Replication publisher actions
@@ -74,16 +77,18 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       publishAction = publishAction, publishTps = replicationTps, publishWindowSize = replicationWindowSize,
       strictSource = replicationStrictSource)
   }
-  private val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
+  private lazy val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
-  subscribeAction.applySupport(resolver = replicationResolver)
-  private val unsubscribeAction = new Action("/replication/unsubscribe/:" + ReplicationParam.Token,
+  private lazy val unsubscribeAction = new Action("/replication/unsubscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
-  unsubscribeAction.applySupport(resolver = replicationResolver)
 
   override def start() {
     super.start()
 
+    publishAction.applySupport(resolver = Some(new Resolver(tokenExtractor = Resolver.TOKEN_RANDOM())),
+      nrvCodec = Some(serializer.messageCodec))
+    subscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
+    unsubscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
     publishAction.start()
     subscribeAction.start()
     unsubscribeAction.start()
@@ -237,7 +242,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         this.synchronized {
           info("Iniatialize transaction recorders for {}", event.member)
           val txLog = if (txLogEnabled) {
-            new FileTransactionLog(service.name, event.member.token, txLogDir, txLogRolloverSize)
+            new FileTransactionLog(service.name, event.member.token, txLogDir, txLogRolloverSize,
+              serializer = Some(serializer))
           } else {
             NullTransactionLog
           }
@@ -306,7 +312,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def subscribe(member: ServiceMember) {
     info("Local replica is subscribing to {}", member)
 
-    val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize)
+    val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
+      serializer = Some(serializer))
     val resolvedMember = ResolvedServiceMember(service, member)
     restoreMemberConsistency(resolvedMember, onSuccess = {
       // TODO: metric
@@ -469,7 +476,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def restoreMemberConsistency(member: ResolvedServiceMember, onSuccess: => Unit, onError: => Unit) {
     try {
       // TODO: Use Future
-      val finalLogIndex = new ConsistencyRecovery(txLogDir, service).restoreMemberConsistency(member, onError)
+      val recovery = new ConsistencyRecovery(txLogDir, service, Some(serializer))
+      val finalLogIndex = recovery.restoreMemberConsistency(member, onError)
       finalLogIndex.map(_.consistentTimestamp) match {
         case Some(lastLogTimestamp) => {
           // Ensure that transaction log and storage have the same final transaction timestamp
