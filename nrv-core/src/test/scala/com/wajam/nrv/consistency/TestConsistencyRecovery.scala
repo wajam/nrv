@@ -31,8 +31,6 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
   }
 
   after {
-    //    fileTxLog.close()
-    //    fileTxLog = null
     idGenerator = null
     mockStore = null
     member = null
@@ -57,7 +55,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
   }
 
   test("empty log directory should not fail") {
-    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator = idGenerator)
 
     logDir.list() should be(Array())
     val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
@@ -74,7 +72,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r3 = txLog.append(Index(3, consistentTimestamp = Some(r1.timestamp)))
     txLog.commit()
 
-    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator = idGenerator)
     val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
     lastIndex should be(Some(r3))
 
@@ -93,7 +91,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     txLog.commit()
 
     idGenerator.lastId = 300
-    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator = idGenerator)
     val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
 
     verifyZeroInteractions(mockStore)
@@ -125,7 +123,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     txLog.commit()
 
     idGenerator.lastId = 300
-    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator = idGenerator)
     val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
 
     val r301 = Request(301, None, request2)
@@ -160,7 +158,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     txLog.commit()
 
     idGenerator.lastId = 300
-    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator = idGenerator)
     val lastIndex = recovery.restoreMemberConsistency(member, onRecoveryFailure = fail())
 
     val r301 = Request(301, None, request2)
@@ -178,7 +176,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
   }
 
   test("pending recovery log should BE finalized") {
-    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator = idGenerator)
     val request1 = createRequestMessage(timestamp = 11, token = 0) // complete
     val request2 = createRequestMessage(timestamp = 12, token = 1) // complete and in non finalized recovery log
 
@@ -213,7 +211,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
   }
 
   test("outdated pending recovery log should fail new recovery attempt") {
-    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator = idGenerator)
     val request1 = createRequestMessage(timestamp = 11, token = 0) // complete and in non finalized recovery log
     val request2 = createRequestMessage(timestamp = 12, token = 1) // complete in member log
 
@@ -245,7 +243,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
   }
 
   test("pending recovery log without member log should fail recovery attempt") {
-    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator = idGenerator)
     val request1 = createRequestMessage(timestamp = 11, token = 0) // only in non finalized recovery log
 
     // Append 2 complete transactions in member log
@@ -270,7 +268,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
   }
 
   test("incomplete pending recovery log should BE cleaned and recovery redone") {
-    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator)
+    val recovery = new ConsistencyRecovery(logDir.getAbsolutePath, mockStore, idGenerator = idGenerator)
     val request1 = createRequestMessage(timestamp = 11, token = 0) // complete
 
     // Append 1 transaction in member log
