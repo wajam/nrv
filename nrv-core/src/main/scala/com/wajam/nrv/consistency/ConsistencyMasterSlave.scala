@@ -7,12 +7,11 @@ import java.util.concurrent.atomic.AtomicReference
 import com.yammer.metrics.scala.{Meter, Instrumented}
 import com.wajam.nrv.utils.Event
 import com.wajam.nrv.service.StatusTransitionEvent
-import persistence.{MessageProtobufCodec, LogRecordSerializer, NullTransactionLog, FileTransactionLog}
+import persistence.{LogRecordSerializer, NullTransactionLog, FileTransactionLog}
 import java.util.concurrent.TimeUnit
 import com.yammer.metrics.core.Gauge
 import com.wajam.nrv.UnavailableException
 import replication.{ReplicationSubscriber, ReplicationPublisher, ReplicationParam}
-import com.wajam.nrv.protocol.codec.GenericJavaSerializeCodec
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
