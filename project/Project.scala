@@ -6,6 +6,7 @@ object NrvBuild extends Build {
   val PROJECT_NAME = "nrv"
 
   var commonResolvers = Seq(
+    "Wajam" at "http://ci1.cx.wajam/",
     "Maven.org" at "http://repo1.maven.org/maven2",
     "Sun Maven2 Repo" at "http://download.java.net/maven/2",
     "Scala-Tools" at "http://scala-tools.org/repo-releases/",
