@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.replication
 
 import com.wajam.nrv.service.{TokenRange, Action, Service}
-import com.wajam.nrv.consistency.{ResolvedServiceMember, ConsistentStore}
+import com.wajam.nrv.consistency.{Consistency, ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data.{MValue, InMessage, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
 import actors.Actor
@@ -342,6 +342,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
       val timestamp: Timestamp = getParamLongValue(ReplicationParam.Timestamp)(publishMessage)
       val message: Message = publishMessage.messageData.asInstanceOf[Message]
       val token = message.token
+      Consistency.setMessageTimestamp(message, timestamp)
 
       def compare(that: PendingTransaction) = sequence.compare(that.sequence)
 
@@ -371,6 +372,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     private val checkIdleScheduler = new Scheduler(this, CheckIdle, 1000, 1000, blockingMessage = true,
       autoStart = false)
     private var pendingTransactions: TreeSet[PendingTransaction] = TreeSet()
+    @volatile // Used in gauge
     private var consistentTimestamp: Option[Timestamp] = txLog.getLastLoggedRecord match {
       case Some(record) => record.consistentTimestamp
       case None => None
@@ -378,6 +380,10 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     private var lastSequence = 0L
     private var lastAddedTime = currentTime
     private var error = false
+
+    private val currentTimestamp = metrics.gauge("current-timestamp", member.scopeName) {
+      consistentTimestamp.getOrElse(0)
+    }
 
     private def txLog = subscribe.txLog
 

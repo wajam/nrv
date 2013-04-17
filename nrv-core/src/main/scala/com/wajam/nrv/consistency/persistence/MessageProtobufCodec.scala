@@ -12,11 +12,16 @@ class MessageProtobufCodec(dataCodec: Codec) extends Codec {
   def encode(entity: Any, context: Any) = {
     entity match {
       case message: Message => NrvProtobufSerializer.serializeMessage(message, (_) => dataCodec)
+      case null => new Array[Byte](0)
       case _ => throw new IllegalArgumentException("Unsupported type: " + entity)
     }
   }
 
   def decode(data: Array[Byte], context: Any) = {
-    NrvProtobufSerializer.deserializeMessage(data, (_) => dataCodec)
+    if (data.length > 0) {
+      NrvProtobufSerializer.deserializeMessage(data, (_) => dataCodec)
+    } else {
+      null
+    }
   }
 }
