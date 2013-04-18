@@ -5,7 +5,7 @@ import com.wajam.nrv.Logging
 import com.wajam.nrv.utils.Observable
 import com.wajam.nrv.tracing.Tracer
 import com.wajam.nrv.consistency.ConsistencyOne
-import com.wajam.nrv.protocol.{NrvProtocolVersion, NrvProtocol, Protocol}
+import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
 import com.wajam.nrv.protocol.codec.GenericJavaSerializeCodec
 
 /**

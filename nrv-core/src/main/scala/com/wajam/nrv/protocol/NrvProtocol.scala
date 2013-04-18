@@ -12,7 +12,7 @@ import com.google.common.primitives.{Shorts, UnsignedBytes}
  * Default protocol used by NRV. All nodes must have this protocol, since it's
  * used for cluster management.
  */
-class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Value = NrvProtocolVersion.V2)
+class NrvProtocol(localNode: LocalNode)
   extends Protocol("nrv") {
 
   override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name), this)
@@ -23,11 +23,8 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
     optAction.get.nrvCodec
   }
 
-  protected val javaSerializer = new MessageJavaSerializeCodec()
-
   def start() {
     transport.start()
-    log.info("Using protocol {}", protocolVersion)
   }
 
   def stop() {
@@ -37,27 +34,19 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
   def parse(message: AnyRef): Message = {
     val bytes = message.asInstanceOf[Array[Byte]]
 
-    val magicShort: Int = Shorts.fromByteArray(bytes) & 0xFFFF
     val magicByte: Int = UnsignedBytes.toInt(bytes(0))
 
-    if (magicShort == (NrvProtocol.JavaSerializeMagicShort & 0xFFFF))
-      parseV1(bytes)
-    else if (magicByte == (UnsignedBytes.toInt(NrvProtocol.V2MagicByte)))
-      parseV2(bytes)
+    if (magicByte == (UnsignedBytes.toInt(NrvProtocol.NrvMagicByte)))
+      parseProtobuf(bytes)
     else
       throw new RuntimeException("The magic byte was not recognized.")
   }
 
   def generate(message: Message): AnyRef = {
-    if (protocolVersion == NrvProtocolVersion.V1)
-      generateV1(message)
-    else if (protocolVersion == NrvProtocolVersion.V2)
-      generateV2(message)
-    else
-      throw new RuntimeException("The provided version number is invalid.")
+    generateProtobuf(message)
   }
 
-  private def parseV2(message: Array[Byte]): Message = {
+  private def parseProtobuf(message: Array[Byte]): Message = {
 
     if (message.length < 1)
       throw new IllegalArgumentException("message needs at least one byte of data")
@@ -74,7 +63,7 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
     NrvProtobufSerializer.deserializeMessage(bytes, resolveCodec)
   }
 
-  private def generateV2(message: Message): Array[Byte] = {
+  private def generateProtobuf(message: Message): Array[Byte] = {
 
     val bytes = NrvProtobufSerializer.serializeMessage(message, resolveCodec)
 
@@ -82,35 +71,14 @@ class NrvProtocol(localNode: LocalNode, protocolVersion: NrvProtocolVersion.Valu
 
     val buffer = ByteBuffer.allocate(messageLength)
 
-    buffer.put(NrvProtocol.V2MagicByte)
+    buffer.put(NrvProtocol.NrvMagicByte)
 
     buffer.put(bytes)
 
     buffer.array()
   }
-
-  private def parseV1(message: Array[Byte]): Message = {
-    javaSerializer.decode(message).asInstanceOf[Message]
-  }
-
-  private def generateV1(message: Message): Array[Byte] = {
-    javaSerializer.encode(message)
-  }
 }
 
 object NrvProtocol {
-  // Source: http://docs.oracle.com/javase/6/docs/platform/serialization/spec/protocol.html
-  private val JavaSerializeMagicShort : Short = (0xACED).toShort
-
-  private val V2MagicByte : Byte = (0xF2).toByte
-}
-
-object NrvProtocolVersion extends Enumeration {
-
-  // Old serialized message
-  val V1 = Value(1)
-
-  // Protobuf serialization for Message, except for Any object in parameters, metadata
-  // and errors which are Java serialized. Codec for message data.
-  val V2 = Value(2)
+  private val NrvMagicByte : Byte = (0xF2).toByte
 }
