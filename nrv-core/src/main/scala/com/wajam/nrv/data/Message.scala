@@ -3,6 +3,7 @@ package com.wajam.nrv.data
 import com.wajam.nrv.cluster.Node
 import scala.Option
 import com.wajam.nrv.service.{Endpoints, ActionMethod, ActionURL}
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 /**
  * Base used for outbound and inbound messages.
@@ -20,6 +21,7 @@ abstract class Message(params: Iterable[(String, MValue)] = null,
   var path = "/"
   var rendezvousId = 0
   var error: Option[Exception] = None
+  var timestamp: Option[Timestamp] = None
 
   /*
    * Messages that are passed between nodes are not just RPC calls, but can also
@@ -80,6 +82,7 @@ abstract class Message(params: Iterable[(String, MValue)] = null,
     other.rendezvousId = this.rendezvousId
 
     other.error = this.error
+    other.timestamp = this.timestamp
 
     other.function = this.function
 

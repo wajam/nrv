@@ -11,6 +11,7 @@ import java.net.InetAddress
 import com.wajam.nrv.protocol.codec._
 import com.wajam.nrv.data._
 import com.wajam.nrv.data.MValue._
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtobufSerializer extends FunSuite {
@@ -39,6 +40,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     val shard1 = new Shard(1024, Seq(replica1))
 
     message.destination = new Endpoints(Seq(shard1))
+    message.timestamp = Some(Timestamp(1234))
 
     message.token = 1024
 
@@ -107,6 +109,7 @@ class TestNrvProtobufSerializer extends FunSuite {
     assert(message1.parameters.forall( kv1 => message2.parameters.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
     assert(message1.metadata.forall( kv1 => message2.metadata.exists(kv2 => kv1._1 == kv2._1 && kv1._2 == kv2._2)))
     assert(message1.messageData === message2.messageData)
+    assert(message1.timestamp === message2.timestamp)
   }
 
   test("can serialize/deserialize message") {

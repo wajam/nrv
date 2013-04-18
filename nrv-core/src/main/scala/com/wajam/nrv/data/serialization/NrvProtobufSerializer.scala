@@ -7,6 +7,7 @@ import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import com.wajam.nrv.protocol.codec.{Codec, GenericJavaSerializeCodec}
 import java.net.InetAddress
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 /**
  * Convert NRV principal objects to their Protobuf equivalent back and forth
@@ -112,6 +113,9 @@ object NrvProtobufSerializer {
     for (error <- message.error)
       protoMessage.setError(ByteString.copyFrom(javaSerialize.encode(error)))
 
+    for (timestamp <- message.timestamp)
+      protoMessage.setTimestamp(timestamp.value)
+
     protoMessage.setFunction(message.function)
 
     if (message.source != null)
@@ -154,6 +158,9 @@ object NrvProtobufSerializer {
 
     if (error.size() != 0)
       message.error = Some(javaSerialize.decode(protoMessage.getError.toByteArray).asInstanceOf[Exception])
+
+    if (protoMessage.hasTimestamp)
+      message.timestamp = Some(Timestamp(protoMessage.getTimestamp))
 
     message.function = protoMessage.getFunction
 

@@ -23,6 +23,8 @@ message Message {
     optional int64 rendezVousId = 5;
     optional int32 code = 6;
 
+	optional int64 timestamp = 15;
+
     optional bytes error = 16; // Serialized with Java
 
     optional int32 function = 8;
