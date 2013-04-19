@@ -55,8 +55,12 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   def serializer = new LogRecordSerializer(service.nrvCodec)
 
+  // TODO: make replication timeout configurable
+  val replicationTimeout = 30000L
+
   // Replication subscriber action
-  private lazy val replicationSubscriber = new ReplicationSubscriber(service, service, 30000L)
+  private lazy val replicationSubscriber = new ReplicationSubscriber(service, service, replicationTimeout,
+    txLogCommitFrequency)
   private lazy val publishAction = new Action("/replication/publish/:" + ReplicationParam.SubscriptionId,
     replicationSubscriber.handlePublishMessage(_), ActionMethod.POST)
 
@@ -74,7 +78,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     new ReplicationPublisher(service, service, getTransactionLog, getMemberCurrentConsistentTimestamp,
       publishAction = publishAction, publishTps = replicationTps, publishWindowSize = replicationWindowSize,
-      strictSource = replicationStrictSource)
+      maxIdleDurationInMs = replicationTimeout, strictSource = replicationStrictSource)
   }
   private lazy val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
