@@ -36,7 +36,8 @@ import replication.{ReplicationSubscriber, ReplicationPublisher, ReplicationPara
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
                              txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000,
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
-                             replicationStrictSource: Boolean = true, replicationResolver: Option[Resolver] = None)
+                             replicationSubscriptionIdleTimeout: Long = 30000L, replicationStrictSource: Boolean = true,
+                             replicationResolver: Option[Resolver] = None)
   extends ConsistencyOne {
 
   import Consistency._
@@ -55,12 +56,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   def serializer = new LogRecordSerializer(service.nrvCodec)
 
-  // TODO: make replication timeout configurable
-  val replicationTimeout = 30000L
-
   // Replication subscriber action
-  private lazy val replicationSubscriber = new ReplicationSubscriber(service, service, replicationTimeout,
-    txLogCommitFrequency)
+  private lazy val replicationSubscriber = new ReplicationSubscriber(service, service,
+    replicationSubscriptionIdleTimeout, txLogCommitFrequency)
   private lazy val publishAction = new Action("/replication/publish/:" + ReplicationParam.SubscriptionId,
     replicationSubscriber.handlePublishMessage(_), ActionMethod.POST)
 
@@ -78,7 +76,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     new ReplicationPublisher(service, service, getTransactionLog, getMemberCurrentConsistentTimestamp,
       publishAction = publishAction, publishTps = replicationTps, publishWindowSize = replicationWindowSize,
-      maxIdleDurationInMs = replicationTimeout, strictSource = replicationStrictSource)
+      maxIdleDurationInMs = replicationSubscriptionIdleTimeout, strictSource = replicationStrictSource)
   }
   private lazy val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
