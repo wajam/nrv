@@ -23,7 +23,7 @@ message Message {
     optional int64 rendezVousId = 5;
     optional int32 code = 6;
 
-	optional int64 timestamp = 15;
+    optional int64 timestamp = 15;
 
     optional bytes error = 16; // Serialized with Java
 
@@ -78,18 +78,18 @@ message MPair {
 message MValue
 {
     enum Type {
-	    INT = 1;
-	    LONG = 2;
-	    BOOLEAN = 3;
-	    DOUBLE = 4;
-	    STRING = 5;
-	    LIST = 6;
+        INT = 1;
+        LONG = 2;
+        BOOLEAN = 3;
+        DOUBLE = 4;
+        STRING = 5;
+        LIST = 6;
     }
 
     required Type type = 1;
 
-	optional int64 varintValue = 2;
-	optional double doubleValue = 3;
-	optional string stringValue = 4;
-	repeated MValue listValue = 5;
+    optional int64 varintValue = 2;
+    optional double doubleValue = 3;
+    optional string stringValue = 4;
+    repeated MValue listValue = 5;
 }
