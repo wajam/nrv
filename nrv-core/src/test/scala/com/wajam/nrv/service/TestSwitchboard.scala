@@ -123,7 +123,7 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
     // Wait until ban is lifted and queue one more message which should not be banned anymore
     Thread.sleep(switchboard.banExpirationDuration)
     queueIncomingMessage(mockAction, token= 0, delay = 0)
-    Thread.sleep(100) // Wait to ensure message is processed
+    Thread.sleep(200) // Wait to ensure message is processed
     verifyNoMoreInteractions(mockAction)
    }
 
