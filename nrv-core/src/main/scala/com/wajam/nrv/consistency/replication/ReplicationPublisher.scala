@@ -6,7 +6,7 @@ import com.wajam.nrv.data._
 import com.wajam.nrv.consistency.{Consistency, ConsistentStore, ResolvedServiceMember}
 import com.wajam.nrv.consistency.persistence.TransactionLog
 import com.wajam.nrv.cluster.Node
-import com.wajam.nrv.utils.{Scheduler, UuidStringGenerator}
+import com.wajam.nrv.utils.{CurrentTime, Scheduler, UuidStringGenerator}
 import scala.actors.Actor
 import collection.immutable.TreeSet
 import ReplicationParam._
@@ -21,9 +21,9 @@ import com.yammer.metrics.scala.Instrumented
 class ReplicationPublisher(service: Service, store: ConsistentStore,
                            getTransactionLog: (ResolvedServiceMember) => TransactionLog,
                            getMemberCurrentConsistentTimestamp: (ResolvedServiceMember) => Option[Timestamp],
-                           publishAction: Action, publishTps: Int, publishWindowSize: Int,
+                           publishAction: Action, publishTps: Int, publishWindowSize: Int, maxIdleDurationInMs: Long,
                            strictSource: Boolean = true)
-  extends UuidStringGenerator with Logging with Instrumented {
+  extends CurrentTime with UuidStringGenerator with Logging with Instrumented {
 
   private val manager = new SubscriptionManagerActor
 
@@ -174,8 +174,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           }
           case Error(subscriptionActor, exception) => {
             try {
-              info("Got an error from the subscription actor. Stopping it. {}", subscriptionActor.member)
               subscriptions.find(_ == subscriptionActor).foreach(subscription => {
+                info("Got an error from the subscription actor. Stopping it. {}", subscriptionActor.member)
                 subscription !? SubscriptionProtocol.Kill
                 subscriptions = subscriptions.filterNot(_ == subscription)
               })
@@ -221,6 +221,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     private lazy val publishErrorMeter = metrics.meter("publish-error", "publish-error", member.scopeName)
 
     private lazy val ackMeter = metrics.meter("ack", "ack", member.scopeName)
+    private lazy val ackTimeoutMeter = metrics.meter("ack-timeout", "ack-timeout", member.scopeName)
     private lazy val ackErrorMeter = metrics.meter("ack-error", "ack-error", member.scopeName)
 
     import SubscriptionProtocol._
@@ -228,6 +229,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     private val publishScheduler = new Scheduler(this, PublishNext, 1000, 1000 / publishTps,
       blockingMessage = true, autoStart = false)
     private var pendingSequences: TreeSet[Long] = TreeSet()
+    private var lastSendTime = currentTime
     private var lastSequence = 0L
     private var error = false
 
@@ -254,12 +256,12 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     private def onPublishReply(sequence: Long)(response: Message, optException: Option[Exception]) {
       optException match {
         case Some(e) => {
-          info("Received an error response from the subscriber (seq={}): ", e)
+          debug("Received an error response from the subscriber (seq={}): ", e)
           manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
           error = true
         }
         case None => {
-          debug("Received an publish response from the subscriber (seq={}).", sequence)
+          trace("Received an publish response from the subscriber (seq={}).", sequence)
           this ! Ack(sequence)
         }
       }
@@ -284,10 +286,11 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                         onReply = onPublishReply(sequence), responseTimeout = service.responseTimeout)
                       publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
 
-                      debug("Publishing message to subscriber (seq={}, window={}).", sequence, currentWindowSize, txMessage)
+                      trace("Publishing message to subscriber (seq={}, window={}).", sequence, currentWindowSize, txMessage)
 
                       publishAction.call(publishMessage)
                       pendingSequences += sequence
+                      lastSendTime = currentTime
                       publishMeter.mark()
                     }
                     case None => // No more message available at this time
@@ -296,7 +299,14 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                   // TODO: Send idle message to subscriber from time to time to say "Hi, I am still here but I have nothing for you at this time!"
                 }
               } else {
-                // TODO: Cancel subscription if havent received pending ack after some time. Should really be link to the window size?
+                // Window size is full. Cancel subscription if havent received an ack for a while.
+                val elapsedTime = currentTime - lastSendTime
+                if (elapsedTime > maxIdleDurationInMs) {
+                  ackTimeoutMeter.mark()
+                  info("No ack received for {} ms. Terminating subscription {} for {}.", elapsedTime, subId, member)
+                  manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, None)
+                  error = true
+                }
               }
             } catch {
               case e: Exception => {

@@ -15,12 +15,13 @@ import annotation.tailrec
 import com.wajam.nrv.Logging
 import java.util.{TimerTask, Timer}
 import com.yammer.metrics.scala.Instrumented
+import util.Random
 
 /**
  * Manage all replication subscriptions the local service is subscribing. Only one replication subscription per
  * service member is allowed.
  */
-class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDurationInMs: Long)
+class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDurationInMs: Long, commitFrequency: Int)
   extends CurrentTime with Logging with Instrumented {
 
   private val manager = new SubscriptionManagerActor
@@ -260,7 +261,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                   // TODO: unsubscribe from replication source
                 }
                 case None => {
-                  info("Unsubscribe. No action taken, no subscription registered for {}.", member)
+                  debug("Unsubscribe. No action taken, no subscription registered for {}.", member)
                 }
               }
             } catch {
@@ -295,18 +296,18 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
           }
           case Error(subscriptionActor, exception) => {
             try {
-              debug("Got an error from the subscription actor {}. Unsubscribing from {}.",
-                subscriptionActor.subId, subscriptionActor.member)
               subscriptions.get(subscriptionActor.member) match {
                 case Some(Right(subscription)) if subscription.subId == subscriptionActor.subId => {
+                  debug("Got an error from the subscription actor {}. Unsubscribing from {}.",
+                    subscriptionActor.subId, subscriptionActor.member)
                   subscriptions -= (subscriptionActor.member)
                   subscription.subscribe.onSubscriptionEnd()
                   subscriptionActor !? SubscriptionProtocol.Kill
+
+                  // TODO: unsubscribe from replication source
                 }
                 case _ => // Not subscribed anymore to that subscription. Take no local action.
               }
-
-              // TODO: unsubscribe from replication source
             } catch {
               case e: Exception => {
                 // TODO: metric
@@ -340,7 +341,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
       extends Ordered[PendingTransaction] {
       val sequence: Long = getParamLongValue(Sequence)(publishMessage)
       val timestamp: Timestamp = getParamLongValue(ReplicationParam.Timestamp)(publishMessage)
-      val message: Message = publishMessage.messageData.asInstanceOf[Message]
+      val message: Message = publishMessage.getData[Message]
       val token = message.token
       Consistency.setMessageTimestamp(message, timestamp)
 
@@ -352,6 +353,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     }
 
     object CheckIdle
+
+    object Commit
 
     object Kill
 
@@ -369,6 +372,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
     import SubscriptionProtocol._
 
+    val commitScheduler = new Scheduler(this, Commit, if (commitFrequency > 0) Random.nextInt(commitFrequency) else 0,
+      commitFrequency, blockingMessage = true, autoStart = false)
     private val checkIdleScheduler = new Scheduler(this, CheckIdle, 1000, 1000, blockingMessage = true,
       autoStart = false)
     private var pendingTransactions: TreeSet[PendingTransaction] = TreeSet()
@@ -378,7 +383,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
       case None => None
     }
     private var lastSequence = 0L
-    private var lastAddedTime = currentTime
+    private var lastReceiveTime = currentTime
     private var error = false
 
     private val currentTimestamp = metrics.gauge("current-timestamp", member.scopeName) {
@@ -391,6 +396,9 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
     override def start() = {
       super.start()
+      if (commitFrequency > 0) {
+        commitScheduler.start()
+      }
       checkIdleScheduler.start()
       this
     }
@@ -407,7 +415,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
           pendingTransactions = pendingTransactions.tail
 
           // Add transaction to transaction log and to consistent storage.
-          debug("Storing (seq={}, subId={}) {}", tx.sequence, subId, tx.message)
+          trace("Storing (seq={}, subId={}) {}", tx.sequence, subId, tx.message)
           txWriteTimer.time {
             txLog.append {
               Request(idGenerator.nextId, consistentTimestamp, tx.timestamp, tx.token, tx.message)
@@ -436,10 +444,10 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
         react {
           case tx: PendingTransaction if !error => {
             try {
-              debug("Received (seq={}, subId={}) {}", tx.sequence, subId, tx.message)
+              trace("Received (seq={}, subId={}) {}", tx.sequence, subId, tx.message)
               txReceivedMeter.mark()
               pendingTransactions += tx
-              lastAddedTime = currentTime
+              lastReceiveTime = currentTime
 
               processHeadTransaction()
             } catch {
@@ -453,7 +461,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
           }
           case CheckIdle if !error => {
             try {
-              val elapsedTime = currentTime - lastAddedTime
+              val elapsedTime = currentTime - lastReceiveTime
               if (elapsedTime > maxIdleDurationInMs) {
                 if (pendingTransactions.isEmpty) {
                   idletimeoutMeter.mark()
@@ -480,9 +488,25 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               reply(true)
             }
           }
+          case Commit => {
+            try {
+              trace("Commit transaction log: {}", txLog)
+              txLog.commit()
+            } catch {
+              case e: Exception => {
+                errorMeter.mark()
+                warn("Error commiting subscription {} transaction log for {}: ", subId, member, e)
+                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
+                error = true
+              }
+            } finally {
+              reply(true)
+            }
+          }
           case Kill => {
             try {
               checkIdleScheduler.cancel()
+              commitScheduler.cancel()
               exit()
             } catch {
               case e: Exception => {
