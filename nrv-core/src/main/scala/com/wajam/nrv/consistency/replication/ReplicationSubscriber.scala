@@ -111,9 +111,18 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     private case class PendingSubscription(subscribe: Subscribe)
 
     private val timer = new Timer("SubscriptionManagerActor-Timer")
+
     private var subscriptions: Map[ResolvedServiceMember, Either[PendingSubscription, SubscriptionActor]] = Map()
 
     def subscriptionsCount = subscriptions.size
+
+    private var subscriptionGaugeCache: Map[ResolvedServiceMember, SubscriptionCurrentTimestampGauge] = Map()
+
+    def getSubscriptionGauge(member: ResolvedServiceMember) = subscriptionGaugeCache.getOrElse(member, {
+      val gauge = new SubscriptionCurrentTimestampGauge(member)
+      subscriptionGaugeCache += (member -> gauge)
+      gauge
+    })
 
     def act() {
       loop {
@@ -212,7 +221,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                       val endTimestamp = getOptionalParamLongValue(End).map(ts => Timestamp(ts))
 
                       val subscription = new SubscriptionActor(subscriptionId, startTimestamp, endTimestamp, subscribe,
-                        new TimestampIdGenerator)
+                        getSubscriptionGauge(subscribe.member), new TimestampIdGenerator)
                       subscriptions += (subscribe.member -> Right(subscription))
                       subscription.start()
                       subscribeOkMeter.mark()
@@ -360,8 +369,24 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
   }
 
+  /**
+   * Current timestamp gauge wrapper class per service member. Gauge with the same name and scope are not registered
+   * more than once. If the gauge was directly referenced by the SubscriptionActor, the value would not be updated
+   * by the future subscriptions of the same member. This would also pin SubscriptionActor in the heap forever since
+   * the gauge keep reference to the code block providing the value. <p></p> The mamanger keeps one gauge wrapper per
+   * member forever.
+   */
+  class SubscriptionCurrentTimestampGauge(member: ResolvedServiceMember) {
+    var timestamp: Timestamp = Timestamp(0)
+
+    private val gauge = metrics.gauge("current-timestamp", member.scopeName) {
+      timestamp.value
+    }
+  }
+
   class SubscriptionActor(val subId: String, startTimestamp: Timestamp, to: Option[Timestamp],
                           val subscribe: SubscriptionManagerProtocol.Subscribe,
+                          currentTimestampGauge: SubscriptionCurrentTimestampGauge,
                           idGenerator: IdGenerator[Long]) extends Actor {
 
     private lazy val txReceivedMeter = metrics.meter("tx-received", "tx-received", member.scopeName)
@@ -377,7 +402,6 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     private val checkIdleScheduler = new Scheduler(this, CheckIdle, 1000, 1000, blockingMessage = true,
       autoStart = false)
     private var pendingTransactions: TreeSet[PendingTransaction] = TreeSet()
-    @volatile // Used in gauge
     private var consistentTimestamp: Option[Timestamp] = txLog.getLastLoggedRecord match {
       case Some(record) => record.consistentTimestamp
       case None => None
@@ -385,10 +409,6 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     private var lastSequence = 0L
     private var lastReceiveTime = currentTime
     private var error = false
-
-    private val currentTimestamp = metrics.gauge("current-timestamp", member.scopeName) {
-      consistentTimestamp.getOrElse(0)
-    }
 
     private def txLog = subscribe.txLog
 
@@ -428,6 +448,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
           // Update consistent timestamp and last added sequence number
           consistentTimestamp = Some(tx.timestamp)
+          currentTimestampGauge.timestamp = tx.timestamp
           lastSequence = tx.sequence
 
           tx.reply()
@@ -505,6 +526,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
           }
           case Kill => {
             try {
+              debug("Killing subscription {} actor {}: ", subId, member)
               checkIdleScheduler.cancel()
               commitScheduler.cancel()
               exit()
