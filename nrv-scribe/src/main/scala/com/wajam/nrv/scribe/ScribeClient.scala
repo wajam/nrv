@@ -7,7 +7,7 @@ import org.apache.thrift.protocol.TBinaryProtocol
 import scribe.thrift.Scribe.Client
 import java.util.Collections
 import org.apache.thrift.TException
-import actors.Actor
+import scala.actors.Actor
 import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
 

@@ -1,7 +1,7 @@
 package com.wajam.nrv.utils
 
 import java.util
-import actors.Actor
+import scala.actors.Actor
 import util.concurrent.atomic.AtomicBoolean
 
 /**

@@ -1,6 +1,6 @@
 package com.wajam.nrv.service
 
-import actors.Actor
+import scala.actors.Actor
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
 import com.wajam.nrv.{UnavailableException, TimeoutException, Logging}
