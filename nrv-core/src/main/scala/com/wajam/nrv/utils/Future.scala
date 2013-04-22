@@ -241,6 +241,9 @@ class PromiseImpl[T] extends Promise[T] with Future[T] with Logging {
       if (tryCompletedCalled) {
         warn("tryCompleted called twice (received {}, but had {})",
           result, prvValue, firstCompletedStackTrace)
+        if (result.isLeft) {
+          warn("Inner exception", result.left.get)
+        }
       } else {
         tryCompletedCalled = true
         firstCompletedStackTrace = new Exception()
