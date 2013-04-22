@@ -180,7 +180,7 @@ class TestFuture extends FunSuite {
     assert(c == 1)
   }
 
-  test("should call onSucces is the callback is set after the future is completed") {
+  test("should call onSuccess is the callback is set after the future is completed") {
     val p1 = Promise[Boolean]
     p1.success(true)
 
