@@ -312,14 +312,15 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
             val record = it.nextFileRecord()
             it.close() // Close explicitly before truncate
 
+            // Delete log files following the specified index in reverse order
+            val reversedRemainingFiles = getLogFiles(index).filter(file =>
+              getIndexFromName(file.getName) > getIndexFromName(record.logFile.getName)).toSeq.reverse
+            reversedRemainingFiles.foreach(_.delete())
+
             // Now truncate at the current position
             val raf = new RandomAccessFile(record.logFile, "rw")
             raf.setLength(record.position)
             raf.close()
-
-            // Delete remaining log files
-            getLogFiles(index).filter(file =>
-              getIndexFromName(file.getName) > getIndexFromName(record.logFile.getName)).foreach(_.delete())
           }
         } finally {
           it.close()
