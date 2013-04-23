@@ -4,8 +4,8 @@ import com.wajam.nrv.data.{Message, MLong, MString}
 
 object ReplicationParam {
   val Token = "token"
-  val Start = "from_ts"
-  val End = "to_ts"
+  val Start = "start_ts"
+  val End = "end_ts"
   val Timestamp = "timestamp"
   val SubscriptionId = "sub_id"
   val Sequence = "seq"

@@ -276,6 +276,41 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     actualrecords should be(List(r1, r3))
   }
 
+  test("should fail when trying to append a timestamp older or equals to consistent timestamp") {
+    val r1 = Index(id = 100, None)
+    val r2 = LogRecord(id = 101, Some(99), createRequestMessage(timestamp = 98)) // Bad
+    val r3 = LogRecord(id = 102, Some(99), createRequestMessage(timestamp = 99)) // Bad
+    val r4 = LogRecord(id = 103, Some(99), createRequestMessage(timestamp = 100))
+    val logFile = new File(logDir, fileTxLog.getNameFromIndex(r1))
+
+    fileTxLog.append(r1)
+    fileTxLog.commit()
+    val fileLenAfterRecord1 = logFile.length()
+    fileLenAfterRecord1 should be > 0L
+
+    // Append a record with timestamp less than consistent timestamp
+    evaluating {
+      fileTxLog.append(r2)
+    } should produce[IllegalArgumentException]
+    fileTxLog.commit()
+    logFile.length() should be(fileLenAfterRecord1)
+
+    // Append a record with timestamp equals to consistent timestamp
+    evaluating {
+      fileTxLog.append(r3)
+    } should produce[IllegalArgumentException]
+    fileTxLog.commit()
+    logFile.length() should be(fileLenAfterRecord1)
+
+    // Append a record with timestamp greater consistent timestamp
+    fileTxLog.append(r4)
+    fileTxLog.commit()
+    logFile.length() should be > fileLenAfterRecord1
+
+    val actualrecords = fileTxLog.read.toList
+    actualrecords should be(List(r1, r4))
+  }
+
   test("should not corrupt transaction log when append fail due to record persistence error") {
     val r1 = LogRecord(id = 100, None, createRequestMessage(timestamp = 0))
     val r2 = LogRecord(id = 101, None, createRequestMessage(timestamp = 1)) // Error
@@ -442,11 +477,17 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.read(Timestamp(900)).toList should be(List(r8, r9)) // and records must be read as written.
 
     // Beyond end
-    fileTxLog.read(Timestamp(9999)).toList should be(List())
+    evaluating {
+      fileTxLog.read(Timestamp(9999)).toList should be(List())
+    } should produce[NoSuchElementException]
 
     // Unknown timestamp
-    fileTxLog.read(Timestamp(-1)).toList should be(List())
-    fileTxLog.read(Timestamp(850)).toList should be(List())
+    evaluating {
+      fileTxLog.read(Timestamp(-1)).toList should be(List())
+    } should produce[NoSuchElementException]
+    evaluating {
+      fileTxLog.read(Timestamp(850)).toList should be(List())
+    } should produce[NoSuchElementException]
   }
 
   test("read should skip empty log files") {
@@ -798,7 +839,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.append(LogRecord(id = 0, None, createRequestMessage(timestamp = 0)))
     fileTxLog.rollLog()
     fileTxLog.append(LogRecord(id = 3, None, createRequestMessage(timestamp = 1)))
-    fileTxLog.append(LogRecord(id = 4, Some(2000), createRequestMessage(timestamp = 2000)))
+    fileTxLog.append(LogRecord(id = 4, Some(1999), createRequestMessage(timestamp = 2000)))
     fileTxLog.rollLog()
     fileTxLog.append(LogRecord(id = 999, Some(2000), createRequestMessage(timestamp = 2001)))
     val last: Index = fileTxLog.append(LogRecord(id = 9999, Some(2000), createRequestMessage(timestamp = 2002)))

@@ -1,6 +1,6 @@
 package com.wajam.nrv.utils
 
-import com.wajam.nrv.{Logging, TimeoutException}
+import com.wajam.nrv.TimeoutException
 
 /*
  * Implementation of the "Future" API as proposed in Scala SIP-14
@@ -181,15 +181,11 @@ object Promise {
   def apply[T]: Promise[T] = new PromiseImpl[T]
 }
 
-class PromiseImpl[T] extends Promise[T] with Future[T] with Logging {
+class PromiseImpl[T] extends Promise[T] with Future[T] {
   @volatile
   private var prvValue: Option[Either[Throwable, T]] = None
 
   private var callbacks = List[Either[Throwable, T] => Any]()
-
-  @volatile
-  private var tryCompletedCalled: Boolean = false
-  private var firstCompletedStackTrace: Exception = null
 
   def value: Option[Either[Throwable, T]] = prvValue
 
@@ -224,10 +220,8 @@ class PromiseImpl[T] extends Promise[T] with Future[T] with Logging {
   def onComplete[U](func: Either[Throwable, T] => U): this.type = {
     synchronized {
       prvValue match {
-        case None => {
-          if (callbacks.contains(func)) warn("Promise callback added twice", new Exception())
+        case None =>
           callbacks :+= func
-        }
         case Some(v) => func(v)
       }
     }
@@ -238,14 +232,6 @@ class PromiseImpl[T] extends Promise[T] with Future[T] with Logging {
 
   def tryComplete(result: Either[Throwable, T]): Boolean = {
     synchronized {
-      if (tryCompletedCalled) {
-        warn("tryCompleted called twice (received {}, but had {})",
-          result, prvValue, firstCompletedStackTrace)
-      } else {
-        tryCompletedCalled = true
-        firstCompletedStackTrace = new Exception()
-      }
-
       prvValue match {
         case None =>
           prvValue = Some(result)
