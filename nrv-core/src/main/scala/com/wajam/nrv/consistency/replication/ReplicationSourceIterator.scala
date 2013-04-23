@@ -9,6 +9,24 @@ import com.wajam.nrv.utils.timestamp.Timestamp
  * timestamp.
  */
 trait ReplicationSourceIterator extends Iterator[Option[Message]] with Closable {
-  def from: Timestamp
-  def to: Option[Timestamp]
+  def start: Timestamp
+  def end: Option[Timestamp]
+
+  override def withFilter(p: (Option[Message]) => Boolean): ReplicationSourceIterator = {
+    val outer = this
+    val filtered = super.withFilter(p)
+
+    new ReplicationSourceIterator{
+      def start = outer.start
+      def end = outer.end
+
+      def hasNext = filtered.hasNext
+
+      def next() = filtered.next()
+
+      def close() {
+        outer.close()
+      }
+    }
+  }
 }

@@ -92,22 +92,23 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       }
     }
 
-    private def createSourceIterator(member: ResolvedServiceMember, from: Timestamp): ReplicationSourceIterator = {
+    private def createSourceIterator(member: ResolvedServiceMember, startTimestamp: Timestamp): ReplicationSourceIterator = {
       val txLog = getTransactionLog(member)
-      txLog.firstRecord(None) match {
-        case Some(logRecord) if (logRecord.timestamp <= from) => {
+      val sourceIterator = txLog.firstRecord(None) match {
+        case Some(logRecord) if (logRecord.timestamp <= startTimestamp) => {
           // The first transaction log record is before the starting timestamp, use the transaction log as
           // replication source
-          info("Using TransactionLogReplicationIterator. start={}, end={}, member={}", from,
+          info("Using TransactionLogReplicationIterator. start={}, end={}, member={}", startTimestamp,
             getMemberCurrentConsistentTimestamp(member), member)
-          new TransactionLogReplicationIterator(member, from, txLog, getMemberCurrentConsistentTimestamp(member))
+          new TransactionLogReplicationIterator(member, startTimestamp, txLog, getMemberCurrentConsistentTimestamp(member))
         }
         case Some(logRecord) => {
           // The first transaction log record is after the replication starting timestamp.
           // Use the consistent store as the replication source up to the first transaction log record.
-          val to = logRecord.timestamp
-          info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}", from, to, member)
-          new ConsistentStoreReplicationIterator(member, from, to, store)
+          val endTimestamp = logRecord.timestamp
+          info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}",
+            startTimestamp, endTimestamp, member)
+          new ConsistentStoreReplicationIterator(member, startTimestamp, endTimestamp, store)
         }
         case None => {
           // There are no transaction log!!! Cannot replicate if transaction log is not enabled
@@ -115,11 +116,17 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
             throw new Exception("No transaction log! Cannot replicate without transaction log")
           } else {
             // Replicate from the store using the currently most recent store timestamp as upper boundary
-            val to = store.getLastTimestamp(member.ranges).getOrElse(Timestamp(Long.MinValue))
-            info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}", from, to, member)
-            new ConsistentStoreReplicationIterator(member, from, to, store)
+            val endTimestamp = store.getLastTimestamp(member.ranges).getOrElse(Timestamp(Long.MinValue))
+            info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}",
+              startTimestamp, endTimestamp, member)
+            new ConsistentStoreReplicationIterator(member, startTimestamp, endTimestamp, store)
           }
         }
+      }
+      // Exclude startTimestamp
+      sourceIterator.withFilter{
+        case Some(msg) => Consistency.getMessageTimestamp(msg).get > startTimestamp
+        case None => true
       }
     }
 
@@ -143,7 +150,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
               // Reply with a subscription response
               val response = new OutMessage(Seq((SubscriptionId -> subscription.subId), (Start -> start)))
-              source.to.foreach(ts => response.parameters += (End -> ts.value))
+              source.end.foreach(ts => response.parameters += (End -> ts.value))
               message.reply(response)
 
               subscription.start()

@@ -165,12 +165,11 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               subscriptions.get(subscribe.member) match {
                 case Some(Left(_)) => {
                   info("Send subscribe request to source for pending subscription. {}", subscribe.member)
-                  // TODO: remove var
-                  var params: Map[String, MValue] = Map(ReplicationParam.Token -> subscribe.member.token.toString)
+                  var params: Map[String, MValue] = Map()
+                  params += (ReplicationParam.Token -> subscribe.member.token.toString)
                   subscribe.txLog.getLastLoggedRecord.map(_.consistentTimestamp) match {
                     case Some(Some(lastTimestamp)) => {
-                      val startTimestamp = lastTimestamp.value + 1
-                      params += (ReplicationParam.Start -> startTimestamp.toString)
+                      params += (ReplicationParam.Start -> lastTimestamp.toString)
                     }
                     case _ => {
                       // No records in transaction log. Omit start if the local store is empty.

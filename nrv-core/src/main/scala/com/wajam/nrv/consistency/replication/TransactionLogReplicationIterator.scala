@@ -18,11 +18,11 @@ import com.yammer.metrics.scala.Instrumented
  * <p><p>
  * This class is not thread safe and must invoked from a single thread or synchronized externaly.
  */
-class TransactionLogReplicationIterator(member: ResolvedServiceMember, val from: Timestamp,
+class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start: Timestamp,
                                         txLog: TransactionLog, currentConsistentTimestamp: => Option[Timestamp])
   extends ReplicationSourceIterator with Instrumented {
 
-  val to = None
+  val end = None
   private var lastReadRecord: Option[TimestampedRecord] = None
   private var pendingTransactions: TreeMap[Timestamp, PendingTransaction] = TreeMap()
   private val itr = initLogIterator()
@@ -118,7 +118,16 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val from:
   }
 
   private def initLogIterator(): TransactionLogIterator = {
-    txLog.firstRecord(Some(from)) match {
+    val firstRecord: Option[TimestampedRecord] = try {
+      txLog.firstRecord(Some(start))
+    } catch {
+      case e: NoSuchElementException => {
+        // Ignore the error if the log is empty, an empty ierator will be returned
+        if (txLog.firstRecord(None).isEmpty) None else throw e
+      }
+    }
+
+    firstRecord match {
       case Some(record) => {
         // Since the records can be written out of order, we need to read from the record consistent
         // timestamp and filter out records with timestamp prior the record timestamp.
