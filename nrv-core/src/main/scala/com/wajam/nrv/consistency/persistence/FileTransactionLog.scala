@@ -261,10 +261,12 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   }
 
   /**
-   * Read all the records from the specified request record timestamp. Returns an empty iterator if no request record
-   * with the specified timestamp is found. The implementation tries its best to read directly from the proper log
-   * file but have to read from extra log file if required. At worst all the log files may be read to locate the first
-   * record if no record exists for the specified timestamp.
+   * Read all the records from the specified request record timestamp. This method throw a NoSuchElementException
+   * if no request record with the specified timestamp is found.
+   * <p></p>
+   * The implementation tries its best to read directly from the proper log file but have to read from extra log file
+   * if required. At worst all the log files may be read to locate the first record if no record exists for the
+   * specified timestamp.
    */
   def read(timestamp: Timestamp): TransactionLogIterator = {
     readTimestampTimer.time {
@@ -286,7 +288,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         }
       }
 
-      result.getOrElse(EmptyTransactionLogIterator)
+      result.get
     }
   }
 

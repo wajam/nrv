@@ -477,11 +477,17 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.read(Timestamp(900)).toList should be(List(r8, r9)) // and records must be read as written.
 
     // Beyond end
-    fileTxLog.read(Timestamp(9999)).toList should be(List())
+    evaluating {
+      fileTxLog.read(Timestamp(9999)).toList should be(List())
+    } should produce[NoSuchElementException]
 
     // Unknown timestamp
-    fileTxLog.read(Timestamp(-1)).toList should be(List())
-    fileTxLog.read(Timestamp(850)).toList should be(List())
+    evaluating {
+      fileTxLog.read(Timestamp(-1)).toList should be(List())
+    } should produce[NoSuchElementException]
+    evaluating {
+      fileTxLog.read(Timestamp(850)).toList should be(List())
+    } should produce[NoSuchElementException]
   }
 
   test("read should skip empty log files") {
