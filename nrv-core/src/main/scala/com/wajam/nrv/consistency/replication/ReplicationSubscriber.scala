@@ -118,11 +118,33 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
     private var subscriptionGaugeCache: Map[ResolvedServiceMember, SubscriptionCurrentTimestampGauge] = Map()
 
-    def getSubscriptionGauge(member: ResolvedServiceMember) = subscriptionGaugeCache.getOrElse(member, {
+    private def getSubscriptionGauge(member: ResolvedServiceMember) = subscriptionGaugeCache.getOrElse(member, {
       val gauge = new SubscriptionCurrentTimestampGauge(member)
       subscriptionGaugeCache += (member -> gauge)
       gauge
     })
+
+    private def terminateSubscription(subscription: SubscriptionActor) {
+      subscriptions -= (subscription.member)
+      subscription ! SubscriptionProtocol.Kill
+
+      sendUnsubscribe(subscription.subscribe, subscription.subId)
+    }
+
+    private def sendUnsubscribe(subscription: Subscribe, subscriptionId: String) {
+      def handleUnsubscribeResponse(reponse: InMessage, error: Option[Exception]) {
+        error match {
+          case Some(e) => info("Unsubscribe reponse error {} for {}: ", subscriptionId, subscription.member, e)
+          case None => debug("Unsubscribe reponse {} for {}", subscriptionId, subscription.member)
+        }
+      }
+
+      info("Send unsubscribe request to source for subscription {}. {}", subscriptionId, subscription.member)
+      var params: Map[String, MValue] = Map()
+      params += (ReplicationParam.SubscriptionId -> subscriptionId)
+      params += (ReplicationParam.Token -> subscription.member.token.toString)
+      subscription.unsubscribeAction.call(params, onReply = handleUnsubscribeResponse(_, _))
+    }
 
     def act() {
       loop {
@@ -212,12 +234,13 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                   subscribe.onSubscriptionEnd()
                 }
                 case None => {
+                  val subscriptionId = getParamStringValue(SubscriptionId)
+                  val startTimestamp = getParamLongValue(Start)
+                  val endTimestamp = getOptionalParamLongValue(End).map(ts => Timestamp(ts))
+
                   subscriptions.get(subscribe.member) match {
                     case Some(Left(_)) => {
                       info("Subscribe response {}. Activate subscription {}.", response, subscribe.member)
-                      val subscriptionId = getParamStringValue(SubscriptionId)
-                      val startTimestamp = getParamLongValue(Start)
-                      val endTimestamp = getOptionalParamLongValue(End).map(ts => Timestamp(ts))
 
                       val subscription = new SubscriptionActor(subscriptionId, startTimestamp, endTimestamp, subscribe,
                         getSubscriptionGauge(subscribe.member), new TimestampIdGenerator)
@@ -230,14 +253,14 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                       warn("Do not activate subscription. Already have an active subscription for {}.",
                         subscribe.member)
 
-                      // TODO: unsubscribe from replication source
+                      sendUnsubscribe(subscribe, subscriptionId)
                     }
                     case None => {
                       subscribeIgnoreMeter.mark()
                       info("Do not activate subscription. No more subscription registered for {}.",
                         subscribe.member)
 
-                      // TODO: unsubscribe from replication source
+                      sendUnsubscribe(subscribe, subscriptionId)
                     }
                   }
                 }
@@ -258,15 +281,11 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                   unsubscribeMeter.mark()
                   info("Unsubscribe. Remove pending subscription. {}", member)
                   subscriptions -= (member)
-                  subscribe.onSubscriptionEnd() // TODO: why? remove
                 }
                 case Some(Right(subscription)) => {
                   unsubscribeMeter.mark()
                   info("Unsubscribe. Remove active subscription for. {}", member)
-                  subscriptions -= (member)
-                  subscription ! SubscriptionProtocol.Kill
-
-                  // TODO: unsubscribe from replication source
+                  terminateSubscription(subscription)
                 }
                 case None => {
                   debug("Unsubscribe. No action taken, no subscription registered for {}.", member)
@@ -291,8 +310,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 }
                 case None => {
                   publishIgnoreMeter.mark()
-
-                  // TODO: unsubscribe from replication source
+                  // Cannot unsubscribe from replication source, do not have access to unsubscribe Action
                 }
               }
             } catch {
@@ -308,11 +326,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 case Some(Right(subscription)) if subscription.subId == subscriptionActor.subId => {
                   debug("Got an error from the subscription actor {}. Unsubscribing from {}.",
                     subscriptionActor.subId, subscriptionActor.member)
-                  subscriptions -= (subscriptionActor.member)
+                  terminateSubscription(subscriptionActor)
                   subscription.subscribe.onSubscriptionEnd()
-                  subscriptionActor !? SubscriptionProtocol.Kill
-
-                  // TODO: unsubscribe from replication source
                 }
                 case _ => // Not subscribed anymore to that subscription. Take no local action.
               }
