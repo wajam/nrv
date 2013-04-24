@@ -313,18 +313,20 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def subscribe(member: ServiceMember) {
     info("Local replica is subscribing to {}", member)
 
-    val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
-      serializer = Some(serializer))
     val resolvedMember = ResolvedServiceMember(service, member)
     restoreMemberConsistency(resolvedMember, onSuccess = {
       // TODO: metric
       info("Local replica restoreMemberConsistency: onSuccess {}", member)
       // TODO: configurable subscribe delay
+      val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
+        serializer = Some(serializer))
       replicationSubscriber.subscribe(resolvedMember, txLog, 5000, subscribeAction, unsubscribeAction,
         onSubscriptionEnd = {
           info("Replication subscription terminated. {}", resolvedMember)
 
           // Renew the replication subscription if the master replica is up
+          txLog.commit()
+          txLog.close()
           if (member.status == MemberStatus.Up) {
             subscribe(member)
           }
