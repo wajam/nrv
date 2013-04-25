@@ -86,7 +86,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
     case class Publish(message: InMessage)
 
-    case class Error(subscription: SubscriptionActor, exception: Option[Exception] = None)
+    case class Terminate(subscription: SubscriptionActor, error: Option[Exception] = None)
 
     object Kill
 
@@ -320,11 +320,11 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               }
             }
           }
-          case Error(subscriptionActor, exception) => {
+          case Terminate(subscriptionActor, exception) => {
             try {
               subscriptions.get(subscriptionActor.member) match {
                 case Some(Right(subscription)) if subscription.subId == subscriptionActor.subId => {
-                  debug("Got an error from the subscription actor {}. Unsubscribing from {}.",
+                  info("Subscription actor {} wants to be terminated. Dutifully perform euthanasia! {}",
                     subscriptionActor.subId, subscriptionActor.member)
                   terminateSubscription(subscriptionActor)
                   subscription.subscribe.onSubscriptionEnd()
@@ -422,7 +422,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     }
     private var lastSequence = 0L
     private var lastReceiveTime = currentTime
-    private var error = false
+    private var terminating = false
 
     private def txLog = subscribe.txLog
 
@@ -477,7 +477,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     def act() {
       loop {
         react {
-          case tx: PendingTransaction if !error => {
+          case tx: PendingTransaction if !terminating => {
             try {
               trace("Received (seq={}, subId={}) {}", tx.sequence, subId, tx.message)
               txReceivedMeter.mark()
@@ -489,12 +489,12 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               case e: Exception => {
                 warn("Error processing new pending transaction {}: ", tx, e)
                 errorMeter.mark()
-                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
-                error = true
+                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                terminating = true
               }
             }
           }
-          case CheckIdle if !error => {
+          case CheckIdle if !terminating => {
             try {
               val elapsedTime = currentTime - lastReceiveTime
               if (elapsedTime > maxIdleDurationInMs) {
@@ -509,15 +509,15 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                     lastSequence, pendingTransactions.map(_.sequence), elapsedTime, subId, member)
                 }
 
-                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, None)
-                error = true
+                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
+                terminating = true
               }
             } catch {
               case e: Exception => {
                 warn("Error checking for idle subscription {} for {}: ", subId, member, e)
                 errorMeter.mark()
-                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
-                error = true
+                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                terminating = true
               }
             } finally {
               reply(true)
@@ -531,8 +531,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               case e: Exception => {
                 errorMeter.mark()
                 warn("Error commiting subscription {} transaction log for {}: ", subId, member, e)
-                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
-                error = true
+                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                terminating = true
               }
             } finally {
               reply(true)
@@ -552,8 +552,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               reply(true)
             }
           }
-          case _ if error => {
-            debug("Ignore actor message since subscription {} is already terminated. {}", subId, member)
+          case _ if terminating => {
+            debug("Ignore actor message since subscription {} is terminating. {}", subId, member)
           }
         }
       }
