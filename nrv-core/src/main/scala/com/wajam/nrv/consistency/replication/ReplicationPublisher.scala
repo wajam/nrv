@@ -54,7 +54,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     case class Unsubscribe(message: InMessage)
 
-    case class Error(subscription: SubscriptionActor, exception: Option[Exception] = None)
+    case class Terminate(subscription: SubscriptionActor, error: Option[Exception] = None)
 
     object Kill
 
@@ -180,10 +180,10 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               }
             }
           }
-          case Error(subscriptionActor, exception) => {
+          case Terminate(subscriptionActor, exception) => {
             try {
               subscriptions.find(_ == subscriptionActor).foreach(subscription => {
-                info("Got an error from the subscription actor {}. Stopping it. {}",
+                info("Subscription actor {} wants to be terminated. Dutifully perform euthanasia! {}",
                   subscriptionActor.subId, subscriptionActor.member)
                 subscription !? SubscriptionProtocol.Kill
                 subscriptions = subscriptions.filterNot(_ == subscription)
@@ -240,7 +240,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     private var pendingSequences: TreeSet[Long] = TreeSet()
     private var lastSendTime = currentTime
     private var lastSequence = 0L
-    private var error = false
+    private var terminating = false
 
     private def nextSequence = {
       lastSequence += 1
@@ -266,8 +266,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       optException match {
         case Some(e) => {
           debug("Received an error response from the subscriber (seq={}): ", e)
-          manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
-          error = true
+          manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+          terminating = true
         }
         case None => {
           trace("Received an publish response from the subscriber (seq={}).", sequence)
@@ -279,7 +279,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     def act() {
       loop {
         react {
-          case PublishNext if !error => {
+          case PublishNext if !terminating => {
             try {
               if (currentWindowSize < publishWindowSize) {
                 if (source.hasNext) {
@@ -288,7 +288,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                       val sequence = nextSequence
                       // Must fail if timestamp is missing
                       val timestamp = Consistency.getMessageTimestamp(txMessage).get
-                      val params: Seq[(String, MValue with Product with Serializable)] =
+                      val params: Seq[(String, MValue)] =
                         Seq((Sequence -> sequence), (SubscriptionId -> subId),
                           (ReplicationParam.Timestamp -> timestamp.value))
                       val publishMessage = new OutMessage(params = params, data = txMessage,
@@ -302,10 +302,15 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                       lastSendTime = currentTime
                       publishMeter.mark()
                     }
-                    case None => // No more message available at this time
+                    case None => {
+                      // No more message available at this time
+                      // TODO: Send idle message to subscriber from time to time to say "Hi, I am still here but I have nothing for you at this time!"
+                    }
                   }
                 } else {
-                  // TODO: Send idle message to subscriber from time to time to say "Hi, I am still here but I have nothing for you at this time!"
+                  info("Replication source is exhausted! Terminating subscription {} for {}.", subId, member)
+                  manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
+                  terminating = true
                 }
               } else {
                 // Window size is full. Cancel subscription if havent received an ack for a while.
@@ -313,22 +318,22 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                 if (elapsedTime > maxIdleDurationInMs) {
                   ackTimeoutMeter.mark()
                   info("No ack received for {} ms. Terminating subscription {} for {}.", elapsedTime, subId, member)
-                  manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, None)
-                  error = true
+                  manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
+                  terminating = true
                 }
               }
             } catch {
               case e: Exception => {
                 publishErrorMeter.mark()
                 info("Error publishing a transaction (subid={}). {}: ", subId, member, e)
-                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
-                error = true
+                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                terminating = true
               }
             } finally {
               reply(true)
             }
           }
-          case Ack(sequence) if !error => {
+          case Ack(sequence) if !terminating => {
             try {
               pendingSequences -= sequence
               ackMeter.mark()
@@ -336,8 +341,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               case e: Exception => {
                 ackErrorMeter.mark()
                 info("Error acknoledging transaction (subid={}, seq={}). {}: ", subId, sequence, member, e)
-                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
-                error = true
+                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                terminating = true
               }
             }
           }
@@ -357,8 +362,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               reply(true)
             }
           }
-          case _ if error => {
-            debug("Ignore actor message since subscription {} is already terminated. {}", subId, member)
+          case _ if terminating => {
+            debug("Ignore actor message since subscription {} is terminating. {}", subId, member)
           }
         }
       }
