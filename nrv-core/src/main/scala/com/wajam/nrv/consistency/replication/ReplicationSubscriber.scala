@@ -366,8 +366,11 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
     trait Publish extends Ordered[Publish] {
       def publishMessage: InMessage
+
       def sequence: Long
+
       def compare(that: Publish) = sequence.compare(that.sequence)
+
       def reply() {
         publishMessage.reply(Nil)
       }
@@ -377,7 +380,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
       val sequence: Long = getParamLongValue(Sequence)(publishMessage)
       val timestamp: Timestamp = getParamLongValue(ReplicationParam.Timestamp)(publishMessage)
       val message: Message = publishMessage.getData[Message]
-      def token = message.token
+      val token = message.token
       Consistency.setMessageTimestamp(message, timestamp)
     }
 

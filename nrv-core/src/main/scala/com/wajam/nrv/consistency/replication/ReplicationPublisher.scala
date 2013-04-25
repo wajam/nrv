@@ -271,7 +271,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       def onReply(sequence: Long)(response: Message, optException: Option[Exception]) {
         optException match {
           case Some(e) => {
-            debug("Received an error response from the subscriber (seq={}): ", e)
+            debug("Received an error response from the subscriber (seq={}): ", sequence, e)
             manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
             terminating = true
           }
@@ -290,20 +290,21 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           params += (ReplicationParam.Timestamp -> timestamp.value)
           message
         }
-        case None => null
+        case None => null // Keep-alive
       }
       params += (Sequence -> sequence)
       params += (SubscriptionId -> subId)
+
       val publishMessage = new OutMessage(params = params, data = data,
         onReply = onReply(sequence), responseTimeout = service.responseTimeout)
       publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
-
-      trace("Publishing message to subscriber (seq={}, window={}).", sequence, currentWindowSize)
-
       publishAction.call(publishMessage)
+
       pendingSequences += sequence
       lastSendTime = currentTime
       publishMeter.mark()
+
+      trace("Published message to subscriber (seq={}, window={}).", sequence, currentWindowSize)
     }
 
     def act() {
