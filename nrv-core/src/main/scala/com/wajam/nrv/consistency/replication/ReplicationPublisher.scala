@@ -65,7 +65,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     private lazy val subscribeMeter = metrics.meter("subscribe", "subscribe", serviceScope)
     private lazy val subscribeErrorMeter = metrics.meter("subscribe-error", "subscribe-error", serviceScope)
 
-    private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "subscribe", serviceScope)
+    private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "unsubscribe", serviceScope)
     private lazy val unsubscribeErrorMeter = metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
 
     import SubscriptionManagerProtocol._
@@ -164,6 +164,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           case Unsubscribe(message) => {
             try {
               unsubscribeMeter.mark()
+              debug("Received an unsubscribe request {}", message)
 
               implicit val request = message
               val id = getParamStringValue(SubscriptionId)
@@ -182,7 +183,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           case Error(subscriptionActor, exception) => {
             try {
               subscriptions.find(_ == subscriptionActor).foreach(subscription => {
-                info("Got an error from the subscription actor. Stopping it. {}", subscriptionActor.member)
+                info("Got an error from the subscription actor {}. Stopping it. {}",
+                  subscriptionActor.subId, subscriptionActor.member)
                 subscription !? SubscriptionProtocol.Kill
                 subscriptions = subscriptions.filterNot(_ == subscription)
               })
