@@ -124,7 +124,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
         }
       }
       // Exclude startTimestamp
-      sourceIterator.withFilter{
+      sourceIterator.withFilter {
         case Some(msg) => Consistency.getMessageTimestamp(msg).get > startTimestamp
         case None => true
       }
@@ -262,18 +262,49 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       }
     }
 
-    private def onPublishReply(sequence: Long)(response: Message, optException: Option[Exception]) {
-      optException match {
-        case Some(e) => {
-          debug("Received an error response from the subscriber (seq={}): ", e)
-          manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
-          terminating = true
-        }
-        case None => {
-          trace("Received an publish response from the subscriber (seq={}).", sequence)
-          this ! Ack(sequence)
+    private def sendKeepAlive() {
+      sendPublish(None)
+    }
+
+    private def sendPublish(transaction: Option[Message]) {
+
+      def onReply(sequence: Long)(response: Message, optException: Option[Exception]) {
+        optException match {
+          case Some(e) => {
+            debug("Received an error response from the subscriber (seq={}): ", sequence, e)
+            manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+            terminating = true
+          }
+          case None => {
+            trace("Received an publish response from the subscriber (seq={}).", sequence)
+            this ! Ack(sequence)
+          }
         }
       }
+
+      val sequence = nextSequence
+      var params: Map[String, MValue] = Map()
+      val data = transaction match {
+        case Some(message) => {
+          val timestamp = Consistency.getMessageTimestamp(message).get // Must fail if timestamp is missing
+          params += (ReplicationParam.Timestamp -> timestamp.value)
+          message
+        }
+        case None => null // Keep-alive
+      }
+      params += (Sequence -> sequence)
+      params += (SubscriptionId -> subId)
+
+      val publishMessage = new OutMessage(params = params, data = data,
+        onReply = onReply(sequence), responseTimeout = service.responseTimeout)
+      publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
+      publishAction.call(publishMessage)
+
+      pendingSequences += sequence
+      lastSendTime = currentTime
+      publishMeter.mark()
+
+      trace("Published message to subscriber (seq={}, window={}).", sequence, currentWindowSize)
     }
 
     def act() {
@@ -284,27 +315,15 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               if (currentWindowSize < publishWindowSize) {
                 if (source.hasNext) {
                   source.next() match {
-                    case Some(txMessage) => {
-                      val sequence = nextSequence
-                      // Must fail if timestamp is missing
-                      val timestamp = Consistency.getMessageTimestamp(txMessage).get
-                      val params: Seq[(String, MValue)] =
-                        Seq((Sequence -> sequence), (SubscriptionId -> subId),
-                          (ReplicationParam.Timestamp -> timestamp.value))
-                      val publishMessage = new OutMessage(params = params, data = txMessage,
-                        onReply = onPublishReply(sequence), responseTimeout = service.responseTimeout)
-                      publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
-
-                      trace("Publishing message to subscriber (seq={}, window={}).", sequence, currentWindowSize, txMessage)
-
-                      publishAction.call(publishMessage)
-                      pendingSequences += sequence
-                      lastSendTime = currentTime
-                      publishMeter.mark()
-                    }
+                    case Some(txMessage) => sendPublish(Some(txMessage))
                     case None => {
-                      // No more message available at this time
-                      // TODO: Send idle message to subscriber from time to time to say "Hi, I am still here but I have nothing for you at this time!"
+                      // No more message available at this time but the replication source is not empty
+                      // (i.e. hasNext == true). We are expecting more transaction messages to be available soon.
+                      // Meanwhile send a keep-alive message every few seconds to subscriber to prevent subscription
+                      // idle timeout.
+                      if (currentTime - lastSendTime > math.min(maxIdleDurationInMs / 4, 5000)) {
+                        sendKeepAlive()
+                      }
                     }
                   }
                 } else {
