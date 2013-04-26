@@ -1,9 +1,8 @@
 package com.wajam.nrv.consistency.replication
 
-import com.wajam.nrv.consistency.{Consistency, ConsistentStore, ResolvedServiceMember}
+import com.wajam.nrv.consistency.{ConsistentStore, ResolvedServiceMember}
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.yammer.metrics.scala.Instrumented
-import com.wajam.nrv.data.Message
 
 /**
  * Replication source iterator backed by a ConsistentStore. The iterator is bounded i.e. the first timestamp and the
@@ -11,8 +10,7 @@ import com.wajam.nrv.data.Message
  */
 class ConsistentStoreReplicationIterator(member: ResolvedServiceMember, startTimestamp: Timestamp,
                                          endTimestamp: Timestamp, store: ConsistentStore)
-  extends ReplicationSourceIterator with Instrumented
-{
+  extends ReplicationSourceIterator with Instrumented {
   val start = startTimestamp
   val end = Some(endTimestamp)
   private val itr = store.readTransactions(startTimestamp, endTimestamp, member.ranges)
@@ -22,7 +20,7 @@ class ConsistentStoreReplicationIterator(member: ResolvedServiceMember, startTim
 
   def next() = {
     val message = itr.next()
-    lastTxTimestamp = Consistency.getMessageTimestamp(message).map(_.value)
+    lastTxTimestamp = message.timestamp.map(_.value)
     Some(message)
   }
 

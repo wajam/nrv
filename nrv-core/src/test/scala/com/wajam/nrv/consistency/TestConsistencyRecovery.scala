@@ -7,12 +7,11 @@ import java.io.File
 import java.nio.file.Files
 import org.mockito.Mockito._
 import persistence.LogRecord.{Response, Request, Index}
-import persistence.{LogRecord, FileTransactionLog}
+import persistence.FileTransactionLog
 import com.wajam.nrv.service.TokenRange
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.utils.IdGenerator
 import org.scalatest.matchers.ShouldMatchers._
-import Consistency._
 
 
 @RunWith(classOf[JUnitRunner])
@@ -98,7 +97,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
 
     val r301 = Request(301, None, request)
     val r302 = Response(302, None, createResponseMessage(request))
-    val r303 = Index(303, getMessageTimestamp(request))
+    val r303 = Index(303, request.timestamp)
     txLog.read.toList should be(List(r301, r302, r303))
 
     logDir.list().toSet should be(Set("service-0000001000-1:.log", "service-0000001000-301:.log"))
@@ -116,10 +115,10 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r3 = txLog.append(Request(3, None, request1))
     val r4 = txLog.append(Response(4, None, createResponseMessage(request2)))
     val r5 = txLog.append(Response(5, None, createResponseMessage(request1)))
-    val r6 = txLog.append(Response(6, getMessageTimestamp(request2), createResponseMessage(request3)))
-    val r7 = txLog.append(Request(7, getMessageTimestamp(request2), request4))
-    val r8 = txLog.append(Request(8, getMessageTimestamp(request2), request5))
-    val r9 = txLog.append(Response(9, getMessageTimestamp(request2), createResponseMessage(request4)))
+    val r6 = txLog.append(Response(6, request2.timestamp, createResponseMessage(request3)))
+    val r7 = txLog.append(Request(7, request2.timestamp, request4))
+    val r8 = txLog.append(Request(8, request2.timestamp, request5))
+    val r9 = txLog.append(Response(9, request2.timestamp, createResponseMessage(request4)))
     txLog.commit()
 
     idGenerator.lastId = 300
@@ -133,11 +132,11 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r305 = Response(305, None, createResponseMessage(request1))
     val r306 = Request(306, None, request4)
     val r307 = Response(307, None, createResponseMessage(request4))
-    val r308 = Index(308, getMessageTimestamp(request4))
+    val r308 = Index(308, request4.timestamp)
     lastIndex should be(Some(r308))
     txLog.read.toList should be(List(r1, r301, r302, r303, r304, r305, r306, r307, r308))
 
-    verify(mockStore).truncateAt(Consistency.getMessageTimestamp(request5).get, request5.token)
+    verify(mockStore).truncateAt(request5.timestamp.get, request5.token)
 
     logDir.list().toSet should be(Set("service-0000001000-1:.log", "service-0000001000-301:.log"))
   }
@@ -154,7 +153,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r4 = txLog.append(Response(4, None, createResponseMessage(request3)))
     val r5 = txLog.append(Response(5, None, createResponseMessage(request2)))
     val r6 = txLog.append(Response(6, None, createResponseMessage(request1)))
-    val r7 = txLog.append(Request(7, getMessageTimestamp(request2), request4))
+    val r7 = txLog.append(Request(7, request2.timestamp, request4))
     txLog.commit()
 
     idGenerator.lastId = 300
@@ -166,11 +165,11 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r303 = Response(303, None, createResponseMessage(request3))
     val r304 = Request(304, None, request1)
     val r305 = Response(305, None, createResponseMessage(request1))
-    val r306 = Index(306, getMessageTimestamp(request2))
+    val r306 = Index(306, request2.timestamp)
     lastIndex should be(Some(r306))
     txLog.read.toList should be(List(r1, r301, r302, r303, r304, r305, r306))
 
-    verify(mockStore).truncateAt(Consistency.getMessageTimestamp(request4).get, request4.token)
+    verify(mockStore).truncateAt(request4.timestamp.get, request4.token)
 
     logDir.list().toSet should be(Set("service-0000001000-1:.log", "service-0000001000-301:.log"))
   }
@@ -194,7 +193,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r201 = recoveryTxLog.append(Request(201, None, request2))
     recoveryTxLog.rollLog()
     val r202 = recoveryTxLog.append(Response(202, None, createResponseMessage(request2)))
-    val r203 = recoveryTxLog.append(Index(203, getMessageTimestamp(request2)))
+    val r203 = recoveryTxLog.append(Index(203, request2.timestamp))
     recoveryTxLog.commit()
 
     recovery.recoveryDir.list().toSet should be(Set("service-0000001000-201:.log", "service-0000001000-202:.log"))
@@ -221,7 +220,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val r2 = txLog.append(Response(2, None, createResponseMessage(request1)))
     val r3 = txLog.append(Request(3, None, request2))
     val r4 = txLog.append(Response(4, None, createResponseMessage(request2)))
-    val r5 = txLog.append(Index(500, getMessageTimestamp(request1))) // Id greater than recovery log
+    val r5 = txLog.append(Index(500, request1.timestamp)) // Id greater than recovery log
     txLog.commit()
     txLog.read.toList should be(List(r1, r2, r3, r4, r5))
 
@@ -230,7 +229,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val recoveryTxLog = createTxLog(dir = recovery.recoveryDir.getAbsolutePath)
     recoveryTxLog.append(Request(201, None, request1))
     recoveryTxLog.append(Response(202, None, createResponseMessage(request1)))
-    recoveryTxLog.append(Index(203, getMessageTimestamp(request1)))
+    recoveryTxLog.append(Index(203, request1.timestamp))
     recoveryTxLog.commit()
 
     recovery.recoveryDir.list() should be(Array("service-0000001000-201:.log"))
@@ -255,7 +254,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     val recoveryTxLog = createTxLog(dir = recovery.recoveryDir.getAbsolutePath)
     val r201 = recoveryTxLog.append(Request(201, None, request1))
     val r202 = recoveryTxLog.append(Response(202, None, createResponseMessage(request1)))
-    val r203 = recoveryTxLog.append(Index(203, getMessageTimestamp(request1)))
+    val r203 = recoveryTxLog.append(Index(203, request1.timestamp))
     recoveryTxLog.commit()
 
     recovery.recoveryDir.list() should be(Array("service-0000001000-201:.log"))
@@ -291,7 +290,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
 
     val r501 = recoveryTxLog.append(Request(501, None, request1))
     val r502 = recoveryTxLog.append(Response(502, None, createResponseMessage(request1)))
-    val r503 = recoveryTxLog.append(Index(503, getMessageTimestamp(request1)))
+    val r503 = recoveryTxLog.append(Index(503, request1.timestamp))
 
     lastIndex should be(Some(r503))
     txLog.read.toList should be(List(r501, r502, r503))

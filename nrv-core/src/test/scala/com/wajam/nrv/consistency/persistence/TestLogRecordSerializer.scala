@@ -1,14 +1,12 @@
 package com.wajam.nrv.consistency.persistence
 
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.data.{Message, OutMessage, MessageType, InMessage}
 import com.wajam.nrv.utils.timestamp.Timestamp
 import java.io.IOException
 import util.Random
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import org.scalatest.FunSuite
-import com.wajam.nrv.consistency.{TestTransactionBase, Consistency}
+import com.wajam.nrv.consistency.TestTransactionBase
 import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Request}
 
 @RunWith(classOf[JUnitRunner])
@@ -23,7 +21,7 @@ class TestLogRecordSerializer extends TestTransactionBase {
     val buff = serializer.serialize(expected)
     val actual = serializer.deserialize(buff)
 
-    actual should be (expected)
+    actual should be(expected)
   }
 
   test("should serialize and deserialize request record event without a consistant timestamp") {
@@ -35,7 +33,7 @@ class TestLogRecordSerializer extends TestTransactionBase {
     val buff = serializer.serialize(expected)
     val actual = serializer.deserialize(buff)
 
-    actual should be (expected)
+    actual should be(expected)
   }
 
   test("should serialize and deserialize success response record") {
@@ -48,7 +46,7 @@ class TestLogRecordSerializer extends TestTransactionBase {
     val buff = serializer.serialize(expected)
     val actual = serializer.deserialize(buff)
 
-    actual should be (expected)
+    actual should be(expected)
   }
 
   test("should serialize and deserialize error response record") {
@@ -61,7 +59,7 @@ class TestLogRecordSerializer extends TestTransactionBase {
     val buff = serializer.serialize(expected)
     val actual = serializer.deserialize(buff)
 
-    actual should be (expected)
+    actual should be(expected)
   }
 
   test("should serialize and deserialize response record event without a consistant timestamp") {
@@ -75,7 +73,7 @@ class TestLogRecordSerializer extends TestTransactionBase {
     val buff = serializer.serialize(expected)
     val actual = serializer.deserialize(buff)
 
-    actual should be (expected)
+    actual should be(expected)
   }
 
   test("deserializing a truncated record buffer should fail") {

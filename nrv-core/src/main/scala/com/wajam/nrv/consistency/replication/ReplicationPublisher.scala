@@ -3,7 +3,7 @@ package com.wajam.nrv.consistency.replication
 import com.wajam.nrv.service._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.data._
-import com.wajam.nrv.consistency.{Consistency, ConsistentStore, ResolvedServiceMember}
+import com.wajam.nrv.consistency.{ConsistentStore, ResolvedServiceMember}
 import com.wajam.nrv.consistency.persistence.TransactionLog
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.utils.{CurrentTime, Scheduler, UuidStringGenerator}
@@ -125,7 +125,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       }
       // Exclude startTimestamp
       sourceIterator.withFilter {
-        case Some(msg) => Consistency.getMessageTimestamp(msg).get > startTimestamp
+        case Some(msg) => msg.timestamp.get > startTimestamp
         case None => true
       }
     }
@@ -286,7 +286,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       var params: Map[String, MValue] = Map()
       val data = transaction match {
         case Some(message) => {
-          val timestamp = Consistency.getMessageTimestamp(message).get // Must fail if timestamp is missing
+          val timestamp = message.timestamp.get // Must fail if timestamp is missing
           params += (ReplicationParam.Timestamp -> timestamp.value)
           message
         }

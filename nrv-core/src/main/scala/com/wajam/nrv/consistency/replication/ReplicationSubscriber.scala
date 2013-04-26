@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.replication
 
 import com.wajam.nrv.service.{TokenRange, Action, Service}
-import com.wajam.nrv.consistency.{Consistency, ResolvedServiceMember, ConsistentStore}
+import com.wajam.nrv.consistency.{ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data.{MValue, InMessage, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
 import actors.Actor
@@ -381,7 +381,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
       val timestamp: Timestamp = getParamLongValue(ReplicationParam.Timestamp)(publishMessage)
       val message: Message = publishMessage.getData[Message]
       val token = message.token
-      Consistency.setMessageTimestamp(message, timestamp)
+
+      message.timestamp = Some(timestamp)
     }
 
     case class KeepAlive(publishMessage: InMessage) extends Publish {
@@ -482,7 +483,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             }
             case _: KeepAlive => {
               keepAliveMeter.mark()
-              info("Keep alive (seq={}, subId={})", publish.sequence, subId)
+              debug("Keep alive (seq={}, subId={})", publish.sequence, subId)
             }
           }
 

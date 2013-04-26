@@ -4,8 +4,7 @@ import com.wajam.nrv.consistency.persistence.{TransactionLogIterator, Timestampe
 import com.wajam.nrv.utils.timestamp.Timestamp
 import collection.immutable.TreeMap
 import com.wajam.nrv.consistency.persistence.LogRecord.{Index, Response, Request}
-import com.wajam.nrv.consistency.{ResolvedServiceMember, Consistency}
-import com.wajam.nrv.Logging
+import com.wajam.nrv.consistency.ResolvedServiceMember
 import com.yammer.metrics.scala.Instrumented
 
 /**
@@ -48,7 +47,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
       pendingTransactions -= timestamp
       if (response.isSuccess) {
         val message = request.message
-        Consistency.setMessageTimestamp(message, timestamp)
+        message.timestamp = Some(timestamp)
         lastTxTimestamp = Some(request.timestamp.value)
         Some(message)
       } else {
