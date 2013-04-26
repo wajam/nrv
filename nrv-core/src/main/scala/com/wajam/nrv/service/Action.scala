@@ -193,6 +193,7 @@ class Action(val path: ActionPath,
   protected[nrv] def generateResponseMessage(fromMessage: Message, intoMessage: Message) {
     intoMessage.source = this.cluster.localNode
     intoMessage.serviceName = this.service.name
+    intoMessage.timestamp = fromMessage.timestamp
     intoMessage.path = fromMessage.path
     intoMessage.method = fromMessage.method
     intoMessage.function = MessageType.FUNCTION_RESPONSE
