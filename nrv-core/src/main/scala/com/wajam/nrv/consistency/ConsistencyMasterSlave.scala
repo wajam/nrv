@@ -81,7 +81,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private lazy val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
   private lazy val unsubscribeAction = new Action("/replication/unsubscribe/:" + ReplicationParam.Token,
-    replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
+    replicationPublisher.handleUnsubscribeMessage(_), ActionMethod.POST)
 
   override def start() {
     super.start()

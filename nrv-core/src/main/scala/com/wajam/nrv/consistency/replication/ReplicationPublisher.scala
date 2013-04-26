@@ -54,7 +54,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     case class Unsubscribe(message: InMessage)
 
-    case class Error(subscription: SubscriptionActor, exception: Option[Exception] = None)
+    case class Terminate(subscription: SubscriptionActor, error: Option[Exception] = None)
 
     object Kill
 
@@ -65,7 +65,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     private lazy val subscribeMeter = metrics.meter("subscribe", "subscribe", serviceScope)
     private lazy val subscribeErrorMeter = metrics.meter("subscribe-error", "subscribe-error", serviceScope)
 
-    private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "subscribe", serviceScope)
+    private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "unsubscribe", serviceScope)
     private lazy val unsubscribeErrorMeter = metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
 
     import SubscriptionManagerProtocol._
@@ -124,7 +124,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
         }
       }
       // Exclude startTimestamp
-      sourceIterator.withFilter{
+      sourceIterator.withFilter {
         case Some(msg) => Consistency.getMessageTimestamp(msg).get > startTimestamp
         case None => true
       }
@@ -164,6 +164,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           case Unsubscribe(message) => {
             try {
               unsubscribeMeter.mark()
+              debug("Received an unsubscribe request {}", message)
 
               implicit val request = message
               val id = getParamStringValue(SubscriptionId)
@@ -179,10 +180,11 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               }
             }
           }
-          case Error(subscriptionActor, exception) => {
+          case Terminate(subscriptionActor, exception) => {
             try {
               subscriptions.find(_ == subscriptionActor).foreach(subscription => {
-                info("Got an error from the subscription actor. Stopping it. {}", subscriptionActor.member)
+                info("Subscription actor {} wants to be terminated. Dutifully perform euthanasia! {}",
+                  subscriptionActor.subId, subscriptionActor.member)
                 subscription !? SubscriptionProtocol.Kill
                 subscriptions = subscriptions.filterNot(_ == subscription)
               })
@@ -238,7 +240,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     private var pendingSequences: TreeSet[Long] = TreeSet()
     private var lastSendTime = currentTime
     private var lastSequence = 0L
-    private var error = false
+    private var terminating = false
 
     private def nextSequence = {
       lastSequence += 1
@@ -260,50 +262,74 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       }
     }
 
-    private def onPublishReply(sequence: Long)(response: Message, optException: Option[Exception]) {
-      optException match {
-        case Some(e) => {
-          debug("Received an error response from the subscriber (seq={}): ", e)
-          manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
-          error = true
-        }
-        case None => {
-          trace("Received an publish response from the subscriber (seq={}).", sequence)
-          this ! Ack(sequence)
+    private def sendKeepAlive() {
+      sendPublish(None)
+    }
+
+    private def sendPublish(transaction: Option[Message]) {
+
+      def onReply(sequence: Long)(response: Message, optException: Option[Exception]) {
+        optException match {
+          case Some(e) => {
+            debug("Received an error response from the subscriber (seq={}): ", sequence, e)
+            manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+            terminating = true
+          }
+          case None => {
+            trace("Received an publish response from the subscriber (seq={}).", sequence)
+            this ! Ack(sequence)
+          }
         }
       }
+
+      val sequence = nextSequence
+      var params: Map[String, MValue] = Map()
+      val data = transaction match {
+        case Some(message) => {
+          val timestamp = Consistency.getMessageTimestamp(message).get // Must fail if timestamp is missing
+          params += (ReplicationParam.Timestamp -> timestamp.value)
+          message
+        }
+        case None => null // Keep-alive
+      }
+      params += (Sequence -> sequence)
+      params += (SubscriptionId -> subId)
+
+      val publishMessage = new OutMessage(params = params, data = data,
+        onReply = onReply(sequence), responseTimeout = service.responseTimeout)
+      publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
+      publishAction.call(publishMessage)
+
+      pendingSequences += sequence
+      lastSendTime = currentTime
+      publishMeter.mark()
+
+      trace("Published message to subscriber (seq={}, window={}).", sequence, currentWindowSize)
     }
 
     def act() {
       loop {
         react {
-          case PublishNext if !error => {
+          case PublishNext if !terminating => {
             try {
               if (currentWindowSize < publishWindowSize) {
                 if (source.hasNext) {
                   source.next() match {
-                    case Some(txMessage) => {
-                      val sequence = nextSequence
-                      // Must fail if timestamp is missing
-                      val timestamp = Consistency.getMessageTimestamp(txMessage).get
-                      val params: Seq[(String, MValue with Product with Serializable)] =
-                        Seq((Sequence -> sequence), (SubscriptionId -> subId),
-                          (ReplicationParam.Timestamp -> timestamp.value))
-                      val publishMessage = new OutMessage(params = params, data = txMessage,
-                        onReply = onPublishReply(sequence), responseTimeout = service.responseTimeout)
-                      publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
-
-                      trace("Publishing message to subscriber (seq={}, window={}).", sequence, currentWindowSize, txMessage)
-
-                      publishAction.call(publishMessage)
-                      pendingSequences += sequence
-                      lastSendTime = currentTime
-                      publishMeter.mark()
+                    case Some(txMessage) => sendPublish(Some(txMessage))
+                    case None => {
+                      // No more message available at this time but the replication source is not empty
+                      // (i.e. hasNext == true). We are expecting more transaction messages to be available soon.
+                      // Meanwhile send a keep-alive message every few seconds to subscriber to prevent subscription
+                      // idle timeout.
+                      if (currentTime - lastSendTime > math.min(maxIdleDurationInMs / 4, 5000)) {
+                        sendKeepAlive()
+                      }
                     }
-                    case None => // No more message available at this time
                   }
                 } else {
-                  // TODO: Send idle message to subscriber from time to time to say "Hi, I am still here but I have nothing for you at this time!"
+                  info("Replication source is exhausted! Terminating subscription {} for {}.", subId, member)
+                  manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
+                  terminating = true
                 }
               } else {
                 // Window size is full. Cancel subscription if havent received an ack for a while.
@@ -311,22 +337,22 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                 if (elapsedTime > maxIdleDurationInMs) {
                   ackTimeoutMeter.mark()
                   info("No ack received for {} ms. Terminating subscription {} for {}.", elapsedTime, subId, member)
-                  manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, None)
-                  error = true
+                  manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
+                  terminating = true
                 }
               }
             } catch {
               case e: Exception => {
                 publishErrorMeter.mark()
                 info("Error publishing a transaction (subid={}). {}: ", subId, member, e)
-                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
-                error = true
+                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                terminating = true
               }
             } finally {
               reply(true)
             }
           }
-          case Ack(sequence) if !error => {
+          case Ack(sequence) if !terminating => {
             try {
               pendingSequences -= sequence
               ackMeter.mark()
@@ -334,8 +360,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               case e: Exception => {
                 ackErrorMeter.mark()
                 info("Error acknoledging transaction (subid={}, seq={}). {}: ", subId, sequence, member, e)
-                manager ! SubscriptionManagerProtocol.Error(SubscriptionActor.this, Some(e))
-                error = true
+                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                terminating = true
               }
             }
           }
@@ -355,8 +381,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               reply(true)
             }
           }
-          case _ if error => {
-            debug("Ignore actor message since subscription {} is already terminated. {}", subId, member)
+          case _ if terminating => {
+            debug("Ignore actor message since subscription {} is terminating. {}", subId, member)
           }
         }
       }
