@@ -10,7 +10,7 @@ abstract class TestTransactionBase extends FunSuite {
     val request = new InMessage((Map(("ts" -> timestamp), ("tk" -> token))))
     request.function = MessageType.FUNCTION_CALL
     request.token = token
-    Consistency.setMessageTimestamp(request, Timestamp(timestamp))
+    request.timestamp = Some(timestamp)
     request
   }
 

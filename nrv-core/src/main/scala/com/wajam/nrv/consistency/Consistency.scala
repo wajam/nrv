@@ -38,15 +38,3 @@ abstract class Consistency extends MessageHandler {
 
   def stop()
 }
-
-object Consistency {
-  val TimestampHeader = "X-CONSISTENCY-TS"
-
-  def setMessageTimestamp(message: Message, timestamp: Timestamp) {
-    message.timestamp = Some(timestamp)
-  }
-
-  def getMessageTimestamp(message: Message): Option[Timestamp] = {
-    message.timestamp
-  }
-}

@@ -85,7 +85,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
 
   private def appendResponse(message: Message) {
     try {
-      Consistency.getMessageTimestamp(message) match {
+      message.timestamp match {
         case Some(timestamp) => {
           // The id generation is synchronized inside the append method implementation
           val response = txLog.append {

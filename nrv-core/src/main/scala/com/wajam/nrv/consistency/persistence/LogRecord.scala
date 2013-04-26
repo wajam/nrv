@@ -2,7 +2,6 @@ package com.wajam.nrv.consistency.persistence
 
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.data.{MessageType, Message}
-import com.wajam.nrv.consistency.Consistency
 import com.wajam.nrv.consistency.persistence.LogRecord.Response.Status
 
 sealed trait LogRecord {
@@ -70,7 +69,7 @@ object LogRecord {
 
     def apply(id: Long, consistentTimestamp: Option[Timestamp], message: Message): Request = {
       require(message.function == MessageType.FUNCTION_CALL)
-      Request(id, consistentTimestamp, Consistency.getMessageTimestamp(message).get, message.token, message)
+      Request(id, consistentTimestamp, message.timestamp.get, message.token, message)
     }
   }
 
@@ -83,7 +82,7 @@ object LogRecord {
     def apply(id: Long, consistentTimestamp: Option[Timestamp], message: Message): Response = {
       require(message.function == MessageType.FUNCTION_RESPONSE)
       val status = if (message.code >= 200 && message.code < 300 && message.error.isEmpty) Success else Error
-      Response(id, consistentTimestamp, Consistency.getMessageTimestamp(message).get, message.token, status)
+      Response(id, consistentTimestamp, message.timestamp.get, message.token, status)
     }
 
     sealed trait Status {

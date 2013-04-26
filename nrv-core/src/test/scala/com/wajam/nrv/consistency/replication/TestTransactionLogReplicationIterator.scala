@@ -1,16 +1,15 @@
 package com.wajam.nrv.consistency.replication
 
 import org.scalatest.BeforeAndAfter
-import com.wajam.nrv.consistency.{ResolvedServiceMember, Consistency, TestTransactionBase}
+import com.wajam.nrv.consistency.{ResolvedServiceMember, TestTransactionBase}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import java.io.File
 import com.wajam.nrv.consistency.persistence.{LogRecord, FileTransactionLog}
 import java.nio.file.Files
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.consistency.persistence.LogRecord.{Index, Response, Request}
+import com.wajam.nrv.consistency.persistence.LogRecord.Index
 import com.wajam.nrv.utils.timestamp.Timestamp
-import com.wajam.nrv.data.Message
 import com.wajam.nrv.service.TokenRange
 
 @RunWith(classOf[JUnitRunner])
@@ -73,7 +72,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
     var currentConsistentTimestamp: Option[Timestamp] = None
     def takeTimestamps(itr: TransactionLogReplicationIterator, consistentTimestamp: Option[Timestamp], takeCount: Int): List[Long] = {
       currentConsistentTimestamp = consistentTimestamp
-      itr.take(takeCount).flatten.map(msg => Consistency.getMessageTimestamp(msg)).flatten.map(ts => ts.value).toList
+      itr.take(takeCount).flatten.map(msg => msg.timestamp).flatten.map(ts => ts.value).toList
     }
 
     val from1 = new TransactionLogReplicationIterator(member, start = 1L, txLog, currentConsistentTimestamp)

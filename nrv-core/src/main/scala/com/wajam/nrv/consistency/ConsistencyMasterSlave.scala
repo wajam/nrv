@@ -40,8 +40,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                              replicationResolver: Option[Resolver] = None)
   extends ConsistencyOne {
 
-  import Consistency._
-
   private val lastWriteTimestamp = new AtomicReference[Option[Timestamp]](None)
   @volatile // updates are synchronized but lookups are not
   private var recorders: Map[Long, TransactionRecorder] = Map()
@@ -364,8 +362,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   private def executeConsistentReadRequest(req: InMessage, next: Unit => Unit) {
     lastWriteTimestamp.get() match {
-      case Some(timestamp) => {
-        setMessageTimestamp(req, timestamp)
+      case timestamp @ Some(_) => {
+        req.timestamp = timestamp
         next()
       }
       case None => {
@@ -405,7 +403,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         }
         val timestamp = timestamps(0)
         updateLastTimestamp(timestamp)
-        setMessageTimestamp(req, timestamp)
+        req.timestamp = Some(timestamp)
         next()
       } catch {
         case e: Exception =>
