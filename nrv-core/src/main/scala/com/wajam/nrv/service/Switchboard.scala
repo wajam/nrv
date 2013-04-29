@@ -16,8 +16,8 @@ import java.text.SimpleDateFormat
  * rendez-vous number.
  */
 class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTaskExecutorQueueSize: Int = 50,
-                  val banExpirationDuration: Long = 60000L, val banThreshold: Double = 1.0)
-  extends Actor with MessageHandler with  Logging with Instrumented {
+                  val banExpirationDuration: Long = 30000L, val banThreshold: Double = 1.0)
+  extends Actor with MessageHandler with Logging with Instrumented {
 
   require(numExecutor > 0)
   require(maxTaskExecutorQueueSize > 0)
@@ -32,6 +32,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
 
   // instrumentation
   private def metricName = if (name.isEmpty) null else name
+
   lazy private val received = metrics.meter("received", "received", metricName)
   lazy private val sent = metrics.meter("sent", "sent", metricName)
   lazy private val timeout = metrics.meter("timeout", "timeout", metricName)
@@ -227,7 +228,9 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
 
     private val bannedTokenRemovalListener = new RemovalListener[java.lang.Long, TokenBan] {
       def onRemoval(notification: RemovalNotification[java.lang.Long, TokenBan]) {
-        bannedDurationTimer.update(getTime() - notification.getValue.createTime, TimeUnit.MILLISECONDS)
+        val ban = notification.getValue
+        val banDuration = ban.lastAttemptTime - ban.createTime + banExpirationDuration
+        bannedDurationTimer.update(banDuration, TimeUnit.MILLISECONDS)
         info("Ban lifted {}", notification.getValue)
       }
     }
@@ -298,11 +301,11 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
       loop {
         react {
           case next: (Unit => Unit) =>
-          try {
-            next()
-          } catch {
-            case e: Exception => error("Got an error in SwitchboardExecutor: ", e)
-          }
+            try {
+              next()
+            } catch {
+              case e: Exception => error("Got an error in SwitchboardExecutor: ", e)
+            }
         }
       }
     }
