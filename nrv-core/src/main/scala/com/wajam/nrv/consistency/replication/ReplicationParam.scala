@@ -9,11 +9,22 @@ object ReplicationParam {
   val Timestamp = "timestamp"
   val SubscriptionId = "sub_id"
   val Sequence = "seq"
+  val SourceType = "source"
+
+  val StoreSource = "store"
+  val LogSource = "log"
+
+  def getOptionalParamStringValue(key: String)(implicit message: Message): Option[String] = {
+    message.parameters.get(key) match {
+      case Some(MString(value)) => Some(value)
+      case Some(value) => throw new Exception("'%s' unssuported value type (%s)".format(key, value))
+      case None => None
+    }
+  }
 
   def getParamStringValue(key: String)(implicit message: Message): String = {
-    message.parameters.get(key) match {
-      case Some(MString(value)) => value
-      case Some(value) => throw new Exception("'%s' unssuported value type (%s)".format(key, value))
+    getOptionalParamStringValue(key) match {
+      case Some(value) => value
       case None => throw new Exception("'%s' not found".format(key))
     }
   }

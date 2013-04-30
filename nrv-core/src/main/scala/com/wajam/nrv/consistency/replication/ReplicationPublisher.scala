@@ -92,20 +92,21 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       }
     }
 
-    private def createSourceIterator(member: ResolvedServiceMember, startTimestamp: Timestamp): ReplicationSourceIterator = {
+    private def createSourceIterator(member: ResolvedServiceMember, startTimestamp: Timestamp,
+                                     forceStore: Boolean): ReplicationSourceIterator = {
       val txLog = getTransactionLog(member)
       val sourceIterator = txLog.firstRecord(None) match {
-        case Some(logRecord) if (logRecord.timestamp <= startTimestamp) => {
+        case Some(logRecord) if !forceStore && logRecord.timestamp <= startTimestamp => {
           // The first transaction log record is before the starting timestamp, use the transaction log as
-          // replication source
+          // replication source unless forced to use store source
           info("Using TransactionLogReplicationIterator. start={}, end={}, member={}", startTimestamp,
             getMemberCurrentConsistentTimestamp(member), member)
           new TransactionLogReplicationIterator(member, startTimestamp, txLog, getMemberCurrentConsistentTimestamp(member))
         }
-        case Some(logRecord) => {
-          // The first transaction log record is after the replication starting timestamp.
-          // Use the consistent store as the replication source up to the first transaction log record.
-          val endTimestamp = logRecord.timestamp
+        case Some(_) => {
+          // The first transaction log record is after the replication starting timestamp or store source is forced.
+          // Use the consistent store as the replication source up to the current member consistent timestamp.
+          val endTimestamp = getMemberCurrentConsistentTimestamp(member).get
           info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}",
             startTimestamp, endTimestamp, member)
           new ConsistentStoreReplicationIterator(member, startTimestamp, endTimestamp, store)
@@ -142,8 +143,12 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               implicit val request = message
               val start = getOptionalParamLongValue(Start).getOrElse(Long.MinValue)
               val token = getParamLongValue(Token)
+              val forceStore = getOptionalParamStringValue(SourceType) match {
+                case Some(StoreSource) => true
+                case _ => false
+              }
               val member = createResolvedServiceMember(token)
-              val source = createSourceIterator(member, start)
+              val source = createSourceIterator(member, start, forceStore)
 
               val subscription = new SubscriptionActor(nextId, member, source, message.source)
               subscriptions = subscription :: subscriptions

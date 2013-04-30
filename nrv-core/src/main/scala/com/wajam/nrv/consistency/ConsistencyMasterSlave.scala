@@ -319,8 +319,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
         serializer = Some(serializer))
       replicationSubscriber.subscribe(resolvedMember, txLog, 5000, subscribeAction, unsubscribeAction,
-        onSubscriptionEnd = {
-          info("Replication subscription terminated. {}", resolvedMember)
+        onSubscriptionEnd = (error) => {
+          info("Replication subscription terminated {}. {}", resolvedMember, error)
 
           // Renew the replication subscription if the master replica is up
           txLog.commit()
