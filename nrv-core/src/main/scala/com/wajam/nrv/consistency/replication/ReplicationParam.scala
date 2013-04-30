@@ -9,10 +9,7 @@ object ReplicationParam {
   val Timestamp = "timestamp"
   val SubscriptionId = "sub_id"
   val Sequence = "seq"
-  val SourceType = "source"
-
-  val StoreSource = "store"
-  val LogSource = "log"
+  val Mode = "mode"
 
   def getOptionalParamStringValue(key: String)(implicit message: Message): Option[String] = {
     message.parameters.get(key) match {
@@ -44,5 +41,21 @@ object ReplicationParam {
       case None => throw new Exception("'%s' not found".format(key))
     }
   }
+}
 
+sealed trait ReplicationMode
+
+object ReplicationMode {
+  def apply(value: String): ReplicationMode = value match {
+    case Live.toString => Live
+    case Store.toString => Store
+  }
+
+  object Live extends ReplicationMode {
+    override val toString = "live"
+  }
+
+  object Store extends ReplicationMode{
+    override val toString = "store"
+  }
 }

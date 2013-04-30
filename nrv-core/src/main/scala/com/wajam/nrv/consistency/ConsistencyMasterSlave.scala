@@ -11,7 +11,7 @@ import persistence.{LogRecordSerializer, NullTransactionLog, FileTransactionLog}
 import java.util.concurrent.TimeUnit
 import com.yammer.metrics.core.Gauge
 import com.wajam.nrv.UnavailableException
-import replication.{ReplicationSubscriber, ReplicationPublisher, ReplicationParam}
+import com.wajam.nrv.consistency.replication.{ReplicationMode, ReplicationSubscriber, ReplicationPublisher, ReplicationParam}
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
@@ -265,7 +265,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
         // Subscribe to replication source already up for which we are a slave replica
         service.members.withFilter(member =>
-          member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach(subscribe(_))
+          member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach(subscribe(_, ReplicationMode.Store))
       }
       case MemberStatus.Down => {
         this.synchronized {
@@ -292,7 +292,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       case MemberStatus.Up => {
         // Subscribe to remote source replica if we are a slave replica of the service member that just went up
         if (isSlaveReplicaOf(event.member)) {
-          subscribe(event.member)
+          subscribe(event.member, ReplicationMode.Store)
         }
       }
       case MemberStatus.Down =>
@@ -308,7 +308,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
-  private def subscribe(member: ServiceMember) {
+  private def subscribe(member: ServiceMember, mode: ReplicationMode) {
     info("Local replica is subscribing to {}", member)
 
     val resolvedMember = ResolvedServiceMember(service, member)
@@ -316,9 +316,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       // TODO: metric
       info("Local replica restoreMemberConsistency: onSuccess {}", member)
       // TODO: configurable subscribe delay
+      // TODO: no delay on live replication mode
       val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
         serializer = Some(serializer))
-      replicationSubscriber.subscribe(resolvedMember, txLog, 5000, subscribeAction, unsubscribeAction,
+      replicationSubscriber.subscribe(resolvedMember, txLog, 5000, subscribeAction, unsubscribeAction, mode,
         onSubscriptionEnd = (error) => {
           info("Replication subscription terminated {}. {}", resolvedMember, error)
 
@@ -326,7 +327,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           txLog.commit()
           txLog.close()
           if (member.status == MemberStatus.Up) {
-            subscribe(member)
+            subscribe(member, if (error.isDefined) ReplicationMode.Store else ReplicationMode.Live)
           }
         })
     }, onError = {
