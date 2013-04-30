@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.replication
 
 import com.wajam.nrv.service.{TokenRange, Action, Service}
-import com.wajam.nrv.consistency.{ConsistencyException, ConsistentStoreException, ResolvedServiceMember, ConsistentStore}
+import com.wajam.nrv.consistency.{ConsistencyException, ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data.{MValue, InMessage, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
 import actors.Actor

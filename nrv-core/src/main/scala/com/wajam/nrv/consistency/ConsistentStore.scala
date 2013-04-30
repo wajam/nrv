@@ -42,11 +42,3 @@ trait ConsistentStore {
    */
   def truncateAt(timestamp: Timestamp, token: Long)
 }
-
-/**
- * Exception thrown by consistent store
- */
-class ConsistentStoreException(message: String, cause: Throwable) extends Exception(message, cause) {
-  def this(message: String = "") = this(message, null)
-  def this(cause: Throwable) = this(cause.toString, cause)
-}

@@ -327,7 +327,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           txLog.commit()
           txLog.close()
           if (member.status == MemberStatus.Up) {
-            subscribe(member, if (error.isDefined) ReplicationMode.Store else ReplicationMode.Live)
+            // If subscription ends gracefully, assumes we can switch to live replication
+            val newMode = if (error.isDefined) ReplicationMode.Store else ReplicationMode.Live
+            subscribe(member, newMode)
           }
         })
     }, onError = {
