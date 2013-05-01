@@ -9,11 +9,19 @@ object ReplicationParam {
   val Timestamp = "timestamp"
   val SubscriptionId = "sub_id"
   val Sequence = "seq"
+  val Mode = "mode"
+
+  def getOptionalParamStringValue(key: String)(implicit message: Message): Option[String] = {
+    message.parameters.get(key) match {
+      case Some(MString(value)) => Some(value)
+      case Some(value) => throw new Exception("'%s' unssuported value type (%s)".format(key, value))
+      case None => None
+    }
+  }
 
   def getParamStringValue(key: String)(implicit message: Message): String = {
-    message.parameters.get(key) match {
-      case Some(MString(value)) => value
-      case Some(value) => throw new Exception("'%s' unssuported value type (%s)".format(key, value))
+    getOptionalParamStringValue(key) match {
+      case Some(value) => value
       case None => throw new Exception("'%s' not found".format(key))
     }
   }
@@ -33,5 +41,21 @@ object ReplicationParam {
       case None => throw new Exception("'%s' not found".format(key))
     }
   }
+}
 
+sealed trait ReplicationMode
+
+object ReplicationMode {
+  def apply(value: String): ReplicationMode = value match {
+    case Live.toString => Live
+    case Store.toString => Store
+  }
+
+  object Live extends ReplicationMode {
+    override val toString = "live"
+  }
+
+  object Store extends ReplicationMode{
+    override val toString = "store"
+  }
 }

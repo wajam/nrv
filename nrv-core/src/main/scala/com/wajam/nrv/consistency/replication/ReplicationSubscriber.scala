@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.replication
 
 import com.wajam.nrv.service.{TokenRange, Action, Service}
-import com.wajam.nrv.consistency.{ResolvedServiceMember, ConsistentStore}
+import com.wajam.nrv.consistency.{ConsistencyException, ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data.{MValue, InMessage, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
 import actors.Actor
@@ -9,10 +9,10 @@ import com.wajam.nrv.utils.{CurrentTime, TimestampIdGenerator, IdGenerator, Sche
 import collection.immutable.TreeSet
 import com.wajam.nrv.consistency.persistence.TransactionLog
 import ReplicationParam._
-import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Request}
+import com.wajam.nrv.consistency.persistence.LogRecord.{Index, Response, Request}
 import com.wajam.nrv.consistency.persistence.LogRecord.Response.Success
 import annotation.tailrec
-import com.wajam.nrv.Logging
+import com.wajam.nrv.{TimeoutException, Logging}
 import java.util.{TimerTask, Timer}
 import com.yammer.metrics.scala.Instrumented
 import util.Random
@@ -46,9 +46,9 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
    * (pending or active) already exists for the member.
    */
   def subscribe(member: ResolvedServiceMember, txLog: TransactionLog, delay: Long, subscribeAction: Action,
-                unsubscribeAction: Action, onSubscriptionEnd: => Unit) {
-    manager ! SubscriptionManagerProtocol.Subscribe(member, txLog, subscribeAction, unsubscribeAction,
-      () => onSubscriptionEnd, delay)
+                unsubscribeAction: Action, mode: ReplicationMode, onSubscriptionEnd: Option[Exception] => Unit) {
+    manager ! SubscriptionManagerProtocol.Subscribe(member, txLog, subscribeAction, unsubscribeAction, mode,
+      onSubscriptionEnd, delay)
   }
 
   def unsubscribe(member: ResolvedServiceMember) {
@@ -77,7 +77,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
   object SubscriptionManagerProtocol {
 
     case class Subscribe(member: ResolvedServiceMember, txLog: TransactionLog, subscribeAction: Action,
-                         unsubscribeAction: Action, onSubscriptionEnd: () => Unit, delay: Long = 0)
+                         unsubscribeAction: Action, mode: ReplicationMode,
+                         onSubscriptionEnd: Option[Exception] => Unit, delay: Long = 0)
 
     // TODO: Either[Exception, Message]???
     case class SubscribeResponse(subscribe: Subscribe, response: Message, optException: Option[Exception])
@@ -124,7 +125,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
       gauge
     })
 
-    private def terminateSubscription(subscription: SubscriptionActor) {
+    private def terminateSubscription(subscription: SubscriptionActor, error: Option[Exception]) {
       subscriptions -= (subscription.member)
       subscription ! SubscriptionProtocol.Kill
 
@@ -178,7 +179,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 subscribeErrorMeter.mark()
                 warn("Error processing subscribe for {}", subscribe.member, e)
                 subscriptions -= (subscribe.member)
-                subscribe.onSubscriptionEnd()
+                subscribe.onSubscriptionEnd(Some(e))
               }
             }
           }
@@ -199,6 +200,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                       // TODO: prevent replication if store not empty and has no transaction log
                     }
                   }
+                  params += (ReplicationParam.Mode -> subscribe.mode.toString)
                   subscribe.subscribeAction.call(params,
                     onReply = SubscriptionManagerActor.this ! SubscribeResponse(subscribe, _, _))
                 }
@@ -218,7 +220,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 subscribeErrorMeter.mark()
                 warn("Error processing delayed subscribe for {}", subscribe.member, e)
                 subscriptions -= (subscribe.member)
-                subscribe.onSubscriptionEnd()
+                subscribe.onSubscriptionEnd(Some(e))
               }
             }
           }
@@ -231,14 +233,24 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                   subscribeErrorMeter.mark()
                   warn("Got a subscribe response error for {}: ", subscribe.member, e)
                   subscriptions -= (subscribe.member)
-                  subscribe.onSubscriptionEnd()
+                  subscribe.onSubscriptionEnd(Some(e))
                 }
                 case None => {
                   val subscriptionId = getParamStringValue(SubscriptionId)
-                  val startTimestamp = getParamLongValue(Start)
+                  val startTimestamp = Timestamp(getParamLongValue(Start))
                   val endTimestamp = getOptionalParamLongValue(End).map(ts => Timestamp(ts))
 
                   subscriptions.get(subscribe.member) match {
+                    case Some(Left(_)) if Some(startTimestamp) == endTimestamp => {
+                      subscribeIgnoreMeter.mark()
+                      info("Do not activate subscription. " +
+                        "Subscription is empty i.e. has identical start/end timestamps) {}: {}",
+                        response, subscribe.member)
+
+                      subscriptions -= subscribe.member
+                      sendUnsubscribe(subscribe, subscriptionId)
+                      subscribe.onSubscriptionEnd(None)
+                    }
                     case Some(Left(_)) => {
                       info("Subscribe response {}. Activate subscription {}.", response, subscribe.member)
 
@@ -270,7 +282,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 subscribeErrorMeter.mark()
                 warn("Error processing subscribe response for {}", subscribe.member, e)
                 subscriptions -= (subscribe.member)
-                subscribe.onSubscriptionEnd()
+                subscribe.onSubscriptionEnd(Some(e))
               }
             }
           }
@@ -285,7 +297,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 case Some(Right(subscription)) => {
                   unsubscribeMeter.mark()
                   info("Unsubscribe. Remove active subscription for. {}", member)
-                  terminateSubscription(subscription)
+                  terminateSubscription(subscription, None)
                 }
                 case None => {
                   debug("Unsubscribe. No action taken, no subscription registered for {}.", member)
@@ -324,14 +336,14 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               }
             }
           }
-          case Terminate(subscriptionActor, exception) => {
+          case Terminate(subscriptionActor, error) => {
             try {
               subscriptions.get(subscriptionActor.member) match {
                 case Some(Right(subscription)) if subscription.subId == subscriptionActor.subId => {
                   info("Subscription actor {} wants to be terminated. Dutifully perform euthanasia! {}",
                     subscriptionActor.subId, subscriptionActor.member)
-                  terminateSubscription(subscriptionActor)
-                  subscription.subscribe.onSubscriptionEnd()
+                  terminateSubscription(subscriptionActor, error)
+                  subscription.subscribe.onSubscriptionEnd(error)
                 }
                 case _ => // Not subscribed anymore to that subscription. Take no local action.
               }
@@ -412,7 +424,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     }
   }
 
-  class SubscriptionActor(val subId: String, startTimestamp: Timestamp, to: Option[Timestamp],
+  class SubscriptionActor(val subId: String, startTimestamp: Timestamp, endTimestamp: Option[Timestamp],
                           val subscribe: SubscriptionManagerProtocol.Subscribe,
                           currentTimestampGauge: SubscriptionCurrentTimestampGauge,
                           idGenerator: IdGenerator[Long]) extends Actor {
@@ -483,15 +495,24 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             }
             case _: KeepAlive => {
               keepAliveMeter.mark()
-              debug("Keep alive (seq={}, subId={})", publish.sequence, subId)
+              trace("Keep alive (seq={}, subId={})", publish.sequence, subId)
             }
           }
 
           lastSequence = publish.sequence
           publish.reply()
 
-          // Process the new head recusrsively
-          processHeadMessage()
+          if (endTimestamp != None && consistentTimestamp == endTimestamp) {
+            info("Processed last subscription transaction. Terminating subscription {} for {}.", subId, member)
+            txLog.append {
+              Index(idGenerator.nextId, consistentTimestamp)
+            }
+            manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
+            terminating = true
+          } else {
+            // Process the new head recursively
+            processHeadMessage()
+          }
         }
         case _ => // Do nothing as the head transaction is empty or not the next sequence number.
       }
@@ -521,18 +542,20 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             try {
               val elapsedTime = currentTime - lastReceiveTime
               if (elapsedTime > maxIdleDurationInMs) {
-                if (pendingTransactions.isEmpty) {
+                val error = if (pendingTransactions.isEmpty) {
                   idletimeoutMeter.mark()
                   info("No pending transaction received for {} ms. Terminating subscription {} for {}.",
                     elapsedTime, subId, member)
+                  new TimeoutException("No pending transaction received", Some(elapsedTime))
                 } else {
                   txMissingMeter.mark()
                   info("Missing transactions (last written sequence {}, available sequences {}) after {} ms. " +
                     "Terminating subscription {} for {}.",
                     lastSequence, pendingTransactions.map(_.sequence), elapsedTime, subId, member)
+                  new ConsistencyException()
                 }
 
-                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
+                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(error))
                 terminating = true
               }
             } catch {
