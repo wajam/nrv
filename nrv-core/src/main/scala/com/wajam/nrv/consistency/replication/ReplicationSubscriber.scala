@@ -510,7 +510,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
             terminating = true
           } else {
-            // Process the new head recusrsively
+            // Process the new head recursively
             processHeadMessage()
           }
         }

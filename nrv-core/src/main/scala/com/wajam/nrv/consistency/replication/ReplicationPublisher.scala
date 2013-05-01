@@ -93,10 +93,10 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     }
 
     private def createSourceIterator(member: ResolvedServiceMember, startTimestamp: Timestamp,
-                                     liveMode: Boolean): ReplicationSourceIterator = {
+                                     isLiveReplication: Boolean): ReplicationSourceIterator = {
       val txLog = getTransactionLog(member)
       val sourceIterator = txLog.firstRecord(None) match {
-        case Some(logRecord) if liveMode && logRecord.timestamp <= startTimestamp => {
+        case Some(logRecord) if isLiveReplication && logRecord.timestamp <= startTimestamp => {
           // Live replication mode. Use the transaction log if the first transaction log record is before the starting
           // timestamp.
           info("Using TransactionLogReplicationIterator. start={}, end={}, member={}", startTimestamp,
@@ -144,12 +144,12 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               implicit val request = message
               val start = getOptionalParamLongValue(Start).getOrElse(Long.MinValue)
               val token = getParamLongValue(Token)
-              val liveMode = getOptionalParamStringValue(Mode) match {
-                case Some(ReplicationMode.Live.toString) => true
+              val isLiveReplication = getOptionalParamStringValue(Mode).map(ReplicationMode(_)) match {
+                case Some(ReplicationMode.Live) => true
                 case _ => false
               }
               val member = createResolvedServiceMember(token)
-              val source = createSourceIterator(member, start, liveMode)
+              val source = createSourceIterator(member, start, isLiveReplication)
 
               val subscription = new SubscriptionActor(nextId, member, source, message.source)
               subscriptions = subscription :: subscriptions
