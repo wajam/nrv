@@ -45,7 +45,7 @@ trait HttpClientOperations {
   def post(path: String, data: RequestData, params: Map[String, String] = Map(), headers: Map[String, String] = Map()): (Int, ResponseData) = {
     val url = buildUrl(path, params)
     val connection = url.openConnection().asInstanceOf[HttpURLConnection]
-    connection.setRequestProperty("Content-Type", defaultRequestContentType)
+    connection.setRequestProperty("Content-Type", defaultRequestContentType + "; charset=" + DEFAULT_ENCODING)
     for ((key, value) <- headers) connection.setRequestProperty(key, value)
     connection.setDoOutput(true)
     val out = connection.getOutputStream
@@ -72,7 +72,7 @@ trait HttpClientOperations {
     val url = buildUrl(path, params)
     val connection = url.openConnection().asInstanceOf[HttpURLConnection]
     connection.setRequestMethod("PUT")
-    connection.setRequestProperty("Content-Type", defaultRequestContentType)
+    connection.setRequestProperty("Content-Type", defaultRequestContentType + "; charset=" + DEFAULT_ENCODING)
     for ((key, value) <- headers) connection.setRequestProperty(key, value)
     connection.setDoOutput(true)
     val out = connection.getOutputStream
