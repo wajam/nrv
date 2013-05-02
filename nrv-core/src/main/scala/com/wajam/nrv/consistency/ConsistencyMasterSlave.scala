@@ -3,7 +3,6 @@ package com.wajam.nrv.consistency
 import com.wajam.nrv.service._
 import com.wajam.nrv.data.{OutMessage, Message, MessageType, InMessage}
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
-import java.util.concurrent.atomic.AtomicReference
 import com.yammer.metrics.scala.{Meter, Instrumented}
 import com.wajam.nrv.utils.Event
 import com.wajam.nrv.service.StatusTransitionEvent
@@ -40,7 +39,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                              replicationResolver: Option[Resolver] = None)
   extends ConsistencyOne {
 
-  private val lastWriteTimestamp = new AtomicReference[Option[Timestamp]](None)
+  private val lastWriteTimestamp = new AtomicTimestamp(AtomicTimestamp.updateIfGreater, None)
+
   @volatile // updates are synchronized but lookups are not
   private var recorders: Map[Long, TransactionRecorder] = Map()
 
@@ -364,7 +364,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   private def executeConsistentReadRequest(req: InMessage, next: Unit => Unit) {
-    lastWriteTimestamp.get() match {
+    lastWriteTimestamp.get match {
       case timestamp @ Some(_) => {
         req.timestamp = timestamp
         next()
@@ -405,7 +405,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           throw optException.get
         }
         val timestamp = timestamps(0)
-        updateLastTimestamp(timestamp)
+        lastWriteTimestamp.update(Some(timestamp))
         req.timestamp = Some(timestamp)
         next()
       } catch {
@@ -413,27 +413,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           req.replyWithError(e)
       }
     }, 1, req.token)
-  }
-
-  /**
-   * Update last timestamp only if greater than the currently saved timestamp. SCN should not give non increasing
-   * timestamps, but concurrent execution could be executed in a different order. Since we need to be certain that
-   * the last timestamp is effectively the last fetched timestamp, this method must try to set the value as long as
-   * either the new value was atomically set or is obsolete.
-   */
-  private def updateLastTimestamp(timestamp: Timestamp) {
-    var updateSuccessful = false
-    do {
-      val savedTimestamp = lastWriteTimestamp.get()
-      updateSuccessful = savedTimestamp match {
-        case Some(prevTimestamp) => if (timestamp > prevTimestamp) {
-          lastWriteTimestamp.compareAndSet(savedTimestamp, Some(timestamp))
-        } else {
-          true //the timestamp is less than the last timestamp so our value is obsolete
-        }
-        case None => lastWriteTimestamp.compareAndSet(savedTimestamp, Some(timestamp))
-      }
-    } while (!updateSuccessful)
   }
 
   override def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
