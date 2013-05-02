@@ -114,15 +114,6 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
     }
   }
 
-  private def appendIndex(consistentTimestamp: Timestamp) {
-    txLog.append {
-      // The id generation is synchronized inside the append method implementation
-      validateConsistency()
-      Index(idGenerator.nextId, Some(consistentTimestamp))
-    }
-    txLog.commit()
-  }
-
   private def validateConsistency() {
     consistencyError match {
       case Some(e) => {
@@ -263,19 +254,16 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
               error("Consistency error consistent timestamp going backward {}.", tx)
               handleConsistencyError()
             }
-            case _ => {
-              // No more pending transactions. Append an index to the log before updating the consistentTimestamp to
-              // prevent replication source iterator (which read up to consistentTimestamp) to reach the end of the log
-              // when the consistentTimestamp is updated.
-              if (pendingTransactions.isEmpty) {
-                appendIndex(tx.timestamp)
-              }
-              consistentTimestamp = Some(tx.timestamp)
-            }
+            case _ =>
           }
 
-          // Check for more consistent transaction
           if (!pendingTransactions.isEmpty) {
+            // Only update the consistent timestamp if there are pending transactions. This is to prevent replication
+            // source iterator (which read up to consistentTimestamp) to reach the end of the log when the
+            // consistentTimestamp is updated.
+            consistentTimestamp = Some(tx.timestamp)
+
+            // Check for more consistent transaction
             checkPendingConsistency()
           }
         }
