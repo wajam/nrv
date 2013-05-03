@@ -59,40 +59,43 @@ class TestAtomicTimestamp extends FunSuite {
     val initValue = Timestamp(0L)
     val atom = new AtomicTimestamp(updateIfGreater, Some(initValue))
 
-    val done = Promise[Boolean]
-
     @tailrec
-    def updateAndIncrementUntilDone(value: Long, step: Long) {
-      if (!done.future.isCompleted) {
-        atom.update(Some(Timestamp(value)))
-        updateAndIncrementUntilDone(value + step, step)
+    def incrementAndUpdateUntilEndTime(value: Long, step: Long, endTime: Long): Long = {
+      if (System.currentTimeMillis() < endTime) {
+        val incrementedValue = value + step
+        atom.update(Some(Timestamp(incrementedValue)))
+        incrementAndUpdateUntilEndTime(incrementedValue, step, endTime)
+      } else {
+        value
       }
     }
 
-    Future {
-      updateAndIncrementUntilDone(2, 3)
-    }
+    // Launch a few tasks that try to increment the atomic value in parallel with different increment steps.
+    val endTime = System.currentTimeMillis() + 200
+    val incrementors = Seq(Future(incrementAndUpdateUntilEndTime(2, 3, endTime)),
+      Future(incrementAndUpdateUntilEndTime(1, 4, endTime)))
 
-    Future {
-      updateAndIncrementUntilDone(1, 4)
-    }
-
-    // Verify that atomic value never goes backward
-    Future {
-      var lastValue = atom.get
-      while(!done.future.isCompleted) {
-        val newValue = atom.get
-        if (newValue.get < lastValue.get) {
-          done.failure(new Exception("%s < %s".format(newValue.get, lastValue.get)))
-        } else {
-          lastValue = newValue
+    // The watcher task poll the atomic value until all incrementors are completed. The watcher verify that the value
+    // always increment and never goes backward.
+    val watcher = Future {
+      @tailrec
+      def verifyEqualsOrGreaterUntilIncrementorsCompleted(lastValue: Option[Timestamp]) {
+        if (!incrementors.forall(_.isCompleted)) {
+          val newValue = atom.get
+          if (newValue.get < lastValue.get) {
+            throw new Exception("%s < %s".format(newValue.get, lastValue.get))
+          } else {
+            verifyEqualsOrGreaterUntilIncrementorsCompleted(newValue)
+          }
         }
       }
+
+      verifyEqualsOrGreaterUntilIncrementorsCompleted(atom.get)
+      Timestamp(incrementors.map(Future.blocking(_)).max)
     }
 
-    Thread.sleep(200)
-    atom.get.get should be > initValue
-    done.success(true)
-    done.future.value should be (Some(Right(true)))
+    val value = Future.blocking(watcher)
+    value should be > initValue
+    Some(value) should be (atom.get)
   }
 }
