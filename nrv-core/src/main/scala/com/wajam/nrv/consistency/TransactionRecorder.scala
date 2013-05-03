@@ -40,7 +40,10 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
 
   def pendingSize = consistencyActor.pendingSize
 
-  def currentConsistentTimestamp = consistencyActor.consistentTimestamp
+  private val lastWrittenConsistentTimestamp = new AtomicTimestamp(
+    AtomicTimestamp.updateIfGreater, consistencyActor.consistentTimestamp)
+
+  def currentConsistentTimestamp = lastWrittenConsistentTimestamp.get
 
   def start() {
     consistencyActor.start()
@@ -67,12 +70,13 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
       var requestMaxTimestamp: Timestamp = null
       val request = txLog.append {
         validateConsistency()
-        val request = Request(idGenerator.nextId, currentConsistentTimestamp, message)
+        val request = Request(idGenerator.nextId, consistencyActor.consistentTimestamp, message)
         requestMaxTimestamp = if (currentMaxTimestamp > request.timestamp) currentMaxTimestamp else request.timestamp
         currentMaxTimestamp = requestMaxTimestamp
         request
       }
       consistencyActor ! RequestAppended(request, requestMaxTimestamp)
+      lastWrittenConsistentTimestamp.update(request.consistentTimestamp)
     } catch {
       case e: Exception => {
         consistencyErrorAppend.mark()
@@ -90,9 +94,10 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
           // The id generation is synchronized inside the append method implementation
           val response = txLog.append {
             validateConsistency()
-            Response(idGenerator.nextId, currentConsistentTimestamp, message)
+            Response(idGenerator.nextId, consistencyActor.consistentTimestamp, message)
           }
           consistencyActor ! ResponseAppended(response)
+          lastWrittenConsistentTimestamp.update(response.consistentTimestamp)
         }
         case None if isMessageSuccessful(message) => {
           consistencyErrorResponseMissingTimestamp.mark()
@@ -256,14 +261,10 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
             }
             case _ =>
           }
+          consistentTimestamp = Some(tx.timestamp)
 
+          // Check for more consistent transaction
           if (!pendingTransactions.isEmpty) {
-            // Only update the consistent timestamp if there are pending transactions. This is to prevent replication
-            // source iterator (which read up to consistentTimestamp) to reach the end of the log when the
-            // consistentTimestamp is updated.
-            consistentTimestamp = Some(tx.timestamp)
-
-            // Check for more consistent transaction
             checkPendingConsistency()
           }
         }
