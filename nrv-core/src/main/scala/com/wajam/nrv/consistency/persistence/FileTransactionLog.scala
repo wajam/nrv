@@ -696,7 +696,7 @@ private[persistence] class LogFileIterator(txLog: FileTransactionLog, initialInd
           val lastFileIndex = txLog.getIndexFromName(file.getName)
           txLog.getLogFiles(lastFileIndex).filter(Some(_) != lastFile).toIterator
         }
-        case None => txLog.getLogFiles.toIterator
+        case None => txLog.getLogFiles(initialIndex).toIterator
       }
     }
     logFiles.hasNext

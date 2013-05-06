@@ -12,7 +12,6 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.consistency.persistence.LogRecord.Request
 import com.wajam.nrv.consistency.TestTransactionBase
-import com.wajam.nrv.protocol.codec.Codec
 import com.wajam.nrv.consistency.persistence.LogRecord.Index
 
 @RunWith(classOf[JUnitRunner])
@@ -158,10 +157,10 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
   test("should not get any log file from LogFileIterator if there are no log files") {
     val fileItr = new LogFileIterator(fileTxLog, Index(0))
-    fileItr.hasNext should be (false)
-    fileItr.hasNext should be (false)
-    fileItr.hasNext should be (false)
-    fileItr.hasNext should be (false)
+    fileItr.hasNext should be(false)
+    fileItr.hasNext should be(false)
+    fileItr.hasNext should be(false)
+    fileItr.hasNext should be(false)
   }
 
   test("should get new log files from LogFileIterator after their creation") {
@@ -170,18 +169,25 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val file30 = new File(logDir, "service-0000001000-30:.log")
 
     val fileItr = new LogFileIterator(fileTxLog, Index(0))
-    fileItr.toList should be (List())
+    val fileItrFrom20 = new LogFileIterator(fileTxLog, Index(20))
+    fileItr.toList should be(List())
+    fileItrFrom20.toList should be(List())
 
     file10.createNewFile()
-    fileItr.toList should be (List(file10))
+    fileItr.toList should be(List(file10))
+    fileItr.toList should be(List())
 
     file20.createNewFile()
-    fileItr.toList should be (List(file20))
-    fileItr.toList should be (List())
+    fileItr.toList should be(List(file20))
+    fileItr.toList should be(List())
+    fileItrFrom20.toList should be(List(file20))
+    fileItrFrom20.toList should be(List())
 
     file30.createNewFile()
-    fileItr.toList should be (List(file30))
-    fileItr.toList should be (List())
+    fileItr.toList should be(List(file30))
+    fileItr.toList should be(List())
+    fileItrFrom20.toList should be(List(file30))
+    fileItrFrom20.toList should be(List())
   }
 
   test("should create tx logger even if log directory does not exist") {
