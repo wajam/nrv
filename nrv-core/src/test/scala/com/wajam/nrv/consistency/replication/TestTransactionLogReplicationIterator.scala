@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.replication
 
 import org.scalatest.BeforeAndAfter
-import com.wajam.nrv.consistency.{ResolvedServiceMember, TestTransactionBase}
+import com.wajam.nrv.consistency.{TransactionRecorder, ResolvedServiceMember, TestTransactionBase}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import java.io.File
@@ -11,6 +11,10 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.consistency.persistence.LogRecord.Index
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.service.TokenRange
+import com.wajam.nrv.utils.{Future, IdGenerator}
+import com.wajam.nrv.data.Message
+import scala.annotation.tailrec
+import scala.util.Random
 
 @RunWith(classOf[JUnitRunner])
 class TestTransactionLogReplicationIterator extends TestTransactionBase with BeforeAndAfter {
@@ -119,5 +123,106 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
     evaluating {
       new TransactionLogReplicationIterator(member, start = -1L, txLog, None)
     } should produce[NoSuchElementException]
+  }
+
+  /**
+   * This test append and read new log records concurently from two threads and ensure that the iterator is not closed
+   * when log rolls.
+   */
+  test("iterator not closed on log roll") {
+
+    // Setup a transaction recorder which take care up computing the consistent timestamp. The recorder time and
+    // id generator are both bound to a local variable which is incremented every time a new message is appended.
+    // This make the test more deterministic and the time management does not requires any sleep.
+    var consistencyErrorCount = 0
+    var currentId = 0L
+    val recorder = new TransactionRecorder(member, txLog, consistencyDelay = 500L, consistencyTimeout = 5000L,
+      commitFrequency = 0, onConsistencyError = consistencyErrorCount += 1,
+      idGenerator = new IdGenerator[Long] {
+        def nextId = currentId
+      }) {
+      override def currentTime = currentId
+    }
+    recorder.start()
+
+    def appendMessage(message: Message) {
+      currentId = currentId + 10
+      recorder.checkPending()
+      recorder.appendMessage(message)
+      recorder.checkPending()
+    }
+
+    // Append a deterministic initial transaction in log. This is where the consumer will start reading.
+    val request1 = createRequestMessage(timestamp = 0)
+    appendMessage(request1)
+    appendMessage(createResponseMessage(request1))
+
+    // Appender which append transaction until reaching a maximum count. The consumer is concurently reading the
+    // transaction log as they are appended.
+    val maxTxCount = 200
+    val appender = Future {
+      @tailrec
+      def append(appendedCount: Int): Int = {
+        if (appendedCount < maxTxCount) {
+          val requests = (1 to Random.nextInt(10 + 1)).map(i => createRequestMessage(timestamp = (i + appendedCount)))
+          val responses = requests.map(r => createResponseMessage(r))
+
+          Random.shuffle(requests).foreach(appendMessage(_))
+          txLog.rollLog()
+          Random.shuffle(responses).foreach(appendMessage(_))
+
+          append(appendedCount + requests.size)
+        } else {
+          appendedCount
+        }
+      }
+
+      append(0)
+    }
+
+    // Wait for a consistent timestamp before consuming replication source
+    while (recorder.currentConsistentTimestamp == None) {}
+
+    // Consumer is reading from the transaction log while new transaction are added by the appender until the appender
+    // completed and the consumer read last record repecting the last appended record consistent timestamp.
+    val consumer = Future {
+      val itr = new TransactionLogReplicationIterator(member, start = request1.timestamp.get,
+        txLog, recorder.currentConsistentTimestamp)
+
+      def finalConsistentRecord = txLog.firstRecord(txLog.getLastLoggedRecord.get.consistentTimestamp)
+
+      def isFinalTx(txOpt: Option[Message]) = {
+        txOpt match {
+          case Some(tx) if appender.isCompleted => tx.timestamp == finalConsistentRecord.get.consistentTimestamp
+          case _ => false
+        }
+      }
+
+      // Consume until end of iterator (not expected) or the final transaction is consumed.
+      @tailrec
+      def consume(last: Option[Message]): Option[Message] = {
+        if (itr.hasNext && !isFinalTx(last)) {
+          itr.next() match {
+            case tx@Some(_) => consume(tx)
+            case None => consume(last)
+          }
+        } else {
+          last
+        }
+      }
+
+      consume(None)
+    }
+
+    // Wait for the appender and consumer to complete
+    val appendedCount = Future.blocking(appender, 5000L)
+    appendedCount should be >= maxTxCount
+
+    val lastConsumed = Future.blocking(consumer, 5000L)
+    val expectedLastTx = txLog.firstRecord(txLog.getLastLoggedRecord.get.consistentTimestamp)
+    expectedLastTx should not be (None)
+    lastConsumed.get.timestamp should be(expectedLastTx.get.consistentTimestamp)
+
+    consistencyErrorCount should be(0)
   }
 }

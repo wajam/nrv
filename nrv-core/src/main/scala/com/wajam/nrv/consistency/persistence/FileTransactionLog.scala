@@ -498,7 +498,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
     // Position the iterator to the initial timestamp by reading tx from log as long the read timestamp is before the
     // initial timestamp
-    private val logFiles = getLogFiles(initialIndex).toIterator
+    private val logFiles = new LogFileIterator(FileTransactionLog.this, initialIndex)
     openNextFile()
     while (nextRecord match {
       case Right(Some(FileRecord(record, _, _))) => record.id < initialIndex.id
@@ -679,7 +679,34 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       }
     }
   }
+}
 
+/**
+ * Iterator which returns the log files in ascending order that contain transactions from the specified initial index.
+ * Includes log file added after the iterator creation.
+ */
+private[persistence] class LogFileIterator(txLog: FileTransactionLog, initialIndex: Index) extends Iterator[File] {
+  private var logFiles = txLog.getLogFiles(initialIndex).toIterator
+  private var lastFile: Option[File] = None
+
+  def hasNext = {
+    if (!logFiles.hasNext) {
+      logFiles = lastFile match {
+        case Some(file) => {
+          val lastFileIndex = txLog.getIndexFromName(file.getName)
+          txLog.getLogFiles(lastFileIndex).filter(Some(_) != lastFile).toIterator
+        }
+        case None => txLog.getLogFiles.toIterator
+      }
+    }
+    logFiles.hasNext
+  }
+
+  def next() = {
+    val file = logFiles.next()
+    lastFile = Some(file)
+    file
+  }
 }
 
 object FileTransactionLog {

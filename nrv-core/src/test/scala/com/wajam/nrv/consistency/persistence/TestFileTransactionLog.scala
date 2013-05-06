@@ -156,6 +156,34 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.getLogFiles(Index(0)).toList should be(List[File]())
   }
 
+  test("should not get any log file from LogFileIterator if there are no log files") {
+    val fileItr = new LogFileIterator(fileTxLog, Index(0))
+    fileItr.hasNext should be (false)
+    fileItr.hasNext should be (false)
+    fileItr.hasNext should be (false)
+    fileItr.hasNext should be (false)
+  }
+
+  test("should get new log files from LogFileIterator after their creation") {
+    val file10 = new File(logDir, "service-0000001000-10:.log")
+    val file20 = new File(logDir, "service-0000001000-20:.log")
+    val file30 = new File(logDir, "service-0000001000-30:.log")
+
+    val fileItr = new LogFileIterator(fileTxLog, Index(0))
+    fileItr.toList should be (List())
+
+    file10.createNewFile()
+    fileItr.toList should be (List(file10))
+
+    file20.createNewFile()
+    fileItr.toList should be (List(file20))
+    fileItr.toList should be (List())
+
+    file30.createNewFile()
+    fileItr.toList should be (List(file30))
+    fileItr.toList should be (List())
+  }
+
   test("should create tx logger even if log directory does not exist") {
     val fakeLogDir = new File("fakepath/1234567")
     fakeLogDir.isDirectory should be(false)
