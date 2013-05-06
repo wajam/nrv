@@ -19,8 +19,11 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) extends Instrumented {
   private val connectionMap = new ConcurrentHashMap[InetSocketAddress, ConcurrentLinkedDeque[(Channel, Long)]]()
   private val atomicInteger = new AtomicInteger(0)
 
-  private val connectionPoolSizeGauge = metrics.metricsRegistry.newGauge(NettyConnectionPool.getClass,
-    "connection-pool-size", new Gauge[Long] { def value() = connectionMap.size() })
+  private val connectionPoolSizeGauge = metrics.gauge("connection-pool-size") {
+    connectionMap.foldLeft(0L) {
+      case (acc: Long, (_, connectionList: ConcurrentLinkedDeque[_])) => { acc + connectionList.size() }
+    }
+  }
 
   def poolConnection(destination: InetSocketAddress, connection: Channel): Boolean = {
     clean()
