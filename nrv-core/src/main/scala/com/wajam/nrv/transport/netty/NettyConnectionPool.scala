@@ -59,21 +59,16 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) extends Instrumented {
 
   def getPooledConnection(destination: InetSocketAddress): Option[Channel] = {
     clean()
-    var queue = connectionMap.get(destination)
-    if (queue == null) {
-      poolMissMeter.mark()
-      return None
+    val connection = Option(connectionMap.get(destination)) flatMap (queue => {
+      val connectionPoolEntry = Option(queue.poll())
+      atomicInteger.decrementAndGet()
+      connectionPoolEntry map (_._1)
+    })
+    connection match {
+      case Some(_) => poolHitMeter.mark()
+      case None => poolMissMeter.mark()
     }
-    val connectionPoolEntry = queue.poll()
-    atomicInteger.decrementAndGet()
-
-    if (connectionPoolEntry != null) {
-      poolHitMeter.mark()
-      Some(connectionPoolEntry._1)
-    } else {
-      poolMissMeter.mark()
-      None
-    }
+    connection
   }
 
   private def clean() {
