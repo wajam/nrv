@@ -5,6 +5,8 @@ import java.util.concurrent.{ConcurrentLinkedDeque, ConcurrentHashMap}
 import scala.collection.JavaConversions._
 import java.util.concurrent.atomic.AtomicInteger
 import java.net.InetSocketAddress
+import com.yammer.metrics.scala.Instrumented
+import com.yammer.metrics.core.Gauge
 
 /**
  * This class...
@@ -12,11 +14,13 @@ import java.net.InetSocketAddress
  * User: felix
  * Date: 13/04/12
  */
-
-class NettyConnectionPool(timeout: Long, maxSize: Int) {
+class NettyConnectionPool(timeout: Long, maxSize: Int) extends Instrumented {
 
   private val connectionMap = new ConcurrentHashMap[InetSocketAddress, ConcurrentLinkedDeque[(Channel, Long)]]()
   private val atomicInteger = new AtomicInteger(0)
+
+  private val connectionPoolSizeGauge = metrics.metricsRegistry.newGauge(NettyConnectionPool.getClass,
+    "connection-pool-size", new Gauge[Long] { def value() = connectionMap.size() })
 
   def poolConnection(destination: InetSocketAddress, connection: Channel): Boolean = {
     clean()
@@ -75,5 +79,8 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) {
   protected def getTime() = {
     System.currentTimeMillis()
   }
+
+}
+object NettyConnectionPool  {
 
 }
