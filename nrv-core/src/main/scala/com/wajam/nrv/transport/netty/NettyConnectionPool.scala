@@ -19,6 +19,13 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) extends Instrumented {
   private val connectionMap = new ConcurrentHashMap[InetSocketAddress, ConcurrentLinkedDeque[(Channel, Long)]]()
   private val atomicInteger = new AtomicInteger(0)
 
+  private val poolHitMeter = metrics.meter("connection-pool-hit", "hits")
+  private val poolMissMeter = metrics.meter("connection-pool-miss", "misses")
+  private val poolAddsMeter = metrics.meter("connection-pool-adds", "additions")
+  private val poolRemovesMeter = metrics.meter("connection-pool-removes", "removals")
+  private val connectionPooledDestinationsGauge = metrics.gauge("connection-pooled-destinations-size") {
+    connectionMap.size()
+  }
   private val connectionPoolSizeGauge = metrics.gauge("connection-pool-size") {
     connectionMap.foldLeft(0L) {
       case (acc: Long, (_, connectionList: ConcurrentLinkedDeque[_])) => { acc + connectionList.size() }
@@ -42,6 +49,7 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) extends Instrumented {
     var added = false
     if (atomicInteger.incrementAndGet() <= maxSize) {
       added = queue.add((connection, getTime()))
+      poolAddsMeter.mark()
     }
     if (!added) {
       atomicInteger.decrementAndGet()
@@ -53,14 +61,17 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) extends Instrumented {
     clean()
     var queue = connectionMap.get(destination)
     if (queue == null) {
+      poolMissMeter.mark()
       return None
     }
     val connectionPoolEntry = queue.poll()
     atomicInteger.decrementAndGet()
 
     if (connectionPoolEntry != null) {
+      poolHitMeter.mark()
       Some(connectionPoolEntry._1)
     } else {
+      poolMissMeter.mark()
       None
     }
   }
@@ -75,6 +86,7 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) extends Instrumented {
         (getTime() - connectionPoolEntry._2) >= timeout) {
         connectionPoolEntry._1.close()
         deque.remove(connectionPoolEntry)
+        poolRemovesMeter.mark()
       }
     })
   }
@@ -82,8 +94,5 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) extends Instrumented {
   protected def getTime() = {
     System.currentTimeMillis()
   }
-
-}
-object NettyConnectionPool  {
 
 }
