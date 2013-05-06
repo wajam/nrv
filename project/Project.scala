@@ -27,8 +27,7 @@ object NrvBuild extends Build {
     "org.mockito" % "mockito-core" % "1.9.0" % "test,it",
     "com.google.protobuf" % "protobuf-java" % "2.4.1",
     "com.google.guava" % "guava" % "12.0",
-    "com.twitter" % "util-core" % "6.1.0"/*,
-    "org.scala-lang" % "scala-actors" % "2.10.0"*/
+    "com.twitter" % "util-core" % "6.1.0"
   )
 
   var zookeeperDeps = Seq(
