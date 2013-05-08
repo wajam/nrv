@@ -102,6 +102,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   override def start() {
     super.start()
 
+    // TODO: update cache when new members are added/removed
+    updateRangeMemberCache()
+
     publishAction.applySupport(resolver = Some(new Resolver(tokenExtractor = Resolver.TOKEN_RANDOM())),
       nrvCodec = Some(serializer.messageCodec))
     subscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
@@ -206,7 +209,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               restoreMemberConsistency(member, onSuccess = {
                 metrics.consistencyOk.mark()
                 info("Local master restoreMemberConsistency: onSuccess {}", member)
-                updateRangeMemberCache()
                 updateMemberConsistencyState(event.member, Some(MemberConsistencyState.Ok))
               }, onError = {
                 info("Local master restoreMemberConsistency: onError {}", member)
@@ -349,7 +351,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
             subscribe(member, newMode)
           }
         })
-      updateRangeMemberCache()
       updateMemberConsistencyState(member, Some(MemberConsistencyState.Ok))
     }, onError = {
       // TODO: metric
