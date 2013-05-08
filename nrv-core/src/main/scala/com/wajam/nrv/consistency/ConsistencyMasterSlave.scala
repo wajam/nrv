@@ -349,6 +349,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
             subscribe(member, newMode)
           }
         })
+      updateRangeMemberCache()
       updateMemberConsistencyState(member, Some(MemberConsistencyState.Ok))
     }, onError = {
       // TODO: metric
