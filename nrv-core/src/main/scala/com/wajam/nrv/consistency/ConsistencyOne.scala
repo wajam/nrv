@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency
 
-import com.wajam.nrv.service.Action
+import com.wajam.nrv.service.{ServiceMember, Action}
 import com.wajam.nrv.data.OutMessage
 import com.wajam.nrv.Logging
 
@@ -14,6 +14,8 @@ class ConsistencyOne extends Consistency with Logging {
     // let only the first selected as selected
     selected.slice(1, selected.size).foreach(replica => replica.selected = false)
   }
+
+  def localMembersStates: Iterable[(ResolvedServiceMember, MemberConsistencyState)] = Nil
 
   def start() {}
 
