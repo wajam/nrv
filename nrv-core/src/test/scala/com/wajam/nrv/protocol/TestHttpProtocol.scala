@@ -22,7 +22,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
   before {
     val localnode = new LocalNode("localhost", Map("nrv" -> 19191, "test" -> 1909))
     val cluster = new Cluster(localnode, new StaticClusterManager)
-    protocol = new HttpProtocol("test", localnode)
+    protocol = new HttpProtocol("test", localnode, 10000, 100)
   }
 
   test("should map HTTP query to message parameters") {

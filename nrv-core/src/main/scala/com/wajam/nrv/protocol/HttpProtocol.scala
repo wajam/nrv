@@ -15,7 +15,10 @@ import com.wajam.nrv.RouteException
 /**
  * Implementation of HTTP protocol.
  */
-class HttpProtocol(name: String, localNode: LocalNode)
+class HttpProtocol(name: String,
+                   localNode: LocalNode,
+                   idleConnectionTimeoutMs: Long,
+                   maxConnectionPoolSize: Int)
   extends Protocol(name) {
 
   val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
@@ -23,7 +26,9 @@ class HttpProtocol(name: String, localNode: LocalNode)
 
   override val transport = new HttpNettyTransport(localNode.listenAddress,
     localNode.ports(name),
-    this)
+    this,
+    idleConnectionTimeoutMs,
+    maxConnectionPoolSize)
 
   def start() {
     transport.start()

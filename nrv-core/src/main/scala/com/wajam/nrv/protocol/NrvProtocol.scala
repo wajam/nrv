@@ -12,10 +12,13 @@ import com.google.common.primitives.{Shorts, UnsignedBytes}
  * Default protocol used by NRV. All nodes must have this protocol, since it's
  * used for cluster management.
  */
-class NrvProtocol(localNode: LocalNode)
+class NrvProtocol(localNode: LocalNode,
+                  idleConnectionTimeoutMs: Long,
+                  maxConnectionPoolSize: Int)
   extends Protocol("nrv") {
 
-  override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name), this)
+  override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name),
+    this, idleConnectionTimeoutMs, maxConnectionPoolSize)
 
   protected val resolveCodec = (msg: Message) => {
 

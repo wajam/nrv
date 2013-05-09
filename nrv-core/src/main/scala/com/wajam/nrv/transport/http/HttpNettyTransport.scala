@@ -6,19 +6,17 @@ import com.wajam.nrv.transport.netty.{NettyTransportCodecFactory, NettyTransport
 import org.jboss.netty.channel.{Channel, ChannelHandlerContext, ChannelPipeline}
 import org.jboss.netty.handler.codec.http._
 import com.yammer.metrics.scala.Instrumented
-import org.jboss.netty.buffer.ChannelBuffer
-import org.jboss.netty.handler.codec.http.HttpMessageDecoder.State
 import org.jboss.netty.handler.codec.oneone.{OneToOneDecoder, OneToOneEncoder}
 
 /**
- * This class...
- *
- * User: felix
- * Date: 09/04/12
+ * HTTP transport implementation backed by netty.
  */
 
-class HttpNettyTransport(host: InetAddress, port: Int, protocol: Protocol)
-  extends NettyTransport(host, port, protocol) {
+class HttpNettyTransport(host: InetAddress,
+                         port: Int, protocol: Protocol,
+                         idleConnectionTimeoutMs: Long,
+                         maxConnectionPoolSize: Int)
+  extends NettyTransport(host, port, protocol, idleConnectionTimeoutMs, maxConnectionPoolSize) {
 
   val MAX_SIZE = 1048576 //1M
   val factory = new HttpNettyTransportCodecFactory
