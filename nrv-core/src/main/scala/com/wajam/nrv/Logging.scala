@@ -6,43 +6,40 @@ import org.slf4j.LoggerFactory
  * Trait that add logging capability to a class
  */
 trait Logging {
-  val innerLog = LoggerFactory.getLogger(getClass)
-
-  @deprecated("Use methods already exposed by trait Logging")
-  def log = this
+  val log = LoggerFactory.getLogger(getClass)
 
   def debug(msg: => String, params: Any*) {
-    if (innerLog.isDebugEnabled) {
+    if (log.isDebugEnabled) {
       val arr = params.map(m => m.asInstanceOf[Object]).toArray
-      innerLog.debug(msg, arr)
+      log.debug(msg, arr)
     }
   }
 
   def trace(msg: => String, params: Any*) {
-    if (innerLog.isTraceEnabled) {
+    if (log.isTraceEnabled) {
       val arr = params.map(m => m.asInstanceOf[Object]).toArray
-      innerLog.trace(msg, arr)
+      log.trace(msg, arr)
     }
   }
 
   def info(msg: => String, params: Any*) {
-    if (innerLog.isInfoEnabled) {
+    if (log.isInfoEnabled) {
       val arr = params.map(m => m.asInstanceOf[Object]).toArray
-      innerLog.info(msg, arr)
+      log.info(msg, arr)
     }
   }
 
   def warn(msg: => String, params: Any*) {
-    if (innerLog.isWarnEnabled) {
+    if (log.isWarnEnabled) {
       val arr = params.map(m => m.asInstanceOf[Object]).toArray
-      innerLog.warn(msg, arr)
+      log.warn(msg, arr)
     }
   }
 
   def error(msg: => String, params: Any*) {
-    if (innerLog.isErrorEnabled) {
+    if (log.isErrorEnabled) {
       val arr = params.map(m => m.asInstanceOf[Object]).toArray
-      innerLog.error(msg, arr)
+      log.error(msg, arr)
     }
   }
 
