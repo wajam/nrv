@@ -19,8 +19,8 @@ object NrvBuild extends Build {
   )
 
   var commonDeps = Seq(
-    "org.slf4j" % "slf4j-nop" % "1.6.4",
-    "nl.grons" %% "metrics-scala" % "2.2.0",
+    "org.slf4j" % "slf4j-api" % "1.6.4",
+    "nl.grons" %% "metrics-scala" % "2.2.0" exclude("org.slf4j", "slf4j-api"),
     "io.netty" % "netty" % "3.5.0.Final",
     "org.scalatest" %% "scalatest" % "1.9.1" % "test,it",
     "junit" % "junit" % "4.10" % "test,it",
