@@ -21,14 +21,16 @@ import java.nio.channels.ClosedChannelException
  */
 
 abstract class NettyTransport(host: InetAddress,
-                     port: Int,
-                     protocol: Protocol) extends Transport(host, port, protocol) {
+                              port: Int,
+                              protocol: Protocol,
+                              idleTimeoutMs: Long,
+                              maxPoolSize: Int) extends Transport(host, port, protocol) {
 
   val factory: NettyTransportCodecFactory
 
   val idleTimeoutIsSec = 30
   val connectionTimeoutInMs = 5000
-  val connectionPool = new NettyConnectionPool(10000, 100)
+  val connectionPool = new NettyConnectionPool(idleTimeoutMs, maxPoolSize)
   val allChannels = new DefaultChannelGroup
   val timer = new HashedWheelTimer()
 
@@ -53,7 +55,8 @@ abstract class NettyTransport(host: InetAddress,
                    closeAfter: Boolean,
                    completionCallback: Option[Throwable] => Unit = (_) => {}) {
     val channel = connection.asInstanceOf[Channel]
-    writeOnChannel(channel, message, None, completionCallback, closeAfter)
+    //write the response on the channel but do not add the connection to the pool
+    writeOnChannel(channel, message, None, completionCallback, closeAfter, canBePooled = false)
   }
 
   override def sendMessage(destination: InetSocketAddress,
@@ -68,14 +71,16 @@ abstract class NettyTransport(host: InetAddress,
         writeChannel = client.openConnection(destination)
       }
     }
-    writeOnChannel(writeChannel, message, Some(destination), completionCallback, closeAfter)
+    //write the message on the connection and pool only if not closeAfter
+    writeOnChannel(writeChannel, message, Some(destination), completionCallback, closeAfter, !closeAfter)
   }
 
   private def writeOnChannel(channel: Channel,
                              message: AnyRef,
                              destination: Option[InetSocketAddress],
                              completionCallback: Option[Throwable] => Unit = (_) => {},
-                             closeAfter: Boolean = false) {
+                             closeAfter: Boolean,
+                             canBePooled: Boolean) {
     val future = channel.write(message)
     future.addListener(new ChannelFutureListener {
       override def operationComplete(p1: ChannelFuture) {
@@ -84,7 +89,13 @@ abstract class NettyTransport(host: InetAddress,
           completionCallback(None)
           destination match {
             case Some(dest) => {
-              connectionPool.poolConnection(dest, channel)
+              if (canBePooled) {
+                val added = connectionPool.poolConnection(dest, channel)
+                if(!added) {
+                  //connection could not be added to the pool, close it
+                  channel.close()
+                }
+              }
             }
             case None =>
           }

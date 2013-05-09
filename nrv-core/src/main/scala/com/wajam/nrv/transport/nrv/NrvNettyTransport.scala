@@ -12,8 +12,12 @@ import org.jboss.netty.channel.{ChannelPipeline, ChannelHandlerContext, Channel}
  * Transport layer for NRV
  */
 
-class NrvNettyTransport(host: InetAddress, port: Int, protocol: Protocol)
-  extends NettyTransport(host, port, protocol) {
+class NrvNettyTransport(host: InetAddress,
+                        port: Int,
+                        protocol: Protocol,
+                        idleConnectionTimeoutMs: Long,
+                        maxConnectionPoolSize: Int)
+  extends NettyTransport(host, port, protocol, idleConnectionTimeoutMs, maxConnectionPoolSize) {
 
   val factory = NrvNettyTransportCodecFactory
 }

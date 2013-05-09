@@ -46,7 +46,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
 
   before {
     mockProtocol = new MockProtocol
-    nettyTransport = new HttpNettyTransport(host, port, mockProtocol)
+    nettyTransport = new HttpNettyTransport(host, port, mockProtocol, 10000, 100)
     nettyTransport.start()
   }
 
