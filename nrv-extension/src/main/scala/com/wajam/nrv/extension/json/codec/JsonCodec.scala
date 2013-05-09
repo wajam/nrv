@@ -104,7 +104,7 @@ object JsonRender {
         case '\n' => sb.append("\\n")
         case '\r' => sb.append("\\r")
         case '\t' => sb.append("\\t")
-        case c if ((c >= '\u0000' && c < '\u001f') || (c >= '\u0080' && c < '\u00a0') || (c >= '\u2000' && c < '\u2100')) => sb.append("\\u%04x".format(c: Int))
+        case c if ((c >= '\u0000' && c <= '\u001f')) => sb.append("\\u%04x".format(c: Int))
         case c => sb.append(c)
       }
       i += 1

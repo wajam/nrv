@@ -20,9 +20,9 @@ object NrvBuild extends Build {
 
   var commonDeps = Seq(
     "org.slf4j" % "slf4j-nop" % "1.6.4",
-    "com.yammer.metrics" %% "metrics-scala" % "2.1.2",
+    "nl.grons" %% "metrics-scala" % "2.2.0",
     "io.netty" % "netty" % "3.5.0.Final",
-    "org.scalatest" %% "scalatest" % "1.7.1" % "test,it",
+    "org.scalatest" %% "scalatest" % "1.9.1" % "test,it",
     "junit" % "junit" % "4.10" % "test,it",
     "org.mockito" % "mockito-core" % "1.9.0" % "test,it",
     "com.google.protobuf" % "protobuf-java" % "2.4.1",
@@ -32,7 +32,7 @@ object NrvBuild extends Build {
 
   var zookeeperDeps = Seq(
     "org.apache.zookeeper" % "zookeeper" % "3.4.3-cdh4.1.1" exclude("javax.jms", "jms") exclude("com.sun.jmx", "jmxri") exclude("com.sun.jdmk", "jmxtools"),
-    "org.rogach" %% "scallop" % "0.6.0"
+    "org.rogach" %% "scallop" % "0.6.3"
   )
 
   var scribeDeps = Seq(
@@ -41,8 +41,8 @@ object NrvBuild extends Build {
   )
 
   var extDeps = Seq(
-    "net.liftweb" %% "lift-json" % "2.4-RC1",
-    "org.scalatest" %% "scalatest" % "1.7.1",
+    "net.liftweb" %% "lift-json" % "2.5-RC4",
+    "org.scalatest" %% "scalatest" % "1.9.1",
     "junit" % "junit" % "4.10",
     "org.mockito" % "mockito-core" % "1.9.0"
   )

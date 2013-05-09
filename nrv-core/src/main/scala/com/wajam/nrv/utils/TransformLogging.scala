@@ -9,35 +9,35 @@ trait TransformLogging extends Logging {
   def transformLogMessage: (String, Seq[Any]) => (String, Seq[Any])
 
   override def debug(msg: => String, params: Any*) {
-    if (log.isDebugEnabled) {
+    if (innerLog.isDebugEnabled) {
       val (transformedMsg, transformedParams) = transformLogMessage(msg, params)
       super.debug(transformedMsg, transformedParams: _*)
     }
   }
 
   override def trace(msg: => String, params: Any*) {
-    if (log.isTraceEnabled) {
+    if (innerLog.isTraceEnabled) {
       val (transformedMsg, transformedParams) = transformLogMessage(msg, params)
       super.trace(transformedMsg, transformedParams: _*)
     }
   }
 
   override def info(msg: => String, params: Any*) {
-    if (log.isInfoEnabled) {
+    if (innerLog.isInfoEnabled) {
       val (transformedMsg, transformedParams) = transformLogMessage(msg, params)
       super.info(transformedMsg, transformedParams: _*)
     }
   }
 
   override def warn(msg: => String, params: Any*) {
-    if (log.isWarnEnabled) {
+    if (innerLog.isWarnEnabled) {
       val (transformedMsg, transformedParams) = transformLogMessage(msg, params)
       super.warn(transformedMsg, transformedParams: _*)
     }
   }
 
   override def error(msg: => String, params: Any*) {
-    if (log.isErrorEnabled) {
+    if (innerLog.isErrorEnabled) {
       val (transformedMsg, transformedParams) = transformLogMessage(msg, params)
       super.error(transformedMsg, transformedParams: _*)
     }

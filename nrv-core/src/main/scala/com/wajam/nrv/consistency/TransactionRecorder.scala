@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency
 
-import actors.Actor
+import scala.actors.Actor
 import com.yammer.metrics.scala.Instrumented
 import persistence.LogRecord.{Request, Response, Index}
 import persistence.TransactionLog

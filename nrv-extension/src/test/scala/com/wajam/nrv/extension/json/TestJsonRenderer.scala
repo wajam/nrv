@@ -65,8 +65,6 @@ class TestJsonRenderer extends FunSuite {
   }
 
   test("should handle utf-8 characters well") {
-    for (c <- '\u0000' to '\u001f') testValue(JString(c.toString))
-    for (c <- '\u0080' to '\u00a0') testValue(JString(c.toString))
-    for (c <- '\u2000' to '\u2100') testValue(JString(c.toString))
+    for (c <- '\u0000' to '\uffff') testValue(JString(c.toString))
   }
 }

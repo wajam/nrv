@@ -4,7 +4,7 @@ import com.wajam.nrv.service.{TokenRange, Action, Service}
 import com.wajam.nrv.consistency.{ConsistencyException, ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data.{MValue, InMessage, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
-import actors.Actor
+import scala.actors.Actor
 import com.wajam.nrv.utils.{CurrentTime, TimestampIdGenerator, IdGenerator, Scheduler}
 import collection.immutable.TreeSet
 import com.wajam.nrv.consistency.persistence.TransactionLog

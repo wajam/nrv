@@ -1,6 +1,6 @@
 package com.wajam.nrv.cluster
 
-import actors.Actor
+import scala.actors.Actor
 import com.wajam.nrv.utils.{TransformLogging, Scheduler}
 import com.wajam.nrv.service.{StatusTransitionEvent, Service, ServiceMember, MemberStatus}
 import com.wajam.nrv.Logging
