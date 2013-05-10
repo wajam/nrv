@@ -59,13 +59,12 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) extends Instrumented {
     clean()
     val connection = Option(connectionMap.get(destination)) flatMap (queue => {
       val connectionPoolEntry = Option(queue.poll())
-
       connectionPoolEntry map (_._1)
     })
     connection match {
       case Some(_) => {
         poolHitMeter.mark()
-        currentNbPooledConnections.decrementAndGet()
+        markConnectionRemovedFromPool()
       }
       case None => poolMissMeter.mark()
     }
@@ -78,13 +77,18 @@ class NettyConnectionPool(timeout: Long, maxSize: Int) extends Instrumented {
 
   private def cleanDeque(deque: ConcurrentLinkedDeque[(Channel, Long)]) {
     deque.foreach(connectionPoolEntry => {
-      if (!connectionPoolEntry._1.isOpen() ||
+      if (!connectionPoolEntry._1.isOpen ||
         (getTime() - connectionPoolEntry._2) >= timeout) {
         connectionPoolEntry._1.close()
         deque.remove(connectionPoolEntry)
-        poolRemovesMeter.mark()
+        markConnectionRemovedFromPool()
       }
     })
+  }
+
+  private def markConnectionRemovedFromPool() {
+    currentNbPooledConnections.decrementAndGet()
+    poolRemovesMeter.mark()
   }
 
   protected def getTime() = {
