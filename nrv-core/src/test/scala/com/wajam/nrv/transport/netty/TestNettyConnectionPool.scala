@@ -10,7 +10,7 @@ import org.mockito.Mockito._
 import java.net.{InetSocketAddress, SocketAddress}
 
 @RunWith(classOf[JUnitRunner])
-class TestConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar {
+class TestNettyConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   val destination = new InetSocketAddress("127.0.0.1", 8008)
   val timeout = 5000
@@ -38,7 +38,7 @@ class TestConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar 
 
   }
 
-  test("should allow is size less") {
+  test("should allow if size less than maximum") {
     pool = new NettyConnectionPool(timeout, 1)
 
     pool.poolConnection(destination, DummyChannel)
@@ -57,6 +57,18 @@ class TestConnectionPool extends FunSuite with BeforeAndAfter with MockitoSugar 
     pool.poolConnection(destination, DummyChannel)
     currentTime += timeout
     pool.getPooledConnection(destination) should equal (None)
+  }
+
+  test("should free a space in the pool once a pool connection expires") {
+    val oneConnectionPool = new NettyConnectionPool(timeout, 1) {
+      override protected def getTime() = currentTime
+    }
+    oneConnectionPool.poolConnection(destination, DummyChannel)
+    currentTime += timeout
+    oneConnectionPool.getPooledConnection(destination) should equal (None)
+
+    oneConnectionPool.poolConnection(destination, DummyChannel)
+    oneConnectionPool.getPooledConnection(destination) should equal (Some(DummyChannel))
   }
 
   test("should close channel on expiration") {
