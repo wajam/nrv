@@ -31,6 +31,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
     "consistency-error-check-pending")
   lazy private val unexpectedFailResponse = metrics.meter("unexpected-fail-response", "unexpected-fail-response")
   lazy private val killError = metrics.meter("kill-error", "kill-error")
+  lazy private val outdatedIndexSkip = metrics.meter("outdated-index-skip", "outdated-index-skip")
 
   private val consistencyActor = new ConsistencyActor
   private var currentMaxTimestamp: Timestamp = Long.MinValue
@@ -115,6 +116,40 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
         warn("Error appending response message {}. {}", message, e)
         val ce = handleConsistencyError(Some(e))
         throw ce
+      }
+    }
+  }
+
+  private def appendIdleIndex(consistentTimestamp: Timestamp) {
+
+    class OutdatedIndexException extends Exception
+
+    try {
+      val index = txLog.append {
+        // The id generation is synchronized inside the append method implementation
+        validateConsistency()
+
+        if (currentMaxTimestamp > consistentTimestamp) {
+          // Never append an Index if a record with a timestamp greater than the consistent timestamp has been appended
+          // previously. The OutdatedIndexException does not compromise the consistency (quite the opposite), we just
+          // want to skip the Index and continue. This works because currentMaxTimestamp is only accessed from inside
+          // the append method which is synchronized by the transaction log implementation.
+          //
+          // WHY this protection?
+          // If Index is the final record of a transaction log, the recovery logic assume the log is consistent with the
+          // storage and the recovery process is skip. Imagine this twisted scenario: A new Request is appended
+          // concurently but just a microsecond before the idle Index. The member becomes inconsistent after the
+          // store is updated but before the Response is written in the log. The transaction log is now inconsistent
+          // with the store but the recovery will be skip because the transaction log is terminated an Index record!
+          info("Skip oudated idle Index. indexCTS={}, maxTs={}", consistentTimestamp, currentMaxTimestamp)
+          throw new OutdatedIndexException
+        }
+        Index(idGenerator.nextId, Some(consistentTimestamp))
+      }
+      lastWrittenConsistentTimestamp.update(index.consistentTimestamp)
+    } catch {
+      case _: OutdatedIndexException => {
+        outdatedIndexSkip.mark()
       }
     }
   }
@@ -263,8 +298,13 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
           }
           consistentTimestamp = Some(tx.timestamp)
 
-          // Check for more consistent transaction
-          if (!pendingTransactions.isEmpty) {
+          if (pendingTransactions.isEmpty) {
+            // No more pending transactions, append an idle Index. This ensure that the last transaction can be
+            // seens by processes that are limited by the recorder currentConsistentTimestamp (e.g. percolation on
+            // feeder, store internal GC, etc) if no new write transactions are seens for a while.
+            appendIdleIndex(tx.timestamp)
+          } else {
+            // Check for more consistent transaction
             checkPendingConsistency()
           }
         }

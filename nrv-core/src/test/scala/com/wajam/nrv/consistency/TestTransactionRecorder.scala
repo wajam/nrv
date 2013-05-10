@@ -89,6 +89,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     recorder.checkPending()
 
     consistencyErrorCount should be(0)
+    verify(txLogProxy.mockAppender).append(Index(currentTime, Some(123)))
     verifyZeroInteractions(txLogProxy.mockAppender)
     txLogProxy.verifyZeroInteractions()
   }
@@ -247,14 +248,16 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
     verify(txLogProxy.mockAppender).append(LogRecord(2000, Some(4), request7))
     verify(txLogProxy.mockAppender).append(LogRecord(3000, Some(5), createResponseMessage(request6)))
     verify(txLogProxy.mockAppender).append(LogRecord(3010, Some(6), createResponseMessage(request7)))
+    verify(txLogProxy.mockAppender).append(Index(3010, Some(7))) // id is a dupe but this is just a test...
     verify(txLogProxy.mockAppender).append(LogRecord(4000, Some(7), request8))
     verify(txLogProxy.mockAppender).append(LogRecord(4010, Some(7), request9))
     verify(txLogProxy.mockAppender).append(LogRecord(4020, Some(7), createResponseMessage(request9)))
     verify(txLogProxy.mockAppender).append(LogRecord(4030, Some(7), createResponseMessage(request8)))
+    verify(txLogProxy.mockAppender).append(Index(5500, Some(9)))
 
     currentTime = 10000
     recorder.checkPending()
-    recorder.currentConsistentTimestamp should be (Some(Timestamp(7)))
+    recorder.currentConsistentTimestamp should be (Some(Timestamp(9)))
 
     txLogProxy.verifyNoMoreInteractions()
   }
