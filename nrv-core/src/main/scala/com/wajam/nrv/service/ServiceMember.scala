@@ -10,7 +10,7 @@ import com.wajam.nrv.utils.{VotableEvent, Event, Observable}
  */
 sealed class ServiceMember(val token: Long,
                            val node: Node,
-                           protected var _status:  MemberStatus = MemberStatus.Down)
+                           protected var _status: MemberStatus = MemberStatus.Down)
   extends Serializable with Observable {
 
   def status = this._status
