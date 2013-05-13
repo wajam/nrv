@@ -19,12 +19,16 @@ abstract class ClusterManager {
   def start(): Boolean = {
     synchronized {
       if (!started) {
-        this.initializeMembers()
+        this.initializeWrapper()
         started = true
-        cluster.services.values.foreach(_.addObserver(DisabledNodeAlerter))
         true
       } else false
     }
+  }
+
+  private def initializeWrapper(){
+    this.initializeMembers()
+    cluster.services.values.foreach(_.addObserver(DisabledNodeAlerter.handleEvent))
   }
 
   protected def initializeMembers()
@@ -48,14 +52,19 @@ abstract class ClusterManager {
   def trySetServiceMemberStatusDown(service: Service, member: ServiceMember)
 }
 
-object DisabledNodeAlerter extends Service#Observer with Instrumented {
+/**
+ * Manages a counter metric that keeps track of the status of all ServiceMembers, and counts the ones
+ * changing to "Down" status.
+ */
+object DisabledNodeAlerter extends Instrumented {
   private val statusDownCounter = metrics.counter("ServiceMember.Status.Down")
 
-  def apply(v1: Event) {
-
-    v1 match {
-      case StatusTransitionEvent(member: ServiceMember, from: MemberStatus, to: MemberStatus) => {
-
+  def handleEvent(event: Event) {
+    event match {
+      case StatusTransitionEvent(_,_,to: MemberStatus) => {
+        if(to == MemberStatus.Down) {
+          statusDownCounter += 1
+        }
       }
       case _ =>
     }
