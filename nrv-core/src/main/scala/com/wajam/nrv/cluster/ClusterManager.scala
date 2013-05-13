@@ -61,9 +61,11 @@ object DisabledNodeAlerter extends Instrumented {
 
   def handleEvent(event: Event) {
     event match {
-      case StatusTransitionEvent(_,_,to: MemberStatus) => {
+      case StatusTransitionEvent(_,from: MemberStatus,to: MemberStatus) => {
         if(to == MemberStatus.Down) {
           statusDownCounter += 1
+        } else if(from == MemberStatus.Down){
+          statusDownCounter -= 1
         }
       }
       case _ =>
