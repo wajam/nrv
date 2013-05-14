@@ -7,7 +7,7 @@ import com.wajam.nrv.consistency.Consistency
 import com.wajam.nrv.protocol.codec.Codec
 
 /**
- * Action support trait handles protocol/resolver/... switching
+ * ActionSupport trait handles protocol/resolver/... switching
  * for each action in a hierarchic fashion to handle defaults.
  *
  * Ex: The cluster implements this trait to give default protocol/resolver
