@@ -107,29 +107,56 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
   protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote)
 
   private class ServiceMetrics(name: String) {
-    @volatile private var serviceMemberCount = 0L
-    @volatile private var serviceMemberUpCount = 0L
-    @volatile private var serviceMemberDownCount = 0L
-    @volatile private var serviceMemberJoiningCount = 0L
+    //gauge metrics for all services
+    @volatile private var allServiceMemberCount = 0L
+    @volatile private var allServiceMemberUpCount = 0L
+    @volatile private var allServiceMemberDownCount = 0L
+    @volatile private var allServiceMemberJoiningCount = 0L
 
-    private val serviceMemberGauge = metrics.gauge("service-members", name) {
-      serviceMemberCount
+    private val allServiceMemberGauge = metrics.gauge("all-service-members", name) {
+      allServiceMemberCount
     }
-    private val serviceMemberUpGauge = metrics.gauge("service-members-up", name) {
-      serviceMemberUpCount
+    private val allServiceMemberUpGauge = metrics.gauge("all-service-members-up", name) {
+      allServiceMemberUpCount
     }
-    private val serviceMemberDownGauge = metrics.gauge("service-members-down", name) {
-      serviceMemberDownCount
+    private val allServiceMemberDownGauge = metrics.gauge("all-service-members-down", name) {
+      allServiceMemberDownCount
     }
-    private val serviceMemberJoiningGauge = metrics.gauge("service-members-joining", name) {
-      serviceMemberJoiningCount
+    private val allServiceMemberJoiningGauge = metrics.gauge("all-service-members-joining", name) {
+      allServiceMemberJoiningCount
+    }
+    //gauge metrics for local services
+    @volatile private var localServiceMemberCount = 0L
+    @volatile private var localServiceMemberUpCount = 0L
+    @volatile private var localServiceMemberDownCount = 0L
+    @volatile private var localServiceMemberJoiningCount = 0L
+
+    private val localServiceMemberGauge = metrics.gauge("local-service-members", name) {
+      localServiceMemberCount
+    }
+    private val localServiceMemberUpGauge = metrics.gauge("local-service-members-up", name) {
+      localServiceMemberUpCount
+    }
+    private val localServiceMemberDownGauge = metrics.gauge("local-service-members-down", name) {
+      localServiceMemberDownCount
+    }
+    private val localServiceMemberJoiningGauge = metrics.gauge("local-service-members-joining", name) {
+      localServiceMemberJoiningCount
     }
 
     def update(members: Iterable[ServiceMember]) {
-      serviceMemberCount = members.size
-      serviceMemberUpCount = members.count(_.status == MemberStatus.Up)
-      serviceMemberDownCount = members.count(_.status == MemberStatus.Down)
-      serviceMemberJoiningCount = members.count(_.status == MemberStatus.Joining)
+      //update metrics for all nodes
+      allServiceMemberCount = members.size
+      allServiceMemberUpCount = members.count(_.status == MemberStatus.Up)
+      allServiceMemberDownCount = members.count(_.status == MemberStatus.Down)
+      allServiceMemberJoiningCount = members.count(_.status == MemberStatus.Joining)
+
+      //update metrics for local nodes
+      val localMembers = members.filter(m => cluster.isLocalNode(m.node))
+      localServiceMemberCount = localMembers.size
+      localServiceMemberUpCount = localMembers.count(_.status == MemberStatus.Up)
+      localServiceMemberDownCount = localMembers.count(_.status == MemberStatus.Down)
+      localServiceMemberJoiningCount = localMembers.count(_.status == MemberStatus.Joining)
     }
 
     lazy private val statusChangeUpMeter = metrics.meter(
@@ -349,6 +376,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       case e: Exception => error("Got an exception in cluster manager event loop: ", e)
     }
   }
+
 }
 
 class ServiceMemberVote(val candidateMember: ServiceMember, val voterMember: ServiceMember, val statusVote: MemberStatus) {
