@@ -45,3 +45,5 @@ abstract class ClusterManager {
     )
 
   def trySetServiceMemberStatusDown(service: Service, member: ServiceMember)
+
+}
