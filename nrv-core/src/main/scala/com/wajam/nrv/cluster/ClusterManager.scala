@@ -1,8 +1,6 @@
 package com.wajam.nrv.cluster
 
-import com.wajam.nrv.service.{StatusTransitionEvent, MemberStatus, ServiceMember, Service}
-import com.yammer.metrics.scala.Instrumented
-import com.wajam.nrv.utils.Event
+import com.wajam.nrv.service.{ServiceMember, Service}
 
 /**
  * Cluster manager that is responsible of persisting and distributing services and nodes
