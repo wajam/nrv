@@ -30,7 +30,7 @@ trait ConsistentStore {
   /**
    * Returns the mutation messages from and up to the given timestamps inclusively for the specified token ranges.
    */
-  def readTransactions(from: Timestamp, to: Timestamp, ranges: Seq[TokenRange]): Iterator[Message] with Closable
+  def readTransactions(fromTime: Timestamp, toTime: Timestamp, ranges: Seq[TokenRange]): Iterator[Message] with Closable
 
   /**
    * Apply the specified mutation message to this consistent database

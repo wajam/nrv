@@ -34,18 +34,18 @@ object ZookeeperClusterTool extends App {
           "where the client would be rooted at \"/app/a\" and all paths would be relative to this root")
     val file = trailArg[String]("FILE", descr = "cluster configuration file", required = false)
 
-    override protected def onError(e: Throwable) = e match {
-      case Help =>
-        builder.printHelp
-        sys.exit(0)
-      case _ =>
-        println("Error: %s".format(e.getMessage))
-        println()
-        builder.printHelp
-        sys.exit(1)
+    override protected def onError(e: Throwable) {
+      e match {
+        case _: Help =>
+          builder.printHelp()
+          sys.exit(0)
+        case _ =>
+          println("Error: %s".format(e.getMessage))
+          println()
+          builder.printHelp()
+          sys.exit(1)
+      }
     }
-
-    verify
   }
 
   val zkClient = createZkClient(Conf.servers.apply())
