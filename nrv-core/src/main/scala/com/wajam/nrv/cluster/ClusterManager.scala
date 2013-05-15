@@ -1,6 +1,8 @@
 package com.wajam.nrv.cluster
 
-import com.wajam.nrv.service.{ServiceMember, Service}
+import com.wajam.nrv.service.{StatusTransitionEvent, MemberStatus, ServiceMember, Service}
+import com.yammer.metrics.scala.Instrumented
+import com.wajam.nrv.utils.Event
 
 /**
  * Cluster manager that is responsible of persisting and distributing services and nodes
@@ -43,4 +45,3 @@ abstract class ClusterManager {
     )
 
   def trySetServiceMemberStatusDown(service: Service, member: ServiceMember)
-}
