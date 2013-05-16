@@ -641,10 +641,12 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     val r2FillLens = Seq(1, 2, 8, 9, 11, 12, 13, 15, 16, 17, r2Len / 2, r2Len - 1)
 
+    val random = new Random(0L)
+
     // Partially fill begining of r2 with random crap
     for (r2FillLen <- r2FillLens) {
       val randomBuf = new Array[Byte](r2FillLen)
-      Random.nextBytes(randomBuf)
+      random.nextBytes(randomBuf)
 
       val raf = new RandomAccessFile(logFile, "rw")
       raf.write(originalBuf, 0, r1FileLen)
@@ -659,7 +661,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     // Partially fill end of r2 with random crap
     for (r2FillLen <- r2FillLens) {
       val randomBuf = new Array[Byte](r2FillLen)
-      Random.nextBytes(randomBuf)
+      random.nextBytes(randomBuf)
 
       val raf = new RandomAccessFile(logFile, "rw")
       raf.write(originalBuf, 0, r1FileLen + (r2Len - r2FillLen))
@@ -673,7 +675,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     // Partially fill middle of r2 with random crap
     for (r2FillLen <- r2FillLens) {
       val randomBuf = new Array[Byte](r2FillLen)
-      Random.nextBytes(randomBuf)
+      random.nextBytes(randomBuf)
 
       val raf = new RandomAccessFile(logFile, "rw")
       val fillStartPosition = r1FileLen + (r2Len - r2FillLen) / 2
