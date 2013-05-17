@@ -704,7 +704,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     // Create a log file between record2 and record3 with random content
     val buff = new Array[Byte](25)
-    Random.nextBytes(buff)
+    new Random(0L).nextBytes(buff)
     Files.write(new File(logDir, fileTxLog.getNameFromIndex(Index(25, None))).toPath, buff)
 
     val expectedFiles = Array("service-0000001000-10:.log", "service-0000001000-25:.log", "service-0000001000-30:.log")
@@ -770,7 +770,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.read.toList should be(List(record))
 
     // Invalid header magic
-    createEmptyLogFileWithHeader(id = 0, magic = Random.nextLong())
+    createEmptyLogFileWithHeader(id = 0, magic = new Random(0L).nextLong())
     fileTxLog.read.toList should be(List())
 
     // Invalid header version
