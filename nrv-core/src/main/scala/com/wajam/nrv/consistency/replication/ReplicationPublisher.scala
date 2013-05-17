@@ -14,15 +14,13 @@ import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
 
 /**
- * Manage all replication subscriptions the local service is acting as a replication source. When strictSource is
- * enabled (recommended default), the replication source must be the master replica and the replication source must
- * have enabled transaction logs.
+ * Manage all replication subscriptions the local service node is acting as a replication source. The replication
+ * source must be the master replica and the replication source must have transaction logs enabled.
  */
 class ReplicationPublisher(service: Service, store: ConsistentStore,
                            getTransactionLog: (ResolvedServiceMember) => TransactionLog,
                            getMemberCurrentConsistentTimestamp: (ResolvedServiceMember) => Option[Timestamp],
-                           publishAction: Action, publishTps: Int, publishWindowSize: Int, maxIdleDurationInMs: Long,
-                           strictSource: Boolean = true)
+                           publishAction: Action, publishTps: Int, publishWindowSize: Int, maxIdleDurationInMs: Long)
   extends CurrentTime with UuidStringGenerator with Logging with Instrumented {
 
   private val manager = new SubscriptionManagerActor
@@ -80,11 +78,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
         }
         case Some(member) => {
-          if (strictSource) {
-            throw new Exception("local node not master of token '%d' service member (master=%s)".format(token, member.node))
-          } else {
-            ResolvedServiceMember(service.name, token, service.getMemberTokenRanges(member))
-          }
+          throw new Exception("local node not master of token '%d' service member (master=%s)".format(token, member.node))
         }
         case None => {
           throw new Exception("token '%d' service member not found".format(token))
@@ -114,15 +108,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
         }
         case None => {
           // There are no transaction log!!! Cannot replicate if transaction log is not enabled.
-          if (strictSource) {
-            throw new Exception("No transaction log! Cannot replicate without transaction log")
-          } else {
-            // Replicate from the store using the currently most recent store timestamp as upper boundary
-            val endTimestamp = store.getLastTimestamp(member.ranges).getOrElse(Timestamp(Long.MinValue))
-            info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}",
-              startTimestamp, endTimestamp, member)
-            new ConsistentStoreReplicationIterator(member, startTimestamp, endTimestamp, store)
-          }
+          throw new Exception("No transaction log! Cannot replicate without transaction log")
         }
       }
       // Exclude startTimestamp
