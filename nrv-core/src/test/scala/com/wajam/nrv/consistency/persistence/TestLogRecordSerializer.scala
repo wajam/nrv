@@ -92,12 +92,13 @@ class TestLogRecordSerializer extends TestTransactionBase {
 
   test("deserializing random crap should fail with an exception") {
     val serializer = new LogRecordSerializer
+    val random = new Random(0L)
 
     for (i <- 1.to(1000)) {
       evaluating {
         val record = LogRecord(id = 3L, None, createRequestMessage(timestamp = 100, token = 200))
         val buff = serializer.serialize(record)
-        Random.nextBytes(buff)
+        random.nextBytes(buff)
         serializer.deserialize(buff)
       } should produce[Exception]
     }

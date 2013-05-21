@@ -641,10 +641,12 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     val r2FillLens = Seq(1, 2, 8, 9, 11, 12, 13, 15, 16, 17, r2Len / 2, r2Len - 1)
 
+    val random = new Random(0L)
+
     // Partially fill begining of r2 with random crap
     for (r2FillLen <- r2FillLens) {
       val randomBuf = new Array[Byte](r2FillLen)
-      Random.nextBytes(randomBuf)
+      random.nextBytes(randomBuf)
 
       val raf = new RandomAccessFile(logFile, "rw")
       raf.write(originalBuf, 0, r1FileLen)
@@ -659,7 +661,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     // Partially fill end of r2 with random crap
     for (r2FillLen <- r2FillLens) {
       val randomBuf = new Array[Byte](r2FillLen)
-      Random.nextBytes(randomBuf)
+      random.nextBytes(randomBuf)
 
       val raf = new RandomAccessFile(logFile, "rw")
       raf.write(originalBuf, 0, r1FileLen + (r2Len - r2FillLen))
@@ -673,7 +675,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     // Partially fill middle of r2 with random crap
     for (r2FillLen <- r2FillLens) {
       val randomBuf = new Array[Byte](r2FillLen)
-      Random.nextBytes(randomBuf)
+      random.nextBytes(randomBuf)
 
       val raf = new RandomAccessFile(logFile, "rw")
       val fillStartPosition = r1FileLen + (r2Len - r2FillLen) / 2
@@ -702,7 +704,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     // Create a log file between record2 and record3 with random content
     val buff = new Array[Byte](25)
-    Random.nextBytes(buff)
+    new Random(0L).nextBytes(buff)
     Files.write(new File(logDir, fileTxLog.getNameFromIndex(Index(25, None))).toPath, buff)
 
     val expectedFiles = Array("service-0000001000-10:.log", "service-0000001000-25:.log", "service-0000001000-30:.log")
@@ -768,7 +770,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.read.toList should be(List(record))
 
     // Invalid header magic
-    createEmptyLogFileWithHeader(id = 0, magic = Random.nextLong())
+    createEmptyLogFileWithHeader(id = 0, magic = new Random(0L).nextLong())
     fileTxLog.read.toList should be(List())
 
     // Invalid header version

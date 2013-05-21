@@ -652,10 +652,10 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
                   "Record length %d is out of bound".format(recordLen))
                 val buf = new Array[Byte](recordLen)
                 dis.readFully(buf)
-                val record = recordSerializer.deserialize(buf)
                 val eor = dis.readInt()
                 require(eor == EOR, "End of record magic number 0x%x not 0x%x".format(eor, EOR))
                 require(crc == computeRecordCrc(buf), "CRC should be %d but is %d".format(crc, computeRecordCrc(buf)))
+                val record = recordSerializer.deserialize(buf)
                 nextRecord = Right(Some(FileRecord(record, position, readFile)))
                 true
               } catch {
