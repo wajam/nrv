@@ -20,8 +20,8 @@ import com.wajam.nrv.consistency.replication.{ReplicationMode, ReplicationSubscr
  *
  * The consistency manager ensure that the storage and the transaction log are always consistent. A service member is
  * only allowed to goes Up if the store and the transaction log are consistent. In case of inconsistency during the
- * service member storage leftime, the service member status is set to Down. The consistency manager tries to perform
- * the necessary recovery while the service member tries to goes up.
+ * service member storage lifetime, the service member status is set to Down. The consistency manager tries to perform
+ * the necessary recovery while the service member tries to go up.
  *
  * ASSUMPTIONS:
  * - The messages for a given token are sequenced before reaching the consistency manager.
