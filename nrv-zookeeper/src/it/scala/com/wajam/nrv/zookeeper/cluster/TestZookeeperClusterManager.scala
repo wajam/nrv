@@ -243,10 +243,10 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
       cluster2.service1.getMemberAtToken(72).get.status
     }, _ == MemberStatus.Up)
 
-    // wait to be removed on cluster1
+    // wait to be removed on cluster1 and moved to cluster2
     waitForCondition[Option[ServiceMember]]({
       cluster1.service1.getMemberAtToken(72)
-    }, _ == None)
+    }, _ == Some(newMember2))
   }
 
   test("members of a crashed cluster should become down and come back up when rejoining") {

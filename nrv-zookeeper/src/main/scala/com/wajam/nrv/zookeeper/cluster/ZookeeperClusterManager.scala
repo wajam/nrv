@@ -148,8 +148,13 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     if (cluster.isLocalNode(oldServiceMember.node)) {
       //removing the memeber's own vote here, allowing the member's status to change
       //TODO: we assume the node is voting for itself, this may change when consensus is implemented.
-      val path = ZookeeperClusterManager.zkMemberVotePath(service.name, oldServiceMember.token, oldServiceMember.token)
-      zk.delete(path)
+      try {
+        val path = ZookeeperClusterManager.zkMemberVotePath(service.name, oldServiceMember.token, oldServiceMember.token)
+        zk.delete(path)
+      }   catch {
+        case e: Exception => //data has already been deleted (e.g. entries are deleted manually in ZKclusterManager it tests)
+      }
+
     }
   }
   protected def addNewServiceMember(service: Service, newServiceMember: ServiceMember) {}
