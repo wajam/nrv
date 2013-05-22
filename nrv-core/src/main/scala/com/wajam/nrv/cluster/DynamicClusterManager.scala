@@ -58,7 +58,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   protected def syncMembers()
 
-  protected def compileVotes(candidateMember: ServiceMember, votes: Seq[ServiceMemberVote]): MemberStatus = {
+  private def compileVotes(candidateMember: ServiceMember, votes: Seq[ServiceMemberVote]): MemberStatus = {
     // TODO: implement consensus, not just take the member vote
     val optSelfVote = votes.find(_.voterMember.token == candidateMember.token)
     optSelfVote match {
@@ -80,14 +80,19 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     // remove members
     removed.foreach(oldMember => {
       info("Member {} needs to be removed from service {}", oldMember, service)
-      val event = removeOldServiceMember(service, oldMember)
+      removeOldServiceMember(service, oldMember)
+      val event = oldMember.setStatus(MemberStatus.Down, triggerEvent = true)
+      service.removeMember(oldMember)
       updateStatusChangeMetrics(service, event)
     })
 
     // add new members
     added.foreach(newMember => {
       info("New member {} in service {}", newMember, service)
-      val event = addNewServiceMember(service, newMember, newMemberVotes(newMember))
+      addNewServiceMember(service, newMember)
+      val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
+      val event = newMember.setStatus(votedStatus, triggerEvent = true)
+      service.addMember(newMember)
       updateStatusChangeMetrics(service, event)
     })
 
@@ -103,8 +108,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     })
   }
 
-  protected def removeOldServiceMember(service: Service, oldServiceMember: ServiceMember): Option[StatusTransitionEvent]
-  protected def addNewServiceMember(service: Service, newServiceMember: ServiceMember, serviceMemberVote: Seq[ServiceMemberVote]): Option[StatusTransitionEvent]
+  protected def removeOldServiceMember(service: Service, oldServiceMember: ServiceMember)
+  protected def addNewServiceMember(service: Service, newServiceMember: ServiceMember)
 
   protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote)
 

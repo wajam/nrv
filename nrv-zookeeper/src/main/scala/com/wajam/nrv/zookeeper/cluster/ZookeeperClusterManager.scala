@@ -144,24 +144,15 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     ServiceMemberVote.fromString(candidateMember, data)
   }
 
-  protected def removeOldServiceMember(service: Service, oldServiceMember: ServiceMember) = {
+  protected def removeOldServiceMember(service: Service, oldServiceMember: ServiceMember) {
     if (cluster.isLocalNode(oldServiceMember.node)) {
       //removing the memeber's own vote here, allowing the member's status to change
       //TODO: we assume the node is voting for itself, this may change when consensus is implemented.
       val path = ZookeeperClusterManager.zkMemberVotePath(service.name, oldServiceMember.token, oldServiceMember.token)
       zk.delete(path)
     }
-    val event = oldServiceMember.setStatus(MemberStatus.Down, triggerEvent = true)
-    service.removeMember(oldServiceMember)
-    event
   }
-  protected def addNewServiceMember(service: Service, newServiceMember: ServiceMember, serviceMemberVote: Seq[ServiceMemberVote]) = {
-    val votedStatus = compileVotes(newServiceMember, serviceMemberVote)
-    val event = newServiceMember.setStatus(votedStatus, triggerEvent = true)
-    service.addMember(newServiceMember)
-    event
-  }
-
+  protected def addNewServiceMember(service: Service, newServiceMember: ServiceMember) {}
 
 }
 
