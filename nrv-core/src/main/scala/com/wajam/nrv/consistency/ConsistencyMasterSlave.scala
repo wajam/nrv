@@ -35,7 +35,7 @@ import com.wajam.nrv.consistency.replication.{ReplicationMode, ReplicationSubscr
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
                              txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000,
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
-                             replicationSubscriptionIdleTimeout: Long = 30000L, replicationStrictSource: Boolean = true,
+                             replicationSubscriptionIdleTimeout: Long = 30000L,
                              replicationResolver: Option[Resolver] = None)
   extends ConsistencyOne {
 
@@ -82,7 +82,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     new ReplicationPublisher(service, service, getTransactionLog, getMemberCurrentConsistentTimestamp,
       publishAction = publishAction, publishTps = replicationTps, publishWindowSize = replicationWindowSize,
-      maxIdleDurationInMs = replicationSubscriptionIdleTimeout, strictSource = replicationStrictSource)
+      maxIdleDurationInMs = replicationSubscriptionIdleTimeout)
   }
   private lazy val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
