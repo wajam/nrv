@@ -208,9 +208,10 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   private def updateStatusChangeMetrics(service: Service, event: Option[StatusTransitionEvent]) {
     event match {
-      case Some(event) if (cluster.isLocalNode(event.member.node)) =>
-          allServicesMetrics.memberStatusChange(event.to)
-          getServiceMetrics(service).memberStatusChange(event.to)
+      case Some(event) if (cluster.isLocalNode(event.member.node)) => {
+        allServicesMetrics.memberStatusChange(event.to)
+        getServiceMetrics(service).memberStatusChange(event.to)
+      }
       case _ =>
     }
   }
