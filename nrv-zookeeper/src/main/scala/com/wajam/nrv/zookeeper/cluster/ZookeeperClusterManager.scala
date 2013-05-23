@@ -8,6 +8,7 @@ import com.wajam.nrv.Logging
 import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.service.ZookeeperService
 import collection.mutable
+import org.apache.zookeeper.KeeperException.NoNodeException
 
 /**
  * Dynamic cluster manager that uses Zookeeper to keep a consistent view of the cluster among nodes. It creates
@@ -152,7 +153,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
         val path = ZookeeperClusterManager.zkMemberVotePath(service.name, oldServiceMember.token, oldServiceMember.token)
         zk.delete(path)
       }   catch {
-        case e: Exception => //data has already been deleted (e.g. entries are deleted manually in ZKclusterManager it tests)
+        case e: NoNodeException => //data has already been deleted (e.g. entries are deleted manually in ZKclusterManager it tests)
       }
 
     }
