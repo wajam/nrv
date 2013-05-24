@@ -90,10 +90,11 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     added.foreach(newMember => {
       info("New member {} in service {}", newMember, service)
       addingNewServiceMember(service, newMember)
+      service.addMember(newMember)
       val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
       val event = newMember.setStatus(votedStatus, triggerEvent = true)
-      service.addMember(newMember)
       updateStatusChangeMetrics(service, event)
+
     })
 
     // sync all members statuses
@@ -376,7 +377,6 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       case e: Exception => error("Got an exception in cluster manager event loop: ", e)
     }
   }
-
 }
 
 class ServiceMemberVote(val candidateMember: ServiceMember, val voterMember: ServiceMember, val statusVote: MemberStatus) {
