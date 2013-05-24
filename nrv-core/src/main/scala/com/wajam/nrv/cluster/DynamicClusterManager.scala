@@ -77,19 +77,24 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     val added = newMembers diff currentMembers
     val removed = currentMembers diff newMembers
 
-    // add new members
-    added.foreach(newMember => {
-      info("New member {} in service {}", newMember, service)
-      val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
-      service.addMember(newMember)
-      val event = newMember.setStatus(votedStatus, triggerEvent = true)
-      updateStatusChangeMetrics(service, event)
-    })
-
     // remove members
     removed.foreach(oldMember => {
       info("Member {} needs to be removed from service {}", oldMember, service)
+      removingOldServiceMember(service, oldMember)
+      val event = oldMember.setStatus(MemberStatus.Down, triggerEvent = true)
       service.removeMember(oldMember)
+      updateStatusChangeMetrics(service, event)
+    })
+
+    // add new members
+    added.foreach(newMember => {
+      info("New member {} in service {}", newMember, service)
+      addingNewServiceMember(service, newMember)
+      service.addMember(newMember)
+      val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
+      val event = newMember.setStatus(votedStatus, triggerEvent = true)
+      updateStatusChangeMetrics(service, event)
+
     })
 
     // sync all members statuses
@@ -103,6 +108,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       })
     })
   }
+
+  protected def removingOldServiceMember(service: Service, oldServiceMember: ServiceMember)
+  protected def addingNewServiceMember(service: Service, newServiceMember: ServiceMember)
 
   protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote)
 
@@ -200,12 +208,13 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
   }
 
   private def updateStatusChangeMetrics(service: Service, event: Option[StatusTransitionEvent]) {
-    event.foreach(event => {
-      if (cluster.isLocalNode(event.member.node)) {
+    event match {
+      case Some(event) if (cluster.isLocalNode(event.member.node)) => {
         allServicesMetrics.memberStatusChange(event.to)
         getServiceMetrics(service).memberStatusChange(event.to)
       }
-    })
+      case _ =>
+    }
   }
 
   /**
@@ -289,25 +298,17 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
               debug("Checking cluster for any pending changes ({} members)", members.size)
 
               members.foreach {
-                case (service, member) =>
+                case (service, member) if (cluster.isLocalNode(member.node)) =>
                   debug("Checking member {} in service {} with current status {}", member, service, member.status)
 
                   // TODO: this implement currently only check for local nodes that could be promoted. Eventually, this
                   // will check for "joining" nodes and promote them if votes from consistency managers are positives
                   member.status match {
-                    case MemberStatus.Joining =>
-                      if (cluster.isLocalNode(member.node)) {
-                        tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
-                      }
-
-                    case MemberStatus.Down =>
-                      if (cluster.isLocalNode(member.node)) {
-                        tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
-                      }
-
-                    case other =>
-                    // don't do anything for the rest
+                    case MemberStatus.Joining => tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
+                    case MemberStatus.Down => tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
+                    case _ => // don't do anything for other types of MemberStatus
                   }
+                case _ =>
               }
 
               // Update service statistics
@@ -376,7 +377,6 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       case e: Exception => error("Got an exception in cluster manager event loop: ", e)
     }
   }
-
 }
 
 class ServiceMemberVote(val candidateMember: ServiceMember, val voterMember: ServiceMember, val statusVote: MemberStatus) {

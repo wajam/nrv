@@ -3,7 +3,8 @@ package com.wajam.nrv.zookeeper.cluster
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.cluster.{LocalNode, ServiceMemberVote, Node, Cluster}
 import com.wajam.nrv.zookeeper.ZookeeperClient._
-import com.wajam.nrv.service.{MemberStatus, ServiceMember, Service}
+import com.wajam.nrv.service.{StatusTransitionEvent, MemberStatus, ServiceMember, Service}
+import com.wajam.nrv.utils.{Event}
 import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.ZookeeperClient
 
@@ -217,6 +218,27 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
     }, _ == MemberStatus.Up)
   }
 
+  test("When a new service member is detected, it should trigger an event once it goes up.") {
+    val cluster1 = createCluster(1).start()
+    waitForCondition[MemberStatus]({
+      cluster1.service2.getMemberAtToken(7).get.status
+    }, _ == MemberStatus.Up)
+
+    val cluster2 = createCluster(2)
+
+    var eventCount = 0
+    cluster2.service1.addObserver(event => {
+      event match {
+        case e: StatusTransitionEvent if(cluster1.cluster.isLocalNode(e.member.node) && e.to == MemberStatus.Up) =>  eventCount += 1
+        case _ =>
+      }
+    })
+
+    cluster2.start()
+
+    assert(eventCount == 1)
+  }
+
   test("a service member migration to another node should be kind of seamless") {
     val cluster1 = createCluster(1).start()
     val cluster2 = createCluster(2).start()
@@ -243,10 +265,10 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
       cluster2.service1.getMemberAtToken(72).get.status
     }, _ == MemberStatus.Up)
 
-    // wait to be removed on cluster1
+    // wait to be removed on cluster1 and moved to cluster2
     waitForCondition[Option[ServiceMember]]({
       cluster1.service1.getMemberAtToken(72)
-    }, _ == None)
+    }, _ == Some(newMember2))
   }
 
   test("members of a crashed cluster should become down and come back up when rejoining") {
@@ -293,3 +315,4 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
     }, _ == MemberStatus.Up)
   }
 }
+

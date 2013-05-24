@@ -1,14 +1,14 @@
 package com.wajam.nrv.zookeeper.cluster
 
 import com.wajam.nrv.cluster.{ServiceMemberVote, DynamicClusterManager}
-import com.wajam.nrv.service.{ServiceMember, Service}
+import com.wajam.nrv.service.{MemberStatus, ServiceMember, Service}
 import com.wajam.nrv.zookeeper.ZookeeperClient
 import com.wajam.nrv.zookeeper.ZookeeperClient._
 import com.wajam.nrv.Logging
-import org.apache.zookeeper.{KeeperException, CreateMode}
+import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.service.ZookeeperService
 import collection.mutable
-import org.apache.zookeeper.Watcher.Event.{EventType, KeeperState}
+import org.apache.zookeeper.KeeperException.NoNodeException
 
 /**
  * Dynamic cluster manager that uses Zookeeper to keep a consistent view of the cluster among nodes. It creates
@@ -144,6 +144,21 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     val data = zk.getString(path, Some(callback))
     ServiceMemberVote.fromString(candidateMember, data)
   }
+
+  protected def removingOldServiceMember(service: Service, oldServiceMember: ServiceMember) {
+    if (cluster.isLocalNode(oldServiceMember.node)) {
+      //removing the memeber's own vote here, allowing the member's status to change
+      //TODO: we assume the node is voting for itself, this may change when consensus is implemented.
+      try {
+        val path = ZookeeperClusterManager.zkMemberVotePath(service.name, oldServiceMember.token, oldServiceMember.token)
+        zk.delete(path)
+      } catch {
+        case e: NoNodeException => //data has already been deleted (e.g. entries are deleted manually in ZKclusterManager it tests)
+      }
+    }
+  }
+
+  protected def addingNewServiceMember(service: Service, newServiceMember: ServiceMember) {}
 
 }
 
