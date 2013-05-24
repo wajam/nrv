@@ -145,7 +145,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     ServiceMemberVote.fromString(candidateMember, data)
   }
 
-  protected def removeOldServiceMember(service: Service, oldServiceMember: ServiceMember) {
+  protected def removingOldServiceMember(service: Service, oldServiceMember: ServiceMember) {
     if (cluster.isLocalNode(oldServiceMember.node)) {
       //removing the memeber's own vote here, allowing the member's status to change
       //TODO: we assume the node is voting for itself, this may change when consensus is implemented.
@@ -158,7 +158,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     }
   }
 
-  protected def addNewServiceMember(service: Service, newServiceMember: ServiceMember) {}
+  protected def addingNewServiceMember(service: Service, newServiceMember: ServiceMember) {}
 
 }
 

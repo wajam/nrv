@@ -80,7 +80,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     // remove members
     removed.foreach(oldMember => {
       info("Member {} needs to be removed from service {}", oldMember, service)
-      removeOldServiceMember(service, oldMember)
+      removingOldServiceMember(service, oldMember)
       val event = oldMember.setStatus(MemberStatus.Down, triggerEvent = true)
       service.removeMember(oldMember)
       updateStatusChangeMetrics(service, event)
@@ -89,7 +89,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     // add new members
     added.foreach(newMember => {
       info("New member {} in service {}", newMember, service)
-      addNewServiceMember(service, newMember)
+      addingNewServiceMember(service, newMember)
       val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
       val event = newMember.setStatus(votedStatus, triggerEvent = true)
       service.addMember(newMember)
@@ -108,8 +108,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     })
   }
 
-  protected def removeOldServiceMember(service: Service, oldServiceMember: ServiceMember)
-  protected def addNewServiceMember(service: Service, newServiceMember: ServiceMember)
+  protected def removingOldServiceMember(service: Service, oldServiceMember: ServiceMember)
+  protected def addingNewServiceMember(service: Service, newServiceMember: ServiceMember)
 
   protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote)
 
