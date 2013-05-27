@@ -287,7 +287,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
       case MemberStatus.Down => {
         this.synchronized {
-          // TODO: cancel replication publisher subscription
+          // Cancel all master replication subscriptions for the member
+          replicationPublisher.terminateSubscriptions(ResolvedServiceMember(service, event.member))
 
           // Remove transaction recorder for all other cases
           info("Remove transaction recorders for {}", event.member)
@@ -308,14 +309,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def handleRemoteServiceMemberStatusTransitionEvent(event: StatusTransitionEvent) {
     event.to match {
       case MemberStatus.Up => {
-        // Subscribe to remote source replica if we are a slave replica of the service member that just went up
+        // Subscribe to remote source replica if we are a slave replica of the service member that just went Up
         if (isSlaveReplicaOf(event.member)) {
           subscribe(event.member, ReplicationMode.Store)
         }
       }
-      case MemberStatus.Down =>
+      case _ =>
+        // Unsubscribe slave replication subscriptions if the remote member status is not Up.
         replicationSubscriber.unsubscribe(ResolvedServiceMember(service, event.member))
-      case MemberStatus.Joining =>
     }
   }
 
@@ -330,6 +331,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     info("Local replica is subscribing to {}", member)
 
     val resolvedMember = ResolvedServiceMember(service, member)
+    // TODO: no recovery if already has a subscription to prevent transaction log corruption
     restoreMemberConsistency(resolvedMember, onSuccess = {
       // TODO: metric
       info("Local replica restoreMemberConsistency: onSuccess {}", member)

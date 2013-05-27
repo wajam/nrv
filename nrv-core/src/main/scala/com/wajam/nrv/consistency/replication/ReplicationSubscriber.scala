@@ -87,7 +87,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
     case class Publish(message: InMessage)
 
-    case class Terminate(subscription: SubscriptionActor, error: Option[Exception] = None)
+    case class TerminateSubscription(subscription: SubscriptionActor, error: Option[Exception] = None)
 
     object Kill
 
@@ -106,6 +106,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     private lazy val publishMeter = metrics.meter("publish", "publish", serviceScope)
     private lazy val publishIgnoreMeter = metrics.meter("publish-ignore", "publish-ignore", serviceScope)
     private lazy val publishErrorMeter = metrics.meter("publish-error", "publish-error", serviceScope)
+
+    private lazy val terminateErrorMeter = metrics.meter("terminate-error", "terminate-error", serviceScope)
 
     import SubscriptionManagerProtocol._
 
@@ -336,7 +338,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               }
             }
           }
-          case Terminate(subscriptionActor, error) => {
+          case TerminateSubscription(subscriptionActor, error) => {
             try {
               subscriptions.get(subscriptionActor.member) match {
                 case Some(Right(subscription)) if subscription.subId == subscriptionActor.subId => {
@@ -349,8 +351,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               }
             } catch {
               case e: Exception => {
-                // TODO: metric
-                warn("Error processing subscription error. {}", subscriptionActor.member, e)
+                terminateErrorMeter.mark()
+                warn("Error processing terminate subscription. {}", subscriptionActor.member, e)
               }
             }
           }
@@ -507,7 +509,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             txLog.append {
               Index(idGenerator.nextId, consistentTimestamp)
             }
-            manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
+            manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, None)
             terminating = true
           } else {
             // Process the new head recursively
@@ -533,7 +535,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               case e: Exception => {
                 warn("Error processing publish message {}: ", message, e)
                 errorMeter.mark()
-                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, Some(e))
                 terminating = true
               }
             }
@@ -555,14 +557,14 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                   new ConsistencyException()
                 }
 
-                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(error))
+                manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, Some(error))
                 terminating = true
               }
             } catch {
               case e: Exception => {
                 warn("Error checking for idle subscription {} for {}: ", subId, member, e)
                 errorMeter.mark()
-                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, Some(e))
                 terminating = true
               }
             } finally {
@@ -577,7 +579,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               case e: Exception => {
                 errorMeter.mark()
                 warn("Error commiting subscription {} transaction log for {}: ", subId, member, e)
-                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, Some(e))
                 terminating = true
               }
             } finally {
