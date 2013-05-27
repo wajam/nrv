@@ -169,7 +169,6 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
 
     waitForCondition[MemberStatus]({
       val status = cluster.service2.getMemberAtToken(16).get.status
-      println(status)
       status
     }, _ == MemberStatus.Up)
 
