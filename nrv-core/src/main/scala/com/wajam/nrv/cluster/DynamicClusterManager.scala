@@ -60,7 +60,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   private def compileVotes(candidateMember: ServiceMember, votes: Seq[ServiceMemberVote]): MemberStatus = {
     // TODO: implement consensus, not just take the member vote
-    val optSelfVote = votes.find(_.voterMember.token == candidateMember.token)
+    val optSelfVote = votes.find(_.voterMember == candidateMember) //find the ServiceMemberVote that votes for itself.
     optSelfVote match {
       case Some(vote) => vote.statusVote
       case None => MemberStatus.Down
@@ -94,7 +94,6 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
       val event = newMember.setStatus(votedStatus, triggerEvent = true)
       updateStatusChangeMetrics(service, event)
-
     })
 
     // sync all members statuses
