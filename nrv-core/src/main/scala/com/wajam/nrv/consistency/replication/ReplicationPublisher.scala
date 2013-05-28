@@ -38,6 +38,10 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     manager !? SubscriptionManagerProtocol.Kill
   }
 
+  def terminateSubscriptions(member: ResolvedServiceMember) {
+    manager ! SubscriptionManagerProtocol.TerminateSubscriptions(member)
+  }
+
   def handleSubscribeMessage(message: InMessage) {
     manager ! SubscriptionManagerProtocol.Subscribe(message)
   }
@@ -52,7 +56,9 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     case class Unsubscribe(message: InMessage)
 
-    case class Terminate(subscription: SubscriptionActor, error: Option[Exception] = None)
+    case class TerminateSubscriptions(member: ResolvedServiceMember)
+
+    case class TerminateSubscription(subscription: SubscriptionActor, error: Option[Exception] = None)
 
     object Kill
 
@@ -65,6 +71,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "unsubscribe", serviceScope)
     private lazy val unsubscribeErrorMeter = metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
+
+    private lazy val terminateErrorMeter = metrics.meter("terminate-error", "terminate-error", serviceScope)
 
     import SubscriptionManagerProtocol._
 
@@ -172,7 +180,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               }
             }
           }
-          case Terminate(subscriptionActor, exception) => {
+          case TerminateSubscription(subscriptionActor, exception) => {
             try {
               subscriptions.find(_ == subscriptionActor).foreach(subscription => {
                 info("Subscription actor {} wants to be terminated. Dutifully perform euthanasia! {}",
@@ -182,8 +190,23 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               })
             } catch {
               case e: Exception => {
-                // TODO: metric
-                warn("Error processing subscription error {}: ", subscriptionActor.member, e)
+                terminateErrorMeter.mark()
+                warn("Error processing terminate subscription {}: ", subscriptionActor.member, e)
+              }
+            }
+          }
+          case TerminateSubscriptions(member) => {
+            try {
+              subscriptions.find(_.member == member).foreach(subscription => {
+                info("Subscription {} is terminated. {}",
+                  subscription.subId, member)
+                subscription !? SubscriptionProtocol.Kill
+                subscriptions = subscriptions.filterNot(_ == subscription)
+              })
+            } catch {
+              case e: Exception => {
+                terminateErrorMeter.mark()
+                warn("Error processing terminate all subscriptions {}: ", e)
               }
             }
           }
@@ -264,7 +287,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
         optException match {
           case Some(e) => {
             debug("Received an error response from the subscriber (seq={}): ", sequence, e)
-            manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+            manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, Some(e))
             terminating = true
           }
           case None => {
@@ -320,7 +343,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                   }
                 } else {
                   info("Replication source is exhausted! Terminating subscription {} for {}.", subId, member)
-                  manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
+                  manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, None)
                   terminating = true
                 }
               } else {
@@ -329,7 +352,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                 if (elapsedTime > maxIdleDurationInMs) {
                   ackTimeoutMeter.mark()
                   info("No ack received for {} ms. Terminating subscription {} for {}.", elapsedTime, subId, member)
-                  manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, None)
+                  manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, None)
                   terminating = true
                 }
               }
@@ -337,7 +360,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               case e: Exception => {
                 publishErrorMeter.mark()
                 info("Error publishing a transaction (subid={}). {}: ", subId, member, e)
-                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, Some(e))
                 terminating = true
               }
             } finally {
@@ -352,7 +375,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               case e: Exception => {
                 ackErrorMeter.mark()
                 info("Error acknoledging transaction (subid={}, seq={}). {}: ", subId, sequence, member, e)
-                manager ! SubscriptionManagerProtocol.Terminate(SubscriptionActor.this, Some(e))
+                manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, Some(e))
                 terminating = true
               }
             }
