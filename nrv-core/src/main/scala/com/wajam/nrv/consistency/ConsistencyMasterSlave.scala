@@ -11,6 +11,8 @@ import java.util.concurrent.TimeUnit
 import com.yammer.metrics.core.Gauge
 import com.wajam.nrv.UnavailableException
 import com.wajam.nrv.consistency.replication.{ReplicationMode, ReplicationSubscriber, ReplicationPublisher, ReplicationParam}
+import com.wajam.nrv.data.OutMessage
+import com.wajam.nrv.Logging
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
@@ -37,7 +39,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
                              replicationSubscriptionIdleTimeout: Long = 30000L,
                              replicationResolver: Option[Resolver] = None)
-  extends ConsistencyOne {
+  extends Consistency with Logging {
 
   private val lastWriteTimestamp = new AtomicTimestamp(AtomicTimestamp.updateIfGreater, None)
 
@@ -100,8 +102,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   override def start() {
-    super.start()
-
     // TODO: update cache when new members are added/removed
     updateRangeMemberCache()
 
@@ -118,8 +118,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   override def stop() {
-    super.stop()
-
     replicationSubscriber.stop()
     replicationPublisher.stop()
 
@@ -458,18 +456,33 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   override def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
-    handleOutgoing(action, message)
+    val selected = message.destination.selectedReplicas
 
     message.function match {
       case MessageType.FUNCTION_RESPONSE if requiresConsistency(message) => {
-        message.method match {
-          case ActionMethod.GET => executeConsistentReadResponse(message, next)
-          case _ => executeConsistentWriteResponse(message, next)
+        selected match {
+          case master :: _ => {
+            master.selected match {
+              case true => {
+                //case: master is up, we can handle everything on the master
+                selected.slice(1, selected.size).foreach(replica => replica.selected = false)
+                message.method match {
+                  case ActionMethod.GET => executeConsistentReadResponse(message, next)
+                  case _ => executeConsistentWriteResponse(message, next)
+                }
+              }
+              case false => {
+                message.method match {
+                  case ActionMethod.GET => executeConsistentReadResponse(message, next) //master is down, but message is readonly, replicas may be used
+                  case _ => next() //case: master is down, message is not readonly, fk off
+                }
+              }
+            }
+          }
+          case _ => next() //case: no destination
         }
       }
-      case _ => {
-        next()
-      }
+      case _ => next() //case: message shouldn't be handled here
     }
   }
 
@@ -494,7 +507,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         res.error = Some(new UnavailableException)
       }
     }
-
     next()
   }
 
@@ -567,5 +579,4 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
     )
   }
-
 }
