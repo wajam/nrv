@@ -510,6 +510,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     handleIncoming(action, response, Unit => {})
     service.findAction(message.path, message.method) match {
       case Some(action: Action) => action.callIncomingHandlers(response)
+      case _ =>
     }
   }
 
