@@ -101,7 +101,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   override def start() {
-    // TODO: update cache when new members are added/removed
+    // TODO: update cache when new members are added/removed: This will be required for shard splitting or shard removal
     updateRangeMemberCache()
 
     publishAction.applySupport(resolver = Some(new Resolver(tokenExtractor = Resolver.TOKEN_RANDOM())),
@@ -328,10 +328,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   /**
-   * Enables the replacation through the publish/subscribe principle.
+   * Enables the replication through the publish/subscribe principle.
    * By subscribing to the specified service member, the local replica node
    * will be able to receive all the appropriate data it needs.
-   * todo: better description
+   * TODO: better description
    */
   private def subscribe(member: ServiceMember, mode: ReplicationMode) {
     info("Local replica is subscribing to {}", member)
@@ -388,12 +388,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     } else None
   }
 
-  /**
-   * This method defines if a specified message needs to be handled by the consistency manager.
-   * All nrv messages originating from an HTTP query require consistency.
-   * In some other cases, such as publish and subscribe messages, consistency is not required, and messages will
-   * not be affected by the consistency manager.
-   */
+
   private def requiresConsistency(message: Message) = {
     message.serviceName == service.name && service.requiresConsistency(message)
   }
@@ -475,7 +470,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     message.function match {
       case MessageType.FUNCTION_RESPONSE if requiresConsistency(message) => {
         //CASE: send response to the original sender node. Does not uses resolver to populate destination nodes.
-        //message.deselectAllReplicasButFirst()
         message.method match {
           case ActionMethod.GET => executeConsistentOutgoingReadResponse(message, next)
           case _ => executeConsistentOutgoingWriteResponse(message, next)
@@ -489,10 +483,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
       case _ => {
         // The message should only be sent to a single destination if it doesn't require consistency.
-        // Those messages include subscribe, publish, ...
+        // Those messages include replication, subscribe, publish, ...
         message.destination.deselectAllReplicasButFirst()
         message.destination.selectedReplicas.isEmpty match {
-          case true => simulateErrorResponse(action, message)
+          case true => simulateUnavailableResponse(action, message)
           case false => next()
         }
       }
@@ -501,13 +495,12 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   // This method will send an error response to a message with an unresolvable destination.
   // The response is sent to itself by calling handleIncoming on the current edge server (instead of
-  // sending it through the nrv netowrk protocol)
-  private def simulateErrorResponse(action: Action, message: OutMessage) {
+  // sending it through the nrv network protocol)
+  private def simulateUnavailableResponse(action: Action, message: OutMessage) {
     val response = new InMessage()
     message.copyTo(response)
     response.error = Some(new UnavailableException)
     response.function = MessageType.FUNCTION_RESPONSE
-    handleIncoming(action, response, Unit => {})
     service.findAction(message.path, message.method) match {
       case Some(action: Action) => action.callIncomingHandlers(response)
       case _ =>
@@ -551,7 +544,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         message.destination.deselectAllReplicasButFirst()
         next()
       }
-      case _ => simulateErrorResponse(action, message) //case: master down
+      case _ => simulateUnavailableResponse(action, message) //case: master down
     }
   }
 
