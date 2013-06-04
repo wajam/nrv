@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit
 import com.yammer.metrics.core.Gauge
 import com.wajam.nrv.UnavailableException
 import com.wajam.nrv.consistency.replication.{ReplicationMode, ReplicationSubscriber, ReplicationPublisher, ReplicationParam}
+import com.wajam.nrv.Logging
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
@@ -37,7 +38,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
                              replicationSubscriptionIdleTimeout: Long = 30000L,
                              replicationResolver: Option[Resolver] = None)
-  extends ConsistencyOne {
+  extends Consistency with Logging {
 
   private val lastWriteTimestamp = new AtomicTimestamp(AtomicTimestamp.updateIfGreater, None)
 
@@ -100,8 +101,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   override def start() {
-    super.start()
-
     // TODO: update cache when new members are added/removed
     updateRangeMemberCache()
 
@@ -118,8 +117,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   override def stop() {
-    super.stop()
-
     replicationSubscriber.stop()
     replicationPublisher.stop()
 
@@ -320,6 +317,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
+  /**
+   * This method evaluates if the local node is a slave replica of the specified master serviceMember
+   */
   private def isSlaveReplicaOf(member: ServiceMember): Boolean = {
     resolver.resolve(service, member.token).selectedReplicas match {
       case Seq(source, replicas@_*) if replicas.exists(r => cluster.isLocalNode(r.node)) => true
@@ -327,6 +327,12 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
+  /**
+   * Enables the replacation through the publish/subscribe principle.
+   * By subscribing to the specified service member, the local replica node
+   * will be able to receive all the appropriate data it needs.
+   * todo: better description
+   */
   private def subscribe(member: ServiceMember, mode: ReplicationMode) {
     info("Local replica is subscribing to {}", member)
 
@@ -382,6 +388,12 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     } else None
   }
 
+  /**
+   * This method defines if a specified message needs to be handled by the consistency manager.
+   * All nrv messages originating from an HTTP query require consistency.
+   * In some other cases, such as publish and subscribe messages, consistency is not required, and messages will
+   * not be affected by the consistency manager.
+   */
   private def requiresConsistency(message: Message) = {
     message.serviceName == service.name && service.requiresConsistency(message)
   }
@@ -397,8 +409,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     message.function match {
       case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
         message.method match {
-          case ActionMethod.GET => executeConsistentReadRequest(message, next)
-          case _ => executeConsistentWriteRequest(message, next)
+          case ActionMethod.GET => executeConsistentIncomingReadRequest(message, next)
+          case _ => executeConsistentIncomingWriteRequest(message, next)
         }
       }
       case _ => {
@@ -407,7 +419,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
-  private def executeConsistentReadRequest(req: InMessage, next: Unit => Unit) {
+  private def executeConsistentIncomingReadRequest(req: InMessage, next: Unit => Unit) {
     lastWriteTimestamp.get match {
       case timestamp @ Some(_) => {
         req.timestamp = timestamp
@@ -419,7 +431,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
-  private def executeConsistentWriteRequest(req: InMessage, next: Unit => Unit) {
+  private def executeConsistentIncomingWriteRequest(req: InMessage, next: Unit => Unit) {
     fetchTimestampAndExecuteNext(req, _ => {
       getRecorderFromMessage(req) match {
         case Some(recorder) => {
@@ -460,26 +472,52 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   override def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
-    handleOutgoing(action, message)
-
     message.function match {
       case MessageType.FUNCTION_RESPONSE if requiresConsistency(message) => {
+        //CASE: send response to the original sender node. Does not uses resolver to populate destination nodes.
+        //message.deselectAllReplicasButFirst()
         message.method match {
-          case ActionMethod.GET => executeConsistentReadResponse(message, next)
-          case _ => executeConsistentWriteResponse(message, next)
+          case ActionMethod.GET => executeConsistentOutgoingReadResponse(message, next)
+          case _ => executeConsistentOutgoingWriteResponse(message, next)
+        }
+      }
+      case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
+        message.method match {
+          case ActionMethod.GET => executeConsistentOutgoingReadRequest(message, next)
+          case _ => executeConsistentOutgoingWriteRequest(action, message, next)
         }
       }
       case _ => {
-        next()
+        // The message should only be sent to a single destination if it doesn't require consistency.
+        // Those messages include subscribe, publish, ...
+        message.destination.deselectAllReplicasButFirst()
+        message.destination.selectedReplicas.isEmpty match {
+          case true => simulateErrorResponse(action, message)
+          case false => next()
+        }
       }
     }
   }
 
-  private def executeConsistentReadResponse(res: OutMessage, next: Unit => Unit) {
+  // This method will send an error response to a message with an unresolvable destination.
+  // The response is sent to itself by calling handleIncoming on the current edge server (instead of
+  // sending it through the nrv netowrk protocol)
+  private def simulateErrorResponse(action: Action, message: OutMessage) {
+    val response = new InMessage()
+    message.copyTo(response)
+    response.error = Some(new UnavailableException)
+    response.function = MessageType.FUNCTION_RESPONSE
+    handleIncoming(action, response, Unit => {})
+    service.findAction(message.path, message.method) match {
+      case Some(action: Action) => action.callIncomingHandlers(response)
+    }
+  }
+
+  private def executeConsistentOutgoingReadResponse(res: OutMessage, next: Unit => Unit) {
     next()
   }
 
-  private def executeConsistentWriteResponse(res: OutMessage, next: Unit => Unit) {
+  private def executeConsistentOutgoingWriteResponse(res: OutMessage, next: Unit => Unit) {
     getRecorderFromMessage(res) match {
       case Some(recorder) => {
         try {
@@ -498,6 +536,22 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
 
     next()
+  }
+
+  def executeConsistentOutgoingReadRequest(message: OutMessage, next: (Unit) => Unit) {
+    message.destination.deselectAllReplicasButOne()
+    next()
+  }
+
+  def executeConsistentOutgoingWriteRequest(action: Action, message: OutMessage, next: (Unit) => Unit) {
+    //only the master (first resolved node) may handle write messages
+    message.destination.replicas match {
+      case master :: _  if(master.selected == true) => {
+        message.destination.deselectAllReplicasButFirst()
+        next()
+      }
+      case _ => simulateErrorResponse(action, message) //case: master down
+    }
   }
 
   private def restoreMemberConsistency(member: ResolvedServiceMember, onSuccess: => Unit, onError: => Unit) {
