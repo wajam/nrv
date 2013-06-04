@@ -23,7 +23,7 @@ import com.wajam.nrv.data.{InMessage, OutMessage}
  *  Note: CALL/RESPONSE types may also be refered to as RESQUEST/RESPONSE elsewhere
  *
  *  This trait uses a pattern similar to a chain of responsabilty. Every message handling method may specify a
- *  next() function to be execute afterwards. This allows to chain together multiple handlers methods allowing
+ *  next() function to be executed afterwards. This pattern lets us chain together multiple handlers, allowing
  *  different classes to apply different logic to the message in a transparent manner.
  */
 
