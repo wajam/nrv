@@ -137,7 +137,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     private def sendUnsubscribe(subscription: Subscribe, subscriptionId: String) {
       def handleUnsubscribeResponse(reponse: InMessage, error: Option[Exception]) {
         error match {
-          case Some(e) => info("Unsubscribe reponse error {} for {}: ", subscriptionId, subscription.member, e)
+          case Some(e) => info("Unsubscribe reponse error {} for {}: {}", subscriptionId, subscription.member, e)
           case None => debug("Unsubscribe reponse {} for {}", subscriptionId, subscription.member)
         }
       }

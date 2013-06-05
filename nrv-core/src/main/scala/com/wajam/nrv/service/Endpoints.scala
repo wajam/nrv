@@ -12,6 +12,22 @@ class Endpoints(val shards: Seq[Shard] = Seq()) extends Serializable {
 
   def selectedReplicas: Seq[Replica] = shards.map(_.selectedEndpoints).flatten
 
+  def replicas: Seq[Replica] = shards.map(_.replicas).flatten
+
+  //deselects all the replica in the selectedReplica list (sets selected = false) expect for the first one
+  //which is considered to be the master
+  protected[nrv] def deselectAllReplicasButFirst() {
+    replicas.slice(1, replicas.size).foreach(_.selected = false)
+  }
+
+  protected[nrv] def deselectAllReplicasButOne() {
+    selectedReplicas.slice(1, replicas.size).foreach(_.selected = false)
+  }
+
+  protected[nrv] def deselectAllReplicas() {
+    replicas.foreach(_.selected = false)
+  }
+
 }
 
 object Endpoints {
