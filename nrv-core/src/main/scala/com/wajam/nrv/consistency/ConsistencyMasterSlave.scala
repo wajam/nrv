@@ -355,7 +355,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         })
       updateMemberConsistencyState(member, Some(MemberConsistencyState.Ok))
     }, onError = {
-      // TODO: metric
+      // TODO: add metric with alarm
       info("Local replica restoreMemberConsistency: onError {}", member)
       updateMemberConsistencyState(member, Some(MemberConsistencyState.Error))
     })
