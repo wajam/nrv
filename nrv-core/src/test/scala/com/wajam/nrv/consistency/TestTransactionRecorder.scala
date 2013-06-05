@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency
 
-import com.wajam.nrv.service.{TokenRange, ActionSupportOptions, ServiceMember, Service}
+import com.wajam.nrv.service.{TokenRange, ServiceMember, Service}
 import com.wajam.nrv.cluster.LocalNode
 
 import org.junit.runner.RunWith
@@ -13,9 +13,6 @@ import org.scalatest.matchers.ShouldMatchers._
 
 import com.wajam.nrv.utils.IdGenerator
 import org.scalatest.mock.MockitoSugar
-import com.yammer.metrics.scala.Meter
-import com.yammer.metrics.Metrics
-import java.util.concurrent.TimeUnit
 import persistence.LogRecord.Index
 import persistence.LogRecord
 import com.wajam.nrv.utils.timestamp.Timestamp
@@ -172,7 +169,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
 
     consistencyErrorCount should be(1)
     verify(txLogProxy.mockAppender).append(LogRecord(currentTime, None, createResponseMessage(request)))
-    response.error should be (None)
+    response.error should be(None)
     txLogProxy.verifyZeroInteractions()
   }
 
@@ -257,7 +254,7 @@ class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter wi
 
     currentTime = 10000
     recorder.checkPending()
-    recorder.currentConsistentTimestamp should be (Some(Timestamp(9)))
+    recorder.currentConsistentTimestamp should be(Some(Timestamp(9)))
 
     txLogProxy.verifyNoMoreInteractions()
   }

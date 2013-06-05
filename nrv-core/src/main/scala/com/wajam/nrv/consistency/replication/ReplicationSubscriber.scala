@@ -5,29 +5,30 @@ import com.wajam.nrv.consistency.{ConsistencyException, ResolvedServiceMember, C
 import com.wajam.nrv.data.{MValue, InMessage, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
 import scala.actors.Actor
-import com.wajam.nrv.utils.{CurrentTime, TimestampIdGenerator, IdGenerator, Scheduler}
+import com.wajam.nrv.utils._
 import collection.immutable.TreeSet
 import com.wajam.nrv.consistency.persistence.TransactionLog
 import ReplicationParam._
-import com.wajam.nrv.consistency.persistence.LogRecord.{Index, Response, Request}
+import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Request}
 import com.wajam.nrv.consistency.persistence.LogRecord.Response.Success
 import annotation.tailrec
 import com.wajam.nrv.{TimeoutException, Logging}
 import java.util.{TimerTask, Timer}
 import com.yammer.metrics.scala.Instrumented
 import util.Random
+import com.wajam.nrv.consistency.persistence.LogRecord.Index
 
 /**
  * Manage all replication subscriptions the local service is subscribing. Only one replication subscription per
  * service member is allowed.
  */
 class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDurationInMs: Long, commitFrequency: Int)
-  extends CurrentTime with Logging with Instrumented {
+  extends CurrentTime with UuidStringGenerator with Logging with Instrumented {
 
   private val manager = new SubscriptionManagerActor
 
   private val serviceScope = service.name.replace(".", "-")
-  private val subscriptions = metrics.gauge("subscriptions", serviceScope) {
+  private val subscriptionsGauge = metrics.gauge("subscriptions", serviceScope) {
     manager.subscriptionsCount
   }
 
@@ -47,8 +48,9 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
    */
   def subscribe(member: ResolvedServiceMember, txLog: TransactionLog, delay: Long, subscribeAction: Action,
                 unsubscribeAction: Action, mode: ReplicationMode, onSubscriptionEnd: Option[Exception] => Unit) {
+    val cookie = nextId
     manager ! SubscriptionManagerProtocol.Subscribe(member, txLog, subscribeAction, unsubscribeAction, mode,
-      onSubscriptionEnd, delay)
+      cookie, onSubscriptionEnd, delay)
   }
 
   def unsubscribe(member: ResolvedServiceMember) {
@@ -60,6 +62,11 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
    */
   def handlePublishMessage(message: InMessage) {
     manager ! SubscriptionManagerProtocol.Publish(message)
+  }
+
+  def subscriptions: Iterable[ReplicationSubscription] = {
+    val subs = manager !? SubscriptionManagerProtocol.GetSubscriptions
+    subs.asInstanceOf[Iterable[ReplicationSubscription]]
   }
 
   private def firstStoreRecord(from: Option[Timestamp], ranges: Seq[TokenRange]): Option[Message] = {
@@ -77,13 +84,15 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
   object SubscriptionManagerProtocol {
 
     case class Subscribe(member: ResolvedServiceMember, txLog: TransactionLog, subscribeAction: Action,
-                         unsubscribeAction: Action, mode: ReplicationMode,
+                         unsubscribeAction: Action, mode: ReplicationMode, cookie: String,
                          onSubscriptionEnd: Option[Exception] => Unit, delay: Long = 0)
 
     // TODO: Either[Exception, Message]???
     case class SubscribeResponse(subscribe: Subscribe, response: Message, optException: Option[Exception])
 
     case class Unsubscribe(member: ResolvedServiceMember)
+
+    object GetSubscriptions
 
     case class Publish(message: InMessage)
 
@@ -192,6 +201,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                   info("Send subscribe request to source for pending subscription. {}", subscribe.member)
                   var params: Map[String, MValue] = Map()
                   params += (ReplicationParam.Token -> subscribe.member.token.toString)
+                  params += (ReplicationParam.Cookie -> subscribe.cookie)
                   subscribe.txLog.getLastLoggedRecord.map(_.consistentTimestamp) match {
                     case Some(Some(lastTimestamp)) => {
                       params += (ReplicationParam.Start -> lastTimestamp.toString)
@@ -203,6 +213,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                     }
                   }
                   params += (ReplicationParam.Mode -> subscribe.mode.toString)
+                  debug("subscribeAction.call {}", params)
                   subscribe.subscribeAction.call(params,
                     onReply = SubscriptionManagerActor.this ! SubscribeResponse(subscribe, _, _))
                 }
@@ -241,6 +252,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                   val subscriptionId = getParamStringValue(SubscriptionId)
                   val startTimestamp = Timestamp(getParamLongValue(Start))
                   val endTimestamp = getOptionalParamLongValue(End).map(ts => Timestamp(ts))
+                  val cookie = getParamStringValue(Cookie)
 
                   subscriptions.get(subscribe.member) match {
                     case Some(Left(_)) if Some(startTimestamp) == endTimestamp => {
@@ -253,7 +265,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                       sendUnsubscribe(subscribe, subscriptionId)
                       subscribe.onSubscriptionEnd(None)
                     }
-                    case Some(Left(_)) => {
+                    case Some(Left(pending)) if cookie == pending.subscribe.cookie => {
                       info("Subscribe response {}. Activate subscription {}.", response, subscribe.member)
 
                       val subscription = new SubscriptionActor(subscriptionId, startTimestamp, endTimestamp, subscribe,
@@ -261,6 +273,13 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                       subscriptions += (subscribe.member -> Right(subscription))
                       subscription.start()
                       subscribeOkMeter.mark()
+                    }
+                    case Some(Left(_)) => {
+                      warn("Do not activate subscription. Subscribe response with wrong cookie. {} {}",
+                        subscribe.member, response)
+                      subscribeIgnoreMeter.mark()
+
+                      sendUnsubscribe(subscribe, subscriptionId)
                     }
                     case Some(Right(_)) => {
                       subscribeIgnoreMeter.mark()
@@ -271,8 +290,8 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                     }
                     case None => {
                       subscribeIgnoreMeter.mark()
-                      info("Do not activate subscription. No more subscription registered for {}.",
-                        subscribe.member)
+                      info("Do not activate subscription. No matching pending subscription for {} {}.",
+                        subscribe.member, subscribe.cookie)
 
                       sendUnsubscribe(subscribe, subscriptionId)
                     }
@@ -309,6 +328,27 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               case e: Exception => {
                 unsubscribeErrorMeter.mark()
                 warn("Error processing unsubscribe for {}", member, e)
+              }
+            }
+          }
+          case GetSubscriptions => {
+            try {
+              val subs = subscriptions.valuesIterator.map {
+                case Left(pendingSubscription) => {
+                  ReplicationSubscription(
+                    pendingSubscription.subscribe.member, pendingSubscription.subscribe.cookie,
+                    pendingSubscription.subscribe.mode)
+                }
+                case Right(subscriptionActor) => {
+                  ReplicationSubscription(subscriptionActor.member, subscriptionActor.subscribe.cookie,
+                    subscriptionActor.subscribe.mode, id = Some(subscriptionActor.subId))
+                }
+              }
+              reply(subs.toList)
+            } catch {
+              case e: Exception => {
+                warn("Error processing get subscriptions {}", e)
+                reply(Nil)
               }
             }
           }
@@ -358,9 +398,10 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
           }
           case Kill => {
             try {
-              subscriptions.valuesIterator.foreach({
-                case Right(subscription) => subscription !? SubscriptionProtocol.Kill
-              })
+              subscriptions.valuesIterator.foreach {
+                case Right(subscriptionActor) => subscriptionActor !? SubscriptionProtocol.Kill
+                case _ =>
+              }
               subscriptions = Map()
             } catch {
               case e: Exception => {
