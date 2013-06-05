@@ -9,10 +9,8 @@ import com.wajam.nrv.Logging
  */
 class ConsistencyOne extends Consistency with Logging {
   override def handleOutgoing(action: Action, message: OutMessage) {
-    val selected = message.destination.selectedReplicas
-
     // let only the first selected as selected
-    selected.slice(1, selected.size).foreach(replica => replica.selected = false)
+    message.destination.deselectAllReplicasButFirst()
   }
 
   def localMembersStates: Iterable[(ResolvedServiceMember, MemberConsistencyState)] = Nil
