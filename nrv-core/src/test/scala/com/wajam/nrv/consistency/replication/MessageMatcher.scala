@@ -7,7 +7,10 @@ import com.wajam.nrv.utils.Future
 class MessageMatcher(params: Iterable[(String, MValue)],
                      metadata: Iterable[(String, MValue)], data: Any) extends ArgumentMatcher {
 
-  private var replyMessages: List[(InMessage, Long)] = Nil
+  private var matchedMessages: List[Message] = Nil
+  private var replyableMessages: List[OutMessage] = Nil
+
+  def capturedMessages = matchedMessages
 
   def matches(argument: Any) = {
     val message = argument.asInstanceOf[Message]
@@ -23,52 +26,57 @@ class MessageMatcher(params: Iterable[(String, MValue)],
 
     require(data == message.messageData, "data %s not equals to %s".format(message.messageData, data))
 
-    (replyMessages, message) match {
-      case ((reply, delay) :: remainingReplies, out: OutMessage) => {
-        println("MessageMatcher.matches %s".format(message))
-        replyMessages = remainingReplies
+    matchedMessages = message :: matchedMessages
+    message match {
+      case outMessage: OutMessage => replyableMessages = outMessage :: replyableMessages
+      case _ =>
+    }
+    true
+  }
+
+  def replyWith(message: InMessage) {
+    replyWith(message, 0L)
+  }
+
+  def replyWith(reply: InMessage, delay: Long) {
+    replyableMessages match {
+      case outMessage :: remainingMessages => {
+        replyableMessages = remainingMessages
         Future {
           // Cheap way to perform something in the future after a given delay but this is probably not playing
           // nice with thread pool.
           Thread.sleep(delay)
-          out.handleReply(reply)
+          outMessage.handleReply(reply)
         }
       }
-      case _ =>
+      case _ => throw new IllegalStateException("No replyable message")
     }
-
-    true
   }
 
-  def replyWith(message: InMessage): MessageMatcher = {
-    replyWith(message, 0L)
-  }
-
-  def replyWith(message: InMessage, delay: Long): MessageMatcher = {
-    replyMessages = (message, delay) :: replyMessages
-    this
-  }
-
-  def replyWith(exception: Exception): MessageMatcher = {
+  def replyWith(exception: Exception) {
     replyWith(exception, 0L)
   }
 
-  def replyWith(exception: Exception, delay: Long): MessageMatcher = {
+  def replyWith(exception: Exception, delay: Long) {
     val message = new InMessage()
     message.error = Some(exception)
     replyWith(message, delay)
   }
 
   def replyWith(params: Iterable[(String, MValue)] = Iterable(),
-                  metadata: Iterable[(String, MValue)] = Iterable(),
-                  data: Any = null, delay: Long = 0L): MessageMatcher = {
+                metadata: Iterable[(String, MValue)] = Iterable(),
+                data: Any = null, delay: Long = 0L) {
     replyWith(new InMessage(params, metadata, data), delay)
   }
 }
 
 object MessageMatcher {
+  def apply(params: Iterable[(String, MValue)] = Iterable(),
+            metadata: Iterable[(String, MValue)] = Iterable(),
+            data: Any = null) = new MessageMatcher(params, metadata, data)
+
   def matchMessage(params: Iterable[(String, MValue)] = Iterable(),
                    metadata: Iterable[(String, MValue)] = Iterable(),
-                   data: Any = null) = new MessageMatcher(params, metadata, data)
+                   data: Any = null) = MessageMatcher(params, metadata, data)
 }
 

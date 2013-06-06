@@ -4,7 +4,6 @@ import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
 import org.scalatest.matchers.ShouldMatchers._
-import org.mockito.Matchers.{eq => argEq}
 import org.mockito.Matchers._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
@@ -105,7 +104,7 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 1000, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 800, subscribeAction, unsubscribeAction,
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
       (ReplicationParam.Token -> token.toString),
@@ -113,8 +112,8 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
       (ReplicationParam.Start -> startTimestamp.toString),
       (ReplicationParam.Mode -> ReplicationMode.Store.toString))
 
-    // Wait 80% of the delay and ensure no interaction yet
-    subscribeAction.verifyZeroInteractions(wait = 800)
+    // Wait 75% of the delay and ensure no interaction yet
+    subscribeAction.verifyZeroInteractions(wait = 600)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(ReplicationSubscription(member, cookie, ReplicationMode.Store)))
@@ -134,7 +133,7 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 1000, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 800, subscribeAction, unsubscribeAction,
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
       (ReplicationParam.Token -> token.toString),
@@ -143,7 +142,7 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
       (ReplicationParam.Mode -> ReplicationMode.Store.toString))
 
     // Waiting 50% of the delay
-    subscribeAction.verifyZeroInteractions(wait = 500)
+    subscribeAction.verifyZeroInteractions(wait = 400)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(expectedSubscription))
@@ -153,7 +152,7 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
       ReplicationMode.Store, onSubscriptionEnd)
 
     // Wait delay remainder and verify subscribe call is done only once
-    Thread.sleep(500)
+    Thread.sleep(400)
     verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
     subscribeAction.verifyNoMoreInteractions()
     unsubscribeAction.verifyZeroInteractions()
@@ -184,7 +183,10 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
       (ReplicationParam.Start -> startTimestamp.toString),
       (ReplicationParam.End -> endTimestamp.toString))
 
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest).replyWith(subscribeResponse)))
+
+    val messageCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
+    messageCaptor.replyWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEndNotCalled()
@@ -218,7 +220,9 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
       (ReplicationParam.Token -> token.toString),
       (ReplicationParam.SubscriptionId -> subId))
 
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest).replyWith(subscribeResponse)))
+    val messageCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
+    messageCaptor.replyWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     verify(unsubscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
     unsubscribeAction.verifyNoMoreInteractions()
@@ -244,7 +248,9 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
     val subscribeResponse = new Exception("reponse error")
 
     // Verify onSubscriptionEnd is invoked with the error
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest).replyWith(subscribeResponse)))
+    val messageCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
+    messageCaptor.replyWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEnd(1, subscribeResponse)
@@ -277,7 +283,9 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
       (ReplicationParam.SubscriptionId -> subId))
 
     // Verify unsubscribe is sent and onSubscriptionEnd is invoked without an error
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest).replyWith(subscribeResponse)))
+    val messageCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
+    messageCaptor.replyWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     verify(unsubscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
     unsubscribeAction.verifyNoMoreInteractions()
@@ -308,7 +316,9 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
       (ReplicationParam.Start -> startTimestamp.toString),
       (ReplicationParam.End -> endTimestamp.toString))
 
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest).replyWith(subscribeResponse)))
+    val messageCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
+    messageCaptor.replyWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEndNotCalled()
@@ -409,8 +419,9 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
       (ReplicationParam.SubscriptionId -> subId))
 
     // Verify subscription is pending (subscription reponse is delayed in the future)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(
-      argThat(matchMessage(subscribeRequest).replyWith(subscribeResponse, delay = 500)))
+    val messageCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
+    messageCaptor.replyWith(subscribeResponse, delay = 500)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEndNotCalled()
@@ -455,7 +466,9 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
       (ReplicationParam.End -> endTimestamp.toString))
 
     // Verify subscription is activated
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest).replyWith(subscribeResponse)))
+    val messageCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
+    messageCaptor.replyWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEndNotCalled()
