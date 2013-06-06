@@ -62,4 +62,16 @@ class TestExplicitReplicaResolver extends FunSuite with ShouldMatchers {
     explicitResolver.resolve(service, 5000l).selectedReplicas.map(_.node) should be(List(node10005))
     explicitResolver.resolve(service, 6000l).selectedReplicas.map(_.node) should be(List(node10006))
   }
+
+  test("should return the correct master first even if it is not specified first explicitly") {
+    val ExplicitShardNodeMapping = Map(
+      (1000l -> List(node10005,node10001,node10006)),
+      (2000l -> List(node10001,node10006,node10002))
+    )
+
+    val explicitResolver = new ExplicitReplicaResolver(ExplicitShardNodeMapping, new Resolver())
+
+    explicitResolver.resolve(service, 1000l).selectedReplicas.map(_.node) should be(List(node10001,node10005,node10006))
+    explicitResolver.resolve(service, 2000l).selectedReplicas.map(_.node) should be(List(node10002,node10001,node10006))
+  }
 }
