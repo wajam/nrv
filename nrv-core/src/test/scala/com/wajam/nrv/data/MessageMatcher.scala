@@ -1,6 +1,5 @@
 package com.wajam.nrv.data
 
-import com.wajam.nrv.data.{OutMessage, Message, InMessage, MValue}
 import org.mockito.ArgumentMatcher
 import com.wajam.nrv.utils.Future
 
