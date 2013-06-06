@@ -10,6 +10,7 @@ object ReplicationParam {
   val SubscriptionId = "sub_id"
   val Sequence = "seq"
   val Mode = "mode"
+  val Cookie = "cookie"
 
   def getOptionalParamStringValue(key: String)(implicit message: Message): Option[String] = {
     message.parameters.get(key) match {

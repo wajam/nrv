@@ -138,6 +138,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               implicit val request = message
               val start = getOptionalParamLongValue(Start).getOrElse(Long.MinValue)
               val token = getParamLongValue(Token)
+              val cookie = getOptionalParamStringValue(Cookie)
               val isLiveReplication = getOptionalParamStringValue(Mode).map(ReplicationMode(_)) match {
                 case Some(ReplicationMode.Live) => true
                 case _ => false
@@ -149,8 +150,11 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               subscriptions = subscription :: subscriptions
 
               // Reply with a subscription response
-              val response = new OutMessage(Seq((SubscriptionId -> subscription.subId), (Start -> start)))
+              val response = new OutMessage()
+              response.parameters += (SubscriptionId -> subscription.subId)
+              response.parameters += (Start -> start)
               source.end.foreach(ts => response.parameters += (End -> ts.value))
+              cookie.foreach(value => response.parameters += (Cookie -> value))
               message.reply(response)
 
               subscription.start()
