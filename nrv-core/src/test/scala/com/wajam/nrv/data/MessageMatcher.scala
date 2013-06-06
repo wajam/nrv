@@ -1,4 +1,4 @@
-package com.wajam.nrv.consistency.replication
+package com.wajam.nrv.data
 
 import com.wajam.nrv.data.{OutMessage, Message, InMessage, MValue}
 import org.mockito.ArgumentMatcher

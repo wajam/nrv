@@ -1,4 +1,4 @@
-package com.wajam.nrv.consistency.replication
+package com.wajam.nrv.service
 
 import com.wajam.nrv.service.{ActionSupportOptions, Action, ActionPath}
 import org.mockito.Mockito
