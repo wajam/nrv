@@ -51,6 +51,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   private var metrics: Metrics = null
 
+  private var started = false
+
   def service: Service with ConsistentStore = bindedServices.head.asInstanceOf[Service with ConsistentStore]
 
   def resolver = replicationResolver.getOrElse(service.resolver)
@@ -103,36 +105,46 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   override def start() {
-    // TODO: update cache when new members are added/removed (i.e. live shard split/merge)
-    updateRangeMemberCache()
+    synchronized {
+      // TODO: update cache when new members are added/removed (i.e. live shard split/merge)
+      updateRangeMemberCache()
 
-    publishAction.applySupport(resolver = Some(new Resolver(tokenExtractor = Resolver.TOKEN_RANDOM())),
-      nrvCodec = Some(serializer.messageCodec))
-    subscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
-    unsubscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
-    publishAction.start()
-    subscribeAction.start()
-    unsubscribeAction.start()
+      publishAction.applySupport(resolver = Some(new Resolver(tokenExtractor = Resolver.TOKEN_RANDOM())),
+        nrvCodec = Some(serializer.messageCodec))
+      subscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
+      unsubscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
+      publishAction.start()
+      subscribeAction.start()
+      unsubscribeAction.start()
 
-    replicationPublisher.start()
-    replicationSubscriber.start()
-    SubscriptionManagerActor.start()
+      replicationPublisher.start()
+      replicationSubscriber.start()
+      SubscriptionManagerActor.start()
 
-    // Subscribe for replication to all master service members the current node is a slave
-    info("Startup replication subscription  {}", service)
-    service.members.withFilter(member => member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {member =>
-      SubscriptionManagerActor ! Subscribe(member, ReplicationMode.Store)
+      // Subscribe for replication to all master service members the current node is a slave
+      info("Startup replication subscription  {}", service)
+      service.members.withFilter(member => member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {member =>
+        SubscriptionManagerActor ! Subscribe(member, ReplicationMode.Store)
+      }
+
+      started = true
     }
   }
 
   override def stop() {
-    SubscriptionManagerActor !? Kill
-    replicationSubscriber.stop()
-    replicationPublisher.stop()
+    synchronized {
+      if (started) {
+        SubscriptionManagerActor !? Kill
+        replicationSubscriber.stop()
+        replicationPublisher.stop()
 
-    publishAction.stop()
-    subscribeAction.stop()
-    unsubscribeAction.stop()
+        publishAction.stop()
+        subscribeAction.stop()
+        unsubscribeAction.stop()
+
+        started = false
+      }
+    }
   }
 
   override def bindService(service: Service) {
