@@ -647,11 +647,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
             }
           }
           case Kill => {
-            try {
-              exit()
-            } finally {
-              reply(true)
-            }
+            exit()
+            reply(true)
           }
         }
       }
