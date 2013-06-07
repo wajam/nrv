@@ -121,7 +121,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     // Subscribe for replication to all master service members the current node is a slave
     info("Startup replication subscription  {}", service)
     service.members.withFilter(member => member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {member =>
-      SubscriptionManagerActor ! SubscriptionManagerProtocol.Subscribe(member, ReplicationMode.Store)
+      SubscriptionManagerActor ! Subscribe(member, ReplicationMode.Store)
     }
   }
 
@@ -320,7 +320,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       case MemberStatus.Up => {
         // Subscribe to remote source replica if we are a slave replica of the service member that just went Up
         if (isSlaveReplicaOf(event.member)) {
-          SubscriptionManagerActor ! SubscriptionManagerProtocol.Subscribe(event.member, ReplicationMode.Store)
+          SubscriptionManagerActor ! Subscribe(event.member, ReplicationMode.Store)
         }
       }
       case _ =>
@@ -556,12 +556,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     case class Subscribe(member: ServiceMember, mode: ReplicationMode)
 
-    case class Unsubscribe(member: ServiceMember)
-
     object Kill
 
   }
 
+  /**
+   * Manage new local slave replication subscriptions. The usage of actor ensure that no concurent subscribe call is
+   * done in parallel for the same service member.
+   */
   private object SubscriptionManagerActor extends Actor {
 
     import SubscriptionManagerProtocol._
@@ -614,22 +616,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         react {
           case Subscribe(member, mode) => {
             try {
-              //              subscribeMeter.mark()
               subscribe(member, mode)
             } catch {
               case e: Exception => {
-                //                subscribeErrorMeter.mark()
                 warn("Error processing subscribe for {}", ResolvedServiceMember(service, member), e)
-              }
-            }
-          }
-          case Unsubscribe(member) => {
-            try {
-              replicationSubscriber.unsubscribe(ResolvedServiceMember(service, member))
-            } catch {
-              case e: Exception => {
-                //                unsubscribeErrorMeter.mark()
-                warn("Error processing unsubscribe for {}", ResolvedServiceMember(service, member), e)
               }
             }
           }
