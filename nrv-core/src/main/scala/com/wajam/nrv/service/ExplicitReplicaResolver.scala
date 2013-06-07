@@ -15,13 +15,12 @@ class ExplicitReplicaResolver(explicitTokenMapping: Map[Long,List[Node]], resolv
 
   override def resolve(service: Service, token: Long) = {
     val memberNodes: List[Node] = service.resolveMembers(token, 1).headOption match {
-      case Some(member) => member.node :: explicitTokenMapping.get(token).getOrElse(List()).filterNot(_ == member.node)
+      case Some(member) => {
+        member.node :: explicitTokenMapping.get(token).getOrElse(List()).filterNot(_ == member.node)
+      }
       case _ => explicitTokenMapping.get(token).getOrElse(List())
     }
 
-    val shards = new Shard(token, memberNodes.flatMap(node => service.members.find(_.node == node)).map(member => {
-      new Replica(member.token, member.node, selected = member.status == MemberStatus.Up)
-    }))
-    new Endpoints(Seq(shards))
+    new Endpoints(Seq(new Shard(token, memberNodes.map(new Replica(token, _)))))
   }
 }

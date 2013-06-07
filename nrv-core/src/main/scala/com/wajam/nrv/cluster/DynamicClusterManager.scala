@@ -90,9 +90,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     added.foreach(newMember => {
       info("New member {} in service {}", newMember, service)
       addingNewServiceMember(service, newMember)
-      service.addMember(newMember)
       val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
       val event = newMember.setStatus(votedStatus, triggerEvent = true)
+      service.addMember(newMember)
       updateStatusChangeMetrics(service, event)
     })
 

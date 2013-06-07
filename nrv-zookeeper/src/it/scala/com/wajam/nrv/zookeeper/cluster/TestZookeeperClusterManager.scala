@@ -217,27 +217,6 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
     }, _ == MemberStatus.Up)
   }
 
-  test("When a new service member is detected, it should trigger an event once it goes up.") {
-    val cluster1 = createCluster(1).start()
-    waitForCondition[MemberStatus]({
-      cluster1.service2.getMemberAtToken(7).get.status
-    }, _ == MemberStatus.Up)
-
-    val cluster2 = createCluster(2)
-
-    var eventCount = 0
-    cluster2.service1.addObserver(event => {
-      event match {
-        case e: StatusTransitionEvent if(cluster1.cluster.isLocalNode(e.member.node) && e.to == MemberStatus.Up) =>  eventCount += 1
-        case _ =>
-      }
-    })
-
-    cluster2.start()
-
-    assert(eventCount == 1)
-  }
-
   test("a service member migration to another node should be kind of seamless") {
     val cluster1 = createCluster(1).start()
     val cluster2 = createCluster(2).start()

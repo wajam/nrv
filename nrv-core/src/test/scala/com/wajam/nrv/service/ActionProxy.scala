@@ -1,6 +1,5 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.service.{ActionSupportOptions, Action, ActionPath}
 import org.mockito.Mockito
 import com.wajam.nrv.data.{OutMessage, InMessage}
 import org.scalatest.mock.MockitoSugar
