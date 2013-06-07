@@ -325,7 +325,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
       case _ =>
         // Unsubscribe slave replication subscriptions if the remote member status is not Up.
-        replicationSubscriber.unsubscribe(ResolvedServiceMember(service, event.member))
+        SubscriptionManagerActor ! Unsubscribe(event.member)
     }
   }
 
@@ -556,6 +556,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     case class Subscribe(member: ServiceMember, mode: ReplicationMode)
 
+    case class Unsubscribe(member: ServiceMember)
+
     object Kill
 
   }
@@ -620,6 +622,15 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
             } catch {
               case e: Exception => {
                 warn("Error processing subscribe for {}", ResolvedServiceMember(service, member), e)
+              }
+            }
+          }
+          case Unsubscribe(member) => {
+            try {
+              replicationSubscriber.unsubscribe(ResolvedServiceMember(service, member))
+            } catch {
+              case e: Exception => {
+                warn("Error processing unsubscribe for {}", ResolvedServiceMember(service, member), e)
               }
             }
           }
