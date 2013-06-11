@@ -4,7 +4,8 @@ import java.util.concurrent.Executors
 import org.jboss.netty.channel.group.DefaultChannelGroup
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory
 import org.jboss.netty.bootstrap.{ClientBootstrap, ServerBootstrap}
-import com.wajam.nrv.protocol.Protocol
+import org.jboss.netty.handler.codec.http.{DefaultHttpMessage, DefaultHttpResponse, DefaultHttpChunk, DefaultHttpChunkTrailer}
+import com.wajam.nrv.protocol.{HttpProtocol, Protocol}
 import org.jboss.netty.channel._
 import com.wajam.nrv.Logging
 import java.net.{InetAddress, InetSocketAddress}
@@ -81,7 +82,15 @@ abstract class NettyTransport(host: InetAddress,
                              completionCallback: Option[Throwable] => Unit = (_) => {},
                              closeAfter: Boolean,
                              canBePooled: Boolean) {
-    val future = channel.write(message)
+    val future = message match {
+      case chunkedMessage:HttpProtocol.HttpChunkedMessage => {
+        channel.write(chunkedMessage.begin)
+        chunkedMessage.chunks.foreach(channel.write(_))
+        channel.write(chunkedMessage.emptyChunk)
+        channel.write(chunkedMessage.trailer)
+      }
+      case a => channel.write(a)
+    }
     future.addListener(new ChannelFutureListener {
       override def operationComplete(p1: ChannelFuture) {
         val t = p1.getCause
