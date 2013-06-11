@@ -2,9 +2,10 @@ package com.wajam.nrv.cluster
 
 import scala.actors.Actor
 import com.wajam.nrv.utils.{TransformLogging, Scheduler}
-import com.wajam.nrv.service.{StatusTransitionEvent, Service, ServiceMember, MemberStatus}
+import com.wajam.nrv.service._
 import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
+import scala.Some
 
 /**
  * Manager of a cluster in which nodes can be added/removed and can go up and down. This manager uses
@@ -18,6 +19,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   private val allServicesMetrics = new ServiceMetrics("all")
   private var servicesMetrics = Map[Service, ServiceMetrics]()
+
+  // Used to prevent promoting nodes when in the process of shutting down
+  private var isLeaving = false
 
   // Prepend local node info to all log messages
   def transformLogMessage = (msg, params) => ("[local=%s] %s".format(cluster.localNode, msg), params)
@@ -56,6 +60,15 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       OperationLoop !? OperationLoop.SyncServiceMembers(service, members)
   }
 
+  override def shutDownMembers() {
+    synchronized {
+      if (!isLeaving) {
+        isLeaving = true
+        OperationLoop !? OperationLoop.SetMembersLeaving
+      }
+    }
+  }
+
   protected def syncMembers()
 
   private def compileVotes(candidateMember: ServiceMember, votes: Seq[ServiceMemberVote]): MemberStatus = {
@@ -90,9 +103,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     added.foreach(newMember => {
       info("New member {} in service {}", newMember, service)
       addingNewServiceMember(service, newMember)
-      service.addMember(newMember)
       val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
       val event = newMember.setStatus(votedStatus, triggerEvent = true)
+      service.addMember(newMember)
       updateStatusChangeMetrics(service, event)
     })
 
@@ -230,6 +243,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
     case object ForceDown extends ClusterOperation
 
+    case object SetMembersLeaving extends ClusterOperation
+
     case object CheckCluster extends ClusterOperation
 
     case object PrintCluster extends ClusterOperation with Logging {
@@ -304,7 +319,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
                   // will check for "joining" nodes and promote them if votes from consistency managers are positives
                   member.status match {
                     case MemberStatus.Joining => tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
-                    case MemberStatus.Down => tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
+                    case MemberStatus.Down if !isLeaving => tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
+                    case MemberStatus.Leaving => tryChangeServiceMemberStatus(service, member, MemberStatus.Down)
                     case _ => // don't do anything for other types of MemberStatus
                   }
                 case _ =>
@@ -323,7 +339,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
           case TrySetServiceMembersDown(service, member) => {
             info("Try set member {} down for service {}", member, service)
             try {
-              tryChangeServiceMemberStatus(service, member, MemberStatus.Down)
+              tryChangeServiceMemberStatus(service, member, MemberStatus.Leaving)
             } catch {
               case e: Exception =>
                 error("Got an exception when trying to set member {} for service {} down: ", member, service, e)
@@ -359,6 +375,23 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
               allMembers.foreach {
                 case (service, member) => {
                   val event = member.setStatus(MemberStatus.Down, triggerEvent = true)
+                  updateStatusChangeMetrics(service, event)
+                }
+              }
+            } catch {
+              case e: Exception =>
+                error("Got an exception when forcing the cluster down: ", e)
+            } finally {
+              sender ! true
+            }
+
+          case SetMembersLeaving =>
+            info("Preparing for shutdown, setting all local nodes to Leaving status")
+            try {
+              allMembers.foreach {
+                case (service, member) => if(cluster.isLocalNode(member.node)){
+                  val event = member.setStatus(MemberStatus.Leaving, triggerEvent = true)
+                  voteServiceMemberStatus(service, new ServiceMemberVote(member, member, MemberStatus.Leaving))
                   updateStatusChangeMetrics(service, event)
                 }
               }

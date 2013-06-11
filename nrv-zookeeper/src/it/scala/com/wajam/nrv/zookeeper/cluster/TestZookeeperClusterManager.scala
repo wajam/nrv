@@ -3,12 +3,14 @@ package com.wajam.nrv.zookeeper.cluster
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.cluster.{LocalNode, ServiceMemberVote, Node, Cluster}
 import com.wajam.nrv.zookeeper.ZookeeperClient._
-import com.wajam.nrv.service.{StatusTransitionEvent, MemberStatus, ServiceMember, Service}
-import com.wajam.nrv.utils.{Event}
+import com.wajam.nrv.service._
 import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.ZookeeperClient
+import org.scalatest.matchers.ShouldMatchers
+import scala.Some
+import com.wajam.nrv.service
 
-class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
+class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with ShouldMatchers {
 
   var clusters = List[TestCluster]()
 
@@ -217,27 +219,6 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
     }, _ == MemberStatus.Up)
   }
 
-  test("When a new service member is detected, it should trigger an event once it goes up.") {
-    val cluster1 = createCluster(1).start()
-    waitForCondition[MemberStatus]({
-      cluster1.service2.getMemberAtToken(7).get.status
-    }, _ == MemberStatus.Up)
-
-    val cluster2 = createCluster(2)
-
-    var eventCount = 0
-    cluster2.service1.addObserver(event => {
-      event match {
-        case e: StatusTransitionEvent if(cluster1.cluster.isLocalNode(e.member.node) && e.to == MemberStatus.Up) =>  eventCount += 1
-        case _ =>
-      }
-    })
-
-    cluster2.start()
-
-    assert(eventCount == 1)
-  }
-
   test("a service member migration to another node should be kind of seamless") {
     val cluster1 = createCluster(1).start()
     val cluster2 = createCluster(2).start()
@@ -313,5 +294,45 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
       cluster1.service2.getMemberAtToken(16).get.status
     }, _ == MemberStatus.Up)
   }
-}
 
+  test("when stopping a cluster, ServiceMembers should change like this: Up -> Leaving -> Down, and the Leaving -> Down change should be done according to votes") {
+    import com.wajam.nrv.service.{StatusTransitionAttemptEvent, MemberStatus}
+    import com.wajam.nrv.utils.Event
+    object VetoVoter {
+      var callCountDown = 3
+      var callCounter = 0
+
+      def ApplyVetoMultipleTimes(event: Event) {
+        synchronized {
+          callCounter+=1
+          event match {
+            case e: StatusTransitionAttemptEvent if e.to == MemberStatus.Down && callCountDown == 0 => {
+              e.vote(pass = true)
+              e.from should be (service.MemberStatus.Leaving)
+            }
+            case e: StatusTransitionAttemptEvent if e.to == MemberStatus.Down && callCountDown > 0 => {
+              callCountDown -= 1
+              e.vote(pass = false)
+              e.from should be (service.MemberStatus.Leaving)
+            }
+            case e: Event =>
+          }
+        }
+      }
+    }
+
+    val cluster = createCluster(1).start()
+    cluster.service1.addObserver(VetoVoter.ApplyVetoMultipleTimes)
+
+    cluster.stop()
+
+    //all members should be down
+    cluster.service1.members.foreach(_.status should be (MemberStatus.Down))
+    cluster.service2.members.foreach(_.status should be (MemberStatus.Down))
+    //the Vetovoter should have applied his veto 3 times, and should have been
+    VetoVoter.callCountDown should be(0)
+    //The Vetovoter should have been called 3 times (3 fail attempts) + once for each service1 member
+    VetoVoter.callCounter should be(3 + cluster.service1.members.size)
+  }
+
+}

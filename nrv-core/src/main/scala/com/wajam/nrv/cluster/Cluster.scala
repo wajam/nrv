@@ -81,6 +81,8 @@ class Cluster(val localNode: LocalNode,
   }
 
   def stop() {
+    clusterManager.shutdownCluster()
+
     for ((name, service) <- this.services) {
       service.stop()
     }
