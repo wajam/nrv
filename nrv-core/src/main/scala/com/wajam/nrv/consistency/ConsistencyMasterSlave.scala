@@ -19,10 +19,12 @@ import scala.actors.Actor
  *
  * TODO: more about transfering the data from log or from store. More about replicas selection.
  *
- * The consistency manager ensure that the storage and the transaction log are always consistent. A service member is
- * only allowed to goes Up if the store and the transaction log are consistent. In case of inconsistency during the
- * service member storage lifetime, the service member status is set to Down. The consistency manager tries to perform
- * the necessary recovery while the service member tries to go up.
+ * The consistency manager ensure that the storage and the transaction log are always consistent. The consistencyMasterSlave
+ * will observe the StatusTransitionAttemptsEvents from the ClusterManager, and will apply a veto on the event if it detects
+ * inconsistency, thereby blocking the ServiceMember status transition. It will only allow a service member to go Up if the
+ * store and the transaction log are consistent. In case of inconsistency during the service member storage lifetime, the
+ * service member status is set to Down. The consistency manager tries to perform the necessary recovery while the service
+ * member tries to go up.
  *
  * ASSUMPTIONS:
  * - The messages for a given token are sequenced before reaching the consistency manager.
@@ -30,7 +32,6 @@ import scala.actors.Actor
  *
  * IMPORTANT NOTES:
  * - This class is still a work in progress.
- * - Temporary extends ConsistencyOne until real master/slave replicas selection implementation.
  * - Support binding to a single service. The service must extends ConsistentStore.
  */
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
@@ -234,16 +235,19 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                 metrics.consistencyError.mark()
                 updateMemberConsistencyState(event.member, Some(MemberConsistencyState.Error))
               })
+              event.vote(pass = false)
             }
             case Some(MemberConsistencyState.Ok) => {
               // Already consistent.
               metrics.consistencyOk.mark()
               info("StatusTransitionAttemptEvent: status=Joining, state=Ok, member={}", event.member)
+              event.vote(pass = true)
             }
             case Some(MemberConsistencyState.Recovering) => {
               // Already recovering.
               metrics.consistencyRecovering.mark()
               info("StatusTransitionAttemptEvent: status=Joining, state=Recovering, member={}", event.member)
+              event.vote(pass = false)
             }
           }
         }
