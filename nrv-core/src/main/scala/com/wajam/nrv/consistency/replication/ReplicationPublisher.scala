@@ -26,7 +26,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
   private val manager = new SubscriptionManagerActor
 
   private val serviceScope = service.name.replace(".", "-")
-  private val subscriptions = metrics.gauge("subscriptions", serviceScope) {
+  private val subscriptionsGauge = metrics.gauge("subscriptions", serviceScope) {
     manager.subscriptionsCount
   }
 
@@ -38,8 +38,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     manager !? SubscriptionManagerProtocol.Kill
   }
 
-  def terminateSubscriptions(member: ResolvedServiceMember) {
-    manager ! SubscriptionManagerProtocol.TerminateSubscriptions(member)
+  def terminateMemberSubscriptions(member: ResolvedServiceMember) {
+    manager ! SubscriptionManagerProtocol.TerminateMemberSubscriptions(member)
   }
 
   def handleSubscribeMessage(message: InMessage) {
@@ -50,13 +50,20 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     manager ! SubscriptionManagerProtocol.Unsubscribe(message)
   }
 
+  def subscriptions: Iterable[ReplicationSubscription] = {
+    val subs = manager !? SubscriptionManagerProtocol.GetSubscriptions
+    subs.asInstanceOf[Iterable[ReplicationSubscription]]
+  }
+
   object SubscriptionManagerProtocol {
 
     case class Subscribe(message: InMessage)
 
     case class Unsubscribe(message: InMessage)
 
-    case class TerminateSubscriptions(member: ResolvedServiceMember)
+    object GetSubscriptions
+
+    case class TerminateMemberSubscriptions(member: ResolvedServiceMember)
 
     case class TerminateSubscription(subscription: SubscriptionActor, error: Option[Exception] = None)
 
@@ -184,6 +191,21 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               }
             }
           }
+          case GetSubscriptions => {
+            try {
+              val subs = subscriptions.map(subscriptionActor => {
+                val mode = if (subscriptionActor.source.end.isDefined) ReplicationMode.Store else ReplicationMode.Live
+                ReplicationSubscription(subscriptionActor.member, cookie = "", mode, id = Some(subscriptionActor.subId),
+                  Some(subscriptionActor.source.start), subscriptionActor.source.end)
+              })
+              reply(subs)
+            } catch {
+              case e: Exception => {
+                warn("Error processing get subscriptions {}", e)
+                reply(Nil)
+              }
+            }
+          }
           case TerminateSubscription(subscriptionActor, exception) => {
             try {
               subscriptions.find(_ == subscriptionActor).foreach(subscription => {
@@ -199,7 +221,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               }
             }
           }
-          case TerminateSubscriptions(member) => {
+          case TerminateMemberSubscriptions(member) => {
             try {
               subscriptions.find(_.member == member).foreach(subscription => {
                 info("Subscription {} is terminated. {}",
@@ -242,7 +264,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
   }
 
-  class SubscriptionActor(val subId: String, val member: ResolvedServiceMember, source: ReplicationSourceIterator,
+  class SubscriptionActor(val subId: String, val member: ResolvedServiceMember, val source: ReplicationSourceIterator,
                           subscriber: Node) extends Actor with Logging {
 
     private lazy val publishMeter = metrics.meter("publish", "publish", member.scopeName)
