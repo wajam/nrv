@@ -110,9 +110,9 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
       ReplicationParam.End -> endTimestamp.toString)
 
     // Verify subscription is activated
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyCapturedMessageWith(subscribeResponse)
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
 
@@ -245,9 +245,9 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
       ReplicationParam.End -> endTimestamp.toString)
 
 
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyCapturedMessageWith(subscribeResponse)
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEndNotCalled()
@@ -281,9 +281,9 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
       ReplicationParam.Token -> token.toString,
       ReplicationParam.SubscriptionId -> subId)
 
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyCapturedMessageWith(subscribeResponse)
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     verify(unsubscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
     unsubscribeAction.verifyNoMoreInteractions()
@@ -308,9 +308,9 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
     val subscribeResponse = new Exception("reponse error")
 
     // Verify onSubscriptionEnd is invoked with the error
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyCapturedMessageWith(subscribeResponse)
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEnd(1, subscribeResponse)
@@ -343,9 +343,9 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
       ReplicationParam.SubscriptionId -> subId)
 
     // Verify unsubscribe is sent and onSubscriptionEnd is invoked without an error
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyCapturedMessageWith(subscribeResponse)
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     verify(unsubscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
     unsubscribeAction.verifyNoMoreInteractions()
@@ -376,9 +376,9 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
       ReplicationParam.Start -> startTimestamp.toString,
       ReplicationParam.End -> endTimestamp.toString)
 
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyCapturedMessageWith(subscribeResponse)
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEndNotCalled()
@@ -478,10 +478,9 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
       ReplicationParam.Token -> token.toString,
       ReplicationParam.SubscriptionId -> subId)
 
-    // Verify subscription is pending (subscription reponse is delayed in the future)
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyCapturedMessageWith(subscribeResponse, delay = 500)
+    // Verify subscription is pending (subscription reponse is delayed after unsubscribe)
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEndNotCalled()
@@ -494,9 +493,12 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(Nil)
 
-    // Ensure unsubscribe is sent when getting the subscribe response
-    subscribeAction.verifyZeroInteractions(wait = 500)
+    // Finally receive the subscribe response (after unsubscribing)
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
+
+    // Verify unsubscribe is sent after getting the late subscribe response
     verify(unsubscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
+    subscribeAction.verifyZeroInteractions(wait = 100)
     unsubscribeAction.verifyNoMoreInteractions()
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(Nil)
@@ -526,9 +528,9 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
       ReplicationParam.End -> endTimestamp.toString)
 
     // Verify subscription is activated
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyCapturedMessageWith(subscribeResponse)
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
     subscribeAction.verifyNoMoreInteractions(wait = 100)
     unsubscribeAction.verifyZeroInteractions()
     verifyOnSubscriptionEndNotCalled()
