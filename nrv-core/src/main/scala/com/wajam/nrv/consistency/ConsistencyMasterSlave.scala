@@ -459,23 +459,17 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   override def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
     message.function match {
       case MessageType.FUNCTION_RESPONSE if requiresConsistency(message) => {
-        //CASE: send response to the original sender node. Does not uses resolver to populate destination nodes.
+        // CASE: send response to the original sender node. Does not uses resolver to populate destination nodes.
         message.method match {
           case ActionMethod.GET => executeConsistentOutgoingReadResponse(message, next)
           case _ => executeConsistentOutgoingWriteResponse(message, next)
         }
       }
       case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
-        //If the destination master node is leaving, no message requiring consistency should leave
-        //resolver master, check status, if leaving NOPE, else YOP
-        action.service.getMemberAtToken(message.token) match {
-          case Some(member) if(member.status == MemberStatus.Leaving) => this.simulateUnavailableResponse(action, message) ; info("simulated error response since node is leaving.")
-          case _ => {
-            message.method match {
-              case ActionMethod.GET => executeConsistentOutgoingReadRequest(message, next)
-              case _ => executeConsistentOutgoingWriteRequest(action, message, next)
-            }
-          }
+        // TODO: If the destination master node is leaving, no message requiring consistency should leave
+        message.method match {
+          case ActionMethod.GET => executeConsistentOutgoingReadRequest(message, next)
+          case _ => executeConsistentOutgoingWriteRequest(action, message, next)
         }
       }
       case _ => {

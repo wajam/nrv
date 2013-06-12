@@ -14,13 +14,14 @@ class ExplicitReplicaResolver(explicitTokenMapping: Map[Long,List[Node]], resolv
   extends Resolver(resolver.replica, resolver.tokenExtractor, resolver.constraints, resolver.sorter) {
 
   override def resolve(service: Service, token: Long) = {
-    val memberNodes: List[Node] = service.resolveMembers(token, 1).headOption match {
+
+    val memberReplica: List[Replica] = service.resolveMembers(token, 1).headOption match {
       case Some(member) => {
-        member.node :: explicitTokenMapping.get(token).getOrElse(List()).filterNot(_ == member.node)
+        new Replica(token,member.node,member.status == MemberStatus.Up) :: explicitTokenMapping.get(token).getOrElse(List()).filterNot(_ == member.node).map(new Replica(token, _))
       }
-      case _ => explicitTokenMapping.get(token).getOrElse(List())
+      case _ => explicitTokenMapping.get(token).getOrElse(List()).map(new Replica(token, _))
     }
 
-    new Endpoints(Seq(new Shard(token, memberNodes.map(new Replica(token, _)))))
+    new Endpoints(Seq(new Shard(token, memberReplica)))
   }
 }
