@@ -12,11 +12,7 @@ import com.wajam.nrv.UnavailableException
 import com.wajam.nrv.Logging
 import com.wajam.nrv.consistency.replication._
 import scala.actors.Actor
-
-import com.wajam.nrv.consistency.replication._
-import scala.actors.Actor
 import com.wajam.nrv.service.MemberStatus.Leaving
-
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
  * recorded in a transaction log per service member and replicated to slave replicas.
