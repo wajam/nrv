@@ -7,7 +7,7 @@ import com.wajam.nrv.utils.timestamp.Timestamp
 abstract class TestTransactionBase extends FunSuite {
 
   def createRequestMessage(timestamp: Long, token: Long = 0): InMessage = {
-    val request = new InMessage((Map(("ts" -> timestamp), ("tk" -> token))))
+    val request = new InMessage(Map("ts" -> timestamp, "tk" -> token))
     request.function = MessageType.FUNCTION_CALL
     request.token = token
     request.timestamp = Some(timestamp)

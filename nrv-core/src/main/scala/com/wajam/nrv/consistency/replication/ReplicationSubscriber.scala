@@ -22,7 +22,8 @@ import com.wajam.nrv.consistency.persistence.LogRecord.Index
  * Manage all replication subscriptions the local service is subscribing. Only one replication subscription per
  * service member is allowed.
  */
-class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDurationInMs: Long, commitFrequency: Int)
+class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDurationInMs: Long, commitFrequency: Int,
+                            logIdGenerator: => IdGenerator[Long] = new TimestampIdGenerator)
   extends CurrentTime with UuidStringGenerator with Logging with Instrumented {
 
   private val manager = new SubscriptionManagerActor
@@ -137,7 +138,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
     })
 
     private def terminateSubscription(subscription: SubscriptionActor, error: Option[Exception]) {
-      subscriptions -= (subscription.member)
+      subscriptions -= subscription.member
       subscription ! SubscriptionProtocol.Kill
 
       sendUnsubscribe(subscription.subscribe, subscription.subId)
@@ -189,7 +190,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               case e: Exception => {
                 subscribeErrorMeter.mark()
                 warn("Error processing subscribe for {}", subscribe.member, e)
-                subscriptions -= (subscribe.member)
+                subscriptions -= subscribe.member
                 subscribe.onSubscriptionEnd(Some(e))
               }
             }
@@ -232,7 +233,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               case e: Exception => {
                 subscribeErrorMeter.mark()
                 warn("Error processing delayed subscribe for {}", subscribe.member, e)
-                subscriptions -= (subscribe.member)
+                subscriptions -= subscribe.member
                 subscribe.onSubscriptionEnd(Some(e))
               }
             }
@@ -245,7 +246,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 case Some(e) => {
                   subscribeErrorMeter.mark()
                   warn("Got a subscribe response error for {}: ", subscribe.member, e)
-                  subscriptions -= (subscribe.member)
+                  subscriptions -= subscribe.member
                   subscribe.onSubscriptionEnd(Some(e))
                 }
                 case None => {
@@ -269,7 +270,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                       info("Subscribe response {}. Activate subscription {}.", response, subscribe.member)
 
                       val subscription = new SubscriptionActor(subscriptionId, startTimestamp, endTimestamp, subscribe,
-                        getSubscriptionGauge(subscribe.member), new TimestampIdGenerator)
+                        getSubscriptionGauge(subscribe.member), logIdGenerator)
                       subscriptions += (subscribe.member -> Right(subscription))
                       subscription.start()
                       subscribeOkMeter.mark()
@@ -302,7 +303,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
               case e: Exception => {
                 subscribeErrorMeter.mark()
                 warn("Error processing subscribe response for {}", subscribe.member, e)
-                subscriptions -= (subscribe.member)
+                subscriptions -= subscribe.member
                 subscribe.onSubscriptionEnd(Some(e))
               }
             }
@@ -313,7 +314,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 case Some(Left(PendingSubscription(subscribe))) => {
                   unsubscribeMeter.mark()
                   info("Unsubscribe. Remove pending subscription. {}", member)
-                  subscriptions -= (member)
+                  subscriptions -= member
                 }
                 case Some(Right(subscription)) => {
                   unsubscribeMeter.mark()

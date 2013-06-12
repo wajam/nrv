@@ -2,45 +2,43 @@ package com.wajam.nrv.data
 
 import org.mockito.ArgumentMatcher
 import com.wajam.nrv.utils.Future
+import org.hamcrest.Description
 
-class MessageMatcher(params: Iterable[(String, MValue)],
+class MessageMatcher[T <: Message](params: Iterable[(String, MValue)],
                      metadata: Iterable[(String, MValue)], data: Any) extends ArgumentMatcher {
 
-  private var matchedMessages: List[Message] = Nil
-  private var replyableMessages: List[OutMessage] = Nil
+  private var matchedMessages: List[T] = Nil
 
   def capturedMessages = matchedMessages
+  def capturedMessage = matchedMessages.head
 
   def matches(argument: Any) = {
-    val message = argument.asInstanceOf[Message]
+    val message = argument.asInstanceOf[T]
 
+    // verify path
+    // verify function call
     // verify timestamp
     // verify token
-
-    require(params.toMap == message.parameters.toMap,
-      "params %s not equals to %s".format(message.parameters, params.toMap))
-
-    require(metadata.toMap == message.metadata.toMap,
-      "metadata %s not equals to %s".format(message.metadata, metadata.toMap))
-
-    require(data == message.messageData, "data %s not equals to %s".format(message.messageData, data))
+    val result = params.toMap == message.parameters.toMap &&
+      metadata.toMap == message.metadata.toMap &&
+      data == message.messageData
 
     matchedMessages = message :: matchedMessages
-    message match {
-      case outMessage: OutMessage => replyableMessages = outMessage :: replyableMessages
-      case _ =>
-    }
-    true
+
+    result
   }
 
-  def replyWith(message: InMessage) {
-    replyWith(message, 0L)
+  override def describeTo(description: Description) {
+    description.appendValue("message [parameters=%s, metadata=%s, data=%s]".format(params, metadata, data))
   }
 
-  def replyWith(reply: InMessage, delay: Long) {
-    replyableMessages match {
-      case outMessage :: remainingMessages => {
-        replyableMessages = remainingMessages
+  def replyCapturedMessageWith(message: InMessage) {
+    replyCapturedMessageWith(message, 0L)
+  }
+
+  def replyCapturedMessageWith(reply: InMessage, delay: Long) {
+    capturedMessage match {
+      case outMessage: OutMessage => {
         Future {
           // Cheap way to perform something in the future after a given delay but this is probably not playing
           // nice with thread pool.
@@ -52,30 +50,32 @@ class MessageMatcher(params: Iterable[(String, MValue)],
     }
   }
 
-  def replyWith(exception: Exception) {
-    replyWith(exception, 0L)
+  def replyCapturedMessageWith(exception: Exception) {
+    replyCapturedMessageWith(exception, 0L)
   }
 
-  def replyWith(exception: Exception, delay: Long) {
+  def replyCapturedMessageWith(exception: Exception, delay: Long) {
     val message = new InMessage()
     message.error = Some(exception)
-    replyWith(message, delay)
+    replyCapturedMessageWith(message, delay)
   }
 
-  def replyWith(params: Iterable[(String, MValue)] = Iterable(),
+  def replyCapturedMessageWith(params: Iterable[(String, MValue)] = Iterable(),
                 metadata: Iterable[(String, MValue)] = Iterable(),
                 data: Any = null, delay: Long = 0L) {
-    replyWith(new InMessage(params, metadata, data), delay)
+    replyCapturedMessageWith(new InMessage(params, metadata, data), delay)
   }
 }
 
 object MessageMatcher {
-  def apply(params: Iterable[(String, MValue)] = Iterable(),
+  def apply[T <: Message](params: Iterable[(String, MValue)] = Iterable(),
             metadata: Iterable[(String, MValue)] = Iterable(),
-            data: Any = null) = new MessageMatcher(params, metadata, data)
+            data: Any = null) = new MessageMatcher[T](params, metadata, data)
 
-  def matchMessage(params: Iterable[(String, MValue)] = Iterable(),
+  def matchMessage[T <: Message](params: Iterable[(String, MValue)] = Iterable(),
                    metadata: Iterable[(String, MValue)] = Iterable(),
-                   data: Any = null) = MessageMatcher(params, metadata, data)
+                   data: Any = null) = MessageMatcher[T](params, metadata, data)
+
+  def matchMessage[T <: Message](message: T) = MessageMatcher[T](message.parameters, message.metadata, message.messageData)
 }
 
