@@ -323,8 +323,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           recorder.foreach(_.kill())
         }
       }
-      case MemberStatus.Joining => // TODO: add drain replication publisher
-      case MemberStatus.Leaving => // Nothing to do
+      case MemberStatus.Joining => // Nothing to do
+      case MemberStatus.Leaving => // TODO: add drain replication publisher
     }
   }
 
