@@ -323,7 +323,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           recorder.foreach(_.kill())
         }
       }
-      case MemberStatus.Joining => // Nothing to do
+      case MemberStatus.Joining => // TODO: add drain replication publisher
       case MemberStatus.Leaving => // Nothing to do
     }
   }
@@ -459,14 +459,13 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   override def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
     message.function match {
       case MessageType.FUNCTION_RESPONSE if requiresConsistency(message) => {
-        // CASE: send response to the original sender node. Does not uses resolver to populate destination nodes.
+        //CASE: send response to the original sender node. Does not uses resolver to populate destination nodes.
         message.method match {
           case ActionMethod.GET => executeConsistentOutgoingReadResponse(message, next)
           case _ => executeConsistentOutgoingWriteResponse(message, next)
         }
       }
       case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
-        // TODO: If the destination master node is leaving, no message requiring consistency should leave
         message.method match {
           case ActionMethod.GET => executeConsistentOutgoingReadRequest(message, next)
           case _ => executeConsistentOutgoingWriteRequest(action, message, next)

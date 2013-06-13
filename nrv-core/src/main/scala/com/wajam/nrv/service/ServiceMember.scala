@@ -20,6 +20,7 @@ sealed class ServiceMember(val token: Long,
       case (MemberStatus.Down, MemberStatus.Joining) => true
       case (MemberStatus.Joining, MemberStatus.Up) => true
       case (MemberStatus.Up, MemberStatus.Leaving) => true
+      case (MemberStatus.Up, MemberStatus.Down) => true
       case (MemberStatus.Leaving, MemberStatus.Down) => true
       case _ => false
     }

@@ -5,7 +5,7 @@ import com.wajam.nrv.utils.{TransformLogging, Scheduler}
 import com.wajam.nrv.service._
 import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
-import scala.Some
+import java.util.concurrent.{TimeUnit, CountDownLatch}
 
 /**
  * Manager of a cluster in which nodes can be added/removed and can go up and down. This manager uses
@@ -19,9 +19,6 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   private val allServicesMetrics = new ServiceMetrics("all")
   private var servicesMetrics = Map[Service, ServiceMetrics]()
-
-  // Used to prevent promoting nodes when in the process of shutting down
-  private var isLeaving = false
 
   // Prepend local node info to all log messages
   def transformLogMessage = (msg, params) => ("[local=%s] %s".format(cluster.localNode, msg), params)
@@ -60,11 +57,16 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       OperationLoop !? OperationLoop.SyncServiceMembers(service, members)
   }
 
-  override def shutDownMembers() {
+  //Latch synchronization barrier used to wait for all local service members to go down before closing the server
+  private var leavingLatch: Option[CountDownLatch] = None
+  private def isLeaving: Boolean = leavingLatch.isDefined
+
+  def leave(timeout: Long) {
     synchronized {
       if (!isLeaving) {
-        isLeaving = true
+        leavingLatch = new Some(new CountDownLatch(1))
         OperationLoop !? OperationLoop.SetMembersLeaving
+        leavingLatch.get.await(timeout, TimeUnit.MILLISECONDS)
       }
     }
   }
@@ -326,6 +328,16 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
                 case _ =>
               }
 
+              // This will only be called if a latch exists, meaning the cluster is currently attempting to leave
+              leavingLatch match {
+                case Some(latch) if latch.getCount > 0 => {
+                  if (allMembers.count({ case (_, member) => cluster.isLocalNode(member.node) && member.status != MemberStatus.Down }) == 0) {
+                    latch.countDown()
+                  }
+                }
+                case _ =>
+              }
+
               // Update service statistics
               updateServicesMetrics()
             } catch {
@@ -339,7 +351,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
           case TrySetServiceMembersDown(service, member) => {
             info("Try set member {} down for service {}", member, service)
             try {
-              tryChangeServiceMemberStatus(service, member, MemberStatus.Leaving)
+              tryChangeServiceMemberStatus(service, member, MemberStatus.Down)
             } catch {
               case e: Exception =>
                 error("Got an exception when trying to set member {} for service {} down: ", member, service, e)

@@ -7,7 +7,6 @@ import com.wajam.nrv.service._
 import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.ZookeeperClient
 import org.scalatest.matchers.ShouldMatchers
-import scala.Some
 import com.wajam.nrv.service
 
 class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with ShouldMatchers {
@@ -106,8 +105,8 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with Shou
       this
     }
 
-    def stop() = {
-      cluster.stop()
+    def stop(shudownTimeOutInMs: Long = 5000l) = {
+      cluster.stop(shudownTimeOutInMs)
       zk.close()
       this
     }
@@ -299,8 +298,10 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with Shou
     import com.wajam.nrv.service.{StatusTransitionAttemptEvent, MemberStatus}
     import com.wajam.nrv.utils.Event
     object VetoVoter {
-      var callCountDown = 3
-      var callCounter = 0
+      private var callCountDown = 3
+      private var callCounter = 0
+      def getCallCountDown = callCountDown
+      def getCallCounter = callCounter
 
       def ApplyVetoMultipleTimes(event: Event) {
         synchronized {
@@ -330,9 +331,9 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with Shou
     cluster.service1.members.foreach(_.status should be (MemberStatus.Down))
     cluster.service2.members.foreach(_.status should be (MemberStatus.Down))
     //the Vetovoter should have applied his veto 3 times, and should have been
-    VetoVoter.callCountDown should be(0)
+    VetoVoter.getCallCountDown should be(0)
     //The Vetovoter should have been called 3 times (3 fail attempts) + once for each service1 member
-    VetoVoter.callCounter should be(3 + cluster.service1.members.size)
+    VetoVoter.getCallCounter should be(3 + cluster.service1.members.size)
   }
 
 }
