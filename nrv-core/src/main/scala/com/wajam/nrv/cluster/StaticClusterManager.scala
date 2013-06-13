@@ -21,8 +21,9 @@ class StaticClusterManager extends ClusterManager {
   def leave(timeout: Long) {
     allMembers.foreach {
       case (service, member) => {
-        member.trySetStatus(MemberStatus.Up)
         member.setStatus(MemberStatus.Leaving, triggerEvent = true)
+        member.trySetStatus(MemberStatus.Down)
+        member.setStatus(MemberStatus.Down, triggerEvent = true)
       }
     }
   }
