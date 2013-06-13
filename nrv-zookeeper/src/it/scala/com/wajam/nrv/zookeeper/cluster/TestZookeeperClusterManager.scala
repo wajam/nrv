@@ -325,7 +325,7 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with Shou
     val cluster = createCluster(1).start()
     cluster.service1.addObserver(VetoVoter.ApplyVetoMultipleTimes)
 
-    cluster.stop()
+    cluster.stop(5000l)
 
     //all members should be down
     cluster.service1.members.foreach(_.status should be (MemberStatus.Down))

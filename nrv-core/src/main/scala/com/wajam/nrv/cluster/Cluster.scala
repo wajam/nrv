@@ -80,7 +80,7 @@ class Cluster(val localNode: LocalNode,
     }
   }
 
-  def stop(shudownTimeOutInMs: Long = 5000l) {
+  def stop(shudownTimeOutInMs: Long = 0l) {
     clusterManager.leave(shudownTimeOutInMs)
 
     for ((name, service) <- this.services) {
