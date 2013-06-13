@@ -1,12 +1,13 @@
 package com.wajam.nrv.cluster
 
 import com.wajam.nrv.service.{ServiceMember, Service}
+import com.wajam.nrv.Logging
 
 /**
  * Cluster manager that is responsible of persisting and distributing services and nodes
  * membership across the cluster.
  */
-abstract class ClusterManager {
+abstract class ClusterManager extends Logging {
   protected var started = false
   protected var cluster: Cluster = null
 
@@ -26,6 +27,8 @@ abstract class ClusterManager {
 
   protected def initializeMembers()
 
+  def leave(timeout: Long)
+
   def stop(): Boolean = {
     synchronized {
       if (started) {
@@ -43,4 +46,5 @@ abstract class ClusterManager {
     )
 
   def trySetServiceMemberStatusDown(service: Service, member: ServiceMember)
+
 }

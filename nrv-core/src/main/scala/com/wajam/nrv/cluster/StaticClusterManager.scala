@@ -18,6 +18,16 @@ class StaticClusterManager extends ClusterManager {
     }
   }
 
+  def leave(timeout: Long) {
+    allMembers.foreach {
+      case (service, member) => {
+        member.setStatus(MemberStatus.Leaving, triggerEvent = true)
+        member.trySetStatus(MemberStatus.Down)
+        member.setStatus(MemberStatus.Down, triggerEvent = true)
+      }
+    }
+  }
+
   /**
    * Add members by string.
    * @param service Service in which we want to add members
@@ -26,4 +36,5 @@ class StaticClusterManager extends ClusterManager {
   def addMembers(service: Service, members: Iterable[String]) {
     members.foreach(strMember => service.addMember(ServiceMember.fromString(strMember)))
   }
+
 }
