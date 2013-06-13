@@ -2,9 +2,10 @@ package com.wajam.nrv.cluster
 
 import scala.actors.Actor
 import com.wajam.nrv.utils.{TransformLogging, Scheduler}
-import com.wajam.nrv.service.{StatusTransitionEvent, Service, ServiceMember, MemberStatus}
+import com.wajam.nrv.service._
 import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
+import java.util.concurrent.{TimeUnit, CountDownLatch}
 
 /**
  * Manager of a cluster in which nodes can be added/removed and can go up and down. This manager uses
@@ -23,10 +24,15 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
   def transformLogMessage = (msg, params) => ("[local=%s] %s".format(cluster.localNode, msg), params)
 
   override def start() = {
-    if (super.start()) {
-      OperationLoop.start()
-      true
-    } else false
+    synchronized {
+      if (isLeaving) {
+        throw new RuntimeException("Cannot start a leaving cluster!")
+      }
+      if (super.start()) {
+        OperationLoop.start()
+        true
+      } else false
+    }
   }
 
   override def stop() = {
@@ -54,6 +60,20 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       syncServiceMembersImpl(service, members)
     else
       OperationLoop !? OperationLoop.SyncServiceMembers(service, members)
+  }
+
+  //Latch synchronization barrier used to wait for all local service members to go down before closing the server
+  private var leavingLatch: Option[CountDownLatch] = None
+  private def isLeaving: Boolean = leavingLatch.isDefined
+
+  def leave(timeout: Long) {
+    synchronized {
+      if (!isLeaving) {
+        leavingLatch = new Some(new CountDownLatch(1))
+        OperationLoop !? OperationLoop.SetMembersLeaving
+        leavingLatch.get.await(timeout, TimeUnit.MILLISECONDS)
+      }
+    }
   }
 
   protected def syncMembers()
@@ -230,6 +250,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
     case object ForceDown extends ClusterOperation
 
+    case object SetMembersLeaving extends ClusterOperation
+
     case object CheckCluster extends ClusterOperation
 
     case object PrintCluster extends ClusterOperation with Logging {
@@ -304,9 +326,20 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
                   // will check for "joining" nodes and promote them if votes from consistency managers are positives
                   member.status match {
                     case MemberStatus.Joining => tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
-                    case MemberStatus.Down => tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
+                    case MemberStatus.Down if !isLeaving => tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
+                    case MemberStatus.Leaving => tryChangeServiceMemberStatus(service, member, MemberStatus.Down)
                     case _ => // don't do anything for other types of MemberStatus
                   }
+                case _ =>
+              }
+
+              // This will only be called if a latch exists, meaning the cluster is currently attempting to leave
+              leavingLatch match {
+                case Some(latch) if latch.getCount > 0 => {
+                  if (allMembers.count({ case (_, member) => cluster.isLocalNode(member.node) && member.status != MemberStatus.Down }) == 0) {
+                    latch.countDown()
+                  }
+                }
                 case _ =>
               }
 
@@ -359,6 +392,23 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
               allMembers.foreach {
                 case (service, member) => {
                   val event = member.setStatus(MemberStatus.Down, triggerEvent = true)
+                  updateStatusChangeMetrics(service, event)
+                }
+              }
+            } catch {
+              case e: Exception =>
+                error("Got an exception when forcing the cluster down: ", e)
+            } finally {
+              sender ! true
+            }
+
+          case SetMembersLeaving =>
+            info("Preparing for shutdown, setting all local nodes to Leaving status")
+            try {
+              allMembers.foreach {
+                case (service, member) => if(cluster.isLocalNode(member.node)){
+                  val event = member.setStatus(MemberStatus.Leaving, triggerEvent = true)
+                  voteServiceMemberStatus(service, new ServiceMemberVote(member, member, MemberStatus.Leaving))
                   updateStatusChangeMetrics(service, event)
                 }
               }

@@ -19,11 +19,19 @@ sealed class ServiceMember(val token: Long,
     (oldStatus, newStatus) match {
       case (MemberStatus.Down, MemberStatus.Joining) => true
       case (MemberStatus.Joining, MemberStatus.Up) => true
+      case (MemberStatus.Up, MemberStatus.Leaving) => true
       case (MemberStatus.Up, MemberStatus.Down) => true
+      case (MemberStatus.Leaving, MemberStatus.Down) => true
       case _ => false
     }
   }
 
+  /**
+   * This method checks if a status change is allowed by all observers observing the current service member.
+   * A StatusTransitionAttemptEvent is created and sent to every observer. Each observer will vote directly on
+   * the received event on whether they accept the requested status change or not. The event containing the vote
+   * result is then returned.
+   */
   private[nrv] def trySetStatus(newStatus: MemberStatus): Option[StatusTransitionAttemptEvent] = {
     if (this._status != newStatus) {
       val event = new StatusTransitionAttemptEvent(this, this._status, newStatus)
@@ -86,6 +94,7 @@ object MemberStatus {
       case "down" => Down
       case "joining" => Joining
       case "up" => Up
+      case "leaving" => Leaving
     }
   }
 
@@ -99,6 +108,10 @@ object MemberStatus {
 
   case object Up extends MemberStatus {
     override def toString = "up"
+  }
+
+  case object Leaving extends MemberStatus {
+    override def toString = "leaving"
   }
 
 }

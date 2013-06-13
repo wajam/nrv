@@ -3,12 +3,13 @@ package com.wajam.nrv.zookeeper.cluster
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import com.wajam.nrv.cluster.{LocalNode, ServiceMemberVote, Node, Cluster}
 import com.wajam.nrv.zookeeper.ZookeeperClient._
-import com.wajam.nrv.service.{StatusTransitionEvent, MemberStatus, ServiceMember, Service}
-import com.wajam.nrv.utils.{Event}
+import com.wajam.nrv.service._
 import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.ZookeeperClient
+import org.scalatest.matchers.ShouldMatchers
+import com.wajam.nrv.service
 
-class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
+class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with ShouldMatchers {
 
   var clusters = List[TestCluster]()
 
@@ -104,8 +105,8 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
       this
     }
 
-    def stop() = {
-      cluster.stop()
+    def stop(shudownTimeOutInMs: Long = 5000L) = {
+      cluster.stop(shudownTimeOutInMs)
       zk.close()
       this
     }
@@ -292,5 +293,47 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter {
       cluster1.service2.getMemberAtToken(16).get.status
     }, _ == MemberStatus.Up)
   }
-}
 
+  test("when stopping a cluster, ServiceMembers should change like this: Up -> Leaving -> Down, and the Leaving -> Down change should be done according to votes") {
+    import com.wajam.nrv.service.{StatusTransitionAttemptEvent, MemberStatus}
+    import com.wajam.nrv.utils.Event
+    object VetoVoter {
+      private var callCountDown = 3
+      private var callCounter = 0
+      def getCallCountDown = callCountDown
+      def getCallCounter = callCounter
+
+      def ApplyVetoMultipleTimes(event: Event) {
+        synchronized {
+          callCounter+=1
+          event match {
+            case e: StatusTransitionAttemptEvent if e.to == MemberStatus.Down && callCountDown == 0 => {
+              e.vote(pass = true)
+              e.from should be (service.MemberStatus.Leaving)
+            }
+            case e: StatusTransitionAttemptEvent if e.to == MemberStatus.Down && callCountDown > 0 => {
+              callCountDown -= 1
+              e.vote(pass = false)
+              e.from should be (service.MemberStatus.Leaving)
+            }
+            case e: Event =>
+          }
+        }
+      }
+    }
+
+    val cluster = createCluster(1).start()
+    cluster.service1.addObserver(VetoVoter.ApplyVetoMultipleTimes)
+
+    cluster.stop(5000L)
+
+    //all members should be down
+    cluster.service1.members.foreach(_.status should be (MemberStatus.Down))
+    cluster.service2.members.foreach(_.status should be (MemberStatus.Down))
+    //the Vetovoter should have applied his veto 3 times, and should have been
+    VetoVoter.getCallCountDown should be(0)
+    //The Vetovoter should have been called 3 times (3 fail attempts) + once for each service1 member
+    VetoVoter.getCallCounter should be(3 + cluster.service1.members.size)
+  }
+
+}
