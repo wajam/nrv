@@ -24,10 +24,15 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
   def transformLogMessage = (msg, params) => ("[local=%s] %s".format(cluster.localNode, msg), params)
 
   override def start() = {
-    if (super.start()) {
-      OperationLoop.start()
-      true
-    } else false
+    synchronized {
+      if (isLeaving) {
+        throw new RuntimeException("Cannot start a leaving cluster!")
+      }
+      if (super.start()) {
+        OperationLoop.start()
+        true
+      } else false
+    }
   }
 
   override def stop() = {
