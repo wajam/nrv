@@ -46,14 +46,14 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
     subscribeAction = ActionProxy()
     unsubscribeAction = ActionProxy()
 
-    subscriber = new ReplicationSubscriber(service, mockStore, subscriptionTimeout, commitFrequency = 0,
-      logIdGenerator = new IdGenerator[Long] {
-        def nextId = {
-          val id = currentLogId
-          currentLogId += 1
-          id
-        }
-      }) {
+    val logIdGenerator = new IdGenerator[Long] {
+      def nextId = {
+        val id = currentLogId
+        currentLogId += 1
+        id
+      }
+    }
+    subscriber = new ReplicationSubscriber(service, mockStore, subscriptionTimeout, commitFrequency = 0, logIdGenerator) {
       override def nextId = currentCookie
     }
     subscriber.start()
