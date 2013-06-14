@@ -23,7 +23,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
   var txLog: FileTransactionLog = null
 
   before {
-    logDir = Files.createTempDirectory("TestFileTransactionLog").toFile
+    logDir = Files.createTempDirectory("TestTransactionLogReplicationIterator").toFile
     member = ResolvedServiceMember(serviceName = "service", token = 1000L, ranges = Seq(TokenRange.All))
     txLog = new FileTransactionLog(member.serviceName, member.token, logDir = logDir.getAbsolutePath)
   }

@@ -169,6 +169,13 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               case e: Exception => {
                 subscribeErrorMeter.mark()
                 warn("Error processing subscribe request {}: ", message, e)
+                try {
+                  val response = new OutMessage()
+                  response.error = Some(e)
+                  message.reply(response)
+                } catch {
+                  case ex: Exception => warn("Error replying subscribe request error {}: ", message, ex)
+                }
               }
             }
           }
