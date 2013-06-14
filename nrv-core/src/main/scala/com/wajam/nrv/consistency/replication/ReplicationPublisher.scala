@@ -153,7 +153,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               val member = createResolvedServiceMember(token)
               val source = createSourceIterator(member, start, isLiveReplication)
 
-              val subscription = new SubscriptionActor(nextId, member, source, message.source)
+              val subscription = new SubscriptionActor(nextId, member, source, cookie.getOrElse(""), message.source)
               subscriptions = subscription :: subscriptions
 
               // Reply with a subscription response
@@ -202,8 +202,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
             try {
               val subs = subscriptions.map(subscriptionActor => {
                 val mode = if (subscriptionActor.source.end.isDefined) ReplicationMode.Store else ReplicationMode.Live
-                ReplicationSubscription(subscriptionActor.member, cookie = "", mode, id = Some(subscriptionActor.subId),
-                  Some(subscriptionActor.source.start), subscriptionActor.source.end)
+                ReplicationSubscription(subscriptionActor.member, subscriptionActor.cookie, mode,
+                  Some(subscriptionActor.subId), Some(subscriptionActor.source.start), subscriptionActor.source.end)
               })
               reply(subs)
             } catch {
@@ -272,7 +272,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
   }
 
   class SubscriptionActor(val subId: String, val member: ResolvedServiceMember, val source: ReplicationSourceIterator,
-                          subscriber: Node) extends Actor with Logging {
+                          val cookie: String, subscriber: Node) extends Actor with Logging {
 
     private lazy val publishMeter = metrics.meter("publish", "publish", member.scopeName)
     private lazy val publishErrorMeter = metrics.meter("publish-error", "publish-error", member.scopeName)
@@ -305,7 +305,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     private def currentWindowSize: Int = {
       pendingSequences.headOption match {
-        case Some(firstPendingSequence) => (lastSequence - firstPendingSequence).toInt
+        case Some(firstPendingSequence) => (lastSequence - firstPendingSequence).toInt + 1
         case None => 0
       }
     }
@@ -352,7 +352,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       lastSendTime = currentTime
       publishMeter.mark()
 
-      trace("Published message to subscriber (seq={}, window={}).", sequence, currentWindowSize)
+      info("Published message to subscriber (seq={}, window={}).", sequence, currentWindowSize)
     }
 
     def act() {
