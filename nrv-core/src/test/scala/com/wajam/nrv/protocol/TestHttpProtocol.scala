@@ -20,7 +20,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
   var unchunkedProtocol: HttpProtocol = null
   var chunkedProtocol: HttpProtocol = null
 
-  val chunkSize = 10
+  val chunkSize = 1
 
   val fixture = {
     new {
@@ -34,8 +34,8 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
   before {
     val localnode = new LocalNode("localhost", Map("nrv" -> 19191, "test" -> 1909))
     val cluster = new Cluster(localnode, new StaticClusterManager)
-    unchunkedProtocol = new HttpProtocol("test", localnode, 10000, 100, false, 0)
-    chunkedProtocol = new HttpProtocol("test", localnode, 10000, 100, true, chunkSize)
+    unchunkedProtocol = new HttpProtocol("test", localnode, 10000, 100)
+    chunkedProtocol = new HttpProtocol("test", localnode, 10000, 100, Some(chunkSize))
   }
 
   /**

@@ -19,12 +19,13 @@ class HttpProtocol(name: String,
                    localNode: LocalNode,
                    idleConnectionTimeoutMs: Long,
                    maxConnectionPoolSize: Int,
-                   enableChunkEncoding: Boolean,
-                   chunkSize: Int)
+                   chunkSize: Option[Int] = None)
   extends Protocol(name) {
 
   val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
   contentTypeCodecs += ("text/plain" -> new StringCodec())
+
+  val enableChunkEncoding = !chunkSize.isEmpty
 
   override val transport = new HttpNettyTransport(localNode.listenAddress,
     localNode.ports(name),
@@ -103,20 +104,26 @@ class HttpProtocol(name: String,
         }
         val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(req.method), uri)
         setRequestHeaders(request, req)
-        setContent(request, req)
+        setContent(request, encodeData(req))
         request
       }
       case res: OutMessage => {
-        if (enableChunkEncoding) {
-          HttpProtocol.HttpChunkedMessage(this, res)
-        }
-        else {
-          val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
-          setResponseHeaders(response, res)
-          setContent(response, res)
-          setKeepAlive(response, res)
+        encodeData(res) match {
+          case Some(data) if(enableChunkEncoding && data.length > chunkSize.get) => {
+            val chunkedResponse = HttpProtocol.HttpChunkedMessage(this, res, data)
+            setResponseHeaders(chunkedResponse.begin, res)
+            setKeepAlive(chunkedResponse.begin, res)
 
-          response
+            chunkedResponse
+          }
+          case maybeData => {
+            val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
+            setResponseHeaders(response, res)
+            setContent(response, maybeData)
+            setKeepAlive(response, res)
+
+            response
+          }
         }
       }
     }
@@ -163,15 +170,14 @@ class HttpProtocol(name: String,
     httpMessage.addHeader(HttpProtocol.METHOD_HEADER, message.method)
     httpMessage.addHeader(HttpProtocol.PATH_HEADER, message.path)
     httpMessage.addHeader(HttpProtocol.SERVICE_HEADER, message.serviceName)
-    if(enableChunkEncoding) httpMessage.addHeader("Transfer-Encoding", "chunked")
   }
 
   private def setHeaders(httpMessage: HttpMessage, message: Message) {
     message.metadata.foreach(e => httpMessage.addHeader(e._1, e._2))
   }
 
-  private def setContent(httpMessage: HttpMessage, message: Message) {
-    encodeData(message) match {
+  private def setContent(httpMessage: HttpMessage, maybeData: Option[Array[Byte]]) {
+    maybeData match {
       case Some(data) => {
         httpMessage.setContent(ChannelBuffers.copiedBuffer(data))
         httpMessage.setHeader("Content-Length", data.length)
@@ -191,15 +197,14 @@ class HttpProtocol(name: String,
   }
 
   // Split an OutMessage in chunks, according to the chunk size set in configuration
-  private def getChunks(message: Message): List[DefaultHttpChunk] = {
-      encodeData(message) match {
-        case Some(data) => {
-          data.grouped(chunkSize).map { chunkArray =>
-            new DefaultHttpChunk(ChannelBuffers.copiedBuffer(chunkArray))
-          }.toList
-        }
-        case _ => Nil
-      }
+  private def getChunks(message: Message, data: Array[Byte]): List[DefaultHttpChunk] = {
+    import math.min
+
+    val size = chunkSize.get
+    val length = data.length
+    val offsets = 0 until length by size
+
+    (for(o <- offsets) yield new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(data, o, min(length - o, size)))) toList
   }
 
   private def encodeData(message: Message): Option[Array[Byte]] = {
@@ -287,14 +292,12 @@ object HttpProtocol {
     val EMPTY_CHUNK = new DefaultHttpChunk(ChannelBuffers.EMPTY_BUFFER)
     val TRAILER = new DefaultHttpChunkTrailer
 
-    def apply(protocol: HttpProtocol, res: OutMessage) = {
+    def apply(protocol: HttpProtocol, res: OutMessage, data: Array[Byte]) = {
       val begin = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
+      begin.addHeader("Transfer-Encoding", "chunked")
       begin.setChunked(true)
 
-      protocol.setResponseHeaders(begin, res)
-      protocol.setKeepAlive(begin, res)
-
-      val chunks = protocol.getChunks(res)
+      val chunks = protocol.getChunks(res, data)
 
       new HttpChunkedMessage(begin, chunks, EMPTY_CHUNK, TRAILER)
     }
