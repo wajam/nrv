@@ -352,7 +352,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       lastSendTime = currentTime
       publishMeter.mark()
 
-      info("Published message to subscriber (seq={}, window={}).", sequence, currentWindowSize)
+      trace("Published message to subscriber (seq={}, window={}).", sequence, currentWindowSize)
     }
 
     def act() {
