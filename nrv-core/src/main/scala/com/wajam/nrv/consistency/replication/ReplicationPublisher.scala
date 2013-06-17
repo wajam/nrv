@@ -20,7 +20,7 @@ import com.yammer.metrics.scala.Instrumented
 class ReplicationPublisher(service: Service, store: ConsistentStore,
                            getTransactionLog: (ResolvedServiceMember) => TransactionLog,
                            getMemberCurrentConsistentTimestamp: (ResolvedServiceMember) => Option[Timestamp],
-                           publishAction: Action, publishTps: Int, publishWindowSize: Int, maxIdleDurationInMs: Long)
+                           publishAction: Action, publishTps: Int, publishWindowSize: => Int, maxIdleDurationInMs: Long)
   extends CurrentTime with UuidStringGenerator with Logging with Instrumented {
 
   private val manager = new SubscriptionManagerActor
@@ -230,7 +230,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
           }
           case TerminateMemberSubscriptions(member) => {
             try {
-              subscriptions.find(_.member == member).foreach(subscription => {
+              subscriptions.withFilter(_.member == member).foreach(subscription => {
                 info("Subscription {} is terminated. {}",
                   subscription.subId, member)
                 subscription !? SubscriptionProtocol.Kill
