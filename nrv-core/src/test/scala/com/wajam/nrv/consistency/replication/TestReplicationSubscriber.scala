@@ -8,14 +8,14 @@ import org.mockito.Matchers._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.service._
-import com.wajam.nrv.consistency.{TestTransactionBase, TransactionLogProxy, ResolvedServiceMember, ConsistentStore}
+import com.wajam.nrv.consistency.{TestTransactionBase, ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import MessageMatcher._
 import com.wajam.nrv.consistency.persistence.LogRecord.Index
 import java.util.UUID
 import com.wajam.nrv.utils.IdGenerator
-import com.wajam.nrv.consistency.persistence.LogRecord
+import com.wajam.nrv.consistency.persistence.{TransactionLogProxy, LogRecord}
 
 @RunWith(classOf[JUnitRunner])
 class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter with MockitoSugar {

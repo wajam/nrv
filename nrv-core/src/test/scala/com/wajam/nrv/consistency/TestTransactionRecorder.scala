@@ -14,7 +14,7 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.utils.IdGenerator
 import org.scalatest.mock.MockitoSugar
 import persistence.LogRecord.Index
-import persistence.LogRecord
+import com.wajam.nrv.consistency.persistence.{TransactionLogProxy, LogRecord}
 import com.wajam.nrv.utils.timestamp.Timestamp
 
 @RunWith(classOf[JUnitRunner])
