@@ -1,12 +1,10 @@
-package com.wajam.nrv.consistency
+package com.wajam.nrv.consistency.persistence
 
-import persistence.LogRecord.Index
-import persistence.{LogRecord, TransactionLog}
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
+import com.wajam.nrv.consistency.persistence.LogRecord.Index
 import com.wajam.nrv.utils.timestamp.Timestamp
 import org.mockito.Mockito
-
 
 trait TransactionAppender {
   def append(record: LogRecord)

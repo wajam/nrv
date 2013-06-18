@@ -12,7 +12,7 @@ import com.wajam.nrv.UnavailableException
 import com.wajam.nrv.Logging
 import com.wajam.nrv.consistency.replication._
 import scala.actors.Actor
-import com.wajam.nrv.service.MemberStatus.Leaving
+
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
  * recorded in a transaction log per service member and replicated to slave replicas.
@@ -124,8 +124,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
       // Subscribe for replication to all master service members the current node is a slave
       info("Startup replication subscription  {}", service)
-      service.members.withFilter(member => member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {member =>
-        SubscriptionManagerActor ! Subscribe(member, ReplicationMode.Store)
+      service.members.withFilter(member => member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {
+        member =>
+          SubscriptionManagerActor ! Subscribe(member, ReplicationMode.Store)
       }
 
       started = true
@@ -543,17 +544,46 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       // TODO: Use Future
       val recovery = new ConsistencyRecovery(txLogDir, service, Some(serializer))
       val finalLogIndex = recovery.restoreMemberConsistency(member, onError)
-      finalLogIndex.map(_.consistentTimestamp) match {
+      finalLogIndex.flatMap(_.consistentTimestamp) match {
         case Some(lastLogTimestamp) => {
           // Ensure that transaction log and storage have the same final transaction timestamp
-          val lastStoreTimestamp = service.getLastTimestamp(member.ranges)
-          if (lastLogTimestamp == lastStoreTimestamp) {
-            info("The service member transaction log and store are consistent {}", member)
-            onSuccess
-          } else {
-            error("Transaction log and storage last timestamps are different! (log={}, store={}) {}",
-              lastLogTimestamp, lastStoreTimestamp, member)
-            onError
+          service.getLastTimestamp(member.ranges) match {
+            case Some(lastStoreTimestamp) if lastStoreTimestamp == lastLogTimestamp => {
+              info("The service member transaction log and store are consistent {}", member)
+              onSuccess
+            }
+            case Some(lastStoreTimestamp) if lastStoreTimestamp < lastLogTimestamp => {
+              info("Possible transaction log and storage inconsistency. Falling back to slower committed timestamp verification (store={}, log={}) {}",
+                lastLogTimestamp, lastLogTimestamp, member)
+              val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
+                serializer = Some(serializer))
+              txLog.lastSuccessfulTimestamp(lastStoreTimestamp) match {
+                case Some(lastCommitedLogTimestamp) if lastCommitedLogTimestamp == lastStoreTimestamp => {
+                  info("The service member transaction log and store are consistent {}", member)
+                  onSuccess
+                }
+                case Some(lastCommitedLogTimestamp) => {
+                  error("Last transaction log committed timestamp and storage last timestamp are different! (store={}, log={}) {}",
+                    lastLogTimestamp, lastCommitedLogTimestamp, member)
+                  onError
+                }
+                case None => {
+                  error("Cannot find last transaction log committed timestamp! (store={}) {}",
+                    lastStoreTimestamp, member)
+                  onError
+                }
+              }
+            }
+            case Some(lastStoreTimestamp) => {
+              error("Transaction log and storage last timestamps are different! (store={}, log={}) {}",
+                lastLogTimestamp, lastLogTimestamp, member)
+              onError
+            }
+            case None => {
+              error("Service member is inconsistent. Transaction log exists but storage is empty! (log={}) {}",
+                lastLogTimestamp, member)
+              onError
+            }
           }
         }
         case None => {

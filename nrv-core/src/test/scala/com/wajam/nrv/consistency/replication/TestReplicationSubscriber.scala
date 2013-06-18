@@ -9,14 +9,14 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.service._
 import com.wajam.nrv.service.ActionProxy._
-import com.wajam.nrv.consistency.{TestTransactionBase, TransactionLogProxy, ResolvedServiceMember, ConsistentStore}
+import com.wajam.nrv.consistency.{TestTransactionBase, ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import MessageMatcher._
 import com.wajam.nrv.consistency.persistence.LogRecord.Index
 import java.util.UUID
 import com.wajam.nrv.utils.IdGenerator
-import com.wajam.nrv.consistency.persistence.LogRecord
+import com.wajam.nrv.consistency.persistence.{TransactionLogProxy, LogRecord}
 
 @RunWith(classOf[JUnitRunner])
 class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter with MockitoSugar {
@@ -580,7 +580,7 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
     ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx3)))
     ordered.verify(txLogProxy.mockAppender).append(LogRecord(1005, tx2.timestamp, createResponseMessage(tx3)))
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
-    publishReplyCount should be (3)
+    publishReplyCount should be(3)
     verifyZeroInteractions(mockSubscribeAction, mockUnsubscribeAction)
   }
 
@@ -611,7 +611,7 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
     ordered.verify(txLogProxy.mockAppender).append(LogRecord(1001, Some(startTimestamp), createResponseMessage(tx1)))
     ordered.verify(txLogProxy.mockAppender).append(LogRecord(1002, tx1.timestamp, tx2))
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
-    publishReplyCount should be (1)
+    publishReplyCount should be(1)
 
     val unsubscribeRequest: Map[String, MValue] = Map(
       ReplicationParam.Token -> token.toString,
@@ -643,7 +643,7 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
     ordered.verify(txLogProxy.mockAppender).append(LogRecord(1000, Some(startTimestamp), tx1))
     ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx1)))
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
-    publishReplyCount should be (0)
+    publishReplyCount should be(0)
 
     val unsubscribeRequest: Map[String, MValue] = Map(
       ReplicationParam.Token -> token.toString,
@@ -675,7 +675,7 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
     ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx1)))
     ordered.verify(txLogProxy.mockAppender).append(LogRecord(1001, Some(startTimestamp), createResponseMessage(tx1)))
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
-    publishReplyCount should be (1)
+    publishReplyCount should be(1)
 
     val unsubscribeRequest: Map[String, MValue] = Map(
       ReplicationParam.Token -> token.toString,
@@ -703,7 +703,7 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
     ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx1)))
     ordered.verify(txLogProxy.mockAppender).append(LogRecord(1001, Some(startTimestamp), createResponseMessage(tx1)))
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
-    publishReplyCount should be (1)
+    publishReplyCount should be(1)
 
     val unsubscribeRequest: Map[String, MValue] = Map(
       ReplicationParam.Token -> token.toString,
@@ -729,6 +729,6 @@ class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter 
     Thread.sleep(100)
 
     verifyZeroInteractions(txLogProxy.mockAppender, mockStore, mockSubscribeAction, mockUnsubscribeAction)
-    publishReplyCount should be (3)
+    publishReplyCount should be(3)
   }
 }
