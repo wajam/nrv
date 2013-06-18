@@ -39,7 +39,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
 
   def hasNext = {
     readMoreLogRecords()
-    itr.hasNext || drain && !pendingTransactions.isEmpty
+    itr.hasNext || drain && pendingTransactions.nonEmpty
   }
 
   def next() = {
@@ -77,7 +77,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
    * the last read record consistent timestamp.
    */
   private def isHeadTransactionReady: Boolean = {
-    if (drain && !itr.hasNext && !pendingTransactions.isEmpty) {
+    if (drain && !itr.hasNext && pendingTransactions.nonEmpty) {
       true
     } else {
       val ready = for {
