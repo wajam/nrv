@@ -40,7 +40,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
   }
 
   test("empty log should not fail") {
-    val itr = new TransactionLogReplicationIterator(member, start = 1L, txLog, Some(Long.MaxValue))
+    val itr = new TransactionLogReplicationIterator(member, start = 1L, txLog, Some(Long.MaxValue), drain = false)
     itr.hasNext should be(false)
   }
 
@@ -79,7 +79,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
       itr.take(takeCount).flatten.map(msg => msg.timestamp).flatten.map(ts => ts.value).toList
     }
 
-    val from1 = new TransactionLogReplicationIterator(member, start = 1L, txLog, currentConsistentTimestamp)
+    val from1 = new TransactionLogReplicationIterator(member, start = 1L, txLog, currentConsistentTimestamp, drain = false)
     takeTimestamps(from1, consistentTimestamp = None, 100) should be(List())
     takeTimestamps(from1, consistentTimestamp = Some(1), 100) should be(List())
     takeTimestamps(from1, consistentTimestamp = Some(5), 100) should be(List(1L))
@@ -89,12 +89,12 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
     takeTimestamps(from1, consistentTimestamp = Some(8), 100) should be(List(7L))
     takeTimestamps(from1, consistentTimestamp = Some(8), 100) should be(List())
 
-    val from3 = new TransactionLogReplicationIterator(member, start = 3L, txLog, currentConsistentTimestamp)
+    val from3 = new TransactionLogReplicationIterator(member, start = 3L, txLog, currentConsistentTimestamp, drain = false)
     takeTimestamps(from3, consistentTimestamp = None, 100) should be(List())
     takeTimestamps(from3, consistentTimestamp = Some(8), 100) should be(List(4L, 5L, 6L, 7L))
     takeTimestamps(from3, consistentTimestamp = Some(8), 100) should be(List())
 
-    val from6 = new TransactionLogReplicationIterator(member, start = 6L, txLog, currentConsistentTimestamp)
+    val from6 = new TransactionLogReplicationIterator(member, start = 6L, txLog, currentConsistentTimestamp, drain = false)
     takeTimestamps(from6, consistentTimestamp = None, 100) should be(List())
     takeTimestamps(from6, consistentTimestamp = Some(8), 100) should be(List(6L, 7L))
     takeTimestamps(from6, consistentTimestamp = Some(8), 100) should be(List())
@@ -121,7 +121,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
 
     // Missing timestamp
     evaluating {
-      new TransactionLogReplicationIterator(member, start = -1L, txLog, None)
+      new TransactionLogReplicationIterator(member, start = -1L, txLog, None, drain = false)
     } should produce[NoSuchElementException]
   }
 
@@ -187,7 +187,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
     // completed and the consumer read last record repecting the last appended record consistent timestamp.
     val consumer = Future {
       val itr = new TransactionLogReplicationIterator(member, start = request1.timestamp.get,
-        txLog, recorder.currentConsistentTimestamp)
+        txLog, recorder.currentConsistentTimestamp, drain = false)
 
       def finalConsistentRecord = txLog.firstRecord(txLog.getLastLoggedRecord.get.consistentTimestamp)
 

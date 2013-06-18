@@ -18,7 +18,8 @@ import com.yammer.metrics.scala.Instrumented
  * This class is not thread safe and must invoked from a single thread or synchronized externaly.
  */
 class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start: Timestamp,
-                                        txLog: TransactionLog, currentConsistentTimestamp: => Option[Timestamp])
+                                        txLog: TransactionLog, currentConsistentTimestamp: => Option[Timestamp],
+                                        drain: => Boolean = false)
   extends ReplicationSourceIterator with Instrumented {
 
   val end = None
@@ -38,7 +39,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
 
   def hasNext = {
     readMoreLogRecords()
-    itr.hasNext
+    itr.hasNext || drain && pendingTransactions.nonEmpty
   }
 
   def next() = {
@@ -76,13 +77,17 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
    * the last read record consistent timestamp.
    */
   private def isHeadTransactionReady: Boolean = {
-    val ready = for {
-      (_, tx) <- pendingTransactions.headOption
-      headResponse <- tx.response
-      lastRecord <- lastReadRecord
-      maxTimestamp <- lastRecord.consistentTimestamp
-    } yield headResponse.timestamp <= maxTimestamp
-    ready.getOrElse(false)
+    if (drain && !itr.hasNext && pendingTransactions.nonEmpty) {
+      true
+    } else {
+      val ready = for {
+        (_, tx) <- pendingTransactions.headOption
+        headResponse <- tx.response
+        lastRecord <- lastReadRecord
+        maxTimestamp <- lastRecord.consistentTimestamp
+      } yield headResponse.timestamp <= maxTimestamp
+      ready.getOrElse(false)
+    }
   }
 
   /**
