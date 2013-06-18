@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.persistence
 
 import com.wajam.nrv.utils.timestamp.Timestamp
-import com.wajam.nrv.consistency.persistence.LogRecord.Index
+import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Index}
 import com.wajam.nrv.utils.Closable
 
 trait TransactionLog {
@@ -42,7 +42,7 @@ trait TransactionLog {
   def close()
 
   /**
-   * Returns the first record at the specified timestamp
+   * Returns the first timestamped record at the specified timestamp
    */
   def firstRecord(timestamp: Option[Timestamp]): Option[TimestampedRecord] = {
     val itr = timestamp match {
@@ -53,6 +53,21 @@ trait TransactionLog {
       itr.collectFirst({
         case record: TimestampedRecord => record
       })
+    } finally {
+      itr.close()
+    }
+  }
+
+  /**
+   * Returns the most recent sucessful response timestamp from the specified timestamp
+   */
+  def lastSuccessfulTimestamp(timestamp: Timestamp): Option[Timestamp] = {
+    val itr = read(timestamp)
+    try {
+      val responseTimestamps = itr.collect {
+        case response: Response if response.status == Response.Success => response.timestamp
+      }
+      if (responseTimestamps.isEmpty) None else Some(responseTimestamps.max)
     } finally {
       itr.close()
     }
