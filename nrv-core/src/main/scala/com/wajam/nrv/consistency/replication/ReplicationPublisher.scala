@@ -101,25 +101,30 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       }
     }
 
-    private def createSourceIterator(member: ResolvedServiceMember, startTimestamp: Timestamp,
+    private def createSourceIterator(resolvedMember: ResolvedServiceMember, startTimestamp: Timestamp,
                                      isLiveReplication: Boolean): ReplicationSourceIterator = {
-      val txLog = getTransactionLog(member)
+      val txLog = getTransactionLog(resolvedMember)
       val sourceIterator = txLog.firstRecord(None) match {
         case Some(logRecord) if isLiveReplication && logRecord.timestamp <= startTimestamp => {
           // Live replication mode. Use the transaction log if the first transaction log record is before the starting
           // timestamp.
           info("Using TransactionLogReplicationIterator. start={}, end={}, member={}", startTimestamp,
-            getMemberCurrentConsistentTimestamp(member), member)
-          new TransactionLogReplicationIterator(member, startTimestamp, txLog, getMemberCurrentConsistentTimestamp(member))
+            getMemberCurrentConsistentTimestamp(resolvedMember), resolvedMember)
+
+          val member = service.getMemberAtToken(resolvedMember.token)
+          def isMemberDraining = member.exists(_.status == MemberStatus.Leaving)
+
+          new TransactionLogReplicationIterator(resolvedMember, startTimestamp, txLog,
+            getMemberCurrentConsistentTimestamp(resolvedMember), isMemberDraining)
         }
         case Some(_) => {
           // Not in live replication mode or the first transaction log record is after the replication starting
           // timestamp or store source is forced. Use the consistent store as the replication source up to the
           // current member consistent timestamp.
-          val endTimestamp = getMemberCurrentConsistentTimestamp(member).get
+          val endTimestamp = getMemberCurrentConsistentTimestamp(resolvedMember).get
           info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}",
-            startTimestamp, endTimestamp, member)
-          new ConsistentStoreReplicationIterator(member, startTimestamp, endTimestamp, store)
+            startTimestamp, endTimestamp, resolvedMember)
+          new ConsistentStoreReplicationIterator(resolvedMember, startTimestamp, endTimestamp, store)
         }
         case None => {
           // There are no transaction log!!! Cannot replicate if transaction log is not enabled.

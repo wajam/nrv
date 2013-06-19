@@ -19,7 +19,7 @@ import com.yammer.metrics.scala.Instrumented
  */
 class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start: Timestamp,
                                         txLog: TransactionLog, currentConsistentTimestamp: => Option[Timestamp],
-                                        drain: => Boolean = false)
+                                        isDraining: => Boolean = false)
   extends ReplicationSourceIterator with Instrumented {
 
   val end = None
@@ -39,7 +39,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
 
   def hasNext = {
     readMoreLogRecords()
-    itr.hasNext || drain && pendingTransactions.nonEmpty
+    itr.hasNext || isDraining && pendingTransactions.nonEmpty
   }
 
   def next() = {
@@ -77,7 +77,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
    * the last read record consistent timestamp.
    */
   private def isHeadTransactionReady: Boolean = {
-    if (drain && !itr.hasNext && pendingTransactions.nonEmpty) {
+    if (isDraining && !itr.hasNext && pendingTransactions.nonEmpty) {
       true
     } else {
       val ready = for {
@@ -101,11 +101,13 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
     before.getOrElse(false)
   }
 
+  private def isLastRecordEqualsToConsistentTimestamp = lastReadRecord.map(_.timestamp) == currentConsistentTimestamp
+
   private def readMoreLogRecords() {
     // Read records untill the head transaction is ready (see definition above) but never going beyond the the current
     // consistent timestamp.
     while (itr.hasNext && (lastReadRecord.isEmpty ||
-      isLastRecordBeforeCurrentConsistentTimestamp && !isHeadTransactionReady)) {
+      (isLastRecordBeforeCurrentConsistentTimestamp || isDraining && isLastRecordEqualsToConsistentTimestamp) && !isHeadTransactionReady)) {
       val record = itr.next()
       record match {
         case request: Request => {

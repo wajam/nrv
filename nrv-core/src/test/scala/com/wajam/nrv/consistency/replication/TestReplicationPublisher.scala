@@ -19,23 +19,27 @@ import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Request, Index
 import org.mockito.ArgumentCaptor
 import scala.collection.JavaConversions._
 import com.wajam.nrv.utils.Closable
+import com.wajam.nrv.consistency.persistence.LogRecord.Index
+import com.wajam.nrv.Logging
 
 @RunWith(classOf[JUnitRunner])
-class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter with MockitoSugar {
+class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter with MockitoSugar with Logging {
 
   var service: Service = null
-  var member: ResolvedServiceMember = null
+  var member: ServiceMember = null
+  var ranges: Seq[TokenRange] = null
   var mockStore: ConsistentStore = null
   var mockPublishAction: Action = null
-
-  var subscriptionId: String = "id"
-  var currentConsistentTimestamp: Option[Timestamp] = None
   var publisher: ReplicationPublisher = null
 
+  var remoteMember: ServiceMember = null
+
+  val subscriptionId: String = "id"
+  var currentConsistentTimestamp: Option[Timestamp] = None
   var publishWindowSize = 2
-  val subscriptionTimeout = 1500L
-  val token = 0
-  val remoteToken: Long = Int.MaxValue
+  var isDraining = false
+
+  val subscriptionTimeout = 2000L
 
   val localNode = new LocalNode("127.0.0.1", Map("nrv" -> 12345))
   val remoteNode = new Node("127.0.0.2", Map("nrv" -> 54321))
@@ -47,13 +51,14 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     service = new Service("service")
     val cluster = new Cluster(localNode, new StaticClusterManager)
     cluster.registerService(service)
-    service.addMember(new ServiceMember(token, localNode))
-    service.addMember(new ServiceMember(remoteToken, remoteNode))
-
-    member = ResolvedServiceMember(service, token)
+    member = new ServiceMember(0, localNode)
+    remoteMember = new ServiceMember(Int.MaxValue, remoteNode)
+    service.addMember(member)
+    service.addMember(remoteMember)
+    ranges = ResolvedServiceMember(service, member).ranges
 
     logDir = Files.createTempDirectory("TestReplicationPublisher").toFile
-    txLog = new FileTransactionLog(member.serviceName, member.token, logDir = logDir.getAbsolutePath)
+    txLog = new FileTransactionLog(service.name, member.token, logDir = logDir.getAbsolutePath)
 
     mockStore = mock[ConsistentStore]
     mockPublishAction = mock[Action]
@@ -79,13 +84,18 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     logDir = null
 
     currentConsistentTimestamp = None
+    isDraining = false
+    publishWindowSize = 2
   }
 
+  /**
+   * Utility to create a publisher subscription
+   */
   def subscribe(startTimestamp: Option[Timestamp], mode: ReplicationMode): ReplicationSubscription = {
     val cookie = "cookie"
 
     var subscribeRequest: Map[String, MValue] = Map(
-      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Token -> member.token,
       ReplicationParam.Cookie -> cookie,
       ReplicationParam.Mode -> mode.toString)
     startTimestamp.foreach(ts => subscribeRequest += ReplicationParam.Start -> ts.value)
@@ -96,7 +106,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
 
     publisher.handleSubscribeMessage(subscribeRequestMessage)
     val subscription = publisher.subscriptions.head
-    subscription.member should be(member)
+    subscription.member should be(ResolvedServiceMember(service, member))
     subscription.cookie should be(cookie)
     subscription.id should be(Some(subscriptionId))
     // Do not verify subscription mode, start and end timestamps. These values can be different from the ones requested
@@ -115,13 +125,13 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
       if (remaining > 0) {
         val message = createRequestMessage(timestamp)
         val request = Request(nextId, consistentTimestamp, message)
+        trace("createTransactions: {}", request)
         val response = Response(request.id + 1, consistentTimestamp, createResponseMessage(message))
-        println(request)
-        println(response)
+        trace("createTransactions: {}", response)
         request :: response :: create(response.id + 1, timestamp + timestampIncrement, Some(timestamp), remaining - 1)
       } else {
         val index = Index(nextId, consistentTimestamp)
-        println(index)
+        trace("createTransactions: {}", index)
         index :: Nil
       }
     }
@@ -129,6 +139,9 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     create(0, initialTimestamp, None, count)
   }
 
+  /**
+   * Convert the specified log records into publish messages
+   */
   def toPublishMessages(records: Seq[LogRecord], startTimestamp: Long): Seq[Message] = {
     // Only keep Request records. Note that the start timestamp is exclusive.
     val requests = records.collect {
@@ -146,10 +159,28 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     }
   }
 
-
-  def assertPublishMessageEquals(actual: Message, expected: Message) {
-    actual.parameters.toMap should be(expected.parameters.toMap)
+  def assertPublishMessageEquals(actual: Message, expected: Message, ignoreSequence: Boolean = false) {
+    if (ignoreSequence) {
+      actual.parameters.toMap - ReplicationParam.Sequence should be(expected.parameters.toMap - ReplicationParam.Sequence)
+    } else {
+      actual.parameters.toMap should be(expected.parameters.toMap)
+    }
     actual.getData[Message].parameters should be(expected.getData[Message].parameters)
+  }
+
+  def assertPublishMessagesEquals(actual: Seq[Message], expected: Seq[Message], size: Int = -1, ignoreSequence: Boolean = false) {
+
+    def getTimestamp(message: Message) = {
+      if (message.hasData) message.getData[Message].timestamp else None
+    }
+    trace("assertPublishMessagesEquals: actual={}, expected={}", actual.map(getTimestamp(_)), expected.map(getTimestamp(_)))
+
+    actual.zip(expected).foreach {
+      pair => assertPublishMessageEquals(pair._1, pair._2, ignoreSequence)
+    }
+
+    val expectedSize = if (size < 0) expected.size else size
+    actual.size should be(expectedSize)
   }
 
   def toStoreIterator(records: Seq[LogRecord], startTimestamp: Long): Iterator[Message] with Closable = {
@@ -174,7 +205,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
 
   test("subscribe should fail if publisher is not master of the service member") {
     val subscribeRequest: Map[String, MValue] = Map(
-      ReplicationParam.Token -> remoteToken.toString,
+      ReplicationParam.Token -> remoteMember.token.toString,
       ReplicationParam.Cookie -> "cookie",
       ReplicationParam.Start -> "12345",
       ReplicationParam.Mode -> ReplicationMode.Store.toString)
@@ -208,7 +239,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
 
   test("subscribe live mode should fail if master has no transaction log") {
     val subscribeRequest: Map[String, MValue] = Map(
-      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Token -> member.token,
       ReplicationParam.Cookie -> "cookie",
       ReplicationParam.Start -> "12345",
       ReplicationParam.Mode -> ReplicationMode.Live.toString)
@@ -312,14 +343,14 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     verifyZeroInteractionsAfter(wait = 500, mockPublishAction)
   }
 
-  test("subscribe live mode should fallback to store mode if no start timestamp is specified") {
+  test("subscribe live mode should fallback to store mode if start timestamp is NOT specified") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     logRecords.foreach(txLog.append(_))
     logRecords should be(txLog.read.toList)
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
 
     val startTimestamp = Long.MinValue
-    when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, member.ranges)).thenReturn(
+    when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, ranges)).thenReturn(
       toStoreIterator(logRecords, startTimestamp))
 
     // Subscribe without specifying a start timestamp
@@ -341,14 +372,14 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
   }
 
-  test("subscribe live mode should fallback to store mode if start timestamp before first log timestamp") {
+  test("subscribe live mode should fallback to store mode if start timestamp is before first log timestamp") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     // Append only second half of the transactions in log, first transactions will come from the store
     logRecords.slice(logRecords.size / 2, logRecords.size).foreach(txLog.append(_))
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
 
     val startTimestamp = 1L
-    when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, member.ranges)).thenReturn(
+    when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, ranges)).thenReturn(
       toStoreIterator(logRecords, startTimestamp))
 
     val subscription = subscribe(Some(startTimestamp), ReplicationMode.Live)
@@ -376,7 +407,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
 
     val startTimestamp = 1L
-    when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, member.ranges)).thenReturn(
+    when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, ranges)).thenReturn(
       toStoreIterator(logRecords, startTimestamp))
 
     val subscription = subscribe(Some(startTimestamp), ReplicationMode.Store)
@@ -401,11 +432,11 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
     val startTimestamp = 1L
-    when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, member.ranges)).thenReturn(
+    when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, ranges)).thenReturn(
       toStoreIterator(logRecords, startTimestamp))
 
     val subscribeRequest: Map[String, MValue] = Map(
-      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Token -> member.token,
       ReplicationParam.Cookie -> "cookie",
       ReplicationParam.Start -> startTimestamp,
       ReplicationParam.Mode -> ReplicationMode.Store.toString)
@@ -427,7 +458,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     publishWindowSize = 100
 
     val startTimestamp = 1L
-    when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, member.ranges)).thenReturn(
+    when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, ranges)).thenReturn(
       toStoreIterator(logRecords, startTimestamp))
 
     val subscription = subscribe(Some(startTimestamp), ReplicationMode.Store)
@@ -441,29 +472,111 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     verify(mockPublishAction, timeout(1000).atLeast(expectedPublished.size)).callOutgoingHandlers(publishCaptor.capture())
 
     // Verify received all expected messages
-    val actualPublished = publishCaptor.getAllValues.toList
-    expectedPublished.zip(actualPublished).foreach {
-      case (expected, actual) => assertPublishMessageEquals(actual = actual, expected = expected)
-    }
-    actualPublished.size should be(expectedPublished.size)
+    val actualPublished = publishCaptor.getAllValues
+    assertPublishMessagesEquals(actualPublished, expectedPublished)
     publisher.subscriptions should be(Nil) // Subscription should be terminated after reaching end timestamp
     verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
   }
 
-  ignore("live mode should end subscription when reaching end of log file") {
+  test("live mode should end subscription when reaching end of log file (drain mode)") {
+    val logRecords = createTransactions(count = 10, initialTimestamp = 0)
+    logRecords.foreach(txLog.append(_))
+    currentConsistentTimestamp = logRecords.last.consistentTimestamp
+    publishWindowSize = 100
 
+    val startTimestamp = 1L
+
+    val subscription = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    subscription.mode should be(ReplicationMode.Live)
+    subscription.startTimestamp should be(Some(Timestamp(startTimestamp)))
+    subscription.endTimestamp should be(None)
+
+    val expectedPublished = toPublishMessages(logRecords, startTimestamp)
+
+    val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
+    member.setStatus(MemberStatus.Leaving, triggerEvent = false)
+    verify(mockPublishAction, timeout(1000).atLeast(expectedPublished.size)).callOutgoingHandlers(publishCaptor.capture())
+
+    // Verify received all expected messages
+    val actualPublished = publishCaptor.getAllValues
+    assertPublishMessagesEquals(actualPublished, expectedPublished)
+    publisher.subscriptions should be(Nil) // Subscription should be terminated after reaching end timestamp
+    verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
   }
 
-  ignore("live mode should publish idle message when reaching consistent timestamp") {
+  test("live mode should publish idle message when reaching consistent timestamp and resume publish transaction when it increase") {
+    val logRecords = createTransactions(count = 10, initialTimestamp = 0)
+    logRecords.foreach(txLog.append(_))
+    currentConsistentTimestamp = Some(7L)
+    publishWindowSize = 100
 
+    val startTimestamp = 1L
+
+    val subscription = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    subscription.mode should be(ReplicationMode.Live)
+    subscription.startTimestamp should be(Some(Timestamp(startTimestamp)))
+    subscription.endTimestamp should be(None)
+
+    val expectedPublished = toPublishMessages(logRecords, startTimestamp)
+
+    val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
+    verify(mockPublishAction, timeout(1000).atLeast(5)).callOutgoingHandlers(publishCaptor.capture())
+
+    // Verify received all expected messages until to consistent timestamp (i.e. 2, 3, 4, 5, 6)
+    val actualPublished = publishCaptor.getAllValues.toList
+    assertPublishMessagesEquals(actualPublished, expectedPublished, size = 5)
+    actualPublished.size should be(5)
+
+    // Wait for idle message
+    reset(mockPublishAction)
+    verify(mockPublishAction, timeout(1000).times(1)).callOutgoingHandlers(publishCaptor.capture())
+    publishCaptor.getValue.hasData should be(false)
+
+    // Advance consistent timestamp and verify a new transaction is published
+    reset(mockPublishAction)
+    currentConsistentTimestamp = Some(8L)
+    verify(mockPublishAction, timeout(1000).times(1)).callOutgoingHandlers(publishCaptor.capture())
+    publishCaptor.getValue.getData[Message].timestamp should be(Some(Timestamp(7L)))
+    verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
   }
 
-  ignore("live mode should publish more transactions when consistent timestamp increase") {
+  test("live mode should publish new transactions when appended in log and consistent timestamp increase") {
+    val allLogRecords = createTransactions(count = 20, initialTimestamp = 0)
+    val (logRecords, newLogRecords) = allLogRecords.splitAt(allLogRecords.size / 2)
+    logRecords.foreach(txLog.append(_))
+    currentConsistentTimestamp = logRecords.last.consistentTimestamp
+    publishWindowSize = 100
 
-  }
+    val startTimestamp = 1L
 
-  ignore("live mode should publish new transactions when appended in log and consistent timestamp increase") {
+    val subscription = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    subscription.mode should be(ReplicationMode.Live)
+    subscription.startTimestamp should be(Some(Timestamp(startTimestamp)))
+    subscription.endTimestamp should be(None)
 
+    val allExpectedPublished = toPublishMessages(allLogRecords, startTimestamp)
+    val (expectedPublished, newExpectedPublished) = allExpectedPublished.partition(
+      _.getData[Message].timestamp.get < logRecords.last.consistentTimestamp.get.value)
+
+    val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
+    verify(mockPublishAction, timeout(1000).atLeast(expectedPublished.size)).callOutgoingHandlers(publishCaptor.capture())
+
+    // Verify received all expected messages
+    val actualPublished = publishCaptor.getAllValues
+    assertPublishMessagesEquals(actualPublished, expectedPublished)
+    actualPublished.size should be > 0
+
+    // Append new log records and verify they are published after advancing the consistent timestamp
+    reset(mockPublishAction)
+    newLogRecords.foreach(txLog.append(_))
+    currentConsistentTimestamp = newLogRecords.last.consistentTimestamp
+
+    val newPublishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
+    verify(mockPublishAction, timeout(1000).atLeast(newExpectedPublished.size)).callOutgoingHandlers(newPublishCaptor.capture())
+    assertPublishMessagesEquals(newPublishCaptor.getAllValues.filter(_.hasData), newExpectedPublished,
+      size = newExpectedPublished.size - 1, ignoreSequence = true)
+
+    verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
   }
 
   test("unsubscribe should kill subscription") {
@@ -523,7 +636,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     val subscription2 = subscribe(Some(startTimestamp), ReplicationMode.Live)
     publisher.subscriptions should be(List(subscription1, subscription2))
 
-    publisher.terminateMemberSubscriptions(member)
+    publisher.terminateMemberSubscriptions(ResolvedServiceMember(service, member))
     publisher.subscriptions should be(Nil)
   }
 }
