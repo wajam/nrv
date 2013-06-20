@@ -269,7 +269,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     subscription.endTimestamp should be(None)
 
     val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPublishAction, timeout(1000).atLeast(publishWindowSize)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).atLeast(publishWindowSize)).callOutgoingHandlers(publishCaptor.capture())
 
     // Verify received expected messages up to the window size
     val expectedPublished = toPublishMessages(logRecords, startTimestamp)
@@ -294,7 +294,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     subscription.endTimestamp should be(None)
 
     val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPublishAction, timeout(1000).atLeast(publishWindowSize)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).atLeast(publishWindowSize)).callOutgoingHandlers(publishCaptor.capture())
 
     // Verify received expected messages up to the window size
     val expectedPublished = toPublishMessages(logRecords, startTimestamp)
@@ -308,7 +308,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     // Verify a new message is published if first received message is replied
     reset(mockPublishAction)
     actualPublished.head.handleReply(new InMessage())
-    verify(mockPublishAction, timeout(1000).times(1)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).times(1)).callOutgoingHandlers(publishCaptor.capture())
     assertPublishMessageEquals(actual = publishCaptor.getValue, expected = expectedPublished(publishWindowSize))
     verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
   }
@@ -326,7 +326,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     subscription.endTimestamp should be(None)
 
     val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPublishAction, timeout(1000).atLeast(publishWindowSize)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).atLeast(publishWindowSize)).callOutgoingHandlers(publishCaptor.capture())
 
     // Verify received expected messages up to the window size
     val expectedPublished = toPublishMessages(logRecords, startTimestamp)
@@ -360,7 +360,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     subscription.endTimestamp should be(currentConsistentTimestamp)
 
     val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPublishAction, timeout(1000).atLeast(publishWindowSize)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).atLeast(publishWindowSize)).callOutgoingHandlers(publishCaptor.capture())
 
     // Verify received expected messages up to the window size
     val expectedPublished = toPublishMessages(logRecords, Long.MinValue)
@@ -388,7 +388,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     subscription.endTimestamp should be(currentConsistentTimestamp)
 
     val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPublishAction, timeout(1000).atLeast(publishWindowSize)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).atLeast(publishWindowSize)).callOutgoingHandlers(publishCaptor.capture())
 
     // Verify received expected messages up to the window size
     val expectedPublished = toPublishMessages(logRecords, startTimestamp)
@@ -469,13 +469,13 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     val expectedPublished = toPublishMessages(logRecords, startTimestamp)
 
     val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPublishAction, timeout(1000).atLeast(expectedPublished.size)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).atLeast(expectedPublished.size)).callOutgoingHandlers(publishCaptor.capture())
 
     // Verify received all expected messages
     val actualPublished = publishCaptor.getAllValues
     assertPublishMessagesEquals(actualPublished, expectedPublished)
-    publisher.subscriptions should be(Nil) // Subscription should be terminated after reaching end timestamp
     verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
+    publisher.subscriptions should be(Nil) // Subscription should be terminated after reaching end timestamp
   }
 
   test("live mode should end subscription when reaching end of log file (drain mode)") {
@@ -495,13 +495,13 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
 
     val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
     member.setStatus(MemberStatus.Leaving, triggerEvent = false)
-    verify(mockPublishAction, timeout(1000).atLeast(expectedPublished.size)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).atLeast(expectedPublished.size)).callOutgoingHandlers(publishCaptor.capture())
 
     // Verify received all expected messages
     val actualPublished = publishCaptor.getAllValues
     assertPublishMessagesEquals(actualPublished, expectedPublished)
-    publisher.subscriptions should be(Nil) // Subscription should be terminated after reaching end timestamp
     verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
+    publisher.subscriptions should be(Nil) // Subscription should be terminated after reaching end timestamp
   }
 
   test("live mode should publish idle message when reaching consistent timestamp and resume publish transaction when it increase") {
@@ -520,7 +520,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     val expectedPublished = toPublishMessages(logRecords, startTimestamp)
 
     val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPublishAction, timeout(1000).atLeast(5)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).atLeast(5)).callOutgoingHandlers(publishCaptor.capture())
 
     // Verify received all expected messages until to consistent timestamp (i.e. 2, 3, 4, 5, 6)
     val actualPublished = publishCaptor.getAllValues.toList
@@ -529,13 +529,13 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
 
     // Wait for idle message
     reset(mockPublishAction)
-    verify(mockPublishAction, timeout(1000).times(1)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).times(1)).callOutgoingHandlers(publishCaptor.capture())
     publishCaptor.getValue.hasData should be(false)
 
     // Advance consistent timestamp and verify a new transaction is published
     reset(mockPublishAction)
     currentConsistentTimestamp = Some(8L)
-    verify(mockPublishAction, timeout(1000).times(1)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).times(1)).callOutgoingHandlers(publishCaptor.capture())
     publishCaptor.getValue.getData[Message].timestamp should be(Some(Timestamp(7L)))
     verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
   }
@@ -559,7 +559,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
       _.getData[Message].timestamp.get < logRecords.last.consistentTimestamp.get.value)
 
     val publishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPublishAction, timeout(1000).atLeast(expectedPublished.size)).callOutgoingHandlers(publishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).atLeast(expectedPublished.size)).callOutgoingHandlers(publishCaptor.capture())
 
     // Verify received all expected messages
     val actualPublished = publishCaptor.getAllValues
@@ -572,7 +572,7 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     currentConsistentTimestamp = newLogRecords.last.consistentTimestamp
 
     val newPublishCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPublishAction, timeout(1000).atLeast(newExpectedPublished.size)).callOutgoingHandlers(newPublishCaptor.capture())
+    verify(mockPublishAction, timeout(1500).atLeast(newExpectedPublished.size)).callOutgoingHandlers(newPublishCaptor.capture())
     assertPublishMessagesEquals(newPublishCaptor.getAllValues.filter(_.hasData), newExpectedPublished,
       size = newExpectedPublished.size - 1, ignoreSequence = true)
 
