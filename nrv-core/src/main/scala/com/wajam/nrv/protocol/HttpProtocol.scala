@@ -22,10 +22,10 @@ class HttpProtocol(name: String,
                    chunkSize: Option[Int] = None)
   extends Protocol(name) {
 
-  val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
+  private val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
   contentTypeCodecs += ("text/plain" -> new StringCodec())
 
-  val enableChunkEncoding = !chunkSize.isEmpty
+  private val enableChunkEncoding = !chunkSize.isEmpty
 
   override val transport = new HttpNettyTransport(localNode.listenAddress,
     localNode.ports(name),
@@ -104,7 +104,7 @@ class HttpProtocol(name: String,
         }
         val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(req.method), uri)
         setRequestHeaders(request, req)
-        setContent(request, encodeData(req))
+        setAllContentAtOnce(request, encodeData(req))
         request
       }
       case res: OutMessage => {
@@ -119,7 +119,7 @@ class HttpProtocol(name: String,
           case maybeData => {
             val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
             setResponseHeaders(response, res)
-            setContent(response, maybeData)
+            setAllContentAtOnce(response, maybeData)
             setKeepAlive(response, res)
 
             response
@@ -176,7 +176,7 @@ class HttpProtocol(name: String,
     message.metadata.foreach(e => httpMessage.addHeader(e._1, e._2))
   }
 
-  private def setContent(httpMessage: HttpMessage, maybeData: Option[Array[Byte]]) {
+  private def setAllContentAtOnce(httpMessage: HttpMessage, maybeData: Option[Array[Byte]]) {
     maybeData match {
       case Some(data) => {
         httpMessage.setContent(ChannelBuffers.copiedBuffer(data))
@@ -197,14 +197,14 @@ class HttpProtocol(name: String,
   }
 
   // Split an OutMessage in chunks, according to the chunk size set in configuration
-  private def getChunks(message: Message, data: Array[Byte]): List[DefaultHttpChunk] = {
+  private def splitInChunks(message: Message, data: Array[Byte]): Seq[DefaultHttpChunk] = {
     import math.min
 
     val size = chunkSize.get
     val length = data.length
     val offsets = 0 until length by size
 
-    (for(o <- offsets) yield new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(data, o, min(length - o, size)))) toList
+    (for(o <- offsets) yield new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(data, o, min(length - o, size)))) toSeq
   }
 
   private def encodeData(message: Message): Option[Array[Byte]] = {
@@ -282,10 +282,10 @@ object HttpProtocol {
   val PATH_HEADER = "nrv-path-header"
   val SERVICE_HEADER = "nrv-service-header"
 
-  class HttpChunkedMessage(val begin: DefaultHttpResponse,
-                           val chunks: List[DefaultHttpChunk],
-                           val emptyChunk: DefaultHttpChunk,
-                           val trailer: DefaultHttpChunkTrailer)
+  case class HttpChunkedMessage(begin: DefaultHttpResponse,
+                                chunks: Seq[DefaultHttpChunk],
+                                emptyChunk: DefaultHttpChunk,
+                                trailer: DefaultHttpChunkTrailer)
 
   object HttpChunkedMessage {
 
@@ -297,7 +297,7 @@ object HttpProtocol {
       begin.addHeader("Transfer-Encoding", "chunked")
       begin.setChunked(true)
 
-      val chunks = protocol.getChunks(res, data)
+      val chunks = protocol.splitInChunks(res, data)
 
       new HttpChunkedMessage(begin, chunks, EMPTY_CHUNK, TRAILER)
     }
