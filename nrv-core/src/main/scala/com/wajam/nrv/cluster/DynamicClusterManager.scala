@@ -13,10 +13,6 @@ import java.util.concurrent.{TimeUnit, CountDownLatch}
  * uses the "syncServiceMembers" function to synchronise services members (addition/deletion/status change)
  */
 abstract class DynamicClusterManager extends ClusterManager with Logging with Instrumented with TransformLogging {
-  private val CLUSTER_CHECK_IN_MS = 1000
-  private val CLUSTER_FORCESYNC_IN_MS = 7500
-  private val CLUSTER_PRINT_IN_MS = 5000
-
   private val allServicesMetrics = new ServiceMetrics("all")
   private var servicesMetrics = Map[Service, ServiceMetrics]()
 
@@ -46,21 +42,19 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     OperationLoop ! OperationLoop.TrySetServiceMembersDown(service, member)
   }
 
-  def forceClusterCheck() {
-    OperationLoop !? OperationLoop.CheckCluster
+  protected def forceServiceCheck(service: Service) {
+    OperationLoop !? OperationLoop.SyncService(service)
   }
 
-  def forceClusterDown() {
+  protected def forceClusterDown() {
     OperationLoop !? OperationLoop.ForceDown
   }
 
-  protected def syncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) {
-    // if cluster is not started, we sync directly without passing through actor
-    if (!started || OperationLoop.forceSync)
-      syncServiceMembersImpl(service, members)
-    else
-      OperationLoop !? OperationLoop.SyncServiceMembers(service, members)
+  protected def syncService(service: Service) {
+    getServiceMembers(service).foreach(syncServiceMembersImpl(service, _))
   }
+
+  protected def getServiceMembers(service: Service): Option[Seq[(ServiceMember, Seq[ServiceMemberVote])]]
 
   //Latch synchronization barrier used to wait for all local service members to go down before closing the server
   private var leavingLatch: Option[CountDownLatch] = None
@@ -75,8 +69,6 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       }
     }
   }
-
-  protected def syncMembers()
 
   private def compileVotes(candidateMember: ServiceMember, votes: Seq[ServiceMemberVote]): MemberStatus = {
     // TODO: implement consensus, not just take the member vote
@@ -132,6 +124,199 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
   protected def addingNewServiceMember(service: Service, newServiceMember: ServiceMember)
 
   protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote)
+
+  /**
+   * This actor receives operations and execute them sequentially on the cluster.
+   */
+  private object OperationLoop extends Actor {
+
+    private val ClusterTransitionInMs = 1000
+    private val ClusterSyncInMs = 7500
+    private val ClusterPrintInMs = 5000
+
+    // Operations
+    sealed class ClusterOperation
+
+    case object ForceDown extends ClusterOperation
+
+    case object SetMembersLeaving extends ClusterOperation
+
+    case object ClusterTransition extends ClusterOperation
+
+    case object ClusterPrint extends ClusterOperation with Logging {
+      def print() {
+        allServices.foreach(service => debug("\nLocal node: {}\n{}", cluster.localNode, service.printService))
+      }
+    }
+
+    case object ClusterSync extends ClusterOperation
+
+    case class SyncService(service: Service) extends ClusterOperation
+
+    case class TrySetServiceMembersDown(service: Service, member: ServiceMember) extends ClusterOperation
+
+    val transitionScheduler = new Scheduler(this, ClusterTransition, ClusterTransitionInMs, ClusterTransitionInMs, blockingMessage = true, autoStart = false)
+    val syncScheduler = new Scheduler(this, ClusterSync, ClusterSyncInMs, ClusterSyncInMs, blockingMessage = true, autoStart = false)
+    val printScheduler = new Scheduler(this, ClusterPrint, ClusterPrintInMs, ClusterPrintInMs, blockingMessage = true, autoStart = false)
+
+    override def start(): Actor = {
+      printScheduler.start()
+      syncScheduler.start()
+      transitionScheduler.start()
+      super.start()
+    }
+
+    def stop() {
+      printScheduler.cancel()
+      syncScheduler.cancel()
+      transitionScheduler.cancel()
+    }
+
+    private def tryChangeServiceMemberStatus(service: Service, member: ServiceMember, newStatus: MemberStatus) {
+      info("Trying to switch status of member {} in service {} to {}", member, service, newStatus)
+      member.trySetStatus(newStatus) match {
+        case Some(event) =>
+          if (event.nayVotes > 0) {
+            info("Attempt to switch status of {} in service {} to {} failed by vote (yea={}, nay={})",
+              member, service, newStatus, event.yeaVotes, event.nayVotes)
+          } else {
+            voteServiceMemberStatus(service, new ServiceMemberVote(member, member, newStatus))
+          }
+
+        case None =>
+          info("Status of {} in service {} was canceled (new={}, current={})", member, service, newStatus, member.status)
+      }
+    }
+
+    def act() {
+      loop {
+        react {
+
+          case ClusterPrint =>
+            try {
+              ClusterPrint.print()
+            } catch {
+              case e: Exception => error("Got an exception when printing cluster: ", e)
+            } finally {
+              sender ! true
+            }
+
+          case ClusterTransition => {
+            // periodically executed, check local down nodes and try to promote them to better status
+            try {
+              val members = allMembers
+              debug("Checking cluster for any pending changes ({} members)", members.size)
+
+              members.foreach {
+                case (service, member) if cluster.isLocalNode(member.node) =>
+                  debug("Checking member {} in service {} with current status {}", member, service, member.status)
+
+                  // TODO: this implement currently only check for local nodes that could be promoted. Eventually, this
+                  // will check for "joining" nodes and promote them if votes from consistency managers are positives
+                  member.status match {
+                    case MemberStatus.Joining => tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
+                    case MemberStatus.Down if !isLeaving => tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
+                    case MemberStatus.Leaving => tryChangeServiceMemberStatus(service, member, MemberStatus.Down)
+                    case _ => // don't do anything for other types of MemberStatus
+                  }
+                case _ =>
+              }
+
+              // This will only be called if a latch exists, meaning the cluster is currently attempting to leave
+              leavingLatch match {
+                case Some(latch) if latch.getCount > 0 => {
+                  if (allMembers.count({ case (_, member) => cluster.isLocalNode(member.node) && member.status != MemberStatus.Down }) == 0) {
+                    latch.countDown()
+                  }
+                }
+                case _ =>
+              }
+
+              // Update service statistics
+              updateServicesMetrics()
+            } catch {
+              case e: Exception =>
+                error("Got an exception when checking cluster: ", e)
+            } finally {
+              sender ! true
+            }
+          }
+
+          case TrySetServiceMembersDown(service, member) => {
+            info("Try set member {} down for service {}", member, service)
+            try {
+              tryChangeServiceMemberStatus(service, member, MemberStatus.Down)
+            } catch {
+              case e: Exception =>
+                error("Got an exception when trying to set member {} for service {} down: ", member, service, e)
+            }
+          }
+
+          case ClusterSync => {
+            // Periodically executed to refresh the entire cluster
+            debug("Forcing cluster sync")
+            try {
+              allServices.foreach(service => syncService(service))
+            } catch {
+              case e: Exception =>
+                error("Got an exception when forcing cluster sync: ", e)
+            } finally {
+              sender ! true
+            }
+          }
+
+          case SyncService(service) => {
+            // Synchronise the members (i.e. add/delete/status change) of the received service
+            try {
+              syncService(service)
+            } catch {
+              case e: Exception =>
+                error("Got an exception when syncing service members: ", e)
+            } finally {
+              sender ! true
+            }
+          }
+
+          case ForceDown =>
+            info("Forcing the whole cluster down")
+            try {
+              allMembers.foreach {
+                case (service, member) => {
+                  val event = member.setStatus(MemberStatus.Down, triggerEvent = true)
+                  updateStatusChangeMetrics(service, event)
+                }
+              }
+            } catch {
+              case e: Exception =>
+                error("Got an exception when forcing the cluster down: ", e)
+            } finally {
+              sender ! true
+            }
+
+          case SetMembersLeaving =>
+            info("Preparing for shutdown, setting all local nodes to Leaving status")
+            try {
+              allMembers.foreach {
+                case (service, member) => if(cluster.isLocalNode(member.node)){
+                  val event = member.setStatus(MemberStatus.Leaving, triggerEvent = true)
+                  voteServiceMemberStatus(service, new ServiceMemberVote(member, member, MemberStatus.Leaving))
+                  updateStatusChangeMetrics(service, event)
+                }
+              }
+            } catch {
+              case e: Exception =>
+                error("Got an exception when forcing the cluster down: ", e)
+            } finally {
+              sender ! true
+            }
+        }
+      }
+    }
+
+    override def exceptionHandler = {
+      case e: Exception => error("Got an exception in cluster manager event loop: ", e)
+    }
+  }
 
   private class ServiceMetrics(name: String) {
     //gauge metrics for all services
@@ -226,204 +411,13 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     }
   }
 
-  private def updateStatusChangeMetrics(service: Service, event: Option[StatusTransitionEvent]) {
-    event match {
-      case Some(event) if (cluster.isLocalNode(event.member.node)) => {
+  private def updateStatusChangeMetrics(service: Service, eventOpt: Option[StatusTransitionEvent]) {
+    eventOpt match {
+      case Some(event) if cluster.isLocalNode(event.member.node) => {
         allServicesMetrics.memberStatusChange(event.to)
         getServiceMetrics(service).memberStatusChange(event.to)
       }
       case _ =>
-    }
-  }
-
-  /**
-   * This actor receives operations and execute them sequentially on the cluster.
-   */
-  private object OperationLoop extends Actor {
-
-    // forceSync is only updated in the actor but could be read from another thread
-    @volatile
-    private[cluster] var forceSync = false
-
-    // Operations
-    sealed class ClusterOperation
-
-    case object ForceDown extends ClusterOperation
-
-    case object SetMembersLeaving extends ClusterOperation
-
-    case object CheckCluster extends ClusterOperation
-
-    case object PrintCluster extends ClusterOperation with Logging {
-      def print() {
-        allServices.foreach(service => debug("\nLocal node: {}\n{}", cluster.localNode, service.printService))
-      }
-    }
-
-    case object ForceSync extends ClusterOperation
-
-    case class SyncServiceMembers(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) extends ClusterOperation
-
-    case class TrySetServiceMembersDown(service: Service, member: ServiceMember) extends ClusterOperation
-
-    val checkScheduler = new Scheduler(this, CheckCluster, CLUSTER_CHECK_IN_MS, CLUSTER_CHECK_IN_MS, blockingMessage = true, autoStart = false)
-    val syncScheduler = new Scheduler(this, ForceSync, CLUSTER_FORCESYNC_IN_MS, CLUSTER_FORCESYNC_IN_MS, blockingMessage = true, autoStart = false)
-    val printScheduler = new Scheduler(this, PrintCluster, CLUSTER_PRINT_IN_MS, CLUSTER_PRINT_IN_MS, blockingMessage = true, autoStart = false)
-
-    override def start(): Actor = {
-      printScheduler.start()
-      syncScheduler.start()
-      checkScheduler.start()
-      super.start()
-    }
-
-    def stop() {
-      printScheduler.cancel()
-      syncScheduler.cancel()
-      checkScheduler.cancel()
-    }
-
-    private def tryChangeServiceMemberStatus(service: Service, member: ServiceMember, newStatus: MemberStatus) {
-      info("Trying to switch status of member {} in service {} to {}", member, service, newStatus)
-      member.trySetStatus(newStatus) match {
-        case Some(event) =>
-          if (event.nayVotes > 0) {
-            info("Attempt to switch status of {} in service {} to {} failed by vote (yea={}, nay={})",
-              member, service, newStatus, event.yeaVotes, event.nayVotes)
-          } else {
-            voteServiceMemberStatus(service, new ServiceMemberVote(member, member, newStatus))
-          }
-
-        case None =>
-          info("Status of {} in service {} was canceled (new={}, current={})", member, service, newStatus, member.status)
-      }
-    }
-
-    def act() {
-      loop {
-        react {
-
-          case PrintCluster =>
-            try {
-              PrintCluster.print()
-            } catch {
-              case e: Exception => error("Got an exception when printing cluster: ", e)
-            } finally {
-              sender ! true
-            }
-
-          case CheckCluster => {
-            // periodically executed, check local down nodes and try to promote them to better status
-            try {
-              val members = allMembers
-              debug("Checking cluster for any pending changes ({} members)", members.size)
-
-              members.foreach {
-                case (service, member) if cluster.isLocalNode(member.node) =>
-                  debug("Checking member {} in service {} with current status {}", member, service, member.status)
-
-                  // TODO: this implement currently only check for local nodes that could be promoted. Eventually, this
-                  // will check for "joining" nodes and promote them if votes from consistency managers are positives
-                  member.status match {
-                    case MemberStatus.Joining => tryChangeServiceMemberStatus(service, member, MemberStatus.Up)
-                    case MemberStatus.Down if !isLeaving => tryChangeServiceMemberStatus(service, member, MemberStatus.Joining)
-                    case MemberStatus.Leaving => tryChangeServiceMemberStatus(service, member, MemberStatus.Down)
-                    case _ => // don't do anything for other types of MemberStatus
-                  }
-                case _ =>
-              }
-
-              // This will only be called if a latch exists, meaning the cluster is currently attempting to leave
-              leavingLatch match {
-                case Some(latch) if latch.getCount > 0 => {
-                  if (allMembers.count({ case (_, member) => cluster.isLocalNode(member.node) && member.status != MemberStatus.Down }) == 0) {
-                    latch.countDown()
-                  }
-                }
-                case _ =>
-              }
-
-              // Update service statistics
-              updateServicesMetrics()
-            } catch {
-              case e: Exception =>
-                error("Got an exception when checking cluster: ", e)
-            } finally {
-              sender ! true
-            }
-          }
-
-          case TrySetServiceMembersDown(service, member) => {
-            info("Try set member {} down for service {}", member, service)
-            try {
-              tryChangeServiceMemberStatus(service, member, MemberStatus.Down)
-            } catch {
-              case e: Exception =>
-                error("Got an exception when trying to set member {} for service {} down: ", member, service, e)
-            }
-          }
-
-          case ForceSync => // periodically executed, force refresh of cluster nodes
-            info("Forcing cluster sync")
-            try {
-              forceSync = true
-              syncMembers()
-            } catch {
-              case e: Exception =>
-                error("Got an exception when forcing cluster sync: ", e)
-            } finally {
-              forceSync = false
-              sender ! true
-            }
-
-          case SyncServiceMembers(service, members) => // synchronise received members in service (add/delete/status change)
-            try {
-              syncServiceMembersImpl(service, members)
-            } catch {
-              case e: Exception =>
-                error("Got an exception when syncing service members: ", e)
-            } finally {
-              sender ! true
-            }
-
-          case ForceDown =>
-            info("Forcing the whole cluster down")
-            try {
-              allMembers.foreach {
-                case (service, member) => {
-                  val event = member.setStatus(MemberStatus.Down, triggerEvent = true)
-                  updateStatusChangeMetrics(service, event)
-                }
-              }
-            } catch {
-              case e: Exception =>
-                error("Got an exception when forcing the cluster down: ", e)
-            } finally {
-              sender ! true
-            }
-
-          case SetMembersLeaving =>
-            info("Preparing for shutdown, setting all local nodes to Leaving status")
-            try {
-              allMembers.foreach {
-                case (service, member) => if(cluster.isLocalNode(member.node)){
-                  val event = member.setStatus(MemberStatus.Leaving, triggerEvent = true)
-                  voteServiceMemberStatus(service, new ServiceMemberVote(member, member, MemberStatus.Leaving))
-                  updateStatusChangeMetrics(service, event)
-                }
-              }
-            } catch {
-              case e: Exception =>
-                error("Got an exception when forcing the cluster down: ", e)
-            } finally {
-              sender ! true
-            }
-        }
-      }
-    }
-
-    override def exceptionHandler = {
-      case e: Exception => error("Got an exception in cluster manager event loop: ", e)
     }
   }
 }
