@@ -208,12 +208,20 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def handleStatusTransitionAttemptEvent(event: StatusTransitionAttemptEvent) {
     event.to match {
       case MemberStatus.Down => {
-        // Trying to transition the service member Down. Reset the service member consistency.
-        metrics.consistencyNone.mark()
-        info("StatusTransitionAttemptEvent: status=Down, prevState={}, newState=None, member={}",
-          consistencyStates.get(event.member.token), event.member)
-        updateMemberConsistencyState(event.member, newState = None)
-        event.vote(pass = true)
+        // Trying to transition the service member Down.
+        // When Leaving, allows the transition only if the service member is not the master publisher of a live
+        // replication session. Allow transitions from any other status.
+        val liveSessions = replicationPublisher.subscriptions.filter(_.mode == ReplicationMode.Live).toList
+        val canTransition = event.from != MemberStatus.Leaving || liveSessions.isEmpty
+        val newState = if (canTransition) None else consistencyStates.get(event.member.token)
+        info("StatusTransitionAttemptEvent: status=Down, prevState={}, newState=None, member={}, live replications={}",
+          newState, event.member, liveSessions.map(_.member))
+        if (canTransition) {
+          // Reset the service member consistency when transitioning
+          metrics.consistencyNone.mark()
+          updateMemberConsistencyState(event.member, newState = None)
+        }
+        event.vote(pass = canTransition)
       }
       case MemberStatus.Joining => {
         // Trying to transition the service member to joining. Initiate consistency recovery if necessary.
@@ -324,8 +332,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           recorder.foreach(_.kill())
         }
       }
-      case MemberStatus.Joining => // Nothing to do
-      case MemberStatus.Leaving => // TODO: add drain replication publisher
+      case MemberStatus.Joining | MemberStatus.Leaving => // Nothing to do
     }
   }
 
@@ -531,7 +538,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   def executeConsistentOutgoingWriteRequest(action: Action, message: OutMessage, next: (Unit) => Unit) {
     //only the master (first resolved node) may handle write messages
     message.destination.replicas match {
-      case master :: _ if (master.selected) => {
+      case master :: _ if master.selected => {
         message.destination.deselectAllReplicasButFirst()
         next()
       }

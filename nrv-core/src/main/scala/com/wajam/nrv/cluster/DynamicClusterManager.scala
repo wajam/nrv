@@ -319,7 +319,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
               debug("Checking cluster for any pending changes ({} members)", members.size)
 
               members.foreach {
-                case (service, member) if (cluster.isLocalNode(member.node)) =>
+                case (service, member) if cluster.isLocalNode(member.node) =>
                   debug("Checking member {} in service {} with current status {}", member, service, member.status)
 
                   // TODO: this implement currently only check for local nodes that could be promoted. Eventually, this
@@ -364,7 +364,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
           }
 
           case ForceSync => // periodically executed, force refresh of cluster nodes
-            debug("Forcing cluster sync")
+            info("Forcing cluster sync")
             try {
               forceSync = true
               syncMembers()
