@@ -20,13 +20,13 @@ import com.yammer.metrics.scala.Instrumented
 class ReplicationPublisher(service: Service, store: ConsistentStore,
                            getTransactionLog: (ResolvedServiceMember) => TransactionLog,
                            getMemberCurrentConsistentTimestamp: (ResolvedServiceMember) => Option[Timestamp],
-                           publishAction: Action, publishTps: Int, publishWindowSize: Int, maxIdleDurationInMs: Long)
+                           publishAction: Action, publishTps: Int, publishWindowSize: => Int, maxIdleDurationInMs: Long)
   extends CurrentTime with UuidStringGenerator with Logging with Instrumented {
 
   private val manager = new SubscriptionManagerActor
 
   private val serviceScope = service.name.replace(".", "-")
-  private val subscriptions = metrics.gauge("subscriptions", serviceScope) {
+  private val subscriptionsGauge = metrics.gauge("subscriptions", serviceScope) {
     manager.subscriptionsCount
   }
 
@@ -38,8 +38,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     manager !? SubscriptionManagerProtocol.Kill
   }
 
-  def terminateSubscriptions(member: ResolvedServiceMember) {
-    manager ! SubscriptionManagerProtocol.TerminateSubscriptions(member)
+  def terminateMemberSubscriptions(member: ResolvedServiceMember) {
+    manager ! SubscriptionManagerProtocol.TerminateMemberSubscriptions(member)
   }
 
   def handleSubscribeMessage(message: InMessage) {
@@ -50,13 +50,20 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     manager ! SubscriptionManagerProtocol.Unsubscribe(message)
   }
 
+  def subscriptions: Iterable[ReplicationSubscription] = {
+    val subs = manager !? SubscriptionManagerProtocol.GetSubscriptions
+    subs.asInstanceOf[Iterable[ReplicationSubscription]]
+  }
+
   object SubscriptionManagerProtocol {
 
     case class Subscribe(message: InMessage)
 
     case class Unsubscribe(message: InMessage)
 
-    case class TerminateSubscriptions(member: ResolvedServiceMember)
+    object GetSubscriptions
+
+    case class TerminateMemberSubscriptions(member: ResolvedServiceMember)
 
     case class TerminateSubscription(subscription: SubscriptionActor, error: Option[Exception] = None)
 
@@ -94,25 +101,30 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       }
     }
 
-    private def createSourceIterator(member: ResolvedServiceMember, startTimestamp: Timestamp,
+    private def createSourceIterator(resolvedMember: ResolvedServiceMember, startTimestamp: Timestamp,
                                      isLiveReplication: Boolean): ReplicationSourceIterator = {
-      val txLog = getTransactionLog(member)
+      val txLog = getTransactionLog(resolvedMember)
       val sourceIterator = txLog.firstRecord(None) match {
         case Some(logRecord) if isLiveReplication && logRecord.timestamp <= startTimestamp => {
           // Live replication mode. Use the transaction log if the first transaction log record is before the starting
           // timestamp.
           info("Using TransactionLogReplicationIterator. start={}, end={}, member={}", startTimestamp,
-            getMemberCurrentConsistentTimestamp(member), member)
-          new TransactionLogReplicationIterator(member, startTimestamp, txLog, getMemberCurrentConsistentTimestamp(member))
+            getMemberCurrentConsistentTimestamp(resolvedMember), resolvedMember)
+
+          val member = service.getMemberAtToken(resolvedMember.token)
+          def isMemberDraining = member.exists(_.status == MemberStatus.Leaving)
+
+          new TransactionLogReplicationIterator(resolvedMember, startTimestamp, txLog,
+            getMemberCurrentConsistentTimestamp(resolvedMember), isMemberDraining)
         }
         case Some(_) => {
           // Not in live replication mode or the first transaction log record is after the replication starting
           // timestamp or store source is forced. Use the consistent store as the replication source up to the
           // current member consistent timestamp.
-          val endTimestamp = getMemberCurrentConsistentTimestamp(member).get
+          val endTimestamp = getMemberCurrentConsistentTimestamp(resolvedMember).get
           info("Using ConsistentStoreReplicationIterator. start={}, end={}, member={}",
-            startTimestamp, endTimestamp, member)
-          new ConsistentStoreReplicationIterator(member, startTimestamp, endTimestamp, store)
+            startTimestamp, endTimestamp, resolvedMember)
+          new ConsistentStoreReplicationIterator(resolvedMember, startTimestamp, endTimestamp, store)
         }
         case None => {
           // There are no transaction log!!! Cannot replicate if transaction log is not enabled.
@@ -146,7 +158,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               val member = createResolvedServiceMember(token)
               val source = createSourceIterator(member, start, isLiveReplication)
 
-              val subscription = new SubscriptionActor(nextId, member, source, message.source)
+              val subscription = new SubscriptionActor(nextId, member, source, cookie.getOrElse(""), message.source)
               subscriptions = subscription :: subscriptions
 
               // Reply with a subscription response
@@ -162,6 +174,13 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               case e: Exception => {
                 subscribeErrorMeter.mark()
                 warn("Error processing subscribe request {}: ", message, e)
+                try {
+                  val response = new OutMessage()
+                  response.error = Some(e)
+                  message.reply(response)
+                } catch {
+                  case ex: Exception => warn("Error replying subscribe request error {}: ", message, ex)
+                }
               }
             }
           }
@@ -184,6 +203,21 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               }
             }
           }
+          case GetSubscriptions => {
+            try {
+              val subs = subscriptions.map(subscriptionActor => {
+                val mode = if (subscriptionActor.source.end.isDefined) ReplicationMode.Store else ReplicationMode.Live
+                ReplicationSubscription(subscriptionActor.member, subscriptionActor.cookie, mode,
+                  Some(subscriptionActor.subId), Some(subscriptionActor.source.start), subscriptionActor.source.end)
+              })
+              reply(subs)
+            } catch {
+              case e: Exception => {
+                warn("Error processing get subscriptions {}", e)
+                reply(Nil)
+              }
+            }
+          }
           case TerminateSubscription(subscriptionActor, exception) => {
             try {
               subscriptions.find(_ == subscriptionActor).foreach(subscription => {
@@ -199,9 +233,9 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               }
             }
           }
-          case TerminateSubscriptions(member) => {
+          case TerminateMemberSubscriptions(member) => {
             try {
-              subscriptions.find(_.member == member).foreach(subscription => {
+              subscriptions.withFilter(_.member == member).foreach(subscription => {
                 info("Subscription {} is terminated. {}",
                   subscription.subId, member)
                 subscription !? SubscriptionProtocol.Kill
@@ -242,8 +276,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
   }
 
-  class SubscriptionActor(val subId: String, val member: ResolvedServiceMember, source: ReplicationSourceIterator,
-                          subscriber: Node) extends Actor with Logging {
+  class SubscriptionActor(val subId: String, val member: ResolvedServiceMember, val source: ReplicationSourceIterator,
+                          val cookie: String, subscriber: Node) extends Actor with Logging {
 
     private lazy val publishMeter = metrics.meter("publish", "publish", member.scopeName)
     private lazy val publishErrorMeter = metrics.meter("publish-error", "publish-error", member.scopeName)
@@ -276,7 +310,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     private def currentWindowSize: Int = {
       pendingSequences.headOption match {
-        case Some(firstPendingSequence) => (lastSequence - firstPendingSequence).toInt
+        case Some(firstPendingSequence) => (lastSequence - firstPendingSequence).toInt + 1
         case None => 0
       }
     }

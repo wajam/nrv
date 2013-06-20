@@ -4,11 +4,9 @@ import org.mockito.Mockito
 import com.wajam.nrv.data.{OutMessage, InMessage}
 import org.scalatest.mock.MockitoSugar
 
-class ActionProxy(path: ActionPath, responseTimeout: Long)
+class ActionProxy(path: ActionPath, responseTimeout: Long, mockAction: Action)
   extends Action(path, (message: InMessage) => {}, actionSupportOptions =
     new ActionSupportOptions(responseTimeout = Some(responseTimeout))) with MockitoSugar {
-
-  val mockAction: Action = mock[Action]
 
   override def checkSupported() {
     // IMPORTANT: do not check support, this is not used in a started cluster
@@ -21,18 +19,19 @@ class ActionProxy(path: ActionPath, responseTimeout: Long)
   override protected[nrv] def callIncomingHandlers(fromMessage: InMessage) {
     mockAction.callIncomingHandlers(fromMessage)
   }
-
-  def verifyZeroInteractions(wait: Long = 0L) {
-    Thread.sleep(wait)
-    Mockito.verifyZeroInteractions(mockAction)
-  }
-
-  def verifyNoMoreInteractions(wait: Long = 0L) {
-    Thread.sleep(wait)
-    Mockito.verifyNoMoreInteractions(mockAction)
-  }
 }
 
-object ActionProxy {
-  def apply() = new ActionProxy(new ActionPath(""), responseTimeout = 1000L)
+object ActionProxy extends MockitoSugar {
+  def apply(mockAction: Action = mock[Action]) = new ActionProxy(new ActionPath(""), responseTimeout = 1000L, mockAction)
+
+  def verifyZeroInteractionsAfter(wait: Long, mocks: AnyRef*) {
+    Thread.sleep(wait)
+    Mockito.verifyZeroInteractions(mocks:_*)
+  }
+
+  def verifyNoMoreInteractionsAfter(wait: Long, mocks: AnyRef*) {
+    Thread.sleep(wait)
+    Mockito.verifyNoMoreInteractions(mocks:_*)
+  }
+
 }

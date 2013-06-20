@@ -315,7 +315,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       case MemberStatus.Down => {
         this.synchronized {
           // Cancel all master replication subscriptions for the member
-          replicationPublisher.terminateSubscriptions(ResolvedServiceMember(service, event.member))
+          replicationPublisher.terminateMemberSubscriptions(ResolvedServiceMember(service, event.member))
 
           // Remove transaction recorder for all other cases
           info("Remove transaction recorders for {}", event.member)

@@ -23,7 +23,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
   var txLog: FileTransactionLog = null
 
   before {
-    logDir = Files.createTempDirectory("TestFileTransactionLog").toFile
+    logDir = Files.createTempDirectory("TestTransactionLogReplicationIterator").toFile
     member = ResolvedServiceMember(serviceName = "service", token = 1000L, ranges = Seq(TokenRange.All))
     txLog = new FileTransactionLog(member.serviceName, member.token, logDir = logDir.getAbsolutePath)
   }
@@ -40,7 +40,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
   }
 
   test("empty log should not fail") {
-    val itr = new TransactionLogReplicationIterator(member, start = 1L, txLog, Some(Long.MaxValue), drain = false)
+    val itr = new TransactionLogReplicationIterator(member, start = 1L, txLog, Some(Long.MaxValue), isDraining = false)
     itr.hasNext should be(false)
   }
 
@@ -79,7 +79,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
       itr.take(takeCount).flatten.map(msg => msg.timestamp).flatten.map(ts => ts.value).toList
     }
 
-    val from1 = new TransactionLogReplicationIterator(member, start = 1L, txLog, currentConsistentTimestamp, drain = false)
+    val from1 = new TransactionLogReplicationIterator(member, start = 1L, txLog, currentConsistentTimestamp, isDraining = false)
     takeTimestamps(from1, consistentTimestamp = None, 100) should be(List())
     takeTimestamps(from1, consistentTimestamp = Some(1), 100) should be(List())
     takeTimestamps(from1, consistentTimestamp = Some(5), 100) should be(List(1L))
@@ -89,12 +89,12 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
     takeTimestamps(from1, consistentTimestamp = Some(8), 100) should be(List(7L))
     takeTimestamps(from1, consistentTimestamp = Some(8), 100) should be(List())
 
-    val from3 = new TransactionLogReplicationIterator(member, start = 3L, txLog, currentConsistentTimestamp, drain = false)
+    val from3 = new TransactionLogReplicationIterator(member, start = 3L, txLog, currentConsistentTimestamp, isDraining = false)
     takeTimestamps(from3, consistentTimestamp = None, 100) should be(List())
     takeTimestamps(from3, consistentTimestamp = Some(8), 100) should be(List(4L, 5L, 6L, 7L))
     takeTimestamps(from3, consistentTimestamp = Some(8), 100) should be(List())
 
-    val from6 = new TransactionLogReplicationIterator(member, start = 6L, txLog, currentConsistentTimestamp, drain = false)
+    val from6 = new TransactionLogReplicationIterator(member, start = 6L, txLog, currentConsistentTimestamp, isDraining = false)
     takeTimestamps(from6, consistentTimestamp = None, 100) should be(List())
     takeTimestamps(from6, consistentTimestamp = Some(8), 100) should be(List(6L, 7L))
     takeTimestamps(from6, consistentTimestamp = Some(8), 100) should be(List())
@@ -121,7 +121,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
 
     // Missing timestamp
     evaluating {
-      new TransactionLogReplicationIterator(member, start = -1L, txLog, None, drain = false)
+      new TransactionLogReplicationIterator(member, start = -1L, txLog, None, isDraining = false)
     } should produce[NoSuchElementException]
   }
 
@@ -164,7 +164,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
       @tailrec
       def append(appendedCount: Int): Int = {
         if (appendedCount < maxTxCount) {
-          val requests = (1 to Random.nextInt(10 + 1)).map(i => createRequestMessage(timestamp = (i + appendedCount)))
+          val requests = (1 to Random.nextInt(10 + 1)).map(i => createRequestMessage(timestamp = i + appendedCount))
           val responses = requests.map(r => createResponseMessage(r))
 
           Random.shuffle(requests).foreach(appendMessage(_))
@@ -187,7 +187,7 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
     // completed and the consumer read last record repecting the last appended record consistent timestamp.
     val consumer = Future {
       val itr = new TransactionLogReplicationIterator(member, start = request1.timestamp.get,
-        txLog, recorder.currentConsistentTimestamp, drain = false)
+        txLog, recorder.currentConsistentTimestamp, isDraining = false)
 
       def finalConsistentRecord = txLog.firstRecord(txLog.getLastLoggedRecord.get.consistentTimestamp)
 
@@ -220,9 +220,52 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
 
     val lastConsumed = Future.blocking(consumer, 5000L)
     val expectedLastTx = txLog.firstRecord(txLog.getLastLoggedRecord.get.consistentTimestamp)
-    expectedLastTx should not be (None)
+    expectedLastTx should not be None
     lastConsumed.get.timestamp should be(expectedLastTx.get.consistentTimestamp)
 
     consistencyErrorCount should be(0)
+  }
+
+  test("should returns all transactions when draining") {
+    val request1 = createRequestMessage(timestamp = 1)
+    val request2 = createRequestMessage(timestamp = 2)
+    val request3 = createRequestMessage(timestamp = 3)
+    val request4 = createRequestMessage(timestamp = 4)
+
+    txLog.append(LogRecord(110, None, request1))
+    txLog.append(LogRecord(120, None, createResponseMessage(request1)))
+    txLog.append(LogRecord(130, Some(1), request2))
+    txLog.append(LogRecord(140, Some(1), createResponseMessage(request2)))
+    txLog.append(LogRecord(150, Some(2), request3))
+    txLog.append(LogRecord(160, Some(2), createResponseMessage(request3)))
+    txLog.append(LogRecord(170, Some(3), request4))
+    txLog.append(LogRecord(180, Some(3), createResponseMessage(request4)))
+    txLog.append(Index(190, Some(3)))
+
+    var draining = false
+    var currentConsistentTimestamp: Option[Timestamp] = Some(3L)
+
+    val itr = new TransactionLogReplicationIterator(member, start = 1L, txLog, currentConsistentTimestamp, isDraining = draining)
+    itr.hasNext should be (true)
+    itr.next().flatMap(_.timestamp) should be (Some(Timestamp(1L)))
+    itr.hasNext should be (true)
+    itr.next().flatMap(_.timestamp) should be (Some(Timestamp(2L)))
+    itr.hasNext should be (true)
+    itr.next() should be (None)
+
+    // Verify consistent timestamp is returned when draining
+    draining = true
+    itr.hasNext should be (true)
+    itr.next().flatMap(_.timestamp) should be (Some(Timestamp(3L)))
+
+    // Verify not reading beyond consistent timestamp even when draining
+    itr.hasNext should be (true)
+    itr.next() should be (None)
+
+    // Verify iterator is closed when draining AND last record timestamp IS the consistent timestamp
+    currentConsistentTimestamp = Some(4L)
+    itr.hasNext should be (true)
+    itr.next().flatMap(_.timestamp) should be (Some(Timestamp(4L)))
+    itr.hasNext should be (false)
   }
 }
