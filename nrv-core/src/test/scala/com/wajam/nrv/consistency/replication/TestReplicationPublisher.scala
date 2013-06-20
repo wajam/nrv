@@ -474,8 +474,8 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     // Verify received all expected messages
     val actualPublished = publishCaptor.getAllValues
     assertPublishMessagesEquals(actualPublished, expectedPublished)
-    publisher.subscriptions should be(Nil) // Subscription should be terminated after reaching end timestamp
     verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
+    publisher.subscriptions should be(Nil) // Subscription should be terminated after reaching end timestamp
   }
 
   test("live mode should end subscription when reaching end of log file (drain mode)") {
@@ -500,8 +500,8 @@ class TestReplicationPublisher extends TestTransactionBase with BeforeAndAfter w
     // Verify received all expected messages
     val actualPublished = publishCaptor.getAllValues
     assertPublishMessagesEquals(actualPublished, expectedPublished)
-    publisher.subscriptions should be(Nil) // Subscription should be terminated after reaching end timestamp
     verifyNoMoreInteractionsAfter(wait = 100, mockPublishAction)
+    publisher.subscriptions should be(Nil) // Subscription should be terminated after reaching end timestamp
   }
 
   test("live mode should publish idle message when reaching consistent timestamp and resume publish transaction when it increase") {
