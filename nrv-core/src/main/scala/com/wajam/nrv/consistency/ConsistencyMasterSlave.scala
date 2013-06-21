@@ -349,7 +349,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           SubscriptionManagerActor ! Subscribe(event.member, ReplicationMode.Store)
         }
       }
-      case MemberStatus.Leaving => // Do not subscribe if master is leaving to let it drain
+      case MemberStatus.Leaving => // Do nothing, must not unsubscribe to let drain existing replication subscriptions
       case _ => {
         // Unsubscribe slave replication subscriptions if the remote member status is not Up or Leaving.
         SubscriptionManagerActor ! Unsubscribe(event.member)
