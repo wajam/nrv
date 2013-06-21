@@ -112,10 +112,10 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
             getMemberCurrentConsistentTimestamp(resolvedMember), resolvedMember)
 
           val member = service.getMemberAtToken(resolvedMember.token)
-          def isMemberDraining = member.exists(_.status == MemberStatus.Leaving)
+          def mustDrainMember = member.exists(_.status == MemberStatus.Leaving)
 
           new TransactionLogReplicationIterator(resolvedMember, startTimestamp, txLog,
-            getMemberCurrentConsistentTimestamp(resolvedMember), isMemberDraining)
+            getMemberCurrentConsistentTimestamp(resolvedMember), mustDrainMember)
         }
         case Some(_) => {
           // Not in live replication mode or the first transaction log record is after the replication starting

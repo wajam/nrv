@@ -58,6 +58,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   //Latch synchronization barrier used to wait for all local service members to go down before closing the server
   private var leavingLatch: Option[CountDownLatch] = None
+
   private def isLeaving: Boolean = leavingLatch.isDefined
 
   def leave(timeout: Long) {
@@ -65,7 +66,16 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       if (!isLeaving) {
         leavingLatch = new Some(new CountDownLatch(1))
         OperationLoop !? OperationLoop.SetMembersLeaving
-        leavingLatch.get.await(timeout, TimeUnit.MILLISECONDS)
+        if (leavingLatch.get.await(timeout, TimeUnit.MILLISECONDS)) {
+          info("Leave after all service members gone down.")
+        } else {
+          val remainingMembers = allMembers.collect {
+            case (service, member) if cluster.isLocalNode(member.node) && member.status != MemberStatus.Down => {
+              "%s:%d=%s".format(service.name, member.token, member.status)
+            }
+          }.mkString("<", ", ", ">")
+          info("Leave but some service members are not down yet: {}", remainingMembers)
+        }
       }
     }
   }
@@ -121,6 +131,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
   }
 
   protected def removingOldServiceMember(service: Service, oldServiceMember: ServiceMember)
+
   protected def addingNewServiceMember(service: Service, newServiceMember: ServiceMember)
 
   protected def voteServiceMemberStatus(service: Service, vote: ServiceMemberVote)
@@ -208,7 +219,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
               debug("Checking cluster for any pending changes ({} members)", members.size)
 
               members.foreach {
-                case (service, member) if (cluster.isLocalNode(member.node)) =>
+                case (service, member) if cluster.isLocalNode(member.node) =>
                   debug("Checking member {} in service {} with current status {}", member, service, member.status)
 
                   // TODO: this implement currently only check for local nodes that could be promoted. Eventually, this
@@ -225,7 +236,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
               // This will only be called if a latch exists, meaning the cluster is currently attempting to leave
               leavingLatch match {
                 case Some(latch) if latch.getCount > 0 => {
-                  if (allMembers.count({ case (_, member) => cluster.isLocalNode(member.node) && member.status != MemberStatus.Down }) == 0) {
+                  if (allMembers.count({
+                    case (_, member) => cluster.isLocalNode(member.node) && member.status != MemberStatus.Down
+                  }) == 0) {
                     latch.countDown()
                   }
                 }
@@ -297,7 +310,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
             info("Preparing for shutdown, setting all local nodes to Leaving status")
             try {
               allMembers.foreach {
-                case (service, member) => if(cluster.isLocalNode(member.node)){
+                case (service, member) => if (cluster.isLocalNode(member.node)) {
                   val event = member.setStatus(MemberStatus.Leaving, triggerEvent = true)
                   voteServiceMemberStatus(service, new ServiceMemberVote(member, member, MemberStatus.Leaving))
                   updateStatusChangeMetrics(service, event)
