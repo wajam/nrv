@@ -678,7 +678,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               subscribe(member, mode)
             } catch {
               case e: Exception => {
-                warn("Error processing subscribe for {}", ResolvedServiceMember(service, member), e)
+                warn("Error processing subscribe for {}", member, e)
               }
             }
           }
@@ -687,7 +687,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               replicationSubscriber.unsubscribe(ResolvedServiceMember(service, member))
             } catch {
               case e: Exception => {
-                warn("Error processing unsubscribe for {}", ResolvedServiceMember(service, member), e)
+                warn("Error processing unsubscribe for {}", member, e)
               }
             }
           }
