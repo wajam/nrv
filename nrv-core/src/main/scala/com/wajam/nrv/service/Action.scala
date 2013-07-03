@@ -130,6 +130,7 @@ class Action(val path: ActionPath,
       this.switchboard.handleIncoming(this, fromMessage, _ => {
         TraceFilter.handleIncoming(this, fromMessage, _ => {
 
+          // Generate the reply callback, if applicable.
           fromMessage.function match {
             case MessageType.FUNCTION_CALL =>
               // set the reply callback for this message
