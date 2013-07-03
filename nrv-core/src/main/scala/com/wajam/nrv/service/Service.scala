@@ -41,8 +41,11 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
     member
   }
 
-  def uddateMember(addedMember: ServiceMember, removedMember: ServiceMember): ServiceMember = {
-    removedMember.removeParentObservable(this)
+  def updateMember(addedMember: ServiceMember): ServiceMember = {
+    members.find(_.token == addedMember.token) match {
+      case Some(removedMember) => removedMember.removeParentObservable(this)
+      case _ =>
+    }
     addMember(addedMember)
   }
 
