@@ -145,7 +145,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
         val path = ZookeeperClusterManager.zkMemberVotePath(service.name, oldServiceMember.token, oldServiceMember.token)
         zk.delete(path)
       } catch {
-        case e: NoNodeException => //data has already been deleted (e.g. entries are deleted manually in ZKclusterManager it tests)
+        case e: NoNodeException => // data has already been deleted (e.g. entries are deleted manually in ZKclusterManager it tests)
       }
     }
   }
