@@ -717,6 +717,18 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     lazy val consistencyError = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
       "consistency-error", scope, "consistency-error", TimeUnit.SECONDS))
 
+    private val consistencyOkCountGauge = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
+      "consistency-ok-count", scope, new Gauge[Long] {
+        def value = consistencyStates.values.count(_ == MemberConsistencyState.Ok)
+      })
+    private val consistencyErrorCountGauge = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
+      "consistency-error-count", scope, new Gauge[Long] {
+        def value = consistencyStates.values.count(_ == MemberConsistencyState.Error)
+      })
+    private val consistencyRecoveringCountGauge = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
+      "consistency-reconvering-count", scope, new Gauge[Long] {
+        def value = consistencyStates.values.count(_ == MemberConsistencyState.Recovering)
+      })
 
     private val recordersCount = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
       "recorders-count", scope, new Gauge[Long] {
