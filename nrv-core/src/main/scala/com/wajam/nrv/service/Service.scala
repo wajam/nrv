@@ -41,7 +41,13 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
     member
   }
 
+  def uddateMember(addedMember: ServiceMember, removedMember: ServiceMember): ServiceMember = {
+    removedMember.removeParentObservable(this)
+    addMember(addedMember)
+  }
+
   def removeMember(member: ServiceMember) {
+    member.removeParentObservable(this)
     this.ring.delete(member.token)
   }
 

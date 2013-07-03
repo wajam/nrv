@@ -17,6 +17,10 @@ trait Observable {
     this.observers :+= cb
   }
 
+  def removeParentObservable(parent: Observable) {
+    this.observers = this.observers diff List(parent)
+  }
+
   protected def notifyObservers(event: Event) {
     observers.foreach(obs => obs(event))
     parents.foreach(parent => parent.notifyObservers(event))
