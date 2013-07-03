@@ -585,7 +585,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
             }
             case Some(lastStoreTimestamp) => {
               error("Transaction log and storage last timestamps are different! (store={}, log={}) {}",
-                lastLogTimestamp, lastLogTimestamp, member)
+                lastStoreTimestamp, lastLogTimestamp, member)
               onError
             }
             case None => {
