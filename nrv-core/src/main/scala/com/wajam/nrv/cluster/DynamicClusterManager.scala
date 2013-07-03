@@ -96,8 +96,31 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     val newMembers = members.map(_._1)
     val newMemberVotes = members.toMap
 
-    val added = newMembers diff currentMembers
-    val removed = currentMembers diff newMembers
+    var added = newMembers diff currentMembers
+    var removed = currentMembers diff newMembers
+
+    // update member
+    val updated = added.flatMap(addedMember => removed.find(_.token == addedMember.token) match {
+      case None => None
+      case Some(removedMember: ServiceMember) => Some((addedMember,removedMember))
+    })
+    if (!updated.isEmpty) {
+      added = added diff updated.map(_._1)
+      removed = removed diff updated.map(_._2)
+
+      updated foreach {
+        case (addedMember, removedMember) => {
+          info("Member {} needs to be updated to {} in service {}", removedMember, addedMember, service)
+          val eventRemove = removedMember.setStatus(MemberStatus.Down, triggerEvent = true)
+          updateStatusChangeMetrics(service, eventRemove)
+          service.updateMember(addedMember)
+          removingOldServiceMember(service, removedMember)
+          val votedStatus = compileVotes(addedMember, newMemberVotes(addedMember))
+          val eventAdd = addedMember.setStatus(votedStatus, triggerEvent = true)
+          updateStatusChangeMetrics(service, eventAdd)
+        }
+      }
+    }
 
     // remove members
     removed.foreach(oldMember => {

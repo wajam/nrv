@@ -41,7 +41,13 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
     member
   }
 
+  def updateMember(addedMember: ServiceMember): ServiceMember = {
+    getMemberAtToken(addedMember.token).foreach(_.removeParentObservable(this))
+    addMember(addedMember)
+  }
+
   def removeMember(member: ServiceMember) {
+    member.removeParentObservable(this)
     this.ring.delete(member.token)
   }
 
