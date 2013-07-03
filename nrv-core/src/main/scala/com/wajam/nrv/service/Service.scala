@@ -42,10 +42,7 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
   }
 
   def updateMember(addedMember: ServiceMember): ServiceMember = {
-    members.find(_.token == addedMember.token) match {
-      case Some(removedMember) => removedMember.removeParentObservable(this)
-      case _ =>
-    }
+    getMemberAtToken(addedMember.token).foreach(_.removeParentObservable(this))
     addMember(addedMember)
   }
 
