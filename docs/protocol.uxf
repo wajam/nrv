@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="12.0">
+  <zoom_level>8</zoom_level>
+  <element>
+    <type>com.umlet.element.SequenceDiagram</type>
+    <coordinates>
+      <x>24</x>
+      <y>16</y>
+      <w>1288</w>
+      <h>1168</h>
+    </coordinates>
+    <panel_attributes>title:Path of a Message using Nrv Protocol (Simplified and synchronous)
+&lt;&lt;Callee&gt;&gt;~c|Action~a|InMessage~im|OutMessage~om|Resolver~r|Switchboard~s|Protocol~p|NettyTransport~nt|&lt;&lt;Network&gt;&gt;~n
+c-&gt;&gt;&gt;a:call(data*)
+a-&gt;a:callOutgoingHandler(data*) #Build message
+
+a-&gt;&gt;&gt;r:handleOutgoing(a,msg)
+r-&gt;&gt;&gt;s:handleOutgoing(a,msg)
+s-&gt;&gt;&gt;p:handleOutgoing(a,msg)
+p-&gt;&gt;&gt;p:handleOutgoingRequest(a,msg)
+p-&gt;&gt;&gt;p:generate(msg)
+p.&gt;p:bytes
+p-&gt;&gt;&gt;nt:sendMessage(dst, bytes)
+nt-&gt;n:"Network hop"
+
+n.&gt;nt:messageReceived(dst, bytes)
+
+nt-&gt;&gt;&gt;p:transportMessageReceived(bytes)
+p-&gt;&gt;&gt;p:parse(bytes)
+p.&gt;p:msg
+p-&gt;&gt;&gt;p:handleIncoming(msg)
+p-&gt;&gt;&gt;p:resolveAction(msg)
+p.&gt;p:action
+
+
+p-&gt;&gt;&gt;a:callIncomingHandlers(msg)
+a-&gt;&gt;&gt;r:handleIncoming(msg)
+r-&gt;&gt;&gt;s:handleIncoming(msg)
+
+a-&gt;&gt;&gt;a:implementation() #Anonymous function
+im./&gt;c:"Code from callee executed in anonymous function"
+a-&gt;&gt;&gt;im:reply()
+im-&gt;&gt;&gt;im:replyCallback()
+
+im-&gt;&gt;&gt;im:generateResponseMessage(fromMsg, intoMsg)
+im-&gt;&gt;&gt;a:callOutgoingHandler(msg)
+
+a-&gt;&gt;&gt;r:handleOutgoing(a,msg)
+r-&gt;&gt;&gt;s:handleOutgoing(a,msg)
+s-&gt;&gt;&gt;p:handleOutgoing(a,msg)
+p-&gt;&gt;&gt;p:handleOutgoingResponse(a,msg)
+p-&gt;&gt;&gt;nt:sendResponse(dst, bytes)
+nt-&gt;n:"Network hop"
+
+n.&gt;nt:messageReceived(dst, bytes)
+
+nt-&gt;&gt;&gt;p:transportMessageReceived(bytes)
+p-&gt;&gt;&gt;p:parse(bytes)
+p.&gt;p:msg
+p-&gt;&gt;&gt;p:handleIncoming(msg)
+p-&gt;&gt;&gt;p:resolveAction(msg)
+p.&gt;p:action
+
+p-&gt;&gt;&gt;a:callIncomingHandlers(msg)
+a-&gt;&gt;&gt;r:handleIncoming(msg)
+r-&gt;&gt;&gt;s:handleIncoming(msg)
+
+a-&gt;&gt;&gt;om:handleReply(originalMessage)
+om-&gt;&gt;&gt;om:onReply #Anonymous
+
+om./&gt;c:"Code from callee executed in anonymous function"
+
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+</diagram>
