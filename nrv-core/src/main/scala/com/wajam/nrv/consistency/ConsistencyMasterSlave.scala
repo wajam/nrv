@@ -124,8 +124,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
       // Subscribe for replication to all master service members the current node is a slave
       info("Startup replication subscription  {}", service)
-      service.members.withFilter(member => member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {member =>
-        SubscriptionManagerActor ! Subscribe(member, ReplicationMode.Store)
+      service.members.withFilter(member => member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {
+        member =>
+          SubscriptionManagerActor ! Subscribe(member, ReplicationMode.Store)
       }
 
       started = true
@@ -207,12 +208,20 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def handleStatusTransitionAttemptEvent(event: StatusTransitionAttemptEvent) {
     event.to match {
       case MemberStatus.Down => {
-        // Trying to transition the service member Down. Reset the service member consistency.
-        metrics.consistencyNone.mark()
-        info("StatusTransitionAttemptEvent: status=Down, prevState={}, newState=None, member={}",
-          consistencyStates.get(event.member.token), event.member)
-        updateMemberConsistencyState(event.member, newState = None)
-        event.vote(pass = true)
+        // Trying to transition the service member Down.
+        // When Leaving, allows the transition only if the service member is not the master publisher of a live
+        // replication session. Allow transitions from any other status.
+        val liveSessions = replicationPublisher.subscriptions.filter(_.mode == ReplicationMode.Live).toList
+        val canTransition = event.from != MemberStatus.Leaving || liveSessions.isEmpty
+        val newState = if (canTransition) None else consistencyStates.get(event.member.token)
+        info("StatusTransitionAttemptEvent: status=Down, prevState={}, newState=None, member={}, live replications={}",
+          newState, event.member, liveSessions.map(_.member))
+        if (canTransition) {
+          // Reset the service member consistency when transitioning
+          metrics.consistencyNone.mark()
+          updateMemberConsistencyState(event.member, newState = None)
+        }
+        event.vote(pass = canTransition)
       }
       case MemberStatus.Joining => {
         // Trying to transition the service member to joining. Initiate consistency recovery if necessary.
@@ -269,6 +278,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           }
         }
       }
+      case MemberStatus.Leaving => //no vote for other states
     }
   }
 
@@ -313,7 +323,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       case MemberStatus.Down => {
         this.synchronized {
           // Cancel all master replication subscriptions for the member
-          replicationPublisher.terminateSubscriptions(ResolvedServiceMember(service, event.member))
+          replicationPublisher.terminateMemberSubscriptions(ResolvedServiceMember(service, event.member))
 
           // Remove transaction recorder for all other cases
           info("Remove transaction recorders for {}", event.member)
@@ -322,7 +332,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           recorder.foreach(_.kill())
         }
       }
-      case MemberStatus.Joining => // Nothing to do
+      case MemberStatus.Joining | MemberStatus.Leaving => // Nothing to do
     }
   }
 
@@ -339,9 +349,11 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           SubscriptionManagerActor ! Subscribe(event.member, ReplicationMode.Store)
         }
       }
-      case _ =>
-        // Unsubscribe slave replication subscriptions if the remote member status is not Up.
+      case MemberStatus.Leaving => // Do nothing, must not unsubscribe to let drain existing replication subscriptions
+      case _ => {
+        // Unsubscribe slave replication subscriptions if the remote member status is not Up or Leaving.
         SubscriptionManagerActor ! Unsubscribe(event.member)
+      }
     }
   }
 
@@ -528,7 +540,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   def executeConsistentOutgoingWriteRequest(action: Action, message: OutMessage, next: (Unit) => Unit) {
     //only the master (first resolved node) may handle write messages
     message.destination.replicas match {
-      case master :: _ if (master.selected) => {
+      case master :: _ if master.selected => {
         message.destination.deselectAllReplicasButFirst()
         next()
       }
@@ -541,17 +553,46 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       // TODO: Use Future
       val recovery = new ConsistencyRecovery(txLogDir, service, Some(serializer))
       val finalLogIndex = recovery.restoreMemberConsistency(member, onError)
-      finalLogIndex.map(_.consistentTimestamp) match {
+      finalLogIndex.flatMap(_.consistentTimestamp) match {
         case Some(lastLogTimestamp) => {
           // Ensure that transaction log and storage have the same final transaction timestamp
-          val lastStoreTimestamp = service.getLastTimestamp(member.ranges)
-          if (lastLogTimestamp == lastStoreTimestamp) {
-            info("The service member transaction log and store are consistent {}", member)
-            onSuccess
-          } else {
-            error("Transaction log and storage last timestamps are different! (log={}, store={}) {}",
-              lastLogTimestamp, lastStoreTimestamp, member)
-            onError
+          service.getLastTimestamp(member.ranges) match {
+            case Some(lastStoreTimestamp) if lastStoreTimestamp == lastLogTimestamp => {
+              info("The service member transaction log and store are consistent {}", member)
+              onSuccess
+            }
+            case Some(lastStoreTimestamp) if lastStoreTimestamp < lastLogTimestamp => {
+              info("Possible transaction log and storage inconsistency. Falling back to slower committed timestamp verification (store={}, log={}) {}",
+                lastLogTimestamp, lastLogTimestamp, member)
+              val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
+                serializer = Some(serializer))
+              txLog.lastSuccessfulTimestamp(lastStoreTimestamp) match {
+                case Some(lastCommitedLogTimestamp) if lastCommitedLogTimestamp == lastStoreTimestamp => {
+                  info("The service member transaction log and store are consistent {}", member)
+                  onSuccess
+                }
+                case Some(lastCommitedLogTimestamp) => {
+                  error("Last transaction log committed timestamp and storage last timestamp are different! (store={}, log={}) {}",
+                    lastLogTimestamp, lastCommitedLogTimestamp, member)
+                  onError
+                }
+                case None => {
+                  error("Cannot find last transaction log committed timestamp! (store={}) {}",
+                    lastStoreTimestamp, member)
+                  onError
+                }
+              }
+            }
+            case Some(lastStoreTimestamp) => {
+              error("Transaction log and storage last timestamps are different! (store={}, log={}) {}",
+                lastStoreTimestamp, lastLogTimestamp, member)
+              onError
+            }
+            case None => {
+              error("Service member is inconsistent. Transaction log exists but storage is empty! (log={}) {}",
+                lastLogTimestamp, member)
+              onError
+            }
           }
         }
         case None => {
@@ -637,7 +678,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               subscribe(member, mode)
             } catch {
               case e: Exception => {
-                warn("Error processing subscribe for {}", ResolvedServiceMember(service, member), e)
+                warn("Error processing subscribe for {}", member, e)
               }
             }
           }
@@ -646,7 +687,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               replicationSubscriber.unsubscribe(ResolvedServiceMember(service, member))
             } catch {
               case e: Exception => {
-                warn("Error processing unsubscribe for {}", ResolvedServiceMember(service, member), e)
+                warn("Error processing unsubscribe for {}", member, e)
               }
             }
           }
@@ -676,6 +717,18 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     lazy val consistencyError = new Meter(metrics.metricsRegistry.newMeter(classOf[ConsistencyMasterSlave],
       "consistency-error", scope, "consistency-error", TimeUnit.SECONDS))
 
+    private val consistencyOkCountGauge = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
+      "consistency-ok-count", scope, new Gauge[Long] {
+        def value = consistencyStates.values.count(_ == MemberConsistencyState.Ok)
+      })
+    private val consistencyErrorCountGauge = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
+      "consistency-error-count", scope, new Gauge[Long] {
+        def value = consistencyStates.values.count(_ == MemberConsistencyState.Error)
+      })
+    private val consistencyRecoveringCountGauge = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
+      "consistency-reconvering-count", scope, new Gauge[Long] {
+        def value = consistencyStates.values.count(_ == MemberConsistencyState.Recovering)
+      })
 
     private val recordersCount = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
       "recorders-count", scope, new Gauge[Long] {

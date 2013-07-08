@@ -79,8 +79,7 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     }
   }
 
-  private def handleOutgoingResponse(channel: AnyRef, message: OutMessage)
-  {
+  private def handleOutgoingResponse(channel: AnyRef, message: OutMessage) {
     guardedGenerate(message) match {
       case Left(e) => {
         sendingResponseFailure.mark()

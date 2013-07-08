@@ -26,7 +26,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
 
   override def start(): Boolean = {
     if (super.start()) {
-      syncServices()
+      allServices.foreach(service => forceServiceCheck(service))
 
       // watch global zookeeper events
       addZkObserver()
@@ -39,7 +39,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     zk.addObserver {
       case ZookeeperConnected(original) => {
         info("Connection to zookeeper established")
-        syncServices()
+        allServices.foreach(service => forceServiceCheck(service))
       }
 
       case ZookeeperDisconnected(original) => {
@@ -57,29 +57,21 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
   }
 
   protected def initializeMembers() {
-    syncServices()
+    allServices.foreach(service => syncService(service))
   }
 
   private def connected = {
     started && zk.connected
   }
 
-  protected def syncMembers() {
+  override protected def getServiceMembers(service: Service): Option[Seq[(ServiceMember, Seq[ServiceMemberVote])]] = {
     if (connected) {
-      syncServices()
-    }
-  }
-
-  private def syncServices() {
-    allServices.foreach(service => syncService(service))
-  }
-
-  private def syncService(service: Service) {
-    if (connected) {
-      syncServiceMembers(service, getZkServiceMembers(service).map(serviceMember => {
+      Some(getZkServiceMembers(service).map(serviceMember => {
         val votes = getZkMemberVotes(service, serviceMember)
         (serviceMember, votes)
       }))
+    } else {
+      None
     }
   }
 
@@ -104,7 +96,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     val callback = childWatches.getOrElseUpdate(path, (e: NodeChildrenChanged) => {
       if (connected) {
         debug("Service members within service {} changed", service)
-        syncService(service)
+        forceServiceCheck(service)
       }
     })
 
@@ -121,7 +113,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     val callback = childWatches.getOrElseUpdate(path, (e: NodeChildrenChanged) => {
       if (connected) {
         debug("Votes for {} in service {} changed", serviceMember, service)
-        syncService(service)
+        forceServiceCheck(service)
       }
     })
 
@@ -137,7 +129,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
     val callback = dataWatches.getOrElseUpdate(path, (e: NodeValueChanged) => {
       if (connected) {
         info("Vote for member {} by {} in service {} changed", candidateMember, voterToken, service)
-        syncService(service)
+        forceServiceCheck(service)
       }
     })
 
@@ -153,7 +145,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
         val path = ZookeeperClusterManager.zkMemberVotePath(service.name, oldServiceMember.token, oldServiceMember.token)
         zk.delete(path)
       } catch {
-        case e: NoNodeException => //data has already been deleted (e.g. entries are deleted manually in ZKclusterManager it tests)
+        case e: NoNodeException => // data has already been deleted (e.g. entries are deleted manually in ZKclusterManager it tests)
       }
     }
   }

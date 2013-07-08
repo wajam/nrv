@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency.replication
 
-import org.scalatest.{BeforeAndAfter, FunSuite}
+import org.scalatest.BeforeAndAfter
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
 import org.scalatest.matchers.ShouldMatchers._
@@ -8,30 +8,35 @@ import org.mockito.Matchers._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.service._
-import com.wajam.nrv.consistency.{TransactionLogProxy, ResolvedServiceMember, ConsistentStore}
+import com.wajam.nrv.service.ActionProxy._
+import com.wajam.nrv.consistency.{TestTransactionBase, ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import MessageMatcher._
 import com.wajam.nrv.consistency.persistence.LogRecord.Index
-import scala.Some
+import java.util.UUID
+import com.wajam.nrv.utils.IdGenerator
+import com.wajam.nrv.consistency.persistence.{TransactionLogProxy, LogRecord}
 
 @RunWith(classOf[JUnitRunner])
-class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with MockitoSugar {
+class TestReplicationSubscriber extends TestTransactionBase with BeforeAndAfter with MockitoSugar {
 
   var service: Service = null
   var member: ResolvedServiceMember = null
   var txLogProxy: TransactionLogProxy = null
   var mockStore: ConsistentStore = null
-  var subscribeAction: ActionProxy = null
-  var unsubscribeAction: ActionProxy = null
+  var mockSubscribeAction: Action = null
+  var mockUnsubscribeAction: Action = null
 
   var currentCookie: String = null
+  var currentLogId: Long = 0
   var subscriber: ReplicationSubscriber = null
 
-  val subscriptionTimeout = 30000L
+  val subscriptionTimeout = 1500L
   val token = 0
   var subscriptionEndErrors: List[Exception] = Nil
   var subscriptionEndCalls = 0
+  var publishReplyCount = 0
 
   before {
     service = new Service("service")
@@ -39,10 +44,17 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
     txLogProxy = new TransactionLogProxy
 
     mockStore = mock[ConsistentStore]
-    subscribeAction = ActionProxy()
-    unsubscribeAction = ActionProxy()
+    mockSubscribeAction = mock[Action]
+    mockUnsubscribeAction = mock[Action]
 
-    subscriber = new ReplicationSubscriber(service, mockStore, subscriptionTimeout, commitFrequency = 0) {
+    val logIdGenerator = new IdGenerator[Long] {
+      def nextId = {
+        val id = currentLogId
+        currentLogId += 1
+        id
+      }
+    }
+    subscriber = new ReplicationSubscriber(service, mockStore, subscriptionTimeout, commitFrequency = 0, logIdGenerator) {
       override def nextId = currentCookie
     }
     subscriber.start()
@@ -51,13 +63,14 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
   after {
     subscriber.stop()
     subscriber = null
-    unsubscribeAction = null
-    subscribeAction = null
+    mockUnsubscribeAction = null
+    mockSubscribeAction = null
     mockStore = null
     txLogProxy = null
 
     subscriptionEndErrors = Nil
     subscriptionEndCalls = 0
+    publishReplyCount = 0
   }
 
   def onSubscriptionEnd(exception: Option[Exception]) {
@@ -77,23 +90,72 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
     verifyOnSubscriptionEnd(expectedCalls = 0)
   }
 
+  def subscribe(startTimestamp: Timestamp = 0L, cookie: String = UUID.randomUUID().toString): ReplicationSubscription = {
+    val endTimestamp = Timestamp(5678)
+    val subId = "9876"
+
+    currentCookie = cookie
+    when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+      ReplicationMode.Store, onSubscriptionEnd)
+    val subscribeRequest: Map[String, MValue] = Map(
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
+
+    val subscribeResponse: Map[String, MValue] = Map(
+      ReplicationParam.SubscriptionId -> subId,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.End -> endTimestamp.toString)
+
+    // Verify subscription is activated
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
+
+    subscriber.subscriptions.find(_.cookie == cookie).get
+  }
+
+  def createPublishMessage(sequence: Long, subId: String, transaction: Message): InMessage = {
+    val params: Map[String, MValue] = Map(
+      ReplicationParam.Sequence -> sequence.toString,
+      ReplicationParam.SubscriptionId -> subId,
+      ReplicationParam.Timestamp -> transaction.timestamp.get.toString)
+    val publishMessage = new InMessage(params, data = transaction)
+    publishMessage.replyCallback = (_) => publishReplyCount += 1
+    publishMessage
+  }
+
+  def createKeepAliveMessage(sequence: Long, subId: String): InMessage = {
+    val params: Map[String, MValue] = Map(
+      ReplicationParam.Sequence -> sequence.toString,
+      ReplicationParam.SubscriptionId -> subId)
+    val publishMessage = new InMessage(params)
+    publishMessage.replyCallback = (_) => publishReplyCount += 1
+    publishMessage
+  }
+
   test("subscribe should invoke master publisher") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
-    subscribeAction.verifyNoMoreInteractions()
-    unsubscribeAction.verifyZeroInteractions()
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
+    verifyNoMoreInteractions(mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(ReplicationSubscription(member, cookie, ReplicationMode.Store)))
   }
@@ -104,24 +166,24 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 800, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 800, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
     // Wait 75% of the delay and ensure no interaction yet
-    subscribeAction.verifyZeroInteractions(wait = 600)
-    unsubscribeAction.verifyZeroInteractions()
+    verifyZeroInteractionsAfter(wait = 600, mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(ReplicationSubscription(member, cookie, ReplicationMode.Store)))
 
     // Wait delay remainder and verify subscribe call is done
-    verify(subscribeAction.mockAction, timeout(200)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
-    subscribeAction.verifyNoMoreInteractions()
-    unsubscribeAction.verifyZeroInteractions()
+    verify(mockSubscribeAction, timeout(200)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
+    verifyNoMoreInteractions(mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(ReplicationSubscription(member, cookie, ReplicationMode.Store)))
   }
@@ -133,29 +195,29 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 800, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 800, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
     // Waiting 50% of the delay
-    subscribeAction.verifyZeroInteractions(wait = 400)
-    unsubscribeAction.verifyZeroInteractions()
+    verifyZeroInteractionsAfter(wait = 400, mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(expectedSubscription))
 
     // Try subscribe again
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
 
     // Wait delay remainder and verify subscribe call is done only once
     Thread.sleep(400)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
-    subscribeAction.verifyNoMoreInteractions()
-    unsubscribeAction.verifyZeroInteractions()
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
+    verifyNoMoreInteractions(mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(expectedSubscription))
   }
@@ -169,26 +231,26 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
     val subscribeResponse: Map[String, MValue] = Map(
-      (ReplicationParam.SubscriptionId -> subId),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.End -> endTimestamp.toString))
+      ReplicationParam.SubscriptionId -> subId,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.End -> endTimestamp.toString)
 
 
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyWith(subscribeResponse)
-    subscribeAction.verifyNoMoreInteractions(wait = 100)
-    unsubscribeAction.verifyZeroInteractions()
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(expectedSubscription))
   }
@@ -202,30 +264,30 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
     val subscribeResponse: Map[String, MValue] = Map(
-      (ReplicationParam.SubscriptionId -> subId),
-      (ReplicationParam.Cookie -> "bad cookie"),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.End -> endTimestamp.toString))
+      ReplicationParam.SubscriptionId -> subId,
+      ReplicationParam.Cookie -> "bad cookie",
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.End -> endTimestamp.toString)
 
     val unsubscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.SubscriptionId -> subId))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.SubscriptionId -> subId)
 
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyWith(subscribeResponse)
-    subscribeAction.verifyNoMoreInteractions(wait = 100)
-    verify(unsubscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    unsubscribeAction.verifyNoMoreInteractions()
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
+    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(expectedSubscription))
   }
@@ -233,26 +295,25 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
   test("subscribe response error should remove pending subscription") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
-    val subId = "9876"
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
     val subscribeResponse = new Exception("reponse error")
 
     // Verify onSubscriptionEnd is invoked with the error
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyWith(subscribeResponse)
-    subscribeAction.verifyNoMoreInteractions(wait = 100)
-    unsubscribeAction.verifyZeroInteractions()
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEnd(1, subscribeResponse)
     subscriber.subscriptions should be(Nil)
   }
@@ -264,31 +325,31 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
     val subscribeResponse: Map[String, MValue] = Map(
-      (ReplicationParam.SubscriptionId -> subId),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.End -> startTimestamp.toString))
+      ReplicationParam.SubscriptionId -> subId,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.End -> startTimestamp.toString)
 
     val unsubscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.SubscriptionId -> subId))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.SubscriptionId -> subId)
 
     // Verify unsubscribe is sent and onSubscriptionEnd is invoked without an error
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyWith(subscribeResponse)
-    subscribeAction.verifyNoMoreInteractions(wait = 100)
-    verify(unsubscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    unsubscribeAction.verifyNoMoreInteractions()
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
+    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEnd(1)
     subscriber.subscriptions should be(Nil)
   }
@@ -302,32 +363,31 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
     val subscribeResponse: Map[String, MValue] = Map(
-      (ReplicationParam.SubscriptionId -> subId),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.End -> endTimestamp.toString))
+      ReplicationParam.SubscriptionId -> subId,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.End -> endTimestamp.toString)
 
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyWith(subscribeResponse)
-    subscribeAction.verifyNoMoreInteractions(wait = 100)
-    unsubscribeAction.verifyZeroInteractions()
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(expectedSubscription))
 
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
-    subscribeAction.verifyZeroInteractions(wait = 100)
-    unsubscribeAction.verifyZeroInteractions()
+    verifyZeroInteractionsAfter(wait = 100, mockSubscribeAction, mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(expectedSubscription))
   }
@@ -343,27 +403,26 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
     val otherSubscription = ReplicationSubscription(otherMember, otherCookie, ReplicationMode.Store)
     currentCookie = otherCookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(otherMember, txLogProxy, delay = 5000, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(otherMember, txLogProxy, delay = 5000, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     subscriber.subscriptions should be(List(otherSubscription))
-    subscribeAction.verifyZeroInteractions()
-    unsubscribeAction.verifyZeroInteractions()
+    verifyZeroInteractions(mockSubscribeAction, mockUnsubscribeAction)
 
     // Perform subscription
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
     // Validate now have two pending subscription
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
-    subscribeAction.verifyNoMoreInteractions()
-    unsubscribeAction.verifyZeroInteractions()
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
+    verifyNoMoreInteractions(mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions.toSet should be(Set(otherSubscription, expectedSubscription))
   }
@@ -374,19 +433,17 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 500, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 500, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
 
     // Ensure no interaction yet
-    subscribeAction.verifyZeroInteractions(wait = 200)
-    unsubscribeAction.verifyZeroInteractions()
+    verifyZeroInteractionsAfter(wait = 200, mockSubscribeAction, mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(ReplicationSubscription(member, cookie, ReplicationMode.Store)))
 
     // Unsubscribe and wait end of the delay
     subscriber.unsubscribe(member)
-    subscribeAction.verifyZeroInteractions(wait = 400)
-    unsubscribeAction.verifyZeroInteractions()
+    verifyZeroInteractionsAfter(wait = 400, mockSubscribeAction, mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(Nil)
   }
@@ -399,45 +456,46 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
 
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
     val subscribeResponse: Map[String, MValue] = Map(
-      (ReplicationParam.SubscriptionId -> subId),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.End -> "5678"))
+      ReplicationParam.SubscriptionId -> subId,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.End -> "5678")
 
     val unsubscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.SubscriptionId -> subId))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.SubscriptionId -> subId)
 
-    // Verify subscription is pending (subscription reponse is delayed in the future)
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyWith(subscribeResponse, delay = 500)
-    subscribeAction.verifyNoMoreInteractions(wait = 100)
-    unsubscribeAction.verifyZeroInteractions()
+    // Verify subscription is pending (subscription reponse is delayed after unsubscribe)
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(expectedSubscription))
 
     // Unsubscribe pending subscription before receiving response
     subscriber.unsubscribe(member)
-    subscribeAction.verifyZeroInteractions(wait = 100)
-    unsubscribeAction.verifyZeroInteractions()
+    verifyZeroInteractionsAfter(wait = 100, mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(Nil)
 
-    // Ensure unsubscribe is sent when getting the subscribe response
-    subscribeAction.verifyZeroInteractions(wait = 500)
-    verify(unsubscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    unsubscribeAction.verifyNoMoreInteractions()
+    // Finally receive the subscribe response (after unsubscribing)
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
+
+    // Verify unsubscribe is sent after getting the late subscribe response
+    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
+    verifyZeroInteractionsAfter(wait = 100, mockSubscribeAction, mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(Nil)
   }
@@ -451,69 +509,226 @@ class TestReplicationSubscriber extends FunSuite with BeforeAndAfter with Mockit
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    subscriber.subscribe(member, txLogProxy, delay = 0, subscribeAction, unsubscribeAction,
+    subscriber.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
       ReplicationMode.Store, onSubscriptionEnd)
     val subscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.Mode -> ReplicationMode.Store.toString))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.Mode -> ReplicationMode.Store.toString)
 
     val subscribeResponse: Map[String, MValue] = Map(
-      (ReplicationParam.SubscriptionId -> subId),
-      (ReplicationParam.Cookie -> cookie),
-      (ReplicationParam.Start -> startTimestamp.toString),
-      (ReplicationParam.End -> endTimestamp.toString))
+      ReplicationParam.SubscriptionId -> subId,
+      ReplicationParam.Cookie -> cookie,
+      ReplicationParam.Start -> startTimestamp.toString,
+      ReplicationParam.End -> endTimestamp.toString)
 
     // Verify subscription is activated
-    val messageCaptor = MessageMatcher(subscribeRequest)
-    verify(subscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(messageCaptor))
-    messageCaptor.replyWith(subscribeResponse)
-    subscribeAction.verifyNoMoreInteractions(wait = 100)
-    unsubscribeAction.verifyZeroInteractions()
+    val matchCaptor = MessageMatcher(subscribeRequest)
+    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(subscribeResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
+    verifyZeroInteractions(mockUnsubscribeAction)
     verifyOnSubscriptionEndNotCalled()
     subscriber.subscriptions should be(List(expectedSubscription))
 
     // Unsubscribe member without subscription (should do nothing)
     val otherMember = ResolvedServiceMember(service.name, token + 1000, Seq(TokenRange.All))
     subscriber.unsubscribe(otherMember)
-    unsubscribeAction.verifyZeroInteractions(wait = 100)
-    subscribeAction.verifyZeroInteractions()
+    verifyZeroInteractionsAfter(wait = 100, mockUnsubscribeAction)
+    verifyZeroInteractions(mockSubscribeAction)
     subscriber.subscriptions should be(List(expectedSubscription))
 
     // Unsubscribe
     val unsubscribeRequest: Map[String, MValue] = Map(
-      (ReplicationParam.Token -> token.toString),
-      (ReplicationParam.SubscriptionId -> subId))
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.SubscriptionId -> subId)
 
     subscriber.unsubscribe(member)
-    verify(unsubscribeAction.mockAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    unsubscribeAction.verifyNoMoreInteractions(wait = 100)
-    subscribeAction.verifyZeroInteractions()
+    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
+    verifyZeroInteractionsAfter(wait = 100, mockUnsubscribeAction, mockSubscribeAction)
     subscriber.subscriptions should be(Nil)
   }
 
-  ignore("publish should store in tx log and store in proper order") {
+  test("publish should store in tx log and store in proper order") {
+    val startTimestamp = 0L
+    val subscription = subscribe(startTimestamp)
 
+    val tx1 = createRequestMessage(timestamp = 100L)
+    val tx2 = createRequestMessage(timestamp = 200L)
+    val tx3 = createRequestMessage(timestamp = 300L)
+
+    val ordered = inOrder(txLogProxy.mockAppender, mockStore)
+    currentLogId = 1000
+
+    // Publish transactions out of order
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 2, subscription.id.get, tx2))
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 3, subscription.id.get, tx3))
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 1, subscription.id.get, tx1))
+
+    // Wait for transaction processing, unfortunatly timeout mode is not implemented with InOrder
+    Thread.sleep(100)
+
+    // Verify transactions applied in order
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1000, Some(startTimestamp), tx1))
+    ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx1)))
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1001, Some(startTimestamp), createResponseMessage(tx1)))
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1002, tx1.timestamp, tx2))
+    ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx2)))
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1003, tx1.timestamp, createResponseMessage(tx2)))
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1004, tx2.timestamp, tx3))
+    ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx3)))
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1005, tx2.timestamp, createResponseMessage(tx3)))
+    verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
+    publishReplyCount should be(3)
+    verifyZeroInteractions(mockSubscribeAction, mockUnsubscribeAction)
   }
 
-  ignore("publish tx log append error should result in consistency error") {
-    // TODO: must not write in store
+  test("publish tx log append error should result in consistency error") {
+    val startTimestamp = 0L
+    val subscription = subscribe(startTimestamp)
+
+    currentLogId = 1000
+
+    val tx1 = createRequestMessage(timestamp = 100L)
+    val tx2 = createRequestMessage(timestamp = 200L)
+    val tx3 = createRequestMessage(timestamp = 300L)
+
+    val ordered = inOrder(txLogProxy.mockAppender, mockStore)
+    when(txLogProxy.mockAppender.append(LogRecord(1002, tx1.timestamp, tx2))).thenThrow(new RuntimeException())
+
+    // Publish transactions out of order
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 2, subscription.id.get, tx2))
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 1, subscription.id.get, tx1))
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 3, subscription.id.get, tx3))
+
+    // Wait for transaction processing, unfortunatly timeout mode is not implemented with InOrder
+    Thread.sleep(100)
+
+    // Verify transactions applied in order up to the error
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1000, Some(startTimestamp), tx1))
+    ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx1)))
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1001, Some(startTimestamp), createResponseMessage(tx1)))
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1002, tx1.timestamp, tx2))
+    verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
+    publishReplyCount should be(1)
+
+    val unsubscribeRequest: Map[String, MValue] = Map(
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.SubscriptionId -> subscription.id.get)
+    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
+    verifyZeroInteractions(mockSubscribeAction)
   }
 
-  ignore("publish consistent store write error should result in consistency error") {
-    // TODO: must not response in tx log
+  test("publish consistent store write error should result in consistency error") {
+    val startTimestamp = 0L
+    val subscription = subscribe(startTimestamp)
+
+    currentLogId = 1000
+
+    val tx1 = createRequestMessage(timestamp = 100L)
+    val tx2 = createRequestMessage(timestamp = 200L)
+
+    val ordered = inOrder(txLogProxy.mockAppender, mockStore)
+    when(mockStore.writeTransaction(argThat(matchMessage(tx1)))).thenThrow(new RuntimeException())
+
+    // Publish transactions out of order
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 2, subscription.id.get, tx2))
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 1, subscription.id.get, tx1))
+
+    // Wait for transaction processing, unfortunatly timeout mode is not implemented with InOrder
+    Thread.sleep(100)
+
+    // Verify transactions applied in order up to the error
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1000, Some(startTimestamp), tx1))
+    ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx1)))
+    verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
+    publishReplyCount should be(0)
+
+    val unsubscribeRequest: Map[String, MValue] = Map(
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.SubscriptionId -> subscription.id.get)
+    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
+    verifyZeroInteractions(mockSubscribeAction)
   }
 
-  ignore("skip publish sequence # should result in consistency error") {
+  test("skip publish sequence # should result in consistency error") {
+    val startTimestamp = 0L
+    val subscription = subscribe(startTimestamp)
 
+    currentLogId = 1000
+
+    val tx1 = createRequestMessage(timestamp = 100L)
+    val tx2 = createRequestMessage(timestamp = 200L)
+    val tx3 = createRequestMessage(timestamp = 300L)
+
+    val ordered = inOrder(txLogProxy.mockAppender, mockStore)
+
+    // Publish transactions with a sequence # gap, untill timeout and resume
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 3, subscription.id.get, tx3))
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 1, subscription.id.get, tx1))
+    Thread.sleep((subscriptionTimeout * 1.5).toLong)
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 2, subscription.id.get, tx2))
+
+    // Verify transactions applied in order up to the timeout
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1000, Some(startTimestamp), tx1))
+    ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx1)))
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1001, Some(startTimestamp), createResponseMessage(tx1)))
+    verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
+    publishReplyCount should be(1)
+
+    val unsubscribeRequest: Map[String, MValue] = Map(
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.SubscriptionId -> subscription.id.get)
+    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
+    verifyZeroInteractions(mockSubscribeAction)
   }
 
-  ignore("stop publish should result in timeout error") {
+  test("stop publish should result in timeout error") {
+    val startTimestamp = 0L
+    val subscription = subscribe(startTimestamp)
 
+    currentLogId = 1000
+
+    val tx1 = createRequestMessage(timestamp = 100L)
+
+    val ordered = inOrder(txLogProxy.mockAppender, mockStore)
+
+    // Publish transactions with a sequence # gap, untill timeout and resume
+    subscriber.handlePublishMessage(createPublishMessage(sequence = 1, subscription.id.get, tx1))
+    Thread.sleep((subscriptionTimeout * 1.5).toLong)
+
+    // Verify transactions applied in order up to the timeout
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1000, Some(startTimestamp), tx1))
+    ordered.verify(mockStore).writeTransaction(argThat(matchMessage(tx1)))
+    ordered.verify(txLogProxy.mockAppender).append(LogRecord(1001, Some(startTimestamp), createResponseMessage(tx1)))
+    verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
+    publishReplyCount should be(1)
+
+    val unsubscribeRequest: Map[String, MValue] = Map(
+      ReplicationParam.Token -> token.toString,
+      ReplicationParam.SubscriptionId -> subscription.id.get)
+    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
+    verifyZeroInteractions(mockSubscribeAction)
   }
 
-  ignore("publish idle message should not result in timeout error") {
+  test("publish idle message should not result in timeout error") {
+    val startTimestamp = 0L
+    val subscription = subscribe(startTimestamp)
+    currentLogId = 1000
 
+    // Publish keep alive messages
+    subscriber.handlePublishMessage(createKeepAliveMessage(sequence = 1, subscription.id.get))
+    Thread.sleep(subscriptionTimeout / 2)
+    subscriber.handlePublishMessage(createKeepAliveMessage(sequence = 2, subscription.id.get))
+    Thread.sleep(subscriptionTimeout / 2)
+    subscriber.handlePublishMessage(createKeepAliveMessage(sequence = 3, subscription.id.get))
+    Thread.sleep(subscriptionTimeout / 2)
+
+    // Wait for transaction processing
+    Thread.sleep(100)
+
+    verifyZeroInteractions(txLogProxy.mockAppender, mockStore, mockSubscribeAction, mockUnsubscribeAction)
+    publishReplyCount should be(3)
   }
 }
