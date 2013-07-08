@@ -6,7 +6,6 @@ import scala.collection.JavaConversions._
 import java.util.concurrent.atomic.AtomicInteger
 import java.net.InetSocketAddress
 import com.yammer.metrics.scala.Instrumented
-import com.yammer.metrics.core.Gauge
 
 /**
  * This class...

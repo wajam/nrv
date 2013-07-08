@@ -267,6 +267,7 @@ class HttpProtocol(name: String,
     errorMessage.messageData = exception.getMessage
     errorMessage.attachments(Protocol.CONNECTION_KEY) = connectionInfo
     errorMessage.attachments(Protocol.CLOSE_AFTER) = true
+    errorMessage.metadata += (("Content-Type", new MString(HttpProtocol.DEFAULT_CONTENT_TYPE + "; charset=" + HttpProtocol.DEFAULT_ENCODING)))
     errorMessage
   }
 }
