@@ -212,10 +212,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         // When Leaving, allows the transition only if the service member is not the master publisher of a live
         // replication session. Allow transitions from any other status.
         val liveSessions = replicationPublisher.subscriptions.filter(_.mode == ReplicationMode.Live).toList
-        val canTransition = event.from != MemberStatus.Leaving || liveSessions.isEmpty
-        val newState = if (canTransition) None else consistencyStates.get(event.member.token)
+        val canTransition = liveSessions.isEmpty || event.from != MemberStatus.Leaving
+        def currentState = if (canTransition) None else consistencyStates.get(event.member.token)
         info("StatusTransitionAttemptEvent: status=Down, prevState={}, newState=None, member={}, live replications={}",
-          newState, event.member, liveSessions.map(_.member))
+          currentState, event.member, liveSessions.map(_.member))
         if (canTransition) {
           // Reset the service member consistency when transitioning
           metrics.consistencyNone.mark()
