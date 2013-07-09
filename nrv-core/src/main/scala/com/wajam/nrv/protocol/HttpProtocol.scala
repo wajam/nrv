@@ -3,7 +3,7 @@ package com.wajam.nrv.protocol
 import com.wajam.nrv.protocol.codec.{Codec, StringCodec}
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
-import java.net.URI
+import java.net.{InetSocketAddress, URI}
 import scala.collection.JavaConverters._
 import com.wajam.nrv.cluster.LocalNode
 import com.wajam.nrv.transport.http.HttpNettyTransport
@@ -19,12 +19,12 @@ class HttpProtocol(name: String,
                    localNode: LocalNode,
                    idleConnectionTimeoutMs: Long,
                    maxConnectionPoolSize: Int)
-  extends Protocol(name) {
+  extends Protocol(name, localNode) {
 
   val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
   contentTypeCodecs += ("text/plain" -> new StringCodec())
 
-  override val transport = new HttpNettyTransport(localNode.listenAddress,
+  val transport = new HttpNettyTransport(localNode.listenAddress,
     localNode.ports(name),
     this,
     idleConnectionTimeoutMs,
@@ -233,6 +233,20 @@ class HttpProtocol(name: String,
     errorMessage.attachments(Protocol.CONNECTION_KEY) = connectionInfo
     errorMessage.attachments(Protocol.CLOSE_AFTER) = true
     errorMessage
+  }
+
+  def sendMessage(destination: InetSocketAddress,
+                  message: AnyRef,
+                  closeAfter: Boolean,
+                  completionCallback: (Option[Throwable]) => Unit) {
+    transport.sendMessage(destination, message, closeAfter, completionCallback)
+  }
+
+  def sendResponse(connection: AnyRef,
+                   message: AnyRef,
+                   closeAfter: Boolean,
+                   completionCallback: (Option[Throwable]) => Unit) {
+    transport.sendResponse(connection, message, closeAfter, completionCallback)
   }
 }
 

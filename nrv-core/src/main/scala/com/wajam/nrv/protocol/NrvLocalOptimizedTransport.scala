@@ -1,21 +1,13 @@
 package com.wajam.nrv.protocol
 
-import com.wajam.nrv.service.Action
-import com.wajam.nrv.data.{OutMessage, Message, InMessage}
 import com.wajam.nrv.cluster.LocalNode
 import java.net.InetSocketAddress
+import com.wajam.nrv.data.Message
 
-/**
- * Loopback protocol that always send messages to local process
- */
-class DummyProtocol(name: String, localNode: LocalNode) extends Protocol(name, localNode) {
-
-  override def handleOutgoing(action: Action, message: OutMessage) {
-    message.protocolName = name
-    val newMessage = new InMessage()
-    message.copyTo(newMessage)
-    this.handleIncoming(action, newMessage)
-  }
+class NrvLocalOptimizedTransport(name: String,
+                                 localNode: LocalNode,
+                                 localProtocol: Protocol,
+                                 remoteProtocol: Protocol) extends Protocol(name, localNode) {
 
   def start() {}
 

@@ -5,20 +5,21 @@ import com.wajam.nrv.service.{ActionMethod, Service, MessageHandler, Action}
 import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.yammer.metrics.scala.Instrumented
+import com.wajam.nrv.cluster.LocalNode
+import java.net.InetSocketAddress
 
 /**
  * Protocol used to send and receive messages to remote nodes over a network
  */
-abstract class Protocol(var name: String) extends MessageHandler with Logging with Instrumented {
+abstract class Protocol(val name: String,
+                        val localNode: LocalNode) extends MessageHandler with Logging with Instrumented {
 
   private val sendingResponseFailure = metrics.meter("sendResponseFailure", "failure")
   private val parsingError = metrics.meter("parsing-error", "error")
   private val routingError = metrics.meter("routing-error", "error")
   private val receptionError = metrics.meter("reception-error", "error")
 
-  val transport: Transport
   var services = Map[String, Service]()
-
 
   /**
    * Start the protocol and the transport layer below it.
@@ -86,7 +87,7 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
         log.error("Could not send response because it cannot be constructed: error = {}.", e.toString)
       }
       case Right(response) => {
-        transport.sendResponse(channel,
+        sendResponse(channel,
           response,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
           (result: Option[Throwable]) => {
@@ -113,7 +114,7 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
         for (replica <- message.destination.selectedReplicas) {
           val node = replica.node
 
-          transport.sendMessage(node.protocolsSocketAddress(name),
+          sendMessage(node.protocolsSocketAddress(name),
             request,
             message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
             (result: Option[Throwable]) => {
@@ -182,6 +183,32 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
    * @return The message to be sent of the network
    */
   def generate(message: Message): AnyRef
+
+  /**
+   * Send a message on the transport layer.
+   *
+   * @param destination Destination's address
+   * @param message The message to send
+   * @param closeAfter Tells the transport layer to close or not the connection after the message has been sent
+   * @param completionCallback Callback executed once the message has been sent or when a failure occured
+   */
+  def sendMessage(destination: InetSocketAddress,
+                  message: AnyRef,
+                  closeAfter:Boolean,
+                  completionCallback: Option[Throwable] => Unit = (_) => {})
+
+  /**
+   * Send a message as a response on a specific connection.
+   *
+   * @param connection The connection on which to send the message
+   * @param message The message to send
+   * @param closeAfter Tells the transport layer to close or not the connection after the message has been sent
+   * @param completionCallback Callback executed once the message has been sent or when a failure occured
+   */
+  def sendResponse(connection: AnyRef,
+                   message: AnyRef,
+                   closeAfter: Boolean,
+                   completionCallback: Option[Throwable] => Unit = (_) => {})
 }
 
 object Protocol {
