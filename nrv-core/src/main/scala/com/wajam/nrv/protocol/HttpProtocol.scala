@@ -5,7 +5,7 @@ import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
 import java.net.{InetSocketAddress, URI}
 import scala.collection.JavaConverters._
-import com.wajam.nrv.cluster.LocalNode
+import com.wajam.nrv.cluster.{Node, LocalNode}
 import com.wajam.nrv.transport.http.HttpNettyTransport
 import scala.Array
 import com.wajam.nrv.data._
@@ -42,7 +42,7 @@ class HttpProtocol(name: String,
     contentTypeCodecs += (contentType -> codec)
   }
 
-  override def parse(message: AnyRef): Message = {
+  override def parse(message: AnyRef, connection: AnyRef): Message = {
     val msg = new InMessage()
     message match {
       case req: HttpRequest => {
@@ -88,7 +88,15 @@ class HttpProtocol(name: String,
     msg
   }
 
-  override def generate(message: Message): AnyRef = {
+  def generateMessage(message: Message, destination: Node): AnyRef = {
+    generate(message)
+  }
+
+  def generateResponse(message: Message, connection: AnyRef): AnyRef = {
+    generate(message)
+  }
+
+  private def generate(message: Message): AnyRef = {
     message match {
       case req: InMessage => {
         val query = new StringBuilder()
@@ -235,11 +243,11 @@ class HttpProtocol(name: String,
     errorMessage
   }
 
-  def sendMessage(destination: InetSocketAddress,
+  def sendMessage(destination: Node,
                   message: AnyRef,
                   closeAfter: Boolean,
                   completionCallback: (Option[Throwable]) => Unit) {
-    transport.sendMessage(destination, message, closeAfter, completionCallback)
+    transport.sendMessage(destination.protocolsSocketAddress(name), message, closeAfter, completionCallback)
   }
 
   def sendResponse(connection: AnyRef,

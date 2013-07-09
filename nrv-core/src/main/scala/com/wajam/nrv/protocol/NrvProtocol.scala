@@ -16,8 +16,8 @@ class NrvProtocol(localNode: LocalNode,
                   maxConnectionPoolSize: Int)
   extends NrvLocalOptimizedTransport("nrv",
                                      localNode,
-                                     new NrvMemoryProtocol("nry-local", localNode),
-                                     new NrvBinaryProtocol("nry-binary", localNode,
+                                     new NrvMemoryProtocol("nrv", localNode),
+                                     new NrvBinaryProtocol("nrv", localNode,
                                                            idleConnectionTimeoutMs,
                                                            maxConnectionPoolSize)) {
 

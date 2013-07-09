@@ -1,23 +1,72 @@
 package com.wajam.nrv.protocol
 
-import com.wajam.nrv.cluster.LocalNode
-import java.net.InetSocketAddress
+import com.wajam.nrv.cluster.{Node, LocalNode}
 import com.wajam.nrv.data.Message
 
 class NrvLocalOptimizedTransport(name: String,
                                  localNode: LocalNode,
-                                 localProtocol: Protocol,
-                                 remoteProtocol: Protocol) extends Protocol(name, localNode) {
+                                 localProtocol: NrvMemoryProtocol,
+                                 remoteProtocol: NrvBinaryProtocol) extends Protocol(name, localNode) {
 
-  def start() {}
+  def start() {
+    localProtocol.start()
+    remoteProtocol.start()
+  }
 
-  def stop() {}
+  def stop() {
+    localProtocol.stop()
+    remoteProtocol.stop()
+  }
 
-  def parse(message: AnyRef): Message = null
+  private def isLocalBound(destination: Node): Boolean = {
+    destination.protocolsSocketAddress(remoteProtocol.name).equals(localNode.listenAddress)
+  }
 
-  def generate(message: Message): AnyRef = null
+  def parse(message: AnyRef, connection: AnyRef): Message = {
+    connection match {
+      case Some(NrvMemoryProtocol.CONNECTION_KEY) => localProtocol.parse(message, connection)
+      case _ => remoteProtocol.parse(message, connection)
+    }
+  }
 
-  def sendMessage(destination: InetSocketAddress, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {}
+  def generateMessage(message: Message, destination: Node): AnyRef = {
+    val properGenerate =
+      if (isLocalBound(destination))
+        localProtocol.generateMessage _
+      else
+        remoteProtocol.generateMessage _
 
-  def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {}
+    properGenerate(message, destination)
+  }
+
+  def generateResponse(message: Message, connection: AnyRef): AnyRef = {
+    val properGenerate = connection match {
+      case Some(NrvMemoryProtocol.CONNECTION_KEY) => localProtocol.generateResponse _
+      case _ => remoteProtocol.generateResponse _
+    }
+
+    properGenerate(message, connection)
+  }
+
+  def sendMessage(destination: Node, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {
+    val properSendMessage =
+      if (isLocalBound(destination))
+        localProtocol.sendMessage _
+      else
+        remoteProtocol.sendMessage _
+
+    properSendMessage(destination, message, closeAfter, completionCallback)
+  }
+
+  def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {
+    val properSendResponse = connection match {
+      case Some(NrvMemoryProtocol.CONNECTION_KEY) => localProtocol.sendResponse _
+      case _ => remoteProtocol.sendResponse _
+    }
+
+    properSendResponse(message, connection, closeAfter, completionCallback)
+  }
+
+
+
 }

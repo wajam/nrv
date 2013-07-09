@@ -2,8 +2,7 @@ package com.wajam.nrv.protocol
 
 import com.wajam.nrv.service.Action
 import com.wajam.nrv.data.{OutMessage, Message, InMessage}
-import com.wajam.nrv.cluster.LocalNode
-import java.net.InetSocketAddress
+import com.wajam.nrv.cluster.{Node, LocalNode}
 
 /**
  * Loopback protocol that always send messages to local process
@@ -21,11 +20,13 @@ class DummyProtocol(name: String, localNode: LocalNode) extends Protocol(name, l
 
   def stop() {}
 
-  def parse(message: AnyRef): Message = null
+  def parse(message: AnyRef, connection: AnyRef): Message = null
 
-  def generate(message: Message): AnyRef = null
+  def generateMessage(message: Message, destination: Node): AnyRef = null
 
-  def sendMessage(destination: InetSocketAddress, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {}
+  def generateResponse(message: Message, connection: AnyRef): AnyRef = null
+
+  def sendMessage(destination: Node, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {}
 
   def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {}
 }

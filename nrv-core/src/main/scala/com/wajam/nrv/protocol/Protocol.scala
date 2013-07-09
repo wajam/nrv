@@ -5,7 +5,7 @@ import com.wajam.nrv.service.{ActionMethod, Service, MessageHandler, Action}
 import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.yammer.metrics.scala.Instrumented
-import com.wajam.nrv.cluster.LocalNode
+import com.wajam.nrv.cluster.{Node, LocalNode}
 import java.net.InetSocketAddress
 
 /**
@@ -71,23 +71,23 @@ abstract class Protocol(val name: String,
     }
   }
 
-  private def guardedGenerate(message: Message): Either[Throwable, AnyRef] = {
+  private def guardedGenerate(generate: () => AnyRef): Either[Throwable, AnyRef] = {
     try {
-      Right(generate(message))
+      Right(generate())
     }
     catch {
       case e: Exception => Left(e)
     }
   }
 
-  private def handleOutgoingResponse(channel: AnyRef, message: OutMessage) {
-    guardedGenerate(message) match {
+  private def handleOutgoingResponse(connectionInfo: AnyRef, message: OutMessage) {
+    guardedGenerate(() => generateResponse(message, connectionInfo)) match {
       case Left(e) => {
         sendingResponseFailure.mark()
         log.error("Could not send response because it cannot be constructed: error = {}.", e.toString)
       }
       case Right(response) => {
-        sendResponse(channel,
+        sendResponse(connectionInfo,
           response,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
           (result: Option[Throwable]) => {
@@ -106,15 +106,16 @@ abstract class Protocol(val name: String,
 
   private def handleOutgoingRequest(action: Action, message: OutMessage) {
 
-    guardedGenerate(message) match {
-      case Left(e) => {
-        log.error("Could not send request because it cannot be constructed: error = {}.", e.toString)
-      }
-      case Right(request) => {
-        for (replica <- message.destination.selectedReplicas) {
-          val node = replica.node
+    for (replica <- message.destination.selectedReplicas) {
+      val node = replica.node
 
-          sendMessage(node.protocolsSocketAddress(name),
+      guardedGenerate(() => generateMessage(message, node)) match {
+        case Left(e) => {
+          log.error("Could not send request because it cannot be constructed: error = {}.", e.toString)
+        }
+        case Right(request) => {
+
+          sendMessage(node,
             request,
             message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
             (result: Option[Throwable]) => {
@@ -145,11 +146,11 @@ abstract class Protocol(val name: String,
     }
   }
 
-  def transportMessageReceived(message: AnyRef, connectionInfo: Option[AnyRef]) {
+  def transportMessageReceived(message: AnyRef, connectionInfo: Option[AnyRef], flags: Map[String, Any] = Map()) {
     val inMessage = new InMessage
     inMessage.attachments.put(Protocol.CONNECTION_KEY, connectionInfo)
     try {
-      val parsedMessage = parse(message)
+      val parsedMessage = parse(message, connectionInfo)
       parsedMessage.copyTo(inMessage)
       handleIncoming(null, inMessage)
     } catch {
@@ -174,7 +175,7 @@ abstract class Protocol(val name: String,
    * @param message The message received from the network
    * @return The standard Message object that represent the network message
    */
-  def parse(message: AnyRef): Message
+  def parse(message: AnyRef, connection: AnyRef): Message
 
   /**
    * Generate a transport message from a standard Message object.
@@ -182,7 +183,16 @@ abstract class Protocol(val name: String,
    * @param message The standard Message object
    * @return The message to be sent of the network
    */
-  def generate(message: Message): AnyRef
+  def generateMessage(message: Message, destination: Node): AnyRef
+
+
+  /**
+   * Generate a transport message from a standard Message object.
+   *
+   * @param message The standard Message object
+   * @return The message to be sent of the network
+   */
+  def generateResponse(message: Message, connection: AnyRef): AnyRef
 
   /**
    * Send a message on the transport layer.
@@ -192,7 +202,7 @@ abstract class Protocol(val name: String,
    * @param closeAfter Tells the transport layer to close or not the connection after the message has been sent
    * @param completionCallback Callback executed once the message has been sent or when a failure occured
    */
-  def sendMessage(destination: InetSocketAddress,
+  def sendMessage(destination: Node,
                   message: AnyRef,
                   closeAfter:Boolean,
                   completionCallback: Option[Throwable] => Unit = (_) => {})

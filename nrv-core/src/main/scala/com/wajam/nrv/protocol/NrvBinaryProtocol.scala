@@ -5,8 +5,7 @@ import com.wajam.nrv.data.Message
 import com.google.common.primitives.UnsignedBytes
 import java.nio.ByteBuffer
 import com.wajam.nrv.data.serialization.NrvProtobufSerializer
-import com.wajam.nrv.cluster.LocalNode
-import java.net.InetSocketAddress
+import com.wajam.nrv.cluster.{Node, LocalNode}
 
 class NrvBinaryProtocol(name: String,
                         localNode: LocalNode,
@@ -30,7 +29,7 @@ class NrvBinaryProtocol(name: String,
     transport.stop()
   }
 
-  def parse(message: AnyRef): Message = {
+  def parse(message: AnyRef, flags: Map[String, Any] = Map()): Message = {
     val bytes = message.asInstanceOf[Array[Byte]]
 
     val magicByte: Int = UnsignedBytes.toInt(bytes(0))
@@ -41,7 +40,11 @@ class NrvBinaryProtocol(name: String,
       throw new RuntimeException("The magic byte was not recognized.")
   }
 
-  def generate(message: Message): AnyRef = {
+  def generateMessage(message: Message, destination: Node): AnyRef = {
+    generateProtobuf(message)
+  }
+
+  def generateResponse(message: Message, connection: AnyRef): AnyRef = {
     generateProtobuf(message)
   }
 
@@ -77,11 +80,11 @@ class NrvBinaryProtocol(name: String,
     buffer.array()
   }
 
-  def sendMessage(destination: InetSocketAddress,
+  def sendMessage(destination: Node,
                   message: AnyRef,
                   closeAfter: Boolean,
                   completionCallback: (Option[Throwable]) => Unit) {
-    transport.sendMessage(destination, message, closeAfter, completionCallback)
+    transport.sendMessage(destination.protocolsSocketAddress(name), message, closeAfter, completionCallback)
   }
 
   def sendResponse(connection: AnyRef,
@@ -90,6 +93,14 @@ class NrvBinaryProtocol(name: String,
                    completionCallback: (Option[Throwable]) => Unit) {
     transport.sendResponse(connection, message, closeAfter, completionCallback)
   }
+
+  /**
+   * Parse the received message and convert it to a standard Message object.
+   *
+   * @param message The message received from the network
+   * @return The standard Message object that represent the network message
+   */
+  def parse(message: AnyRef, connection: AnyRef): Message = null
 }
 
 object NrvBinaryProtocol {
