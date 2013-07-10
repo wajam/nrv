@@ -6,6 +6,8 @@ import com.wajam.nrv.cluster.{Node, LocalNode}
 class NrvMemoryProtocol(name: String,
                         localNode: LocalNode) extends Protocol(name, localNode)  {
 
+  protected val messagePerSecond = metrics.meter("message-rate", "messages")
+
   def start() {}
 
   def stop() {}
@@ -32,6 +34,8 @@ class NrvMemoryProtocol(name: String,
                   message: AnyRef,
                   closeAfter: Boolean,
                   completionCallback: (Option[Throwable]) => Unit) {
+
+    messagePerSecond.mark()
     transportMessageReceived(message, Some(NrvMemoryProtocol.CONNECTION_KEY))
     completionCallback(None)
   }
@@ -40,6 +44,8 @@ class NrvMemoryProtocol(name: String,
                    message: AnyRef,
                    closeAfter: Boolean,
                    completionCallback: Option[Throwable] => Unit = (_) => {}) {
+
+    messagePerSecond.mark()
     transportMessageReceived(message, Some(NrvMemoryProtocol.CONNECTION_KEY))
     completionCallback(None)
   }
