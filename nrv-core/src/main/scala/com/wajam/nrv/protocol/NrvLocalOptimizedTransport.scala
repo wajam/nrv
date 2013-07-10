@@ -21,7 +21,8 @@ class NrvLocalOptimizedTransport(name: String,
   }
 
   private def isLocalBound(destination: Node): Boolean = {
-    destination.protocolsSocketAddress(remoteProtocol.name).equals(localNode.listenAddress)
+    destination.protocolsSocketAddress(remoteProtocol.name).equals(localNode.protocolsSocketAddress(remoteProtocol.name))  &&
+    destination.ports(remoteProtocol.name).equals(localNode.ports(remoteProtocol.name))
   }
 
   override def bindAction(action: Action) = {
@@ -38,7 +39,7 @@ class NrvLocalOptimizedTransport(name: String,
 
   def generateMessage(message: Message, destination: Node): AnyRef = {
     val properGenerate =
-      if (isLocalBound(destination))
+      if (optimizeLocalCall && isLocalBound(destination))
         localProtocol.generateMessage _
       else
         remoteProtocol.generateMessage _
@@ -48,7 +49,7 @@ class NrvLocalOptimizedTransport(name: String,
 
   def generateResponse(message: Message, connection: AnyRef): AnyRef = {
     val properGenerate = connection match {
-      case Some(NrvMemoryProtocol.CONNECTION_KEY) => localProtocol.generateResponse _
+      case NrvMemoryProtocol.CONNECTION_KEY => localProtocol.generateResponse _
       case _ => remoteProtocol.generateResponse _
     }
 
@@ -67,7 +68,7 @@ class NrvLocalOptimizedTransport(name: String,
 
   def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {
     val properSendResponse = connection match {
-      case Some(NrvMemoryProtocol.CONNECTION_KEY) => localProtocol.sendResponse _
+      case NrvMemoryProtocol.CONNECTION_KEY => localProtocol.sendResponse _
       case _ => remoteProtocol.sendResponse _
     }
 
