@@ -13,8 +13,10 @@ import com.google.common.primitives.UnsignedBytes
  */
 class NrvProtocol(localNode: LocalNode,
                   idleConnectionTimeoutMs: Long,
-                  maxConnectionPoolSize: Int)
+                  maxConnectionPoolSize: Int,
+                  optimizeLocalCall: Boolean)
   extends NrvLocalOptimizedTransport("nrv",
+                                     optimizeLocalCall,
                                      localNode,
                                      new NrvMemoryProtocol("nrv", localNode),
                                      new NrvBinaryProtocol("nrv", localNode,

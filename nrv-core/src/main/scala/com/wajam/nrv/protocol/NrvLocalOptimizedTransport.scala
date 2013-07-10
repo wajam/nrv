@@ -5,6 +5,7 @@ import com.wajam.nrv.data.Message
 import com.wajam.nrv.service.Action
 
 class NrvLocalOptimizedTransport(name: String,
+                                 optimizeLocalCall: Boolean,
                                  localNode: LocalNode,
                                  localProtocol: NrvMemoryProtocol,
                                  remoteProtocol: NrvBinaryProtocol) extends Protocol(name, localNode) {
@@ -56,7 +57,7 @@ class NrvLocalOptimizedTransport(name: String,
 
   def sendMessage(destination: Node, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {
     val properSendMessage =
-      if (isLocalBound(destination))
+      if (optimizeLocalCall && isLocalBound(destination))
         localProtocol.sendMessage _
       else
         remoteProtocol.sendMessage _
