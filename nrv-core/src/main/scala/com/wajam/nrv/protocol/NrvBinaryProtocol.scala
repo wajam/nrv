@@ -29,7 +29,7 @@ class NrvBinaryProtocol(name: String,
     transport.stop()
   }
 
-  def parse(message: AnyRef, flags: Map[String, Any] = Map()): Message = {
+  def parse(message: AnyRef, connection: AnyRef): Message = {
     val bytes = message.asInstanceOf[Array[Byte]]
 
     val magicByte: Int = UnsignedBytes.toInt(bytes(0))
@@ -93,14 +93,6 @@ class NrvBinaryProtocol(name: String,
                    completionCallback: (Option[Throwable]) => Unit) {
     transport.sendResponse(connection, message, closeAfter, completionCallback)
   }
-
-  /**
-   * Parse the received message and convert it to a standard Message object.
-   *
-   * @param message The message received from the network
-   * @return The standard Message object that represent the network message
-   */
-  def parse(message: AnyRef, connection: AnyRef): Message = null
 }
 
 object NrvBinaryProtocol {

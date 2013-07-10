@@ -2,6 +2,7 @@ package com.wajam.nrv.protocol
 
 import com.wajam.nrv.cluster.{Node, LocalNode}
 import com.wajam.nrv.data.Message
+import com.wajam.nrv.service.Action
 
 class NrvLocalOptimizedTransport(name: String,
                                  localNode: LocalNode,
@@ -20,6 +21,11 @@ class NrvLocalOptimizedTransport(name: String,
 
   private def isLocalBound(destination: Node): Boolean = {
     destination.protocolsSocketAddress(remoteProtocol.name).equals(localNode.listenAddress)
+  }
+
+  override def bindAction(action: Action) = {
+    localProtocol.bindAction(action)
+    remoteProtocol.bindAction(action)
   }
 
   def parse(message: AnyRef, connection: AnyRef): Message = {
@@ -64,7 +70,7 @@ class NrvLocalOptimizedTransport(name: String,
       case _ => remoteProtocol.sendResponse _
     }
 
-    properSendResponse(message, connection, closeAfter, completionCallback)
+    properSendResponse(connection, message, closeAfter, completionCallback)
   }
 
 
