@@ -2,13 +2,25 @@ package com.wajam.nrv.protocol
 
 import com.wajam.nrv.data.{SerializableMessage, Message}
 import com.wajam.nrv.cluster.{Node, LocalNode}
+import com.wajam.nrv.utils.ExecutorPool
 
 class NrvMemoryProtocol(name: String,
-                        localNode: LocalNode) extends Protocol(name, localNode)  {
+                        localNode: LocalNode,
+                        numExecutor: Option[Int] = None) extends Protocol(name, localNode) {
 
-  protected val messagePerSecond = metrics.meter("message-rate", "messages")
+  protected val inMessagePerSecond = metrics.meter("in-message-rate", "messages")
+  protected val outMessagePerSecond = metrics.meter("out-message-rate", "messages")
 
-  def start() {}
+  // Set the right number of executor or set default
+  private val executorPool =
+    if (numExecutor.isDefined)
+      new ExecutorPool(numExecutor.get)
+    else
+      new ExecutorPool()
+
+  def start() {
+    executorPool.start
+  }
 
   def stop() {}
 
@@ -22,15 +34,25 @@ class NrvMemoryProtocol(name: String,
     SerializableMessage(message)
   }
 
+  private def sendMessage(message: AnyRef, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {
+    outMessagePerSecond.mark()
+
+    executorPool.execute {
+      () => {
+        inMessagePerSecond.mark()
+        transportMessageReceived(message, None)
+        completionCallback(None)
+      }
+    }
+  }
+
   def sendMessage(destination: Node,
                   message: AnyRef,
                   closeAfter: Boolean,
                   flags: Map[String, Any],
                   completionCallback: (Option[Throwable]) => Unit) {
 
-    messagePerSecond.mark()
-    transportMessageReceived(message, None)
-    completionCallback(None)
+    sendMessage(message, flags, completionCallback)
   }
 
   def sendResponse(connection: AnyRef,
@@ -39,9 +61,7 @@ class NrvMemoryProtocol(name: String,
                    flags: Map[String, Any],
                    completionCallback: Option[Throwable] => Unit = (_) => {}) {
 
-    messagePerSecond.mark()
-    transportMessageReceived(message, None)
-    completionCallback(None)
+    sendMessage(message, flags, completionCallback)
   }
 }
 
