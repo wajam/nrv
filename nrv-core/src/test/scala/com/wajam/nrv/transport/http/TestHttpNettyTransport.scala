@@ -24,7 +24,7 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
   class MockProtocol extends Protocol("test", null) {
     var receivedURI: String = null
 
-    override def parse(message: AnyRef, connection: AnyRef): Message = {
+    override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
       receivedURI = message.asInstanceOf[HttpRequest].getUri
       notifier.synchronized {
         notifier.notify()
@@ -41,13 +41,11 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
 
     override def stop() {}
 
-    def generateMessage(message: Message, destination: Node): AnyRef = null
+    def generate(message: Message, flags: Map[String, Any]): AnyRef = null
 
-    def generateResponse(message: Message, connection: AnyRef): AnyRef = null
+    def sendMessage(destination: Node, message: AnyRef, closeAfter: Boolean, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {}
 
-    def sendMessage(destination: Node, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {}
-
-    def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {}
+    def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {}
   }
 
   before {

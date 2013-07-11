@@ -30,7 +30,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
     service.registerAction(action)
 
-    notifyingProtocol = new NrvProtocol(cluster.localNode, 10000, 100, false) {
+    notifyingProtocol = new NrvProtocol(cluster.localNode, 10000, 100) {
       override def handleIncoming(action: Action, message: InMessage) {
         received = message
 
@@ -43,9 +43,9 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
   test("out-in") {
 
-    val protocol = new NrvProtocol(cluster.localNode, 10000, 100, false) {
+    val protocol = new NrvProtocol(cluster.localNode, 10000, 100) {
 
-      override def parse(message: AnyRef, connection: AnyRef): Message = {
+      override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
         val parsedMsg = super.parse(message, null)
         received = parsedMsg
 
@@ -108,8 +108,8 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
   test("test message reception failure") {
 
-    val protocol = new NrvProtocol(cluster.localNode, 10000, 100, false) {
-      override def parse(message: AnyRef, connection: AnyRef): Message = {
+    val protocol = new NrvProtocol(cluster.localNode, 10000, 100) {
+      override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
         throw new RuntimeException
       }
 
@@ -127,8 +127,8 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
   test("test message parsing failure") {
 
-    val protocol = new NrvProtocol(cluster.localNode, 10000, 100, false) {
-      override def parse(message: AnyRef, connection: AnyRef): Message = {
+    val protocol = new NrvProtocol(cluster.localNode, 10000, 100) {
+      override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
         throw new ParsingException("400")
       }
 

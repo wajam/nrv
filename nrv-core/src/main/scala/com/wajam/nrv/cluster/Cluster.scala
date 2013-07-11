@@ -34,7 +34,7 @@ class Cluster(val localNode: LocalNode,
 
   // recover alternative protocol or get the default one
   val defaultProtocol = optDefaultProtocol.getOrElse({
-    new NrvProtocol(this.localNode, 10000, 100, false)
+    new NrvProtocol(this.localNode, 10000, 100)
   })
 
   // register default protocol

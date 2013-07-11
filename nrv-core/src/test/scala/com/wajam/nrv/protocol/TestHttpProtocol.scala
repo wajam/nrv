@@ -76,7 +76,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     msg.method = "GET"
     msg.code = 333
 
-    val req = protocol.generateMessage(msg, null).asInstanceOf[HttpRequest]
+    val req = protocol.generate(msg).asInstanceOf[HttpRequest]
 
     assert(333 === req.getHeader(HttpProtocol.CODE_HEADER).toInt)
   }
@@ -85,7 +85,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val msg = new OutMessage()
     msg.code = 500
 
-    val res = protocol.generateMessage(msg, null).asInstanceOf[HttpResponse]
+    val res = protocol.generate(msg).asInstanceOf[HttpResponse]
 
     assert(500 === res.getStatus.getCode)
   }
@@ -111,7 +111,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val msg = new OutMessage()
     msg.method = ActionMethod.GET
 
-    val res = protocol.generateMessage(msg, null).asInstanceOf[HttpResponse]
+    val res = protocol.generate(msg).asInstanceOf[HttpResponse]
 
     assert("GET" === res.getHeader(HttpProtocol.METHOD_HEADER))
   }
@@ -120,7 +120,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val msg = new InMessage()
     msg.method = ActionMethod.GET
 
-    val req = protocol.generateMessage(msg, null).asInstanceOf[HttpRequest]
+    val req = protocol.generate(msg).asInstanceOf[HttpRequest]
 
     assert("GET" === req.getMethod.toString)
   }
@@ -146,7 +146,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val msg = new OutMessage()
     msg.path = "path"
 
-    val res = protocol.generateMessage(msg, null).asInstanceOf[HttpResponse]
+    val res = protocol.generate(msg).asInstanceOf[HttpResponse]
 
     assert("path" === res.getHeader(HttpProtocol.PATH_HEADER))
   }
@@ -156,7 +156,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     msg.method = ActionMethod.GET
     msg.path = "path"
 
-    val req = protocol.generateMessage(msg, null).asInstanceOf[HttpRequest]
+    val req = protocol.generate(msg).asInstanceOf[HttpRequest]
 
     assert("path" === req.getUri)
   }
@@ -168,7 +168,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     msg.metadata("CONTENT-TYPE") = MString("text/plain")
 
-    val req = protocol.generateMessage(msg, null).asInstanceOf[HttpRequest]
+    val req = protocol.generate(msg).asInstanceOf[HttpRequest]
     val msg2 = protocol.parse(req, null)
 
     assert(msg.path === msg2.path)

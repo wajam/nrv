@@ -42,7 +42,7 @@ class HttpProtocol(name: String,
     contentTypeCodecs += (contentType -> codec)
   }
 
-  override def parse(message: AnyRef, connection: AnyRef): Message = {
+  override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
     val msg = new InMessage()
     message match {
       case req: HttpRequest => {
@@ -88,11 +88,7 @@ class HttpProtocol(name: String,
     msg
   }
 
-  def generateMessage(message: Message, destination: Node): AnyRef = {
-    generate(message)
-  }
-
-  def generateResponse(message: Message, connection: AnyRef): AnyRef = {
+  def generate(message: Message, flags: Map[String, Any]): AnyRef = {
     generate(message)
   }
 
@@ -246,6 +242,7 @@ class HttpProtocol(name: String,
   def sendMessage(destination: Node,
                   message: AnyRef,
                   closeAfter: Boolean,
+                  flags: Map[String, Any],
                   completionCallback: (Option[Throwable]) => Unit) {
     transport.sendMessage(destination.protocolsSocketAddress(name), message, closeAfter, completionCallback)
   }
@@ -253,6 +250,7 @@ class HttpProtocol(name: String,
   def sendResponse(connection: AnyRef,
                    message: AnyRef,
                    closeAfter: Boolean,
+                   flags: Map[String, Any],
                    completionCallback: (Option[Throwable]) => Unit) {
     transport.sendResponse(connection, message, closeAfter, completionCallback)
   }

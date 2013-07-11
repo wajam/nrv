@@ -20,13 +20,11 @@ class DummyProtocol(name: String, localNode: LocalNode) extends Protocol(name, l
 
   def stop() {}
 
-  def parse(message: AnyRef, connection: AnyRef): Message = null
+  def parse(message: AnyRef, flags: Map[String, Any]): Message = null
 
-  def generateMessage(message: Message, destination: Node): AnyRef = null
+  def generate(message: Message, flags: Map[String, Any]): AnyRef = null
 
-  def generateResponse(message: Message, connection: AnyRef): AnyRef = null
+  def sendMessage(destination: Node, message: AnyRef, closeAfter: Boolean, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {}
 
-  def sendMessage(destination: Node, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {}
-
-  def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, completionCallback: (Option[Throwable]) => Unit) {}
+  def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {}
 }

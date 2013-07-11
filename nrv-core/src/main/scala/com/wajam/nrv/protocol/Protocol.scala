@@ -80,8 +80,17 @@ abstract class Protocol(val name: String,
     }
   }
 
+  private def isMessageLocalBound(destination: Node): Boolean = {
+    destination.protocolsSocketAddress(name).equals(localNode.protocolsSocketAddress(name))  &&
+      destination.ports(name).equals(localNode.ports(name))
+  }
+
   private def handleOutgoingResponse(connectionInfo: AnyRef, message: OutMessage) {
-    guardedGenerate(() => generateResponse(message, connectionInfo)) match {
+
+    val flags =
+      message.attachments.getOrElse(Protocol.FLAGS, Map[String, Any]()).asInstanceOf[Map[String, Any]]
+
+    guardedGenerate(() => generate(message, flags)) match {
       case Left(e) => {
         sendingResponseFailure.mark()
         log.error("Could not send response because it cannot be constructed: error = {}.", e.toString)
@@ -90,6 +99,7 @@ abstract class Protocol(val name: String,
         sendResponse(connectionInfo,
           response,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
+          flags,
           (result: Option[Throwable]) => {
             result match {
               case Some(throwable) => {
@@ -109,7 +119,10 @@ abstract class Protocol(val name: String,
     for (replica <- message.destination.selectedReplicas) {
       val node = replica.node
 
-      guardedGenerate(() => generateMessage(message, node)) match {
+      val flags =
+          Map(("isLocalBound" -> isMessageLocalBound(node)))
+
+      guardedGenerate(() => generate(message, flags)) match {
         case Left(e) => {
           log.error("Could not send request because it cannot be constructed: error = {}.", e.toString)
         }
@@ -118,6 +131,7 @@ abstract class Protocol(val name: String,
           sendMessage(node,
             request,
             message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
+            flags,
             (result: Option[Throwable]) => {
               result match {
                 case Some(throwable) => {
@@ -149,8 +163,10 @@ abstract class Protocol(val name: String,
   def transportMessageReceived(message: AnyRef, connectionInfo: Option[AnyRef], flags: Map[String, Any] = Map()) {
     val inMessage = new InMessage
     inMessage.attachments.put(Protocol.CONNECTION_KEY, connectionInfo)
+    inMessage.attachments.put(Protocol.FLAGS, flags)
+
     try {
-      val parsedMessage = parse(message, connectionInfo)
+      val parsedMessage = parse(message)
       parsedMessage.copyTo(inMessage)
       handleIncoming(null, inMessage)
     } catch {
@@ -175,7 +191,7 @@ abstract class Protocol(val name: String,
    * @param message The message received from the network
    * @return The standard Message object that represent the network message
    */
-  def parse(message: AnyRef, connection: AnyRef): Message
+  def parse(message: AnyRef, flags: Map[String, Any] = Map()): Message
 
   /**
    * Generate a transport message from a standard Message object.
@@ -183,16 +199,7 @@ abstract class Protocol(val name: String,
    * @param message The standard Message object
    * @return The message to be sent of the network
    */
-  def generateMessage(message: Message, destination: Node): AnyRef
-
-
-  /**
-   * Generate a transport message from a standard Message object.
-   *
-   * @param message The standard Message object
-   * @return The message to be sent of the network
-   */
-  def generateResponse(message: Message, connection: AnyRef): AnyRef
+  def generate(message: Message, flags: Map[String, Any] = Map()): AnyRef
 
   /**
    * Send a message on the transport layer.
@@ -205,6 +212,7 @@ abstract class Protocol(val name: String,
   def sendMessage(destination: Node,
                   message: AnyRef,
                   closeAfter:Boolean,
+                  flags: Map[String, Any] = Map(),
                   completionCallback: Option[Throwable] => Unit = (_) => {})
 
   /**
@@ -218,12 +226,14 @@ abstract class Protocol(val name: String,
   def sendResponse(connection: AnyRef,
                    message: AnyRef,
                    closeAfter: Boolean,
+                   flags: Map[String, Any] = Map(),
                    completionCallback: Option[Throwable] => Unit = (_) => {})
 }
 
 object Protocol {
   val CONNECTION_KEY = "connection"
   val CLOSE_AFTER = "close_after"
+  val FLAGS = "flags"
 }
 
 case class ParsingException(message: String, code: Int = 400) extends Exception(message)

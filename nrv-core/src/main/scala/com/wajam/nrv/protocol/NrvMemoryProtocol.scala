@@ -12,41 +12,35 @@ class NrvMemoryProtocol(name: String,
 
   def stop() {}
 
-  def parse(message: AnyRef, connection: AnyRef): Message = {
+  def parse(message: AnyRef, flags: Map[String, Any]): Message = {
     // Noop
     message.asInstanceOf[Message]
   }
 
-  private def generate(message: Message) = {
+  def generate(message: Message, flags: Map[String, Any]) = {
     // Noop, only copy the message, to ensure unwanted field aren't passed to the receiving end
     SerializableMessage(message)
-  }
-
-  def generateMessage(message: Message, destination: Node): AnyRef = {
-    generate(message)
-  }
-
-  def generateResponse(message: Message, connection: AnyRef): AnyRef = {
-    generate(message)
   }
 
   def sendMessage(destination: Node,
                   message: AnyRef,
                   closeAfter: Boolean,
+                  flags: Map[String, Any],
                   completionCallback: (Option[Throwable]) => Unit) {
 
     messagePerSecond.mark()
-    transportMessageReceived(message, Some(NrvMemoryProtocol.CONNECTION_KEY))
+    transportMessageReceived(message, None)
     completionCallback(None)
   }
 
   def sendResponse(connection: AnyRef,
                    message: AnyRef,
                    closeAfter: Boolean,
+                   flags: Map[String, Any],
                    completionCallback: Option[Throwable] => Unit = (_) => {}) {
 
     messagePerSecond.mark()
-    transportMessageReceived(message, Some(NrvMemoryProtocol.CONNECTION_KEY))
+    transportMessageReceived(message, None)
     completionCallback(None)
   }
 }
