@@ -33,9 +33,9 @@ object NrvBuild extends Build {
     case "2.9.1" | "2.9.2" => Seq(
       "com.twitter" % "util-core" % "6.1.0"
     )
-    case "2.10.0" => Seq(
+    case "2.10.2" => Seq(
       "com.twitter" %% "util-core" % "6.1.0",
-      "org.scala-lang" % "scala-actors" % "2.10.0"
+      "org.scala-lang" % "scala-actors" % "2.10.2"
     )
   })
 
@@ -68,8 +68,8 @@ object NrvBuild extends Build {
     publishMavenStyle := true,
     organization := "com.wajam",
     version := "0.1-SNAPSHOT",
-    scalaVersion := "2.9.1",
-    crossScalaVersions := Seq("2.10.0")
+    scalaVersion := "2.10.2",
+    crossScalaVersions := Seq("2.9.1")
   )
 
   lazy val root = Project(PROJECT_NAME, file("."))
