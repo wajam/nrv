@@ -120,7 +120,7 @@ abstract class Protocol(val name: String,
       val node = replica.node
 
       val flags =
-          Map(("isLocalBound" -> isMessageLocalBound(node)))
+          Map((flagReader.F_IS_LOCAL_BOUND -> isMessageLocalBound(node)))
 
       guardedGenerate(() => generate(message, flags)) match {
         case Left(e) => {
@@ -160,7 +160,7 @@ abstract class Protocol(val name: String,
     }
   }
 
-  def transportMessageReceived(message: AnyRef, connectionInfo: Option[AnyRef], flags: Map[String, Any] = Map()) {
+  def transportMessageReceived(message: AnyRef, connectionInfo: Option[AnyRef], flags: Map[String, Any]) {
     val inMessage = new InMessage
     inMessage.attachments.put(Protocol.CONNECTION_KEY, connectionInfo)
     inMessage.attachments.put(Protocol.FLAGS, flags)
@@ -228,6 +228,17 @@ abstract class Protocol(val name: String,
                    closeAfter: Boolean,
                    flags: Map[String, Any] = Map(),
                    completionCallback: Option[Throwable] => Unit = (_) => {})
+
+  protected val flagReader = new FlagReader()
+
+  protected class FlagReader {
+
+    val F_IS_LOCAL_BOUND = "isLocalBound"
+
+    def isLocalBound(flags: Map[String, Any]): Boolean = {
+      flags.getOrElse(F_IS_LOCAL_BOUND, false).asInstanceOf[Boolean]
+    }
+  }
 }
 
 object Protocol {

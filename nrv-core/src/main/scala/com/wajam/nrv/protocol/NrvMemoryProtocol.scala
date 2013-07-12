@@ -40,7 +40,7 @@ class NrvMemoryProtocol(name: String,
     executorPool.execute {
       () => {
         inMessagePerSecond.mark()
-        transportMessageReceived(message, None)
+        transportMessageReceived(message, Some(MemoryConnection), flags)
         completionCallback(None)
       }
     }
@@ -65,6 +65,4 @@ class NrvMemoryProtocol(name: String,
   }
 }
 
-object NrvMemoryProtocol {
-  val CONNECTION_KEY = "NrvMemoryProtocol"
-}
+object MemoryConnection

@@ -122,7 +122,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
       }
     }
 
-    protocol.transportMessageReceived("invalidmessage".getBytes, None)
+    protocol.transportMessageReceived("invalidmessage".getBytes, None, Map())
   }
 
   test("test message parsing failure") {
@@ -141,7 +141,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
       }
     }
 
-    protocol.transportMessageReceived("invalidmessage".getBytes, None)
+    protocol.transportMessageReceived("invalidmessage".getBytes, None, Map())
   }
 
   test("test overriden codec is used") {
