@@ -6,7 +6,7 @@ import com.wajam.nrv.data._
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import org.scalatest.matchers.ShouldMatchers
-import com.wajam.nrv.utils.test.FunctionalMatcher
+import com.wajam.nrv.utils.test.PredicateMatcher
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.service._
 import scala.Some
@@ -50,7 +50,7 @@ class TestLocalOptimizedProtocol  extends FunSuite with ShouldMatchers with Mock
 
     if (shouldUseLocal) {
 
-      val flagMatcher = new FunctionalMatcher((flags: Map[String, Any]) => flags.getOrElse("isLocalBound", false).asInstanceOf[Boolean] == shouldUseLocal)
+      val flagMatcher = new PredicateMatcher((flags: Map[String, Any]) => flags.getOrElse("isLocalBound", false).asInstanceOf[Boolean] == shouldUseLocal)
 
       verify(local, timeout(100)).generate(anyObject(), argThat(flagMatcher))
       verify(local).sendMessage(anyObject(), anyObject(), anyBoolean(), argThat(flagMatcher), anyObject())
@@ -149,11 +149,11 @@ class TestLocalOptimizedProtocol  extends FunSuite with ShouldMatchers with Mock
     // Ensure the isLocalBound flags is set to ensure later routing of incoming message and of the future response
 
     val hasFlag =
-      new FunctionalMatcher((f: Map[String, Any]) =>
+      new PredicateMatcher((f: Map[String, Any]) =>
         f.getOrElse("isLocalBound", false).asInstanceOf[Boolean])
 
     val msgHasFlag =
-      new FunctionalMatcher((m: Message) =>
+      new PredicateMatcher((m: Message) =>
         hasFlag.matches(m.attachments(Protocol.FLAGS).asInstanceOf[Map[String, Any]]))
 
 

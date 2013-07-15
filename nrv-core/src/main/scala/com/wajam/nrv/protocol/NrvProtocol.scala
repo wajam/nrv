@@ -100,6 +100,3 @@ class NrvProtocol(localNode: LocalNode,
 object NrvProtocol {
   private val NrvMagicByte : Byte = (0xF2).toByte
 }
-
-
-

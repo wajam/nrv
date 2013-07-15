@@ -2,14 +2,13 @@ package com.wajam.nrv.utils
 
 import scala.actors.Actor
 import com.wajam.nrv.Logging
-import com.wajam.nrv.service.Action
-import com.wajam.nrv.data.Message
-import scala.Int
 import scala.util.Random
 
-class ExecutorPool(val numExecutor: Int = 100, executorSelector: (Int) => (Int) = ExecutorPool.defaultExecutorSelector) {
+class ExecutorPool(val numExecutor: Int) {
 
   require(numExecutor > 0)
+
+  val executorSelector = ExecutorPool.defaultExecutorSelector
 
   private val executors = Array.fill(numExecutor) {
     new Executor
@@ -21,9 +20,9 @@ class ExecutorPool(val numExecutor: Int = 100, executorSelector: (Int) => (Int) 
     }
   }
 
-  def execute(next: () => Unit) {
+  def execute(computation: () => Unit) {
     val executor = executors(executorSelector(numExecutor))
-    executor.execute(next)
+    executor.execute(computation)
   }
 }
 
@@ -38,16 +37,16 @@ object ExecutorPool {
 
 private class Executor extends Actor with Logging {
 
-  def execute(next: () => Unit) {
-    this ! next
+  def execute(computation: () => Unit) {
+    this ! computation
   }
 
   def act() {
     loop {
       react {
-        case next: (() => Unit) =>
+        case computation: (() => Unit) =>
           try {
-            next()
+            computation()
           } catch {
             case e: Exception => error("Got an error in Executor: ", e)
           }

@@ -6,7 +6,7 @@ import com.wajam.nrv.data.{Message, OutMessage}
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import org.scalatest.matchers.ShouldMatchers
-import com.wajam.nrv.utils.test.FunctionalMatcher
+import com.wajam.nrv.utils.test.PredicateMatcher
 
 class TestNrvMemoryProtocol  extends FunSuite with ShouldMatchers  {
 
@@ -29,7 +29,7 @@ class TestNrvMemoryProtocol  extends FunSuite with ShouldMatchers  {
       result should be(None)
     })
 
-    verify(nmp, timeout(100)).handleIncoming(anyObject(), argThat(new FunctionalMatcher((msg: Message) =>  message.messageData == msg.messageData)))
+    verify(nmp, timeout(100)).handleIncoming(anyObject(), argThat(new PredicateMatcher((msg: Message) =>  message.messageData == msg.messageData)))
   }
 
   test("can send-receive a response") {
@@ -51,6 +51,6 @@ class TestNrvMemoryProtocol  extends FunSuite with ShouldMatchers  {
       result should be(None)
     })
 
-    verify(nmp, timeout(100)).handleIncoming(anyObject(), argThat(new FunctionalMatcher((msg: Message) =>  message.messageData == msg.messageData)))
+    verify(nmp, timeout(100)).handleIncoming(anyObject(), argThat(new PredicateMatcher((msg: Message) =>  message.messageData == msg.messageData)))
   }
 }

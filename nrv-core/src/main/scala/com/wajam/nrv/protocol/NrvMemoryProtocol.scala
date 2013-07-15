@@ -6,17 +6,13 @@ import com.wajam.nrv.utils.ExecutorPool
 
 class NrvMemoryProtocol(name: String,
                         localNode: LocalNode,
-                        numExecutor: Option[Int] = None) extends Protocol(name, localNode) {
+                        numExecutor: Int = 100) extends Protocol(name, localNode) {
 
   protected val inMessagePerSecond = metrics.meter("in-message-rate", "messages")
   protected val outMessagePerSecond = metrics.meter("out-message-rate", "messages")
 
-  // Set the right number of executor or set default
-  private val executorPool =
-    if (numExecutor.isDefined)
-      new ExecutorPool(numExecutor.get)
-    else
-      new ExecutorPool()
+  // Set the right number of executor
+  private val executorPool = new ExecutorPool(numExecutor)
 
   def start() {
     executorPool.start

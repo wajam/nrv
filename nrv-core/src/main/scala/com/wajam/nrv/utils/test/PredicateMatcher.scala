@@ -13,12 +13,12 @@ import org.mockito.ArgumentMatcher
  *
  * mock.foo(test)
  *
- * verify(mock).foo(argThat(new FunctionalMatcher((s: String) =>  test == s)))
+ * verify(mock).foo(argThat(new PredicateMatcher((s: String) =>  test == s)))
  *
  * @param predicate The predicate
  * @tparam T The type of the argument of the predicate and of argument to verify
  */
-class FunctionalMatcher[T](predicate: (T) => Boolean) extends ArgumentMatcher {
+class PredicateMatcher[T](predicate: (T) => Boolean) extends ArgumentMatcher {
 
   def matches(ref: Object): Boolean = {
     ref match {
