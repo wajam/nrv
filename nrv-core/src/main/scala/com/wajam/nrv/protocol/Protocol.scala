@@ -35,7 +35,7 @@ abstract class Protocol(val name: String,
     services += (action.service.name -> action.service)
   }
 
-  protected def resolveAction(serviceName: String, path: String, method: ActionMethod) : Option[Action] = {
+  protected[nrv] def resolveAction(serviceName: String, path: String, method: ActionMethod) : Option[Action] = {
 
     services.get(serviceName) match {
       case Some(service) =>

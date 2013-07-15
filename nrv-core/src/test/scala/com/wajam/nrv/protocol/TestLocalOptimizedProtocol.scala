@@ -1,14 +1,18 @@
 package com.wajam.nrv.protocol
 
 import org.scalatest.FunSuite
-import com.wajam.nrv.cluster.{Node, LocalNode}
-import com.wajam.nrv.data.{InMessage, Message, OutMessage}
+import com.wajam.nrv.cluster.{StaticClusterManager, Cluster, Node, LocalNode}
+import com.wajam.nrv.data._
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import org.scalatest.matchers.ShouldMatchers
 import com.wajam.nrv.utils.test.FunctionalMatcher
 import org.scalatest.mock.MockitoSugar
-import com.wajam.nrv.service.{Action, Endpoints, Replica, Shard}
+import com.wajam.nrv.service._
+import scala.Some
+import scala.Some
+import com.wajam.nrv.protocol.codec.GenericJavaSerializeCodec
+import scala.Some
 
 class TestLocalOptimizedProtocol  extends FunSuite with ShouldMatchers with MockitoSugar {
 
@@ -72,5 +76,105 @@ class TestLocalOptimizedProtocol  extends FunSuite with ShouldMatchers with Mock
 
     // Can be another process!
     sendMessageAndVerifyCalls("127.0.0.1", "127.0.0.1", 12345, 12346, false)
+  }
+
+  test("can send-receive a local message in a real context (integration)") {
+
+    // Test a complete roundtrip of a message with request-response.
+    // It avoid using a cluster, switchboard, by hijacking callIncomingHandlers
+
+    val node = new LocalNode("127.0.0.1", Map("nrv" -> 10000, "local" -> 12345))
+
+    val cluster = new Cluster(node, new StaticClusterManager)
+
+    val service = new Service("ServiceA")
+
+    val action = new Action("ActionA", (msg) => None,
+      actionSupportOptions =  new ActionSupportOptions(nrvCodec = Some( new GenericJavaSerializeCodec)))
+
+    service.registerAction(action)
+
+    val nrvProtocol = new NrvProtocol(cluster.localNode, 10000, 100)
+    val localProtocol = spy(new NrvMemoryProtocol(nrvProtocol.name, node))
+    val loProtocol = spy(new NrvLocalOptimizedProtocol(nrvProtocol.name, node, localProtocol, nrvProtocol))
+
+    cluster.registerProtocol(loProtocol)
+
+    cluster.start()
+
+    val req = new OutMessage(Map("test" -> "someval"))
+    req.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, cluster.localNode)))))
+
+    // Simulate switchboard configuration
+    req.source = cluster.localNode
+    req.serviceName = service.name
+    req.path = action.path.buildPath(req.parameters)
+
+    loProtocol.bindAction(action)
+
+    // Hijack handleIncoming to foward the response right away
+    val routingAction = new Action("",
+      (in) => Unit,
+      ActionMethod.ANY,
+      new ActionSupportOptions(cluster=Some(cluster))) {
+
+      def generateFakeResponse(fromMessage: InMessage, outMessage: OutMessage) {
+        outMessage.timestamp = fromMessage.timestamp
+        outMessage.path = fromMessage.path
+        outMessage.method = fromMessage.method
+        outMessage.function = MessageType.FUNCTION_RESPONSE
+        outMessage.rendezvousId = fromMessage.rendezvousId
+        outMessage.attachments ++= fromMessage.attachments
+
+        outMessage.destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, fromMessage.source)))))
+      }
+
+      override def callIncomingHandlers(fromMessage: InMessage) {
+        val outMessage = new OutMessage()
+
+        // When is a request, generate response, else end call (normally callback would be called)
+        if (fromMessage.function == MessageType.FUNCTION_CALL) {
+          generateFakeResponse(fromMessage, outMessage)
+
+          loProtocol.handleOutgoing(action, outMessage)
+        }
+      }
+    }
+
+    doReturn(Some(routingAction)).when(localProtocol).resolveAction(anyString(), anyString(), anyObject())
+
+    // Trigger the message sending
+    loProtocol.handleOutgoing(action, req)
+
+    // Ensure the isLocalBound flags is to incoming to ensure later routing of incoming and of the future response
+    val hasFlag =
+      new FunctionalMatcher((m: Message) =>
+        m.attachments(Protocol.FLAGS).asInstanceOf[Map[String, Any]]
+          .getOrElse("isLocalBound", false).asInstanceOf[Boolean])
+
+    Thread.sleep(100)
+
+    // Verify the sequence of action required for a proper request-response call has happened. The order is NOT verified.
+    // If you are familiar with Mockito and the fact verify are global,you can notice there is double checks,
+    // but it's much more readable that way since it represent the real flow a message instead of compressed version
+
+    // Request is sent
+    verify(localProtocol, atLeast(1)).generate(anyObject(), anyObject())
+    verify(localProtocol, atMost(1)).sendMessage(anyObject(), anyObject(), anyBoolean(), anyObject(), anyObject())
+
+    // Request is received
+    verify(localProtocol, atLeast(1)).parse(anyObject(), anyObject())
+    verify(localProtocol, atLeast(1)).handleIncoming(anyObject(), argThat(hasFlag))
+
+    // Fake-response is sent
+    verify(loProtocol, atLeast(2)).handleOutgoing(anyObject(), anyObject())
+    verify(localProtocol, atLeast(2)).generate(anyObject(), anyObject())
+    verify(localProtocol, atMost(1)).sendResponse(anyObject(), anyObject(), anyBoolean(), anyObject(), anyObject())
+
+    // Response is received
+    verify(localProtocol, atMost(2)).parse(anyObject(), anyObject())
+    verify(localProtocol, atMost(2)).handleIncoming(anyObject(), anyObject())
+
+    cluster.stop()
   }
 }
