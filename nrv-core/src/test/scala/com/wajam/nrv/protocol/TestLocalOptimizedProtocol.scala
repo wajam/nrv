@@ -146,11 +146,16 @@ class TestLocalOptimizedProtocol  extends FunSuite with ShouldMatchers with Mock
     // Trigger the message sending
     loProtocol.handleOutgoing(action, req)
 
-    // Ensure the isLocalBound flags is to incoming to ensure later routing of incoming and of the future response
+    // Ensure the isLocalBound flags is set to ensure later routing of incoming message and of the future response
+
     val hasFlag =
+      new FunctionalMatcher((f: Map[String, Any]) =>
+        f.getOrElse("isLocalBound", false).asInstanceOf[Boolean])
+
+    val msgHasFlag =
       new FunctionalMatcher((m: Message) =>
-        m.attachments(Protocol.FLAGS).asInstanceOf[Map[String, Any]]
-          .getOrElse("isLocalBound", false).asInstanceOf[Boolean])
+        hasFlag.matches(m.attachments(Protocol.FLAGS).asInstanceOf[Map[String, Any]]))
+
 
     Thread.sleep(100)
 
@@ -159,21 +164,21 @@ class TestLocalOptimizedProtocol  extends FunSuite with ShouldMatchers with Mock
     // but it's much more readable that way since it represent the real flow a message instead of compressed version
 
     // Request is sent
-    verify(localProtocol, atLeast(1)).generate(anyObject(), anyObject())
-    verify(localProtocol, atMost(1)).sendMessage(anyObject(), anyObject(), anyBoolean(), anyObject(), anyObject())
+    verify(localProtocol, atLeast(1)).generate(anyObject(), argThat(hasFlag))
+    verify(localProtocol, atMost(1)).sendMessage(anyObject(), anyObject(), anyBoolean(), argThat(hasFlag), anyObject())
 
     // Request is received
-    verify(localProtocol, atLeast(1)).parse(anyObject(), anyObject())
-    verify(localProtocol, atLeast(1)).handleIncoming(anyObject(), argThat(hasFlag))
+    verify(localProtocol, atLeast(1)).parse(anyObject(), argThat(hasFlag))
+    verify(localProtocol, atLeast(1)).handleIncoming(anyObject(), argThat(msgHasFlag))
 
     // Fake-response is sent
     verify(loProtocol, atLeast(2)).handleOutgoing(anyObject(), anyObject())
-    verify(localProtocol, atLeast(2)).generate(anyObject(), anyObject())
-    verify(localProtocol, atMost(1)).sendResponse(anyObject(), anyObject(), anyBoolean(), anyObject(), anyObject())
+    verify(localProtocol, atLeast(2)).generate(anyObject(), argThat(hasFlag))
+    verify(localProtocol, atMost(1)).sendResponse(anyObject(), anyObject(), anyBoolean(), argThat(hasFlag), anyObject())
 
     // Response is received
-    verify(localProtocol, atMost(2)).parse(anyObject(), anyObject())
-    verify(localProtocol, atMost(2)).handleIncoming(anyObject(), anyObject())
+    verify(localProtocol, atMost(2)).parse(anyObject(), argThat(hasFlag))
+    verify(localProtocol, atMost(2)).handleIncoming(anyObject(), argThat(msgHasFlag))
 
     cluster.stop()
   }

@@ -166,7 +166,7 @@ abstract class Protocol(val name: String,
     inMessage.attachments.put(Protocol.FLAGS, flags)
 
     try {
-      val parsedMessage = parse(message)
+      val parsedMessage = parse(message, flags)
       parsedMessage.copyTo(inMessage)
       handleIncoming(null, inMessage)
     } catch {
