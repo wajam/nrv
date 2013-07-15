@@ -40,7 +40,7 @@ class NrvMemoryProtocol(name: String,
     executorPool.execute {
       () => {
         inMessagePerSecond.mark()
-        transportMessageReceived(message, Some(MemoryConnection), flags)
+        transportMessageReceived(message, Some(NrvMemoryConnection), flags)
         completionCallback(None)
       }
     }
@@ -65,4 +65,6 @@ class NrvMemoryProtocol(name: String,
   }
 }
 
-object MemoryConnection
+// Protocol required a connection, it's how it distinguish from a request and response. This object is used to mark
+// a response of this class.
+object NrvMemoryConnection
