@@ -56,13 +56,15 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
     })
   }
 
-  // scheduled
-  val schdlr = new Scheduler(this, CheckTimeout, TIMEOUT_CHECK_IN_MS, TIMEOUT_CHECK_IN_MS, blockingMessage = true)
+  // Only created once the switchboard is started. This is a workaround to not create a thread for every Switchboard
+  // created by unit tests as most of these instances are not even started.
+  private var checkTimeoutScheduler: Option[Scheduler] = None
 
   override def start(): Actor = {
     if (started.compareAndSet(false, true)) {
       super.start()
-      schdlr.start()
+      checkTimeoutScheduler = Some(new Scheduler(this, CheckTimeout, TIMEOUT_CHECK_IN_MS, TIMEOUT_CHECK_IN_MS,
+        blockingMessage = true, name = Some("Switchboard.CheckTimeout")))
 
       for (e <- executors) {
         e.start()
@@ -74,7 +76,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
 
   def stop() {
     if (started.compareAndSet(true, false)) {
-      this.schdlr.cancel()
+      checkTimeoutScheduler.foreach(_.cancel())
     }
   }
 
@@ -108,7 +110,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
   }
 
   protected[nrv] def checkTimeout() {
-    this.schdlr.forceSchedule()
+    checkTimeoutScheduler.foreach(_.forceSchedule())
   }
 
   /**
