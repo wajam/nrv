@@ -24,7 +24,7 @@ object NrvBuild extends Build {
     "io.netty" % "netty" % "3.5.0.Final",
     "org.scalatest" %% "scalatest" % "1.9.1" % "test,it",
     "junit" % "junit" % "4.10" % "test,it",
-    "org.mockito" % "mockito-core" % "1.9.0" % "test,it",
+    "org.mockito" % "mockito-core" % "1.9.0",
     "com.google.protobuf" % "protobuf-java" % "2.4.1",
     "com.google.guava" % "guava" % "12.0"
   )
