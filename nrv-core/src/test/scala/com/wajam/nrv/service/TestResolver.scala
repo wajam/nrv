@@ -107,7 +107,7 @@ class TestResolver extends FunSuite with BeforeAndAfter {
     assert(tokenValue === outMessage.token)
 
     val inMessage = new InMessage()
-    assert(inMessage != tokenValue)
+    assert(inMessage.token != tokenValue)
     resolver.handleIncoming(action, inMessage)
     assert(tokenValue === inMessage.token)
   }

@@ -289,7 +289,7 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     import SubscriptionProtocol._
 
     private val publishScheduler = new Scheduler(this, PublishNext, 1000, 1000 / publishTps,
-      blockingMessage = true, autoStart = false)
+      blockingMessage = true, autoStart = false, name = Some("MasterSubscriptionActor.Publish"))
     private var pendingSequences: TreeSet[Long] = TreeSet()
     private var lastSendTime = currentTime
     private var lastSequence = 0L

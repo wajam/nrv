@@ -123,7 +123,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
     private case class PendingSubscription(subscribe: Subscribe)
 
-    private val timer = new Timer("SubscriptionManagerActor-Timer")
+    private val timer = new Timer("SlaveSubscriptionManagerActor-Timer")
 
     private var subscriptions: Map[ResolvedServiceMember, Either[PendingSubscription, SubscriptionActor]] = Map()
 
@@ -404,6 +404,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
                 case _ =>
               }
               subscriptions = Map()
+              timer.cancel()
             } catch {
               case e: Exception => {
                 warn("Error killing subscription manager ({}). {}", service.name, e)
@@ -482,10 +483,14 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
     import SubscriptionProtocol._
 
-    val commitScheduler = new Scheduler(this, Commit, if (commitFrequency > 0) Random.nextInt(commitFrequency) else 0,
-      commitFrequency, blockingMessage = true, autoStart = false)
+    val commitScheduler = if (commitFrequency > 0) {
+      Some(new Scheduler(this, Commit, Random.nextInt(commitFrequency), commitFrequency, blockingMessage = true,
+        autoStart = false, name = Some("SlaveSubscriptionActor.Commit")))
+    } else {
+      None
+    }
     private val checkIdleScheduler = new Scheduler(this, CheckIdle, 1000, 1000, blockingMessage = true,
-      autoStart = false)
+      autoStart = false, name = Some("SlaveSubscriptionActor.CheckIdle"))
     private var pendingTransactions: TreeSet[Publish] = TreeSet()
     private var consistentTimestamp: Option[Timestamp] = txLog.getLastLoggedRecord match {
       case Some(record) => record.consistentTimestamp
@@ -501,9 +506,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
 
     override def start() = {
       super.start()
-      if (commitFrequency > 0) {
-        commitScheduler.start()
-      }
+      commitScheduler.foreach(_.start())
       checkIdleScheduler.start()
       this
     }
@@ -632,7 +635,7 @@ class ReplicationSubscriber(service: Service, store: ConsistentStore, maxIdleDur
             try {
               debug("Killing subscription {} actor {}: ", subId, member)
               checkIdleScheduler.cancel()
-              commitScheduler.cancel()
+              commitScheduler.foreach(_.cancel())
               exit()
             } catch {
               case e: Exception => {

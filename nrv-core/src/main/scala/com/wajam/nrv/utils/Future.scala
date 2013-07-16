@@ -153,13 +153,20 @@ trait Promise[T] {
 
 object Future {
 
+  private var threadInitNumber: Int = 0
+
+  private def nextThreadNum = synchronized {
+    threadInitNumber += 1
+    threadInitNumber - 1
+  }
+
   def apply[U](f: => U): Future[U] = this.future(f)
 
   def future[U](f: => U): Future[U] = {
     val p = Promise[U]
 
     // TODO: run on a thread pool
-    (new Thread(new Runnable {
+    new Thread(new Runnable {
       def run() {
         try {
           p.success(f)
@@ -167,7 +174,7 @@ object Future {
           case t: Throwable => p.failure(t)
         }
       }
-    })).start()
+    }, "Future-" + nextThreadNum).start()
 
     p.future
   }
