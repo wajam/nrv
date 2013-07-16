@@ -12,17 +12,20 @@ import com.wajam.nrv.data._
 import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.RouteException
 
-/**
+/**Z
  * Implementation of HTTP protocol.
  */
 class HttpProtocol(name: String,
                    localNode: LocalNode,
                    idleConnectionTimeoutMs: Long,
-                   maxConnectionPoolSize: Int)
+                   maxConnectionPoolSize: Int,
+                   chunkSize: Option[Int] = None)
   extends Protocol(name, localNode) {
 
-  val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
+  private val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
   contentTypeCodecs += ("text/plain" -> new StringCodec())
+
+  private val enableChunkEncoding = !chunkSize.isEmpty
 
   val transport = new HttpNettyTransport(localNode.listenAddress,
     localNode.ports(name),
@@ -105,21 +108,27 @@ class HttpProtocol(name: String,
         }
         val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(req.method), uri)
         setRequestHeaders(request, req)
-        setContent(request, req)
+        setAllContentAtOnce(request, encodeData(req))
         request
       }
       case res: OutMessage => {
-        val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
-        setResponseHeaders(response, res)
-        setContent(response, res)
-        if (isKeepAlive(response) && res.attachments.getOrElse(HttpProtocol.KEEP_ALIVE_KEY, false).asInstanceOf[Boolean]) {
-          res.attachments(Protocol.CLOSE_AFTER) = false
-          response.setHeader("Connection", "keep-alive")
-        } else {
-          res.attachments(Protocol.CLOSE_AFTER) = true
-          response.setHeader("Connection", "close")
+        encodeData(res) match {
+          case Some(data) if(enableChunkEncoding && data.length > chunkSize.get) => {
+            val chunkedResponse = HttpProtocol.HttpChunkedMessage(this, res, data)
+            setResponseHeaders(chunkedResponse.begin, res)
+            setKeepAlive(chunkedResponse.begin, res)
+
+            chunkedResponse
+          }
+          case maybeData => {
+            val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
+            setResponseHeaders(response, res)
+            setAllContentAtOnce(response, maybeData)
+            setKeepAlive(response, res)
+
+            response
+          }
         }
-        response
       }
     }
   }
@@ -171,25 +180,51 @@ class HttpProtocol(name: String,
     message.metadata.foreach(e => httpMessage.addHeader(e._1, e._2))
   }
 
-  private def setContent(httpMessage: HttpMessage, message: Message) {
+  private def setAllContentAtOnce(httpMessage: HttpMessage, maybeData: Option[Array[Byte]]) {
+    maybeData match {
+      case Some(data) => {
+        httpMessage.setContent(ChannelBuffers.copiedBuffer(data))
+        httpMessage.setHeader("Content-Length", data.length)
+      }
+      case None => httpMessage.setHeader("Content-Length", 0)
+    }
+  }
+
+  private def setKeepAlive(response: HttpMessage, res: Message) {
+    if (isKeepAlive(response) && res.attachments.getOrElse(HttpProtocol.KEEP_ALIVE_KEY, false).asInstanceOf[Boolean]) {
+      res.attachments(Protocol.CLOSE_AFTER) = false
+      response.setHeader("Connection", "keep-alive")
+    } else {
+      res.attachments(Protocol.CLOSE_AFTER) = true
+      response.setHeader("Connection", "close")
+    }
+  }
+
+  // Split an OutMessage in chunks, according to the chunk size set in configuration
+  private def splitInChunks(message: Message, data: Array[Byte]): Seq[DefaultHttpChunk] = {
+    import math.min
+
+    val size = chunkSize.get
+    val length = data.length
+    val offsets = 0 until length by size
+
+    (for(o <- offsets) yield new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(data, o, min(length - o, size)))) toSeq
+  }
+
+  private def encodeData(message: Message): Option[Array[Byte]] = {
     if (message.messageData != null) {
       val contentTypeHeader = message.metadata.getOrElse("Content-Type",
         HttpProtocol.DEFAULT_CONTENT_TYPE).toString
       val (contentType, contentEncoding) = splitContentTypeHeader(contentTypeHeader)
       contentTypeCodecs.get(contentType) match {
-        case Some(codec) => {
-          val data = codec.encode(message.messageData, contentEncoding)
-          httpMessage.setContent(ChannelBuffers.copiedBuffer(data))
-          httpMessage.setHeader("Content-Length", data.length)
-        }
+        case Some(codec) => Some(codec.encode(message.messageData, contentEncoding))
         case None => {
           log.warn("Missing codec for content-type {}", contentType)
-          httpMessage.setHeader("Content-Length", 0)
+          None
         }
       }
-    } else {
-      httpMessage.setHeader("Content-Length", 0)
     }
+    else None
   }
 
   private def isKeepAlive(message: HttpMessage): Boolean = {
@@ -266,5 +301,26 @@ object HttpProtocol {
   val METHOD_HEADER = "nrv-method-header"
   val PATH_HEADER = "nrv-path-header"
   val SERVICE_HEADER = "nrv-service-header"
+
+  case class HttpChunkedMessage(begin: DefaultHttpResponse,
+                                chunks: Seq[DefaultHttpChunk],
+                                emptyChunk: DefaultHttpChunk,
+                                trailer: DefaultHttpChunkTrailer)
+
+  object HttpChunkedMessage {
+
+    val EMPTY_CHUNK = new DefaultHttpChunk(ChannelBuffers.EMPTY_BUFFER)
+    val TRAILER = new DefaultHttpChunkTrailer
+
+    def apply(protocol: HttpProtocol, res: OutMessage, data: Array[Byte]) = {
+      val begin = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
+      begin.addHeader("Transfer-Encoding", "chunked")
+      begin.setChunked(true)
+
+      val chunks = protocol.splitInChunks(res, data)
+
+      new HttpChunkedMessage(begin, chunks, EMPTY_CHUNK, TRAILER)
+    }
+  }
 }
 
