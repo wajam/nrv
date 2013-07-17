@@ -105,28 +105,35 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
   }
 
   /**
-   * Returns list of token ranges handled by the specified service member.
+   * Returns list of token ranges handled by the service member at the specified token.
    */
-  def getMemberTokenRanges(member: ServiceMember): List[TokenRange] = {
+  def getMemberTokenRanges(token: Long): List[TokenRange] = {
     val ring = members.map(_.token).toList.sorted
     if (ring.size == 1) {
       List(TokenRange.All)
     } else {
-      ring.indexOf(member.token) match {
+      ring.indexOf(token) match {
         case -1 => {
-          throw new IllegalArgumentException("Member not found %s".format(member))
+          throw new IllegalArgumentException("Member for token %s not found".format(token))
         }
         case 0 if ring.last == TokenRange.MaxToken => {
-          List(TokenRange(0, member.token))
+          List(TokenRange(0, token))
         }
         case 0 => {
-          List(TokenRange(0, member.token), TokenRange(ring.last + 1, TokenRange.MaxToken))
+          List(TokenRange(0, token), TokenRange(ring.last + 1, TokenRange.MaxToken))
         }
         case index => {
-          List(TokenRange(ring(index - 1) + 1, member.token))
+          List(TokenRange(ring(index - 1) + 1, token))
         }
       }
     }
+  }
+
+  /**
+   * Returns list of token ranges handled by the specified service member.
+   */
+  def getMemberTokenRanges(member: ServiceMember): List[TokenRange] = {
+    getMemberTokenRanges(member.token)
   }
 
 }

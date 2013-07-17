@@ -128,7 +128,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
       txLog.firstRecord(Some(start))
     } catch {
       case e: NoSuchElementException => {
-        // Ignore the error if the log is empty, an empty ierator will be returned
+        // Ignore the error if the log is empty, an empty iterator will be returned
         if (txLog.firstRecord(None).isEmpty) None else throw e
       }
     }
@@ -161,5 +161,10 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
         txLog.read(Index(Long.MinValue))
       }
     }
+  }
+
+  def appendIndex(id: Long,ts: Timestamp) {
+    val index = Index(id, Some(ts))
+    txLog.append(index)
   }
 }

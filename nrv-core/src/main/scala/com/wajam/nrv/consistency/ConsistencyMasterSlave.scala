@@ -12,6 +12,10 @@ import com.wajam.nrv.UnavailableException
 import com.wajam.nrv.Logging
 import com.wajam.nrv.consistency.replication._
 import scala.actors.Actor
+import com.wajam.nrv.consistency.replication.ReplicationParam._
+import com.wajam.nrv.service.StatusTransitionAttemptEvent
+import scala.Some
+import com.wajam.nrv.service.StatusTransitionEvent
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
@@ -90,10 +94,22 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       publishAction = publishAction, publishTps = replicationTps, publishWindowSize = replicationWindowSize,
       maxIdleDurationInMs = replicationSubscriptionIdleTimeout)
   }
+
+
   private lazy val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
   private lazy val unsubscribeAction = new Action("/replication/unsubscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleUnsubscribeMessage(_), ActionMethod.POST)
+
+  private lazy val getConsistencyStateAction = new Action("/consistency/state/:" + ReplicationParam.Token,
+    handleGetConsistencyState(_), ActionMethod.GET)
+
+  // replies to a consistency state request, used for external tool assisted consistency checking.
+  def handleGetConsistencyState(msg: InMessage) {
+    val token = getParamLongValue(Token)(msg)
+    val state = consistencyStates.get(token).getOrElse("").toString
+    msg.reply(params = Map(Token -> token, "state" -> state), data = null)
+  }
 
   /**
    * Returns local service members with their associated consistency state. Service member without states
@@ -181,6 +197,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     service.registerAction(publishAction)
     service.registerAction(subscribeAction)
     service.registerAction(unsubscribeAction)
+    service.registerAction(getConsistencyStateAction)
   }
 
   override def serviceEvent(event: Event) {
