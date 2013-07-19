@@ -162,9 +162,4 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
       }
     }
   }
-
-  def appendIndex(id: Long,ts: Timestamp) {
-    val index = Index(id, Some(ts))
-    txLog.append(index)
-  }
 }
