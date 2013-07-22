@@ -307,7 +307,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def handleLocalServiceMemberStatusTransitionEvent(event: StatusTransitionEvent) {
     event.to match {
       case MemberStatus.Up => {
-        // Iniatialize transaction recorder for local service member going up
+        // Initialize transaction recorder for local service member going up
         this.synchronized {
           info("Iniatialize transaction recorders for {}", event.member)
           val txLog = if (txLogEnabled) {
@@ -385,7 +385,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   /**
-   * Update the specified member consistency state. The update is synchromized but the notify call is not.
+   * Update the specified member consistency state. The update is synchronized but the notify call is not.
    */
   private def updateMemberConsistencyState(member: ServiceMember, newState: Option[MemberConsistencyState],
                                            triggerEvent: Boolean = true): Option[ConsistencyStateTransitionEvent] = {
@@ -588,9 +588,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                   info("The service member transaction log and store are consistent {}", member)
                   onSuccess
                 }
-                case Some(lastCommitedLogTimestamp) => {
+                case Some(lastCommittedLogTimestamp) => {
                   error("Last transaction log committed timestamp and storage last timestamp are different! (store={}, log={}) {}",
-                    lastLogTimestamp, lastCommitedLogTimestamp, member)
+                    lastLogTimestamp, lastCommittedLogTimestamp, member)
                   onError
                 }
                 case None => {
@@ -637,7 +637,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   /**
-   * Manage new local slave replication subscriptions. The usage of actor ensure that no concurent subscribe call is
+   * Manage new local slave replication subscriptions. The usage of actor ensure that no concurrent subscribe call is
    * done in parallel for the same service member.
    */
   private object SubscriptionManagerActor extends Actor {
