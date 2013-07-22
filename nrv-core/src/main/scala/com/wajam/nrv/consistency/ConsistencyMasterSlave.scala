@@ -12,6 +12,10 @@ import com.wajam.nrv.UnavailableException
 import com.wajam.nrv.Logging
 import com.wajam.nrv.consistency.replication._
 import scala.actors.Actor
+import com.wajam.nrv.consistency.replication.ReplicationParam._
+import com.wajam.nrv.service.StatusTransitionAttemptEvent
+import scala.Some
+import com.wajam.nrv.service.StatusTransitionEvent
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
@@ -90,10 +94,22 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       publishAction = publishAction, publishTps = replicationTps, publishWindowSize = replicationWindowSize,
       maxIdleDurationInMs = replicationSubscriptionIdleTimeout)
   }
+
+
   private lazy val subscribeAction = new Action("/replication/subscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleSubscribeMessage(_), ActionMethod.POST)
   private lazy val unsubscribeAction = new Action("/replication/unsubscribe/:" + ReplicationParam.Token,
     replicationPublisher.handleUnsubscribeMessage(_), ActionMethod.POST)
+
+  private lazy val getConsistencyStateAction = new Action("/consistency/state/:" + ReplicationParam.Token,
+    handleGetConsistencyState(_), ActionMethod.GET)
+
+  // replies to a consistency state request, used for external tool assisted consistency checking.
+  def handleGetConsistencyState(msg: InMessage) {
+    val token = getParamLongValue(Token)(msg)
+    val state = consistencyStates.get(token).getOrElse("").toString
+    msg.reply(params = Map(Token -> token, "state" -> state), data = null)
+  }
 
   /**
    * Returns local service members with their associated consistency state. Service member without states
@@ -181,6 +197,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     service.registerAction(publishAction)
     service.registerAction(subscribeAction)
     service.registerAction(unsubscribeAction)
+    service.registerAction(getConsistencyStateAction)
   }
 
   override def serviceEvent(event: Event) {
@@ -290,7 +307,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private def handleLocalServiceMemberStatusTransitionEvent(event: StatusTransitionEvent) {
     event.to match {
       case MemberStatus.Up => {
-        // Iniatialize transaction recorder for local service member going up
+        // Initialize transaction recorder for local service member going up
         this.synchronized {
           info("Iniatialize transaction recorders for {}", event.member)
           val txLog = if (txLogEnabled) {
@@ -368,7 +385,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   /**
-   * Update the specified member consistency state. The update is synchromized but the notify call is not.
+   * Update the specified member consistency state. The update is synchronized but the notify call is not.
    */
   private def updateMemberConsistencyState(member: ServiceMember, newState: Option[MemberConsistencyState],
                                            triggerEvent: Boolean = true): Option[ConsistencyStateTransitionEvent] = {
@@ -571,9 +588,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                   info("The service member transaction log and store are consistent {}", member)
                   onSuccess
                 }
-                case Some(lastCommitedLogTimestamp) => {
+                case Some(lastCommittedLogTimestamp) => {
                   error("Last transaction log committed timestamp and storage last timestamp are different! (store={}, log={}) {}",
-                    lastLogTimestamp, lastCommitedLogTimestamp, member)
+                    lastLogTimestamp, lastCommittedLogTimestamp, member)
                   onError
                 }
                 case None => {
@@ -620,7 +637,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   /**
-   * Manage new local slave replication subscriptions. The usage of actor ensure that no concurent subscribe call is
+   * Manage new local slave replication subscriptions. The usage of actor ensure that no concurrent subscribe call is
    * done in parallel for the same service member.
    */
   private object SubscriptionManagerActor extends Actor {
