@@ -21,7 +21,7 @@ class Endpoints(val shards: Seq[Shard] = Seq()) extends Serializable {
    * subsequent replica was previously selected.
    */
   protected[nrv] def deselectAllReplicasButFirst() {
-    replicas.slice(1, replicas.size).foreach(_.selected = false)
+    replicas.drop(1).foreach(_.selected = false)
   }
 
   /**
@@ -29,7 +29,7 @@ class Endpoints(val shards: Seq[Shard] = Seq()) extends Serializable {
    * one replica was selected before calling this method, only the first originally selected remain selected after.
    */
   protected[nrv] def deselectAllReplicasButOne() {
-    selectedReplicas.slice(1, replicas.size).foreach(_.selected = false)
+    selectedReplicas.drop(1).foreach(_.selected = false)
   }
 
   protected[nrv] def deselectAllReplicas() {
