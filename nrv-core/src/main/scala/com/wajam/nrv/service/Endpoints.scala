@@ -14,12 +14,20 @@ class Endpoints(val shards: Seq[Shard] = Seq()) extends Serializable {
 
   def replicas: Seq[Replica] = shards.map(_.replicas).flatten
 
-  //deselects all the replica in the selectedReplica list (sets selected = false) expect for the first one
-  //which is considered to be the master
+  /**
+   * Deselects all the replica in the replicas list (sets selected = false) except for the first one which is
+   * considered to be the only routing possibility. This method act on all replicas not just the selected
+   * ones. If the first replica is unselected, all replicas will be deselected after calling this method even if a
+   * subsequent replica was previously selected.
+   */
   protected[nrv] def deselectAllReplicasButFirst() {
     replicas.slice(1, replicas.size).foreach(_.selected = false)
   }
 
+  /**
+   * Deselects all the replicas (sets selected = false) except for the first one in selectedReplicas list. If more than
+   * one replica was selected before calling this method, only the first originally selected remain selected after.
+   */
   protected[nrv] def deselectAllReplicasButOne() {
     selectedReplicas.slice(1, replicas.size).foreach(_.selected = false)
   }

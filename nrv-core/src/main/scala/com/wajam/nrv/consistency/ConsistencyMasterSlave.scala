@@ -482,8 +482,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         }
       }
       case _ => {
-        // The message should only be sent to a single destination if it doesn't require consistency.
-        // Those messages include replication, subscribe, publish, ...
+        // Other outgoing messages (e.g. replication subscribe, unsubscribe, publish) The message should only be sent
+        // to a single destination if it doesn't require consistency.
         message.destination.deselectAllReplicasButFirst()
         message.destination.selectedReplicas.isEmpty match {
           case true => simulateUnavailableResponse(action, message)
@@ -533,12 +533,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   def executeConsistentOutgoingReadRequest(message: OutMessage, next: (Unit) => Unit) {
+    // Select the first available destination. Read messages are handled by the master if available but any replicas
+    // can handle it otherwise.
     message.destination.deselectAllReplicasButOne()
     next()
   }
 
   def executeConsistentOutgoingWriteRequest(action: Action, message: OutMessage, next: (Unit) => Unit) {
-    //only the master (first resolved node) may handle write messages
+    // Only the master (first resolved node) may handle write messages
     message.destination.replicas match {
       case master :: _ if master.selected => {
         message.destination.deselectAllReplicasButFirst()
