@@ -9,8 +9,8 @@ import com.wajam.nrv.Logging
  */
 class ConsistencyOne extends Consistency with Logging {
   override def handleOutgoing(action: Action, message: OutMessage) {
-    // let only the first selected as selected
-    message.destination.deselectAllReplicasButFirst()
+    // Let only the first selected as selected
+    message.destination.deselectAllReplicasButOne()
   }
 
   def localMembersStates: Iterable[(ResolvedServiceMember, MemberConsistencyState)] = Nil
