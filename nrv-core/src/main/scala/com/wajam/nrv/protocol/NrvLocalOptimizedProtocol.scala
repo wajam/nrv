@@ -30,7 +30,7 @@ class NrvLocalOptimizedProtocol(name: String,
 
   def parse(message: AnyRef, flags: Map[String, Any]): Message = {
 
-    val wasLocal = flagReader.isLocalBound(flags)
+    val wasLocal = FlagReader.isLocalBound(flags)
 
     if (wasLocal)
       localProtocol.parse(message, flags)
@@ -40,7 +40,7 @@ class NrvLocalOptimizedProtocol(name: String,
 
   def generate(message: Message, flags: Map[String, Any]): AnyRef = {
 
-    val isLocal = flagReader.isLocalBound(flags)
+    val isLocal = FlagReader.isLocalBound(flags)
 
     if (isLocal)
       localProtocol.generate(message, flags)
@@ -50,7 +50,7 @@ class NrvLocalOptimizedProtocol(name: String,
 
   def sendMessage(destination: Node, message: AnyRef, closeAfter: Boolean, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {
 
-    val isLocal = flagReader.isLocalBound(flags)
+    val isLocal = FlagReader.isLocalBound(flags)
 
     val properSendMessage =
       if (isLocal)
@@ -63,7 +63,7 @@ class NrvLocalOptimizedProtocol(name: String,
 
   def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {
 
-    val wasLocal = flagReader.isLocalBound(flags)
+    val wasLocal = FlagReader.isLocalBound(flags)
 
     val properSendResponse =
       if (wasLocal)

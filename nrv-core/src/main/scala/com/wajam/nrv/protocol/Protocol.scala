@@ -71,9 +71,9 @@ abstract class Protocol(val name: String,
     }
   }
 
-  private def guardedGenerate(generate: () => AnyRef): Either[Throwable, AnyRef] = {
+  private def guardedGenerate(generateFct: () => AnyRef): Either[Throwable, AnyRef] = {
     try {
-      Right(generate())
+      Right(generateFct())
     }
     catch {
       case e: Exception => Left(e)
@@ -120,7 +120,7 @@ abstract class Protocol(val name: String,
       val node = replica.node
 
       val flags =
-          Map((flagReader.F_IS_LOCAL_BOUND -> isMessageLocalBound(node)))
+          Map((FlagReader.F_IS_LOCAL_BOUND -> isMessageLocalBound(node)))
 
       guardedGenerate(() => generate(message, flags)) match {
         case Left(e) => {
@@ -229,9 +229,7 @@ abstract class Protocol(val name: String,
                    flags: Map[String, Any] = Map(),
                    completionCallback: Option[Throwable] => Unit = (_) => {})
 
-  protected val flagReader = new FlagReader()
-
-  protected class FlagReader {
+  protected object FlagReader {
 
     val F_IS_LOCAL_BOUND = "isLocalBound"
 
