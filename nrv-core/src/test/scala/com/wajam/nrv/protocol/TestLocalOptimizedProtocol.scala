@@ -9,10 +9,7 @@ import org.scalatest.matchers.ShouldMatchers
 import com.wajam.nrv.utils.test.PredicateMatcher
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.service._
-import scala.Some
-import scala.Some
 import com.wajam.nrv.protocol.codec.GenericJavaSerializeCodec
-import scala.Some
 
 class TestLocalOptimizedProtocol  extends FunSuite with ShouldMatchers with MockitoSugar {
 

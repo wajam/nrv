@@ -7,7 +7,6 @@ import java.net.{InetSocketAddress, URI}
 import scala.collection.JavaConverters._
 import com.wajam.nrv.cluster.{Node, LocalNode}
 import com.wajam.nrv.transport.http.HttpNettyTransport
-import scala.Array
 import com.wajam.nrv.data._
 import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.RouteException
