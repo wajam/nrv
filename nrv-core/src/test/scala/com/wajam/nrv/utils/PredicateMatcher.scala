@@ -1,4 +1,4 @@
-package com.wajam.nrv.utils.test
+package com.wajam.nrv.utils
 
 import org.mockito.ArgumentMatcher
 
