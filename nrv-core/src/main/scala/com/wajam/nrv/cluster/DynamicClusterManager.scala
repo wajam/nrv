@@ -189,9 +189,12 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
     case class TrySetServiceMembersDown(service: Service, member: ServiceMember) extends ClusterOperation
 
-    val transitionScheduler = new Scheduler(this, ClusterTransition, ClusterTransitionInMs, ClusterTransitionInMs, blockingMessage = true, autoStart = false)
-    val syncScheduler = new Scheduler(this, ClusterSync, ClusterSyncInMs, ClusterSyncInMs, blockingMessage = true, autoStart = false)
-    val printScheduler = new Scheduler(this, ClusterPrint, ClusterPrintInMs, ClusterPrintInMs, blockingMessage = true, autoStart = false)
+    val transitionScheduler = new Scheduler(this, ClusterTransition, ClusterTransitionInMs, ClusterTransitionInMs,
+      blockingMessage = true, autoStart = false, name = Some("DynamicClusterManager.ClusterTransition"))
+    val syncScheduler = new Scheduler(this, ClusterSync, ClusterSyncInMs, ClusterSyncInMs,
+      blockingMessage = true, autoStart = false, name = Some("DynamicClusterManager.ClusterSync"))
+    val printScheduler = new Scheduler(this, ClusterPrint, ClusterPrintInMs, ClusterPrintInMs,
+      blockingMessage = true, autoStart = false, name = Some("DynamicClusterManager.ClusterPrint"))
 
     override def start(): Actor = {
       printScheduler.start()

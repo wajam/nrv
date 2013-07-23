@@ -41,6 +41,10 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
     }
   }
 
+  after {
+    cluster.stop()
+  }
+
   test("out-in") {
 
     val protocol = new NrvProtocol(cluster.localNode, 10000, 100) {
@@ -183,10 +187,6 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
     codec.hasEncoded should be(true)
     codec.hasDecoded should be(true)
 
-    cluster.stop()
-  }
-
-  after {
     cluster.stop()
   }
 }
