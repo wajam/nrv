@@ -49,8 +49,8 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
     val protocol = new NrvProtocol(cluster.localNode, 10000, 100) {
 
-      override def parse(message: AnyRef): Message = {
-        val parsedMsg = super.parse(message)
+      override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
+        val parsedMsg = super.parse(message, null)
         received = parsedMsg
 
         notifier.synchronized {
@@ -113,7 +113,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
   test("test message reception failure") {
 
     val protocol = new NrvProtocol(cluster.localNode, 10000, 100) {
-      override def parse(message: AnyRef): Message = {
+      override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
         throw new RuntimeException
       }
 
@@ -126,13 +126,13 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
       }
     }
 
-    protocol.transportMessageReceived("invalidmessage".getBytes, None)
+    protocol.transportMessageReceived("invalidmessage".getBytes, None, Map())
   }
 
   test("test message parsing failure") {
 
     val protocol = new NrvProtocol(cluster.localNode, 10000, 100) {
-      override def parse(message: AnyRef): Message = {
+      override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
         throw new ParsingException("400")
       }
 
@@ -145,7 +145,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
       }
     }
 
-    protocol.transportMessageReceived("invalidmessage".getBytes, None)
+    protocol.transportMessageReceived("invalidmessage".getBytes, None, Map())
   }
 
   test("test overriden codec is used") {

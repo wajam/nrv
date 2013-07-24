@@ -3,11 +3,10 @@ package com.wajam.nrv.protocol
 import com.wajam.nrv.protocol.codec.{Codec, StringCodec}
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
-import java.net.URI
+import java.net.{InetSocketAddress, URI}
 import scala.collection.JavaConverters._
-import com.wajam.nrv.cluster.LocalNode
+import com.wajam.nrv.cluster.{Node, LocalNode}
 import com.wajam.nrv.transport.http.HttpNettyTransport
-import scala.Array
 import com.wajam.nrv.data._
 import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.RouteException
@@ -19,12 +18,12 @@ class HttpProtocol(name: String,
                    localNode: LocalNode,
                    idleConnectionTimeoutMs: Long,
                    maxConnectionPoolSize: Int)
-  extends Protocol(name) {
+  extends Protocol(name, localNode) {
 
   val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
   contentTypeCodecs += ("text/plain" -> new StringCodec())
 
-  override val transport = new HttpNettyTransport(localNode.listenAddress,
+  val transport = new HttpNettyTransport(localNode.listenAddress,
     localNode.ports(name),
     this,
     idleConnectionTimeoutMs,
@@ -42,7 +41,7 @@ class HttpProtocol(name: String,
     contentTypeCodecs += (contentType -> codec)
   }
 
-  override def parse(message: AnyRef): Message = {
+  override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
     val msg = new InMessage()
     message match {
       case req: HttpRequest => {
@@ -88,7 +87,11 @@ class HttpProtocol(name: String,
     msg
   }
 
-  override def generate(message: Message): AnyRef = {
+  def generate(message: Message, flags: Map[String, Any]): AnyRef = {
+    generate(message)
+  }
+
+  private def generate(message: Message): AnyRef = {
     message match {
       case req: InMessage => {
         val query = new StringBuilder()
@@ -233,6 +236,22 @@ class HttpProtocol(name: String,
     errorMessage.attachments(Protocol.CONNECTION_KEY) = connectionInfo
     errorMessage.attachments(Protocol.CLOSE_AFTER) = true
     errorMessage
+  }
+
+  def sendMessage(destination: Node,
+                  message: AnyRef,
+                  closeAfter: Boolean,
+                  flags: Map[String, Any],
+                  completionCallback: (Option[Throwable]) => Unit) {
+    transport.sendMessage(destination.protocolsSocketAddress(name), message, closeAfter, completionCallback)
+  }
+
+  def sendResponse(connection: AnyRef,
+                   message: AnyRef,
+                   closeAfter: Boolean,
+                   flags: Map[String, Any],
+                   completionCallback: (Option[Throwable]) => Unit) {
+    transport.sendResponse(connection, message, closeAfter, completionCallback)
   }
 }
 

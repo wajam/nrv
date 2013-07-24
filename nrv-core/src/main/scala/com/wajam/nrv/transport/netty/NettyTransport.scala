@@ -207,7 +207,7 @@ abstract class NettyTransport(host: InetAddress,
     override def messageReceived(ctx: ChannelHandlerContext, e: MessageEvent) {
       log.debug("Received a message on connection {}: {}", ctx.getChannel, e.getMessage)
       messageReceivedEvent()
-      protocol.transportMessageReceived(e.getMessage, Some(ctx.getChannel))
+      protocol.transportMessageReceived(e.getMessage, Some(ctx.getChannel), Map())
     }
 
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {

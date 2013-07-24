@@ -2,23 +2,22 @@ package com.wajam.nrv.protocol
 
 import com.wajam.nrv.{RouteException, Logging}
 import com.wajam.nrv.service.{ActionMethod, Service, MessageHandler, Action}
-import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.yammer.metrics.scala.Instrumented
+import com.wajam.nrv.cluster.{Node, LocalNode}
 
 /**
  * Protocol used to send and receive messages to remote nodes over a network
  */
-abstract class Protocol(var name: String) extends MessageHandler with Logging with Instrumented {
+abstract class Protocol(val name: String,
+                        val localNode: LocalNode) extends MessageHandler with Logging with Instrumented {
 
   private val sendingResponseFailure = metrics.meter("sendResponseFailure", "failure")
   private val parsingError = metrics.meter("parsing-error", "error")
   private val routingError = metrics.meter("routing-error", "error")
   private val receptionError = metrics.meter("reception-error", "error")
 
-  val transport: Transport
   var services = Map[String, Service]()
-
 
   /**
    * Start the protocol and the transport layer below it.
@@ -34,7 +33,7 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     services += (action.service.name -> action.service)
   }
 
-  protected def resolveAction(serviceName: String, path: String, method: ActionMethod) : Option[Action] = {
+  protected[nrv] def resolveAction(serviceName: String, path: String, method: ActionMethod) : Option[Action] = {
 
     services.get(serviceName) match {
       case Some(service) =>
@@ -70,25 +69,35 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     }
   }
 
-  private def guardedGenerate(message: Message): Either[Throwable, AnyRef] = {
+  private def guardedGenerate(message: Message, flags: Map[String, Any]): Either[Throwable, AnyRef] = {
     try {
-      Right(generate(message))
+      Right(generate(message, flags))
     }
     catch {
       case e: Exception => Left(e)
     }
   }
 
-  private def handleOutgoingResponse(channel: AnyRef, message: OutMessage) {
-    guardedGenerate(message) match {
+  private def isMessageLocalBound(destination: Node): Boolean = {
+    destination.protocolsSocketAddress(name).equals(localNode.protocolsSocketAddress(name))  &&
+      destination.ports(name).equals(localNode.ports(name))
+  }
+
+  private def handleOutgoingResponse(connectionInfo: AnyRef, message: OutMessage) {
+
+    val flags =
+      message.attachments.getOrElse(Protocol.FLAGS, Map[String, Any]()).asInstanceOf[Map[String, Any]]
+
+    guardedGenerate(message, flags) match {
       case Left(e) => {
         sendingResponseFailure.mark()
         log.error("Could not send response because it cannot be constructed: error = {}.", e.toString)
       }
       case Right(response) => {
-        transport.sendResponse(channel,
+        sendResponse(connectionInfo,
           response,
           message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
+          flags,
           (result: Option[Throwable]) => {
             result match {
               case Some(throwable) => {
@@ -105,17 +114,22 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
 
   private def handleOutgoingRequest(action: Action, message: OutMessage) {
 
-    guardedGenerate(message) match {
-      case Left(e) => {
-        log.error("Could not send request because it cannot be constructed: error = {}.", e.toString)
-      }
-      case Right(request) => {
-        for (replica <- message.destination.selectedReplicas) {
-          val node = replica.node
+    for (replica <- message.destination.selectedReplicas) {
+      val node = replica.node
 
-          transport.sendMessage(node.protocolsSocketAddress(name),
+      val flags =
+          Map((FlagReader.F_IS_LOCAL_BOUND -> isMessageLocalBound(node)))
+
+      guardedGenerate(message, flags) match {
+        case Left(e) => {
+          log.error("Could not send request because it cannot be constructed: error = {}.", e.toString)
+        }
+        case Right(request) => {
+
+          sendMessage(node,
             request,
             message.attachments.getOrElse(Protocol.CLOSE_AFTER, false).asInstanceOf[Boolean],
+            flags,
             (result: Option[Throwable]) => {
               result match {
                 case Some(throwable) => {
@@ -144,11 +158,13 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
     }
   }
 
-  def transportMessageReceived(message: AnyRef, connectionInfo: Option[AnyRef]) {
+  def transportMessageReceived(message: AnyRef, connectionInfo: Option[AnyRef], flags: Map[String, Any]) {
     val inMessage = new InMessage
     inMessage.attachments.put(Protocol.CONNECTION_KEY, connectionInfo)
+    inMessage.attachments.put(Protocol.FLAGS, flags)
+
     try {
-      val parsedMessage = parse(message)
+      val parsedMessage = parse(message, flags)
       parsedMessage.copyTo(inMessage)
       handleIncoming(null, inMessage)
     } catch {
@@ -173,7 +189,7 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
    * @param message The message received from the network
    * @return The standard Message object that represent the network message
    */
-  def parse(message: AnyRef): Message
+  def parse(message: AnyRef, flags: Map[String, Any] = Map()): Message
 
   /**
    * Generate a transport message from a standard Message object.
@@ -181,12 +197,50 @@ abstract class Protocol(var name: String) extends MessageHandler with Logging wi
    * @param message The standard Message object
    * @return The message to be sent of the network
    */
-  def generate(message: Message): AnyRef
+  def generate(message: Message, flags: Map[String, Any] = Map()): AnyRef
+
+  /**
+   * Send a message on the transport layer.
+   *
+   * @param destination Destination's address
+   * @param message The message to send
+   * @param closeAfter Tells the transport layer to close or not the connection after the message has been sent
+   * @param completionCallback Callback executed once the message has been sent or when a failure occured
+   */
+  def sendMessage(destination: Node,
+                  message: AnyRef,
+                  closeAfter:Boolean,
+                  flags: Map[String, Any] = Map(),
+                  completionCallback: Option[Throwable] => Unit = (_) => {})
+
+  /**
+   * Send a message as a response on a specific connection.
+   *
+   * @param connection The connection on which to send the message
+   * @param message The message to send
+   * @param closeAfter Tells the transport layer to close or not the connection after the message has been sent
+   * @param completionCallback Callback executed once the message has been sent or when a failure occured
+   */
+  def sendResponse(connection: AnyRef,
+                   message: AnyRef,
+                   closeAfter: Boolean,
+                   flags: Map[String, Any] = Map(),
+                   completionCallback: Option[Throwable] => Unit = (_) => {})
+
+  protected object FlagReader {
+
+    val F_IS_LOCAL_BOUND = "isLocalBound"
+
+    def isLocalBound(flags: Map[String, Any]): Boolean = {
+      flags.getOrElse(F_IS_LOCAL_BOUND, false).asInstanceOf[Boolean]
+    }
+  }
 }
 
 object Protocol {
   val CONNECTION_KEY = "connection"
   val CLOSE_AFTER = "close_after"
+  val FLAGS = "flags"
 }
 
 case class ParsingException(message: String, code: Int = 400) extends Exception(message)
