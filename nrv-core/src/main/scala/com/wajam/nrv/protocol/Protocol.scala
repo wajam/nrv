@@ -2,11 +2,9 @@ package com.wajam.nrv.protocol
 
 import com.wajam.nrv.{RouteException, Logging}
 import com.wajam.nrv.service.{ActionMethod, Service, MessageHandler, Action}
-import com.wajam.nrv.transport.Transport
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.cluster.{Node, LocalNode}
-import java.net.InetSocketAddress
 
 /**
  * Protocol used to send and receive messages to remote nodes over a network
@@ -71,9 +69,9 @@ abstract class Protocol(val name: String,
     }
   }
 
-  private def guardedGenerate(generateFct: () => AnyRef): Either[Throwable, AnyRef] = {
+  private def guardedGenerate(message: Message, flags: Map[String, Any]): Either[Throwable, AnyRef] = {
     try {
-      Right(generateFct())
+      Right(generate(message, flags))
     }
     catch {
       case e: Exception => Left(e)
@@ -90,7 +88,7 @@ abstract class Protocol(val name: String,
     val flags =
       message.attachments.getOrElse(Protocol.FLAGS, Map[String, Any]()).asInstanceOf[Map[String, Any]]
 
-    guardedGenerate(() => generate(message, flags)) match {
+    guardedGenerate(message, flags) match {
       case Left(e) => {
         sendingResponseFailure.mark()
         log.error("Could not send response because it cannot be constructed: error = {}.", e.toString)
@@ -122,7 +120,7 @@ abstract class Protocol(val name: String,
       val flags =
           Map((FlagReader.F_IS_LOCAL_BOUND -> isMessageLocalBound(node)))
 
-      guardedGenerate(() => generate(message, flags)) match {
+      guardedGenerate(message, flags) match {
         case Left(e) => {
           log.error("Could not send request because it cannot be constructed: error = {}.", e.toString)
         }
