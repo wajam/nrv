@@ -32,7 +32,7 @@ class TestLocalOptimizedProtocol  extends FunSuite with ShouldMatchers with Mock
     doReturn("local").when(local).name
     doReturn("local").when(remote).name
 
-    val lop = spy(new NrvLocalOptimizedProtocol("local", node, local, remote))
+    val lop = spy(new NrvLocalBranchingProtocol("local", node, local, remote))
 
     lop.start()
 
@@ -93,7 +93,7 @@ class TestLocalOptimizedProtocol  extends FunSuite with ShouldMatchers with Mock
 
     val nrvProtocol = new NrvProtocol(cluster.localNode, 10000, 100)
     val localProtocol = spy(new NrvMemoryProtocol(nrvProtocol.name, node))
-    val loProtocol = spy(new NrvLocalOptimizedProtocol(nrvProtocol.name, node, localProtocol, nrvProtocol))
+    val loProtocol = spy(new NrvLocalBranchingProtocol(nrvProtocol.name, node, localProtocol, nrvProtocol))
 
     cluster.registerProtocol(loProtocol)
 

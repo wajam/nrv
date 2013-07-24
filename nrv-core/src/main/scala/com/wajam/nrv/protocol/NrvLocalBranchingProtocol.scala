@@ -4,7 +4,12 @@ import com.wajam.nrv.cluster.{Node, LocalNode}
 import com.wajam.nrv.data.Message
 import com.wajam.nrv.service.Action
 
-class NrvLocalOptimizedProtocol(name: String,
+/**
+ * Meta protocol that fork in between to protocol a local one and a normal remote one according if the message
+ * is bound to be local or not. It does he inverse forking as well,
+ * i.e. it fork the right protocol according to the fork use to send the message.
+ */
+class NrvLocalBranchingProtocol(name: String,
                                 localNode: LocalNode,
                                 localProtocol: Protocol,
                                 remoteProtocol: Protocol) extends Protocol(name, localNode) {
