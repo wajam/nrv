@@ -2,7 +2,10 @@ package com.wajam.nrv.service
 
 import org.scalatest.FunSuite
 import org.scalatest.matchers.ShouldMatchers._
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class TestTokenRange extends FunSuite {
 
   test("contains") {

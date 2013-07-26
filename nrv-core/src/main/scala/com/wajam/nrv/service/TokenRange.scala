@@ -51,7 +51,7 @@ object TokenRangeSeq {
   /**
    * Creates a token range sequence wrapper
    */
-  def apply(ranges: Seq[TokenRange]): TokenRangeSeq = new TokenRangeSeq {
+  implicit def apply(ranges: Seq[TokenRange]): TokenRangeSeq = new TokenRangeSeq {
     def head = ranges.head
 
     def find(token: Long) = ranges.find(_.contains(token))
@@ -60,6 +60,8 @@ object TokenRangeSeq {
 
     def toIterator = ranges.toIterator
   }
+
+  implicit def apply(range: TokenRange): TokenRangeSeq = TokenRangeSeq(Seq(range))
 
   /**
    * Creates a token range sequence wrapper chunked into multiple virtual subranges
@@ -71,26 +73,29 @@ object TokenRangeSeq {
   /**
    * A token range sequence wrapper chunked into multiple virtual subranges
    */
-  private class ChunkedTokenRangeSeq(ranges: TokenRangeSeq, chunkSize: Long) extends TokenRangeSeq {
-    def head = TokenRange(ranges.head.start, math.min(ranges.head.end, ranges.head.start + chunkSize))
+  private class ChunkedTokenRangeSeq(seq: TokenRangeSeq, chunkSize: Long) extends TokenRangeSeq {
+
+    require(chunkSize > 0, "chunk size %d must be > 0".format(chunkSize))
+
+    def head = TokenRange(seq.head.start, math.min(seq.head.end, seq.head.start + chunkSize - 1))
 
     def find(token: Long): Option[TokenRange] = {
-      ranges.find(token) match {
+      seq.find(token) match {
         case Some(outerRange) => getChunk(token, outerRange)
         case None => None
       }
     }
 
     def next(range: TokenRange): Option[TokenRange] = {
-      ranges.find(range.start) match {
+      seq.find(range.start) match {
         case Some(currentOuterRange) if getChunk(range.end, currentOuterRange) == Some(range) => {
           if (currentOuterRange.contains(range.end + 1)) {
             getChunk(range.end + 1, currentOuterRange)
           } else {
-            ranges.next(range).map(nextOuterRange => {
-              val start = nextOuterRange.start
-              val end = math.min(nextOuterRange.end, start + chunkSize)
-              TokenRange(start, end)
+            seq.next(currentOuterRange).map(nextOuterRange => {
+              val chunkStart = nextOuterRange.start
+              val chunkEnd = math.min(nextOuterRange.end, chunkStart + chunkSize - 1)
+              TokenRange(chunkStart, chunkEnd)
             })
           }
         }
@@ -101,10 +106,14 @@ object TokenRangeSeq {
     private def getChunk(token: Long, outerRange: TokenRange): Option[TokenRange] = {
       if (outerRange.contains(token)) {
         val outerSize = outerRange.end - outerRange.start
-        val multiple = math.floor((token - outerRange.start) / outerSize * chunkSize).toInt
-        val start = multiple * chunkSize + outerRange.start
-        val end = math.min(start + chunkSize, outerRange.end)
-        Some(TokenRange(start, end))
+        if (chunkSize > outerSize) {
+          Some(outerRange)
+        } else {
+          val multiple = (token - outerRange.start) / chunkSize
+          val chunkStart = multiple * chunkSize + outerRange.start
+          val chunkEnd = math.min(chunkStart + chunkSize - 1, outerRange.end)
+          Some(TokenRange(chunkStart, chunkEnd))
+        }
       } else None
     }
 
