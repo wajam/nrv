@@ -218,7 +218,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
       case None => {
         // No member found for the specified range, verify if this is a sub-range of a local master service member.
-        val timestamp = recorders.values.find{
+        val timestamp = recorders.values.find {
           recorder => recorder.member.ranges.exists(recorderRange =>
             recorderRange.contains(range.start) && recorderRange.contains(range.end))
         }.flatMap(_.currentConsistentTimestamp)
