@@ -92,6 +92,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
   private def syncServiceMembersImpl(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) {
     debug("Syncing service members of {}", service)
 
+    val isServiceInitialized = !service.members.isEmpty
+
     val currentMembers = service.members.toSeq
     val newMembers = members.map(_._1)
     val newMemberVotes = members.toMap
@@ -137,7 +139,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       addingNewServiceMember(service, newMember)
       val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
       val event = newMember.setStatus(votedStatus, triggerEvent = true)
-      service.addMember(newMember)
+      service.addMember(newMember, triggerEvent = isServiceInitialized)
       updateStatusChangeMetrics(service, event)
     })
 

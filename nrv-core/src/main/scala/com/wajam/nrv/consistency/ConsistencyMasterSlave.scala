@@ -213,6 +213,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       case event: StatusTransitionEvent => {
         handleRemoteServiceMemberStatusTransitionEvent(event)
       }
+      case event: NewMemberAddedEvent => {
+        updateRangeMemberCache()
+      }
       case _ => // Ignore unsupported events
     }
   }
@@ -745,7 +748,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         def value = consistencyStates.values.count(_ == MemberConsistencyState.Error)
       })
     private val consistencyRecoveringCountGauge = metrics.metricsRegistry.newGauge(classOf[ConsistencyMasterSlave],
-      "consistency-reconvering-count", scope, new Gauge[Long] {
+      "consistency-recovering-count", scope, new Gauge[Long] {
         def value = consistencyStates.values.count(_ == MemberConsistencyState.Recovering)
       })
 

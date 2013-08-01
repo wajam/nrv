@@ -1,7 +1,7 @@
 package com.wajam.nrv.zookeeper.cluster
 
 import com.wajam.nrv.cluster.{ServiceMemberVote, DynamicClusterManager}
-import com.wajam.nrv.service.{MemberStatus, ServiceMember, Service}
+import com.wajam.nrv.service.{ServiceMember, Service}
 import com.wajam.nrv.zookeeper.ZookeeperClient
 import com.wajam.nrv.zookeeper.ZookeeperClient._
 import com.wajam.nrv.Logging
@@ -139,7 +139,7 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
 
   protected def removingOldServiceMember(service: Service, oldServiceMember: ServiceMember) {
     if (cluster.isLocalNode(oldServiceMember.node)) {
-      //removing the memeber's own vote here, allowing the member's status to change
+      //removing the member's own vote here, allowing the member's status to change
       //TODO: we assume the node is voting for itself, this may change when consensus is implemented.
       try {
         val path = ZookeeperClusterManager.zkMemberVotePath(service.name, oldServiceMember.token, oldServiceMember.token)
