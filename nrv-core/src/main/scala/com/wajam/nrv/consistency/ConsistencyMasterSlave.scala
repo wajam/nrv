@@ -176,22 +176,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     // Setup the current consistent timestamp lookup function to the consistent storage
     info("Setup consistent timestamp lookup for service", service.name)
-    this.service.setCurrentConsistentTimestamp((range) => {
-      rangeMembers.get(range) match {
-        // Local master: lookup consistent timestamp from member recorder
-        case Some(member) if cluster.isLocalNode(member.node) => {
-          val timestamp = for {
-            recorder <- recorders.get(member.token)
-            consistentTimestamp <- recorder.currentConsistentTimestamp
-          } yield consistentTimestamp
-          timestamp.getOrElse(Long.MinValue)
-        }
-        // Slave replica: assume everything is consistent if member state is consistent
-        case Some(member) if consistencyStates.get(member.token) == Some(MemberConsistencyState.Ok) => Long.MaxValue
-        // Not a master or slave replica
-        case _ => Long.MinValue
-      }
-    })
+    this.service.setCurrentConsistentTimestamp(getTokenRangeConsistentTimestamp)
 
     // Register replication subscribe/publish actions
     service.registerAction(publishAction)
@@ -217,6 +202,35 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         updateRangeMemberCache()
       }
       case _ => // Ignore unsupported events
+    }
+  }
+
+  private def getTokenRangeConsistentTimestamp(range: TokenRange): Timestamp = {
+    rangeMembers.get(range) match {
+      case Some(member) if cluster.isLocalNode(member.node) => {
+        // Local master: lookup consistent timestamp from member recorder
+        val timestamp = for {
+          recorder <- recorders.get(member.token)
+          consistentTimestamp <- recorder.currentConsistentTimestamp
+        } yield consistentTimestamp
+        timestamp.getOrElse(Long.MinValue)
+      }
+      case Some(member) if consistencyStates.get(member.token) == Some(MemberConsistencyState.Ok) => {
+        // Slave replica: assume everything is consistent if member state is consistent
+        Long.MaxValue
+      }
+      case None => {
+        // No member found for the specified range, verify if this is a sub-range of a local master service member.
+        val timestamp = recorders.values.find {
+          recorder => recorder.member.ranges.exists(recorderRange =>
+            recorderRange.contains(range.start) && recorderRange.contains(range.end))
+        }.flatMap(_.currentConsistentTimestamp)
+        timestamp.getOrElse(Long.MinValue)
+      }
+      case _ => {
+        // The specified range is not a range or sub-range of a master or a slave replica
+        Long.MinValue
+      }
     }
   }
 
