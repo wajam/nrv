@@ -34,12 +34,10 @@ import com.wajam.nrv.service.StatusTransitionEvent
  * - The messages for a given token are sequenced before reaching the consistency manager.
  * - Messages timestamps are unique in the whole cluster and also sequenced per message token.
  *
- * IMPORTANT NOTES:
- * - This class is still a work in progress.
- * - Support binding to a single service. The service must extends ConsistentStore.
  */
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
                              txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000,
+                             timestampTimeoutExtraDelay: Int = 250,
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
                              replicationSubscriptionIdleTimeout: Long = 30000L, replicationSubscribeDelay: Long = 5000,
                              replicationResolver: Option[Resolver] = None)
@@ -335,7 +333,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           }
           val member = ResolvedServiceMember(service, event.member)
           val recorder = new TransactionRecorder(member, txLog,
-            consistencyDelay = timestampGenerator.responseTimeout + 1000,
+            consistencyDelay = timestampGenerator.responseTimeout + timestampTimeoutExtraDelay,
             consistencyTimeout = math.max(service.responseTimeout + 2000, 15000),
             commitFrequency = txLogCommitFrequency, onConsistencyError = {
               metrics.consistencyError.mark()
