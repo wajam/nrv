@@ -123,7 +123,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   override def start() {
     synchronized {
-      // TODO: update cache when new members are added/removed (i.e. live shard split/merge)
+      // TODO: update cache when new members are removed (i.e. live shard merge)
       updateRangeMemberCache()
 
       publishAction.applySupport(resolver = Some(new Resolver(tokenExtractor = Resolver.TOKEN_RANDOM())),
@@ -527,9 +527,11 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
-  // This method will send an error response to a message with an unresolvable destination.
-  // The response is sent to itself by calling handleIncoming on the current edge server (instead of
-  // sending it through the nrv network protocol)
+  /**
+   *  This method will send an error response to a message with an unresolvable destination.
+   *  The response is sent to itself by calling handleIncoming on the current edge server (instead of
+   *  sending it through the nrv network protocol
+   */
   private def simulateUnavailableResponse(action: Action, message: OutMessage) {
     val response = new InMessage()
     message.copyTo(response)
@@ -568,7 +570,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   def executeConsistentOutgoingReadRequest(message: OutMessage, next: (Unit) => Unit) {
     // Select the first available destination. Read messages are handled by the master if available but any replicas
-    // can handle it otherwise.
+    // could also handle it.
     message.destination.deselectAllReplicasButOne()
     next()
   }

@@ -4,7 +4,7 @@ import com.wajam.nrv.cluster.Node
 
 
 /**
- * Endpoints to which a message are sent, composed of shards (position in the ring, associated
+ * Endpoints to which a message are sent, composed of a shard (position in the ring, associated
  * to a token) and then for shard, there are replicas (actual node, composed of an ip and
  * nrv port).
  */
@@ -15,33 +15,34 @@ class Endpoints(val shards: Seq[Shard] = Seq()) extends Serializable {
   def replicas: Seq[Replica] = shards.map(_.replicas).flatten
 
   /**
-   * Deselects all the replica in the replicas list (sets selected = false) except for the first one which is
-   * considered to be the only routing possibility. This method act on all replicas not just the selected
-   * ones. If the first replica is unselected, all replicas will be deselected after calling this method even if a
-   * subsequent replica was previously selected.
+   * Deselects all slave destinations. The first one (the master) remains unchanged.
    */
   protected[nrv] def deselectAllReplicasButFirst() {
     replicas.drop(1).foreach(_.selected = false)
   }
 
   /**
-   * Deselects all the replicas (sets selected = false) except for the first one in selectedReplicas list. If more than
-   * one replica was selected before calling this method, only the first originally selected remain selected after.
+   * Deselects all possible destinations, except the first one that's currently available (master or slave).
    */
   protected[nrv] def deselectAllReplicasButOne() {
     selectedReplicas.drop(1).foreach(_.selected = false)
   }
 
+  /**
+   * Deselects everything. no exceptions.
+   */
   protected[nrv] def deselectAllReplicas() {
     replicas.foreach(_.selected = false)
   }
-
 }
 
 object Endpoints {
   val EMPTY = new Endpoints()
 }
 
+/**
+ * A shard is associated to multiple replicas, since it has slaves for redundancy.
+ */
 class Shard(val token: Long, val replicas: Seq[Replica]) extends Serializable {
   def selectedEndpoints: Seq[Replica] = replicas.filter(_.selected)
 }
