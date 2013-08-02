@@ -198,6 +198,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       }
       case event: NewMemberAddedEvent => {
         updateRangeMemberCache()
+        if (event.member.status == MemberStatus.Up && isSlaveReplicaOf(event.member)) {
+          SubscriptionManagerActor ! Subscribe(event.member, ReplicationMode.Store)
+        }
       }
       case _ => // Ignore unsupported events
     }
