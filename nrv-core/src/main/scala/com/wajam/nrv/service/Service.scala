@@ -1,6 +1,6 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.utils.Observable
+import com.wajam.nrv.utils.{Event, Observable}
 import com.wajam.nrv.cluster.Node
 
 /**
@@ -35,9 +35,11 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
 
   def addMember(token: Long, node: Node): ServiceMember = addMember(new ServiceMember(token, node))
 
-  def addMember(member: ServiceMember): ServiceMember = {
+  def addMember(member: ServiceMember, triggerEvent: Boolean = false): ServiceMember = {
     member.addParentObservable(this)
     this.ring.add(member.token, member)
+    if(triggerEvent)
+      this.notifyObservers(new NewMemberAddedEvent(member))
     member
   }
 
@@ -137,3 +139,5 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
   }
 
 }
+
+case class NewMemberAddedEvent(member: ServiceMember) extends Event

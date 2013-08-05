@@ -56,7 +56,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   protected def getServiceMembers(service: Service): Option[Seq[(ServiceMember, Seq[ServiceMemberVote])]]
 
-  //Latch synchronization barrier used to wait for all local service members to go down before closing the server
+  // Latch synchronization barrier used to wait for all local service members to go down before closing the server
   private var leavingLatch: Option[CountDownLatch] = None
 
   private def isLeaving: Boolean = leavingLatch.isDefined
@@ -82,7 +82,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   private def compileVotes(candidateMember: ServiceMember, votes: Seq[ServiceMemberVote]): MemberStatus = {
     // TODO: implement consensus, not just take the member vote
-    val optSelfVote = votes.find(_.voterMember == candidateMember) //find the ServiceMemberVote that votes for itself.
+    val optSelfVote = votes.find(_.voterMember == candidateMember) // find the ServiceMemberVote that votes for itself.
     optSelfVote match {
       case Some(vote) => vote.statusVote
       case None => MemberStatus.Down
@@ -91,6 +91,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   private def syncServiceMembersImpl(service: Service, members: Seq[(ServiceMember, Seq[ServiceMemberVote])]) {
     debug("Syncing service members of {}", service)
+
+    val isServiceInitialized = !service.members.isEmpty
 
     val currentMembers = service.members.toSeq
     val newMembers = members.map(_._1)
@@ -136,8 +138,8 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       info("New member {} in service {}", newMember, service)
       addingNewServiceMember(service, newMember)
       val votedStatus = compileVotes(newMember, newMemberVotes(newMember))
-      val event = newMember.setStatus(votedStatus, triggerEvent = true)
-      service.addMember(newMember)
+      val event = newMember.setStatus(votedStatus, triggerEvent = false) // an event wouldn't notify the service, as it is not part of it yet.
+      service.addMember(newMember, triggerEvent = isServiceInitialized)
       updateStatusChangeMetrics(service, event)
     })
 

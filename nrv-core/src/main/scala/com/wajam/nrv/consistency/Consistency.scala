@@ -59,8 +59,8 @@ object MemberConsistencyState {
       case Recovering.toString => Some(Recovering)
       case Ok.toString => Some(Ok)
       case Error.toString => Some(Error)
-      case "None" => None
-      case _ => throw new IllegalArgumentException("Unsupported MemberConsistencyState: %s".format(str))
+      case "None" | "" => None
+      case _ => throw new IllegalArgumentException("Unsupported MemberConsistencyState: '%s'".format(str))
     }
   }
 
