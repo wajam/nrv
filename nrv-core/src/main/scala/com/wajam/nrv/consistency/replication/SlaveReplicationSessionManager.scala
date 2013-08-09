@@ -42,20 +42,20 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
   }
 
   /**
-   * Subscribe can be delayed i.e. the subscribe call to the master service member is done after
+   * Open session can be delayed i.e. the call to the master service member is done after
    * a specified amount of time. This class is keeping track of the pending sessions (i.e. delayed or awaiting
-   * master response). All new subscribe calls for a given member are silently ignored if a session
+   * master response). All new open session calls for a given member are silently ignored if a session
    * (pending or active) already exists for the member.
    */
-  def subscribe(member: ResolvedServiceMember, txLog: TransactionLog, delay: Long, subscribeAction: Action,
-                unsubscribeAction: Action, mode: ReplicationMode, onSessionEnd: Option[Exception] => Unit) {
+  def openSession(member: ResolvedServiceMember, txLog: TransactionLog, delay: Long, openSessionAction: Action,
+                closeSessionAction: Action, mode: ReplicationMode, onSessionEnd: Option[Exception] => Unit) {
     val cookie = nextId
-    manager ! SessionManagerProtocol.Subscribe(member, txLog, subscribeAction, unsubscribeAction, mode,
+    manager ! SessionManagerProtocol.OpenSessionRequest(member, txLog, openSessionAction, closeSessionAction, mode,
       cookie, onSessionEnd, delay)
   }
 
-  def unsubscribe(member: ResolvedServiceMember) {
-    manager ! SessionManagerProtocol.Unsubscribe(member)
+  def closeSession(member: ResolvedServiceMember) {
+    manager ! SessionManagerProtocol.CloseSessionRequest(member)
   }
 
   /**
@@ -66,8 +66,8 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
   }
 
   def sessions: Iterable[ReplicationSession] = {
-    val subs = manager !? SessionManagerProtocol.GetSessions
-    subs.asInstanceOf[Iterable[ReplicationSession]]
+    val allSessions = manager !? SessionManagerProtocol.GetSessions
+    allSessions.asInstanceOf[Iterable[ReplicationSession]]
   }
 
   private def firstStoreRecord(from: Option[Timestamp], ranges: Seq[TokenRange]): Option[Message] = {
@@ -84,20 +84,19 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
 
   object SessionManagerProtocol {
 
-    case class Subscribe(member: ResolvedServiceMember, txLog: TransactionLog, subscribeAction: Action,
-                         unsubscribeAction: Action, mode: ReplicationMode, cookie: String,
+    case class OpenSessionRequest(member: ResolvedServiceMember, txLog: TransactionLog, openSessionAction: Action,
+                         closeSessionAction: Action, mode: ReplicationMode, cookie: String,
                          onSessionEnd: Option[Exception] => Unit, delay: Long = 0)
 
-    // TODO: Either[Exception, Message]???
-    case class SubscribeResponse(subscribe: Subscribe, response: Message, optException: Option[Exception])
+    case class OpenSessionResponse(context: OpenSessionRequest, response: Message, optException: Option[Exception])
 
-    case class Unsubscribe(member: ResolvedServiceMember)
+    case class CloseSessionRequest(member: ResolvedServiceMember)
 
     object GetSessions
 
     case class TransactionPush(message: InMessage)
 
-    case class TerminateSession(session: SessionActor, error: Option[Exception] = None)
+    case class TerminateSession(sessionActor: SessionActor, error: Option[Exception] = None)
 
     object Kill
 
@@ -105,13 +104,13 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
 
   class SessionManagerActor extends Actor {
 
-    private lazy val subscribeMeter = metrics.meter("subscribe", "subscribe", serviceScope)
-    private lazy val subscribeIgnoreMeter = metrics.meter("subscribe-ignore", "subscribe-ignore", serviceScope)
-    private lazy val subscribeOkMeter = metrics.meter("subscribe-ok", "subscribe-ok", serviceScope)
-    private lazy val subscribeErrorMeter = metrics.meter("subscribe-error", "subscribe-error", serviceScope)
+    private lazy val openSessionMeter = metrics.meter("open-session", "open-session", serviceScope)
+    private lazy val openSessionIgnoreMeter = metrics.meter("open-session-ignore", "open-session-ignore", serviceScope)
+    private lazy val openSessionOkMeter = metrics.meter("open-session-ok", "open-session-ok", serviceScope)
+    private lazy val openSessionErrorMeter = metrics.meter("open-session-error", "open-session-error", serviceScope)
 
-    private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "subscribe", serviceScope)
-    private lazy val unsubscribeErrorMeter = metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
+    private lazy val closeSessionMeter = metrics.meter("close-session", "close-session", serviceScope)
+    private lazy val closeSessionErrorMeter = metrics.meter("close-session-error", "close-session-error", serviceScope)
 
     private lazy val pushMeter = metrics.meter("push", "push", serviceScope)
     private lazy val pushIgnoreMeter = metrics.meter("push-ignore", "push-ignore", serviceScope)
@@ -121,11 +120,11 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
 
     import SessionManagerProtocol._
 
-    private case class PendingSession(context: Subscribe)
+    private case class PendingOpenSessionRequest(context: OpenSessionRequest)
 
     private val timer = new Timer("SlaveSessionManagerActor-Timer")
 
-    private var sessions: Map[ResolvedServiceMember, Either[PendingSession, SessionActor]] = Map()
+    private var sessions: Map[ResolvedServiceMember, Either[PendingOpenSessionRequest, SessionActor]] = Map()
 
     def sessionsCount = sessions.size
 
@@ -141,67 +140,67 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
       sessions -= session.member
       session ! SessionProtocol.Kill
 
-      sendUnsubscribe(session.context, session.sessionId)
+      sendCloseSession(session.context, session.sessionId)
     }
 
-    private def sendUnsubscribe(context: Subscribe, sessionId: String) {
-      def handleUnsubscribeResponse(reponse: InMessage, error: Option[Exception]) {
+    private def sendCloseSession(context: OpenSessionRequest, sessionId: String) {
+      def handleCloseSessionResponse(reponse: InMessage, error: Option[Exception]) {
         error match {
-          case Some(e) => info("Unsubscribe reponse error {} for {}: {}", sessionId, context.member, e)
-          case None => debug("Unsubscribe reponse {} for {}", sessionId, context.member)
+          case Some(e) => info("Close session reponse error {} for {}: {}", sessionId, context.member, e)
+          case None => debug("Close session reponse {} for {}", sessionId, context.member)
         }
       }
 
-      info("Send unsubscribe request to master for session {}. {}", sessionId, context.member)
+      info("Send close session request to master {}. {}", sessionId, context.member)
       var params: Map[String, MValue] = Map()
 
       params += (ReplicationAPIParams.SubscriptionId -> sessionId)
       params += (ReplicationAPIParams.SessionId -> sessionId)
       params += (ReplicationAPIParams.Token -> context.member.token.toString)
-      context.unsubscribeAction.call(params, onReply = handleUnsubscribeResponse(_, _))
+      context.closeSessionAction.call(params, onReply = handleCloseSessionResponse(_, _))
     }
 
     def act() {
       loop {
         react {
-          case context: Subscribe => {
+          case context: OpenSessionRequest => {
             try {
-              subscribeMeter.mark()
+              openSessionMeter.mark()
               sessions.get(context.member) match {
                 case Some(Left(_)) => {
-                  subscribeIgnoreMeter.mark()
-                  info("Ignore new subscribe request. Already have a pending session for {}.",
+                  openSessionIgnoreMeter.mark()
+                  info("Ignore new open session request. Already have a pending session for {}.",
                     context.member)
                 }
                 case Some(Right(_)) => {
-                  subscribeIgnoreMeter.mark()
-                  info("Ignore new subscribe request. Already have an open session for {}.",
+                  openSessionIgnoreMeter.mark()
+                  info("Ignore new open session request. Already have an open session for {}.",
                     context.member)
                 }
                 case None => {
-                  info("Registering a new pending session for {}", context.member)
+                  info("Registering a new pending open session for {}", context.member)
                   timer.schedule(new TimerTask {
                     def run() {
-                      SessionManagerActor.this ! PendingSession(context)
+                      SessionManagerActor.this ! PendingOpenSessionRequest(context)
                     }
                   }, context.delay)
-                  sessions += (context.member -> Left(PendingSession(context)))
+                  sessions += (context.member -> Left(PendingOpenSessionRequest(context)))
                 }
               }
             } catch {
               case e: Exception => {
-                subscribeErrorMeter.mark()
-                warn("Error processing subscribe for {}", context.member, e)
+                openSessionErrorMeter.mark()
+                warn("Error processing open session for {}", context.member, e)
                 sessions -= context.member
                 context.onSessionEnd(Some(e))
               }
             }
           }
-          case PendingSession(context) => {
+          case PendingOpenSessionRequest(context) => {
             try {
               sessions.get(context.member) match {
                 case Some(Left(_)) => {
-                  info("Send subscribe request to master for pending session. {}", context.member)
+                  info("Send open session request to master for pending session {}", context.member)
                   var params: Map[String, MValue] = Map()
                   params += (ReplicationAPIParams.Token -> context.member.token.toString)
                   params += (ReplicationAPIParams.Cookie -> context.cookie)
@@ -217,141 +216,141 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                   }
                   val mode = if (context.mode == ReplicationMode.Bootstrap) ReplicationMode.Store else context.mode
                   params += (ReplicationAPIParams.Mode -> mode.toString)
-                  debug("subscribeAction.call {}", params)
-                  context.subscribeAction.call(params,
-                    onReply = SessionManagerActor.this ! SubscribeResponse(context, _, _))
+                  debug("openSessionAction.call {}", params)
+                  context.openSessionAction.call(params,
+                    onReply = SessionManagerActor.this ! OpenSessionResponse(context, _, _))
                 }
                 case Some(Right(_)) => {
-                  subscribeIgnoreMeter.mark()
-                  warn("Do not process pending session. Already have an active session for {}.",
+                  openSessionIgnoreMeter.mark()
+                  warn("Do not process pending open session request. Already have an active session for {}.",
                     context.member)
                 }
                 case None => {
-                  subscribeIgnoreMeter.mark()
-                  info("Do not process pending session. No more pending session registered for {}.",
+                  openSessionIgnoreMeter.mark()
+                  info("Do not process pending open session request. No more pending session registered for {}.",
                     context.member)
                 }
               }
             } catch {
               case e: Exception => {
-                subscribeErrorMeter.mark()
-                warn("Error processing delayed subscribe for {}", context.member, e)
+                openSessionErrorMeter.mark()
+                warn("Error processing delayed open session request for {}", context.member, e)
                 sessions -= context.member
                 context.onSessionEnd(Some(e))
               }
             }
           }
-          case SubscribeResponse(context, message, exception) => {
+          case OpenSessionResponse(context, message, exception) => {
             try {
               implicit val response = message
 
               exception match {
                 case Some(e) => {
-                  subscribeErrorMeter.mark()
-                  warn("Got a subscribe response error for {}: ", context.member, e)
+                  openSessionErrorMeter.mark()
+                  warn("Got an open session response error for {}: ", context.member, e)
                   sessions -= context.member
                   context.onSessionEnd(Some(e))
                 }
                 case None => {
-                  val sessionId = getSessionId(response)
+                  val sessionId = getSessionId(message)
                   val startTimestamp = Timestamp(getParamLongValue(Start))
                   val endTimestamp = getOptionalParamLongValue(End).map(ts => Timestamp(ts))
                   val cookie = getParamStringValue(Cookie)
 
                   sessions.get(context.member) match {
                     case Some(Left(_)) if Some(startTimestamp) == endTimestamp => {
-                      subscribeIgnoreMeter.mark()
+                      openSessionIgnoreMeter.mark()
                       info("Do not activate session. " +
                         "Session is empty i.e. has identical start/end timestamps) {}: {}",
                         response, context.member)
 
                       sessions -= context.member
-                      sendUnsubscribe(context, sessionId)
+                      sendCloseSession(context, sessionId)
                       context.onSessionEnd(None)
                     }
                     case Some(Left(pending)) if cookie == pending.context.cookie => {
-                      info("Subscribe response {}. Activate session {}.", response, context.member)
+                      info("Open session response {}. Activate session {}.", response, context.member)
 
                       val session = new SessionActor(sessionId, startTimestamp, endTimestamp, context,
                         getSessionGauge(context.member), logIdGenerator)
                       sessions += (context.member -> Right(session))
                       session.start()
-                      subscribeOkMeter.mark()
+                      openSessionOkMeter.mark()
                     }
                     case Some(Left(_)) => {
-                      warn("Do not activate session. Subscribe response with wrong cookie. {} {}",
+                      warn("Do not activate session. Received open session response with wrong cookie. {} {}",
                         context.member, response)
-                      subscribeIgnoreMeter.mark()
+                      openSessionIgnoreMeter.mark()
 
-                      sendUnsubscribe(context, sessionId)
+                      sendCloseSession(context, sessionId)
                     }
                     case Some(Right(_)) => {
-                      subscribeIgnoreMeter.mark()
+                      openSessionIgnoreMeter.mark()
                       warn("Do not activate session. Already have an active session for {}.",
                         context.member)
 
-                      sendUnsubscribe(context, sessionId)
+                      sendCloseSession(context, sessionId)
                     }
                     case None => {
-                      subscribeIgnoreMeter.mark()
-                      info("Do not activate session. No matching pending session for {} {}.",
+                      openSessionIgnoreMeter.mark()
+                      info("Do not activate session. No matching pending open session request for {} {}.",
                         context.member, context.cookie)
 
-                      sendUnsubscribe(context, sessionId)
+                      sendCloseSession(context, sessionId)
                     }
                   }
                 }
               }
             } catch {
               case e: Exception => {
-                subscribeErrorMeter.mark()
-                warn("Error processing subscribe response for {}", context.member, e)
+                openSessionErrorMeter.mark()
+                warn("Error processing open session response for {}", context.member, e)
                 sessions -= context.member
                 context.onSessionEnd(Some(e))
               }
             }
           }
-          case Unsubscribe(member) => {
+          case CloseSessionRequest(member) => {
             try {
               sessions.get(member) match {
-                case Some(Left(PendingSession(subscribe))) => {
-                  unsubscribeMeter.mark()
-                  info("Unsubscribe. Remove pending session. {}", member)
+                case Some(Left(PendingOpenSessionRequest(_))) => {
+                  closeSessionMeter.mark()
+                  info("Close session request. Remove pending session. {}", member)
                   sessions -= member
                 }
-                case Some(Right(subscription)) => {
-                  unsubscribeMeter.mark()
-                  info("Unsubscribe. Remove active session for. {}", member)
-                  terminateSession(subscription, None)
+                case Some(Right(sessionActor)) => {
+                  closeSessionMeter.mark()
+                  info("Close session request. Remove active session for. {}", member)
+                  terminateSession(sessionActor, None)
                 }
                 case None => {
-                  debug("Unsubscribe. No action taken, no session registered for {}.", member)
+                  debug("Close session request. No action taken, no session open for {}.", member)
                 }
               }
             } catch {
               case e: Exception => {
-                unsubscribeErrorMeter.mark()
-                warn("Error processing unsubscribe for {}", member, e)
+                closeSessionErrorMeter.mark()
+                warn("Error processing close session request for {}", member, e)
               }
             }
           }
           case GetSessions => {
             try {
-              val replicationSessions = sessions.valuesIterator.map {
+              val allSessions = sessions.valuesIterator.map {
                 case Left(pendingSession) => {
                   val context = pendingSession.context
                   ReplicationSession(context.member, context.cookie, context.mode)
                 }
-                case Right(subscriptionActor) => {
-                  val context = subscriptionActor.context
-                  ReplicationSession(subscriptionActor.member, context.cookie, context.mode,
-                    id = Some(subscriptionActor.sessionId))
+                case Right(sessionActor) => {
+                  val context = sessionActor.context
+                  ReplicationSession(sessionActor.member, context.cookie, context.mode,
+                    id = Some(sessionActor.sessionId))
                 }
               }
-              reply(replicationSessions.toList)
+              reply(allSessions.toList)
             } catch {
               case e: Exception => {
-                warn("Error processing get subscriptions {}", e)
+                warn("Error processing get sessions {}", e)
                 reply(Nil)
               }
             }
@@ -372,7 +371,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                 }
                 case None => {
                   pushIgnoreMeter.mark()
-                  // Cannot unsubscribe from master, we do not have access to unsubscribe Action
+                  // Cannot send close session to master, we do not have access to the close session Action
                 }
               }
             } catch {
@@ -391,7 +390,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                   terminateSession(sessionActor, error)
                   session.context.onSessionEnd(error)
                 }
-                case _ => // Not subscribed anymore to that session. No action taken.
+                case _ => // No matching open session anymore. No action taken.
               }
             } catch {
               case e: Exception => {
@@ -473,7 +472,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
   }
 
   class SessionActor(val sessionId: String, startTimestamp: Timestamp, endTimestamp: Option[Timestamp],
-                          val context: SessionManagerProtocol.Subscribe,
+                          val context: SessionManagerProtocol.OpenSessionRequest,
                           currentTimestampGauge: SessionCurrentTimestampGauge,
                           idGenerator: IdGenerator[Long]) extends Actor {
 
@@ -528,7 +527,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
           replicationMessage match {
             case tx: TransactionMessage => {
               // Add transaction message to transaction log and to consistent storage.
-              trace("Storing (seq={}, subId={}) {}", tx.sequence, sessionId, tx.transaction)
+              trace("Storing (seq={}, sessionId={}) {}", tx.sequence, sessionId, tx.transaction)
               txWriteTimer.time {
                 txLog.append {
                   Request(idGenerator.nextId, consistentTimestamp, tx.timestamp, tx.token, tx.transaction)
@@ -545,7 +544,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
             }
             case _: KeepAliveMessage => {
               keepAliveMeter.mark()
-              trace("Keep alive (seq={}, subId={})", replicationMessage.sequence, sessionId)
+              trace("Keep alive (seq={}, sessionId={})", replicationMessage.sequence, sessionId)
             }
           }
 
@@ -573,7 +572,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
         react {
           case message: ReplicationMessage if !terminating => {
             try {
-              trace("Received replication message (seq={}, subId={}) {}", message.sequence, sessionId, message)
+              trace("Received replication message (seq={}, sessionId={}) {}", message.sequence, sessionId, message)
               txReceivedMeter.mark()
               pendingTransactions += message
               lastReceiveTime = currentTime

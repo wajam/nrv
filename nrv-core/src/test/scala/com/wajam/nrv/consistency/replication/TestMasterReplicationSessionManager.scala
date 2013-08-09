@@ -29,7 +29,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
   var member: ServiceMember = null
   var ranges: Seq[TokenRange] = null
   var mockStore: ConsistentStore = null
-  var mockPushAction: Action = null
+  var mockSlaveReplicateTxAction: Action = null
   var sessionManager: MasterReplicationSessionManager = null
 
   var remoteMember: ServiceMember = null
@@ -57,14 +57,14 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     service.addMember(remoteMember)
     ranges = ResolvedServiceMember(service, member).ranges
 
-    logDir = Files.createTempDirectory("TestReplicationPublisher").toFile
+    logDir = Files.createTempDirectory("TestMasterReplicationSessionManager").toFile
     txLog = new FileTransactionLog(service.name, member.token, logDir = logDir.getAbsolutePath)
 
     mockStore = mock[ConsistentStore]
-    mockPushAction = mock[Action]
+    mockSlaveReplicateTxAction = mock[Action]
 
     sessionManager = new MasterReplicationSessionManager(service, mockStore, (_) => txLog, (_) => currentConsistentTimestamp,
-      ActionProxy(mockPushAction), pushTps = 100, replicationWindowSize, sessionTimeout) {
+      ActionProxy(mockSlaveReplicateTxAction), pushTps = 100, replicationWindowSize, sessionTimeout) {
       override def nextId = sessionId
     }
     sessionManager.start()
@@ -73,7 +73,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
   after {
     sessionManager.stop()
     sessionManager = null
-    mockPushAction = null
+    mockSlaveReplicateTxAction = null
     mockStore = null
 
     txLog.close()
@@ -89,29 +89,29 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
   }
 
   /**
-   * Utility to create a publisher subscription
+   * Utility to create a master replication session
    */
-  def subscribe(startTimestamp: Option[Timestamp], mode: ReplicationMode): ReplicationSession = {
+  def openSession(startTimestamp: Option[Timestamp], mode: ReplicationMode): ReplicationSession = {
     val cookie = "cookie"
 
-    var subscribeRequest: Map[String, MValue] = Map(
+    var openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> member.token,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Mode -> mode.toString)
-    startTimestamp.foreach(ts => subscribeRequest += ReplicationAPIParams.Start -> ts.value)
+    startTimestamp.foreach(ts => openSessionRequest += ReplicationAPIParams.Start -> ts.value)
 
-    val subscribeRequestMessage = new InMessage(subscribeRequest)
-    var subscribeResponseMessage: Option[OutMessage] = None
-    subscribeRequestMessage.replyCallback = (reply) => subscribeResponseMessage = Some(reply)
+    val openSessionRequestMessage = new InMessage(openSessionRequest)
+    var openSessionResponseMessage: Option[OutMessage] = None
+    openSessionRequestMessage.replyCallback = (reply) => openSessionResponseMessage = Some(reply)
 
-    sessionManager.handleSubscribeMessage(subscribeRequestMessage)
+    sessionManager.handleOpenSessionMessage(openSessionRequestMessage)
     val session = sessionManager.sessions.head
     session.member should be(ResolvedServiceMember(service, member))
     session.cookie should be(cookie)
     session.id should be(Some(sessionId))
     // Do not verify session mode, start and end timestamps. These values can be different from the ones requested
     // if the master fallback to a different mode.
-    subscribeResponseMessage.get.error should be(None)
+    openSessionResponseMessage.get.error should be(None)
 
     session
   }
@@ -174,7 +174,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     def getTimestamp(message: Message) = {
       if (message.hasData) message.getData[Message].timestamp else None
     }
-    trace("assertPublishMessagesEquals: actual={}, expected={}", actual.map(getTimestamp(_)), expected.map(getTimestamp(_)))
+    trace("assertReplicationMessagesEquals: actual={}, expected={}", actual.map(getTimestamp(_)), expected.map(getTimestamp(_)))
 
     actual.zip(expected).foreach {
       pair => assertReplicationMessageEquals(pair._1, pair._2, ignoreSequence)
@@ -204,82 +204,82 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     }
   }
 
-  test("subscribe should fail if not master of the service member") {
-    val subscribeRequest: Map[String, MValue] = Map(
+  test("open session should fail if not master of the service member") {
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> remoteMember.token.toString,
       ReplicationAPIParams.Cookie -> "cookie",
       ReplicationAPIParams.Start -> "12345",
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
-    val subscribeRequestMessage = new InMessage(subscribeRequest)
-    var subscribeResponseMessage: Option[OutMessage] = None
-    subscribeRequestMessage.replyCallback = (reply) => subscribeResponseMessage = Some(reply)
+    val openSessionRequestMessage = new InMessage(openSessionRequest)
+    var openSessionResponseMessage: Option[OutMessage] = None
+    openSessionRequestMessage.replyCallback = (reply) => openSessionResponseMessage = Some(reply)
 
-    sessionManager.handleSubscribeMessage(subscribeRequestMessage)
+    sessionManager.handleOpenSessionMessage(openSessionRequestMessage)
     sessionManager.sessions should be(Nil) // synchronized actor message
-    subscribeResponseMessage.get.error should not be None
-    verifyZeroInteractions(mockPushAction)
+    openSessionResponseMessage.get.error should not be None
+    verifyZeroInteractions(mockSlaveReplicateTxAction)
   }
 
-  test("subscribe should fail if service member does not exist") {
-    val subscribeRequest: Map[String, MValue] = Map(
+  test("open session should fail if service member does not exist") {
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> "1000",
       ReplicationAPIParams.Cookie -> "cookie",
       ReplicationAPIParams.Start -> "12345",
       ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
-    val subscribeRequestMessage = new InMessage(subscribeRequest)
-    var subscribeResponseMessage: Option[OutMessage] = None
-    subscribeRequestMessage.replyCallback = (reply) => subscribeResponseMessage = Some(reply)
+    val openSessionRequestMessage = new InMessage(openSessionRequest)
+    var openSessionResponseMessage: Option[OutMessage] = None
+    openSessionRequestMessage.replyCallback = (reply) => openSessionResponseMessage = Some(reply)
 
-    sessionManager.handleSubscribeMessage(subscribeRequestMessage)
+    sessionManager.handleOpenSessionMessage(openSessionRequestMessage)
     sessionManager.sessions should be(Nil) // synchronized actor message
-    subscribeResponseMessage.get.error should not be None
-    verifyZeroInteractions(mockPushAction)
+    openSessionResponseMessage.get.error should not be None
+    verifyZeroInteractions(mockSlaveReplicateTxAction)
   }
 
-  test("subscribe live mode should fail if master has no transaction log") {
-    val subscribeRequest: Map[String, MValue] = Map(
+  test("open session live mode should fail if master has no transaction log") {
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> member.token,
       ReplicationAPIParams.Cookie -> "cookie",
       ReplicationAPIParams.Start -> "12345",
       ReplicationAPIParams.Mode -> ReplicationMode.Live.toString)
 
-    val subscribeRequestMessage = new InMessage(subscribeRequest)
-    var subscribeResponseMessage: Option[OutMessage] = None
-    subscribeRequestMessage.replyCallback = (reply) => subscribeResponseMessage = Some(reply)
+    val openSessionRequestMessage = new InMessage(openSessionRequest)
+    var openSessionResponseMessage: Option[OutMessage] = None
+    openSessionRequestMessage.replyCallback = (reply) => openSessionResponseMessage = Some(reply)
 
     txLog.read.toList should be(Nil)
 
-    sessionManager.handleSubscribeMessage(subscribeRequestMessage)
+    sessionManager.handleOpenSessionMessage(openSessionRequestMessage)
     sessionManager.sessions should be(Nil) // synchronized actor message
-    subscribeResponseMessage.get.error should not be None
-    verifyZeroInteractionsAfter(wait = 100, mockPushAction)
+    openSessionResponseMessage.get.error should not be None
+    verifyZeroInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
-  test("subscribe live mode should replicate expected transactions up to window size") {
+  test("open session live mode should replicate expected transactions up to window size") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     logRecords.foreach(txLog.append(_))
     logRecords should be(txLog.read.toList)
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
 
     val startTimestamp = 1L
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPushAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received expected messages up to the window size
-    val expectedMessages = toTransactionMessages(logRecords, startTimestamp)
-    val actualMessages = messageCaptor.getAllValues.toList
-    expectedMessages.zip(actualMessages).foreach {
+    val expectedTxMessages = toTransactionMessages(logRecords, startTimestamp)
+    val actualTxMessages = messageCaptor.getAllValues.toList
+    expectedTxMessages.zip(actualTxMessages).foreach {
       case (expected, actual) => assertReplicationMessageEquals(actual = actual, expected = expected)
     }
-    actualMessages.size should be(replicationWindowSize)
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    actualTxMessages.size should be(replicationWindowSize)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
   test("replying to first replication message after full window size should replicate a new transactions") {
@@ -289,29 +289,29 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
 
     val startTimestamp = 1L
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPushAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received expected messages up to the window size
-    val expectedMessages = toTransactionMessages(logRecords, startTimestamp)
-    val actualMessages = messageCaptor.getAllValues.toList
-    expectedMessages.zip(actualMessages).foreach {
+    val expectedTxMessages = toTransactionMessages(logRecords, startTimestamp)
+    val actualTxMessages = messageCaptor.getAllValues.toList
+    expectedTxMessages.zip(actualTxMessages).foreach {
       case (expected, actual) => assertReplicationMessageEquals(actual = actual, expected = expected)
     }
-    actualMessages.size should be(replicationWindowSize)
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    actualTxMessages.size should be(replicationWindowSize)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
 
     // Verify a new message is replicated if first received message is replied
-    reset(mockPushAction)
-    actualMessages.head.handleReply(new InMessage())
-    verify(mockPushAction, timeout(1500).times(1)).callOutgoingHandlers(messageCaptor.capture())
-    assertReplicationMessageEquals(actual = messageCaptor.getValue, expected = expectedMessages(replicationWindowSize))
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    reset(mockSlaveReplicateTxAction)
+    actualTxMessages.head.handleReply(new InMessage())
+    verify(mockSlaveReplicateTxAction, timeout(1500).times(1)).callOutgoingHandlers(messageCaptor.capture())
+    assertReplicationMessageEquals(actual = messageCaptor.getValue, expected = expectedTxMessages(replicationWindowSize))
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
   test("replying last replication message after full window size should NOT replicate a new transactions") {
@@ -321,30 +321,30 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
 
     val startTimestamp = 1L
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPushAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received expected messages up to the window size
-    val expectedMessages = toTransactionMessages(logRecords, startTimestamp)
-    val actualMessages = messageCaptor.getAllValues.toList
-    expectedMessages.zip(actualMessages).foreach {
+    val expectedTxMessages = toTransactionMessages(logRecords, startTimestamp)
+    val actualTxMessages = messageCaptor.getAllValues.toList
+    expectedTxMessages.zip(actualTxMessages).foreach {
       case (expected, actual) => assertReplicationMessageEquals(actual = actual, expected = expected)
     }
-    actualMessages.size should be(replicationWindowSize)
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    actualTxMessages.size should be(replicationWindowSize)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
 
     // Verify NO new message is replicated if last received message is replied
-    reset(mockPushAction)
-    actualMessages.last.handleReply(new InMessage())
-    verifyZeroInteractionsAfter(wait = 500, mockPushAction)
+    reset(mockSlaveReplicateTxAction)
+    actualTxMessages.last.handleReply(new InMessage())
+    verifyZeroInteractionsAfter(wait = 500, mockSlaveReplicateTxAction)
   }
 
-  test("subscribe live mode should fallback to bootstrap mode if start timestamp is NOT specified") {
+  test("open session live mode should fallback to bootstrap mode if start timestamp is NOT specified") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     logRecords.foreach(txLog.append(_))
     logRecords should be(txLog.read.toList)
@@ -354,26 +354,26 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, ranges)).thenReturn(
       toStoreIterator(logRecords, startTimestamp))
 
-    // Subscribe without specifying a start timestamp
-    val session = subscribe(startTimestamp = None, ReplicationMode.Live)
+    // Open session without specifying a start timestamp
+    val session = openSession(startTimestamp = None, ReplicationMode.Live)
     session.mode should be(ReplicationMode.Bootstrap)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(currentConsistentTimestamp)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPushAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received expected messages up to the window size
-    val expectedMessages = toTransactionMessages(logRecords, Long.MinValue)
-    val actualMessages = messageCaptor.getAllValues.toList
-    expectedMessages.zip(actualMessages).foreach {
+    val expectedTxMessages = toTransactionMessages(logRecords, Long.MinValue)
+    val actualTxMessages = messageCaptor.getAllValues.toList
+    expectedTxMessages.zip(actualTxMessages).foreach {
       case (expected, actual) => assertReplicationMessageEquals(actual = actual, expected = expected)
     }
-    actualMessages.size should be(replicationWindowSize)
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    actualTxMessages.size should be(replicationWindowSize)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
-  test("subscribe live mode should fallback to bootstrap mode if start timestamp is before first log timestamp") {
+  test("open session live mode should fallback to bootstrap mode if start timestamp is before first log timestamp") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     // Append only second half of the transactions in log, first transactions will come from the store
     logRecords.slice(logRecords.size / 2, logRecords.size).foreach(txLog.append(_))
@@ -383,25 +383,25 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, ranges)).thenReturn(
       toStoreIterator(logRecords, startTimestamp))
 
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Bootstrap)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(currentConsistentTimestamp)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPushAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received expected messages up to the window size
-    val expectedMessages = toTransactionMessages(logRecords, startTimestamp)
-    val actualMessages = messageCaptor.getAllValues.toList
-    expectedMessages.zip(actualMessages).foreach {
+    val expectedTxMessages = toTransactionMessages(logRecords, startTimestamp)
+    val actualTxMessages = messageCaptor.getAllValues.toList
+    expectedTxMessages.zip(actualTxMessages).foreach {
       case (expected, actual) => assertReplicationMessageEquals(actual = actual, expected = expected)
     }
-    actualMessages.size should be(replicationWindowSize)
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    actualTxMessages.size should be(replicationWindowSize)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
-  test("subscribe bootstrap mode should replicated expected transactions up to window size") {
+  test("open session bootstrap mode should replicated expected transactions up to window size") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     // Append only second half of the transactions in log, first transactions will come from the store
     logRecords.slice(logRecords.size / 2, logRecords.size).foreach(txLog.append(_))
@@ -411,45 +411,45 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, ranges)).thenReturn(
       toStoreIterator(logRecords, startTimestamp))
 
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Bootstrap)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Bootstrap)
     session.mode should be(ReplicationMode.Bootstrap)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(currentConsistentTimestamp)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPushAction, timeout(1000).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1000).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received expected messages up to the window size
-    val expectedMessages = toTransactionMessages(logRecords, startTimestamp)
-    val actualMessages = messageCaptor.getAllValues.toList
-    expectedMessages.zip(actualMessages).foreach {
+    val expectedTxMessages = toTransactionMessages(logRecords, startTimestamp)
+    val actualTxMessages = messageCaptor.getAllValues.toList
+    expectedTxMessages.zip(actualTxMessages).foreach {
       case (expected, actual) => assertReplicationMessageEquals(actual = actual, expected = expected)
     }
-    actualMessages.size should be(replicationWindowSize)
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    actualTxMessages.size should be(replicationWindowSize)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
-  test("subscribe bootstrap mode without log should fail") {
+  test("open session bootstrap mode without log should fail") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
     val startTimestamp = 1L
     when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, ranges)).thenReturn(
       toStoreIterator(logRecords, startTimestamp))
 
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> member.token,
       ReplicationAPIParams.Cookie -> "cookie",
       ReplicationAPIParams.Start -> startTimestamp,
       ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
-    val subscribeRequestMessage = new InMessage(subscribeRequest)
-    var subscribeResponseMessage: Option[OutMessage] = None
-    subscribeRequestMessage.replyCallback = (reply) => subscribeResponseMessage = Some(reply)
+    val openSessionRequestMessage = new InMessage(openSessionRequest)
+    var openSessionResponseMessage: Option[OutMessage] = None
+    openSessionRequestMessage.replyCallback = (reply) => openSessionResponseMessage = Some(reply)
 
-    sessionManager.handleSubscribeMessage(subscribeRequestMessage)
+    sessionManager.handleOpenSessionMessage(openSessionRequestMessage)
     sessionManager.sessions should be(Nil) // synchronized actor message
-    subscribeResponseMessage.get.error should not be None
-    verifyZeroInteractions(mockPushAction)
+    openSessionResponseMessage.get.error should not be None
+    verifyZeroInteractions(mockSlaveReplicateTxAction)
   }
 
   test("bootstrap mode should end session when reaching end timestamp") {
@@ -462,20 +462,20 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     when(mockStore.readTransactions(startTimestamp, currentConsistentTimestamp.get, ranges)).thenReturn(
       toStoreIterator(logRecords, startTimestamp))
 
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Bootstrap)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Bootstrap)
     session.mode should be(ReplicationMode.Bootstrap)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(currentConsistentTimestamp)
 
-    val expectedMessages = toTransactionMessages(logRecords, startTimestamp)
+    val expectedTxMessages = toTransactionMessages(logRecords, startTimestamp)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPushAction, timeout(1500).atLeast(expectedMessages.size)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(expectedTxMessages.size)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received all expected messages
-    val actualMessages = messageCaptor.getAllValues
-    assertReplicationMessagesEquals(actualMessages, expectedMessages)
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    val actualTxMessages = messageCaptor.getAllValues
+    assertReplicationMessagesEquals(actualTxMessages, expectedTxMessages)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
     sessionManager.sessions should be(Nil) // Session should be terminated after reaching end timestamp
   }
 
@@ -487,21 +487,21 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
 
     val startTimestamp = 1L
 
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
 
-    val expectedMessages = toTransactionMessages(logRecords, startTimestamp)
+    val expectedTxMessages = toTransactionMessages(logRecords, startTimestamp)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
     member.setStatus(MemberStatus.Leaving, triggerEvent = false)
-    verify(mockPushAction, timeout(1500).atLeast(expectedMessages.size)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(expectedTxMessages.size)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received all expected messages
-    val actualMessages = messageCaptor.getAllValues
-    assertReplicationMessagesEquals(actualMessages, expectedMessages)
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    val actualTxMessages = messageCaptor.getAllValues
+    assertReplicationMessagesEquals(actualTxMessages, expectedTxMessages)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
     sessionManager.sessions should be(Nil) // Session should be terminated after reaching end timestamp
   }
 
@@ -513,32 +513,32 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
 
     val startTimestamp = 1L
 
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
 
-    val expectedMessages = toTransactionMessages(logRecords, startTimestamp)
+    val expectedTxMessages = toTransactionMessages(logRecords, startTimestamp)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPushAction, timeout(1500).atLeast(5)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(5)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received all expected messages until to consistent timestamp (i.e. 2, 3, 4, 5, 6)
-    val actualMessages = messageCaptor.getAllValues.toList
-    assertReplicationMessagesEquals(actualMessages, expectedMessages, size = 5)
-    actualMessages.size should be(5)
+    val actualTxMessages = messageCaptor.getAllValues.toList
+    assertReplicationMessagesEquals(actualTxMessages, expectedTxMessages, size = 5)
+    actualTxMessages.size should be(5)
 
     // Wait for idle message
-    reset(mockPushAction)
-    verify(mockPushAction, timeout(1500).times(1)).callOutgoingHandlers(messageCaptor.capture())
+    reset(mockSlaveReplicateTxAction)
+    verify(mockSlaveReplicateTxAction, timeout(1500).times(1)).callOutgoingHandlers(messageCaptor.capture())
     messageCaptor.getValue.hasData should be(false)
 
     // Advance consistent timestamp and verify a new transaction is replicated
-    reset(mockPushAction)
+    reset(mockSlaveReplicateTxAction)
     currentConsistentTimestamp = Some(8L)
-    verify(mockPushAction, timeout(1500).times(1)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).times(1)).callOutgoingHandlers(messageCaptor.capture())
     messageCaptor.getValue.getData[Message].timestamp should be(Some(Timestamp(7L)))
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
   test("live mode should replicate new transactions when appended in log and consistent timestamp increase") {
@@ -550,81 +550,81 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
 
     val startTimestamp = 1L
 
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
 
-    val allExpectedMessages = toTransactionMessages(allLogRecords, startTimestamp)
-    val (expectedMessages, newExpectedMessages) = allExpectedMessages.partition(
+    val allexpectedTxMessages = toTransactionMessages(allLogRecords, startTimestamp)
+    val (expectedTxMessages, newexpectedTxMessages) = allexpectedTxMessages.partition(
       _.getData[Message].timestamp.get < logRecords.last.consistentTimestamp.get.value)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPushAction, timeout(1500).atLeast(expectedMessages.size)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(expectedTxMessages.size)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received all expected messages
-    val actualMessages = messageCaptor.getAllValues
-    assertReplicationMessagesEquals(actualMessages, expectedMessages)
-    actualMessages.size should be > 0
+    val actualTxMessages = messageCaptor.getAllValues
+    assertReplicationMessagesEquals(actualTxMessages, expectedTxMessages)
+    actualTxMessages.size should be > 0
 
     // Append new log records and verify they are replicated after advancing the consistent timestamp
-    reset(mockPushAction)
+    reset(mockSlaveReplicateTxAction)
     newLogRecords.foreach(txLog.append(_))
     currentConsistentTimestamp = newLogRecords.last.consistentTimestamp
 
     val newMessageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockPushAction, timeout(1500).atLeast(newExpectedMessages.size)).callOutgoingHandlers(newMessageCaptor.capture())
-    assertReplicationMessagesEquals(newMessageCaptor.getAllValues.filter(_.hasData), newExpectedMessages,
-      size = newExpectedMessages.size - 1, ignoreSequence = true)
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(newexpectedTxMessages.size)).callOutgoingHandlers(newMessageCaptor.capture())
+    assertReplicationMessagesEquals(newMessageCaptor.getAllValues.filter(_.hasData), newexpectedTxMessages,
+      size = newexpectedTxMessages.size - 1, ignoreSequence = true)
 
-    verifyNoMoreInteractionsAfter(wait = 100, mockPushAction)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
-  test("unsubscribe should kill session") {
+  test("close session should kill session") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     logRecords.foreach(txLog.append(_))
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
 
     val startTimestamp = 1L
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
     sessionManager.sessions should be(List(session))
 
-    val unsubscribeRequest: Map[String, MValue] = Map(
+    val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> session.id.get)
-    val unsubscribeRequestMessage = new InMessage(unsubscribeRequest)
-    var unsubscribeResponseMessage: Option[OutMessage] = None
-    unsubscribeRequestMessage.replyCallback = (reply) => unsubscribeResponseMessage = Some(reply)
+    val closeSessionRequestMessage = new InMessage(closeSessionRequest)
+    var closeSessionResponseMessage: Option[OutMessage] = None
+    closeSessionRequestMessage.replyCallback = (reply) => closeSessionResponseMessage = Some(reply)
 
-    sessionManager.handleUnsubscribeMessage(unsubscribeRequestMessage)
+    sessionManager.handleCloseSessionMessage(closeSessionRequestMessage)
     sessionManager.sessions should be(Nil)
-    unsubscribeResponseMessage.get.error should be(None)
-    verifyZeroInteractionsAfter(wait = 100, mockPushAction)
+    closeSessionResponseMessage.get.error should be(None)
+    verifyZeroInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
-  test("unsubscribe unknown session should do nothing") {
+  test("close session unknown session should do nothing") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     logRecords.foreach(txLog.append(_))
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
 
     val startTimestamp = 1L
-    val session = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
     sessionManager.sessions should be(List(session))
 
-    val unsubscribeRequest: Map[String, MValue] = Map(
+    val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> "bad id")
-    val unsubscribeRequestMessage = new InMessage(unsubscribeRequest)
-    var unsubscribeResponseMessage: Option[OutMessage] = None
-    unsubscribeRequestMessage.replyCallback = (reply) => unsubscribeResponseMessage = Some(reply)
+    val closeSessionRequestMessage = new InMessage(closeSessionRequest)
+    var closeSessionResponseMessage: Option[OutMessage] = None
+    closeSessionRequestMessage.replyCallback = (reply) => closeSessionResponseMessage = Some(reply)
 
-    sessionManager.handleUnsubscribeMessage(unsubscribeRequestMessage)
+    sessionManager.handleCloseSessionMessage(closeSessionRequestMessage)
     sessionManager.sessions should be(List(session))
-    unsubscribeResponseMessage.get.error should be(None)
+    closeSessionResponseMessage.get.error should be(None)
   }
 
   test("terminate member sessions should skill all member sessions") {
@@ -633,8 +633,8 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
 
     val startTimestamp = 1L
-    val session1 = subscribe(Some(startTimestamp), ReplicationMode.Live)
-    val session2 = subscribe(Some(startTimestamp), ReplicationMode.Live)
+    val session1 = openSession(Some(startTimestamp), ReplicationMode.Live)
+    val session2 = openSession(Some(startTimestamp), ReplicationMode.Live)
     sessionManager.sessions should be(List(session1, session2))
 
     sessionManager.terminateMemberSessions(ResolvedServiceMember(service, member))

@@ -39,7 +39,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                              txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000,
                              timestampTimeoutExtraDelay: Int = 250,
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
-                             replicationSubscriptionIdleTimeout: Long = 30000L, replicationSubscribeDelay: Long = 5000,
+                             replicationSessionIdleTimeout: Long = 30000L, replicationOpenSessionDelay: Long = 5000,
                              replicationResolver: Option[Resolver] = None)
   extends Consistency with Logging {
 
@@ -72,10 +72,12 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   // Slave replication session management
   private lazy val slaveReplicationSessionManager = new SlaveReplicationSessionManager(service, service,
-    replicationSubscriptionIdleTimeout, txLogCommitFrequency)
-  // TODO: DUPLICATE ACTION (???) AND RENAME
-  private lazy val publishAction = new Action("/replication/publish/:" + ReplicationAPIParams.SessionId,
+    replicationSessionIdleTimeout, txLogCommitFrequency)
+  @deprecated
+  private lazy val publishAction = new Action(s"/replication/publish/:${ReplicationAPIParams.SessionId}",
     slaveReplicationSessionManager.handleReplicationMessage, ActionMethod.POST)
+  private lazy val slaveReplicateTxAction = new Action(s"/replication/slave/sessions/:${ReplicationAPIParams.SessionId}",
+    slaveReplicationSessionManager.handleReplicationMessage, ActionMethod.PUT)
 
   // Master replication session management
   private lazy val masterReplicationSessionManager: MasterReplicationSessionManager = {
@@ -91,15 +93,19 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
     new MasterReplicationSessionManager(service, service, getTransactionLog, getMemberCurrentConsistentTimestamp,
       pushAction = publishAction, pushTps = replicationTps, pushWindowSize = replicationWindowSize,
-      maxIdleDurationInMs = replicationSubscriptionIdleTimeout)
+      maxIdleDurationInMs = replicationSessionIdleTimeout)
   }
 
-
-  // TODO: DUPLICATE ACTIONs (???)
-  private lazy val subscribeAction = new Action("/replication/subscribe/:" + ReplicationAPIParams.Token,
-    masterReplicationSessionManager.handleSubscribeMessage, ActionMethod.POST)
-  private lazy val unsubscribeAction = new Action("/replication/unsubscribe/:" + ReplicationAPIParams.Token,
-    masterReplicationSessionManager.handleUnsubscribeMessage, ActionMethod.POST)
+  @deprecated
+  private lazy val subscribeAction = new Action(s"/replication/subscribe/:${ReplicationAPIParams.Token}",
+    masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.POST)
+  @deprecated
+  private lazy val unsubscribeAction = new Action(s"/replication/unsubscribe/:${ReplicationAPIParams.Token}",
+    masterReplicationSessionManager.handleCloseSessionMessage, ActionMethod.POST)
+  private lazy val masterOpenSessionAction = new Action(s"/replication/master/:${ReplicationAPIParams.Token}/sessions",
+    masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.POST)
+  private lazy val masterCloseSessionAction = new Action(s"/replication/master/:${ReplicationAPIParams.Token}/sessions/:${ReplicationAPIParams.SessionId}",
+    masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.DELETE)
 
   private lazy val getConsistencyStateAction = new Action("/consistency/state/:" + ReplicationAPIParams.Token,
     handleGetConsistencyState, ActionMethod.GET)
@@ -126,23 +132,24 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       // TODO: update cache when new members are removed (i.e. live shard merge)
       updateRangeMemberCache()
 
+      slaveReplicateTxAction.applySupport(resolver = Some(new Resolver(tokenExtractor = Resolver.TOKEN_RANDOM())),
+        nrvCodec = Some(serializer.messageCodec))
+      masterOpenSessionAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
+      masterCloseSessionAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
       publishAction.applySupport(resolver = Some(new Resolver(tokenExtractor = Resolver.TOKEN_RANDOM())),
         nrvCodec = Some(serializer.messageCodec))
       subscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
       unsubscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
-      publishAction.start()
-      subscribeAction.start()
-      unsubscribeAction.start()
 
       masterReplicationSessionManager.start()
       slaveReplicationSessionManager.start()
       SlaveReplicationManagerActor.start()
 
-      // Subscribe for replication to all master service members the current node is a slave
-      info("Startup replication subscription  {}", service)
+      // Open a replication session for all service members the local node is a slave
+      info("Startup replication open sessions  {}", service)
       service.members.withFilter(member => member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {
         member =>
-          SlaveReplicationManagerActor ! Subscribe(member, ReplicationMode.Store)
+          SlaveReplicationManagerActor ! OpenSession(member, ReplicationMode.Bootstrap)
       }
 
       started = true
@@ -155,11 +162,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         SlaveReplicationManagerActor !? Kill
         slaveReplicationSessionManager.stop()
         masterReplicationSessionManager.stop()
-
-        publishAction.stop()
-        subscribeAction.stop()
-        unsubscribeAction.stop()
-
         started = false
       }
     }
@@ -182,6 +184,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     service.registerAction(publishAction)
     service.registerAction(subscribeAction)
     service.registerAction(unsubscribeAction)
+    service.registerAction(slaveReplicateTxAction)
+    service.registerAction(masterOpenSessionAction)
+    service.registerAction(masterCloseSessionAction)
     service.registerAction(getConsistencyStateAction)
   }
 
@@ -201,7 +206,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       case event: NewMemberAddedEvent => {
         updateRangeMemberCache()
         if (event.member.status == MemberStatus.Up && isSlaveReplicaOf(event.member)) {
-          SlaveReplicationManagerActor ! Subscribe(event.member, ReplicationMode.Store)
+          SlaveReplicationManagerActor ! OpenSession(event.member, ReplicationMode.Store)
         }
       }
       case _ => // Ignore unsupported events
@@ -351,15 +356,15 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           recorder.start()
         }
 
-        // Subscribe to replication source already up for which we are a slave replica
+        // Open a replication session for all service members the local node is a slave
         service.members.withFilter(member =>
           member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {
-          SlaveReplicationManagerActor ! Subscribe(_, ReplicationMode.Store)
+          SlaveReplicationManagerActor ! OpenSession(_, ReplicationMode.Bootstrap)
         }
       }
       case MemberStatus.Down => {
         this.synchronized {
-          // Cancel all master replication sessions for the member
+          // Close all master replication sessions for the member
           masterReplicationSessionManager.terminateMemberSessions(ResolvedServiceMember(service, event.member))
 
           // Remove transaction recorder for all other cases
@@ -374,22 +379,22 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   /**
-   * Manage replication subscriptions on remote service member status change. If local service member is an eligible
-   * slave replica of a remote service member going up, initiate a replication subscription to start receiving
-   * updates from source replica.
+   * Manage replication sessions on remote service member status change. If local service member is an eligible
+   * slave replica of a remote service member going up, open a replication session to start receiving
+   * updates from the master.
    */
   private def handleRemoteServiceMemberStatusTransitionEvent(event: StatusTransitionEvent) {
     event.to match {
       case MemberStatus.Up => {
-        // Subscribe to remote source replica if we are a slave replica of the service member that just went Up
+        // Try to open a replication session if we are a slave replica of the service member that just went Up
         if (isSlaveReplicaOf(event.member)) {
-          SlaveReplicationManagerActor ! Subscribe(event.member, ReplicationMode.Store)
+          SlaveReplicationManagerActor ! OpenSession(event.member, ReplicationMode.Bootstrap)
         }
       }
-      case MemberStatus.Leaving => // Do nothing, must not unsubscribe to let drain existing replication subscriptions
+      case MemberStatus.Leaving => // Do nothing, must not close session to let drain open replication sessions
       case _ => {
-        // Unsubscribe slave replication subscriptions if the remote member status is not Up or Leaving.
-        SlaveReplicationManagerActor ! Unsubscribe(event.member)
+        // Close all slave replication sessions if the remote member status is not Up or Leaving.
+        SlaveReplicationManagerActor ! CloseSession(event.member)
       }
     }
   }
@@ -652,30 +657,24 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
 
   private object SlaveReplicationManagerProtocol {
 
-    case class Subscribe(member: ServiceMember, mode: ReplicationMode)
+    case class OpenSession(member: ServiceMember, mode: ReplicationMode)
 
-    case class Unsubscribe(member: ServiceMember)
+    case class CloseSession(member: ServiceMember)
 
     object Kill
 
   }
 
   /**
-   * Manage local slave replication sessions. The usage of actor ensure that no concurrent subscribe call is
+   * Manage local slave replication sessions. The usage of actor ensure that no concurrent open session call is
    * done in parallel for the same service member.
    */
   private object SlaveReplicationManagerActor extends Actor {
 
     import SlaveReplicationManagerProtocol._
 
-    /**
-     * TODO: REWORD THIS!!!
-     * Enables the replication through the publish/subscribe principle.
-     * By subscribing to the specified service member, the local replica node
-     * will be able to receive all the appropriate data it needs.
-     */
-    private def subscribe(member: ServiceMember, mode: ReplicationMode) {
-      info("Local replica is subscribing to {}", member)
+    private def openSession(member: ServiceMember, mode: ReplicationMode) {
+      info("Local replica open a replication session to {}", member)
 
       // No recovery if already has a session to prevent transaction log corruption
       val resolvedMember = ResolvedServiceMember(service, member)
@@ -683,13 +682,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         restoreMemberConsistency(resolvedMember, onSuccess = {
           metrics.consistencyOk.mark()
           info("Local replica restoreMemberConsistency: onSuccess {}", member)
-          val subscribeDelay = mode match {
-            case ReplicationMode.Bootstrap | ReplicationMode.Store => replicationSubscribeDelay
+          val openSessionDelay = mode match {
+            case ReplicationMode.Bootstrap | ReplicationMode.Store => replicationOpenSessionDelay
             case ReplicationMode.Live => 0
           }
           val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
             serializer = Some(serializer))
-          slaveReplicationSessionManager.subscribe(resolvedMember, txLog, subscribeDelay, subscribeAction, unsubscribeAction, mode,
+          slaveReplicationSessionManager.openSession(resolvedMember, txLog, openSessionDelay,
+            subscribeAction, unsubscribeAction, mode,
             onSessionEnd = (error) => {
               info("Replication session terminated {}. {}", resolvedMember, error)
               updateMemberConsistencyState(member, newState = error.map(_ => MemberConsistencyState.Error))
@@ -700,7 +700,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               if (member.status == MemberStatus.Up) {
                 // If session ends gracefully, assumes we can switch to live replication
                 val newMode = if (error.isDefined) ReplicationMode.Store else ReplicationMode.Live
-                SlaveReplicationManagerActor ! Subscribe(member, newMode)
+                SlaveReplicationManagerActor ! OpenSession(member, newMode)
               }
             })
           updateMemberConsistencyState(member, Some(MemberConsistencyState.Ok))
@@ -715,21 +715,21 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     def act() {
       loop {
         react {
-          case Subscribe(member, mode) => {
+          case OpenSession(member, mode) => {
             try {
-              subscribe(member, mode)
+              openSession(member, mode)
             } catch {
               case e: Exception => {
-                warn("Error processing subscribe for {}", member, e)
+                warn("Error processing open session for {}", member, e)
               }
             }
           }
-          case Unsubscribe(member) => {
+          case CloseSession(member) => {
             try {
-              slaveReplicationSessionManager.unsubscribe(ResolvedServiceMember(service, member))
+              slaveReplicationSessionManager.closeSession(ResolvedServiceMember(service, member))
             } catch {
               case e: Exception => {
-                warn("Error processing unsubscribe for {}", member, e)
+                warn("Error processing close session for {}", member, e)
               }
             }
           }

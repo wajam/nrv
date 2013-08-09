@@ -25,8 +25,8 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
   var member: ResolvedServiceMember = null
   var txLogProxy: TransactionLogProxy = null
   var mockStore: ConsistentStore = null
-  var mockSubscribeAction: Action = null
-  var mockUnsubscribeAction: Action = null
+  var mockMasterOpenSessionAction: Action = null
+  var mockMasterCloseSessionAction: Action = null
 
   var currentCookie: String = null
   var currentLogId: Long = 0
@@ -44,8 +44,8 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     txLogProxy = new TransactionLogProxy
 
     mockStore = mock[ConsistentStore]
-    mockSubscribeAction = mock[Action]
-    mockUnsubscribeAction = mock[Action]
+    mockMasterOpenSessionAction = mock[Action]
+    mockMasterCloseSessionAction = mock[Action]
 
     val logIdGenerator = new IdGenerator[Long] {
       def nextId = {
@@ -63,8 +63,8 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
   after {
     sessionManager.stop()
     sessionManager = null
-    mockUnsubscribeAction = null
-    mockSubscribeAction = null
+    mockMasterCloseSessionAction = null
+    mockMasterOpenSessionAction = null
     mockStore = null
     txLogProxy = null
 
@@ -90,32 +90,32 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     verifyOnSessionEnd(expectedCalls = 0)
   }
 
-  def subscribe(startTimestamp: Timestamp = 0L, cookie: String = UUID.randomUUID().toString): ReplicationSession = {
+  def openSession(startTimestamp: Timestamp = 0L, cookie: String = UUID.randomUUID().toString): ReplicationSession = {
     val endTimestamp = Timestamp(5678)
     val sessionId = "9876"
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
-    val subscribeResponse: Map[String, MValue] = Map(
+    val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.End -> endTimestamp.toString)
 
     // Verify session is activated
-    val matchCaptor = MessageMatcher(subscribeRequest)
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
-    matchCaptor.replyCapturedMessageWith(subscribeResponse)
-    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    val matchCaptor = MessageMatcher(openSessionRequest)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(openSessionResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
 
     sessionManager.sessions.find(_.cookie == cookie).get
   }
@@ -139,90 +139,90 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     message
   }
 
-  test("subscribe should invoke master") {
+  test("open session should invoke master") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
-    verifyNoMoreInteractions(mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(openSessionRequest)))
+    verifyNoMoreInteractions(mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(ReplicationSession(member, cookie, ReplicationMode.Bootstrap)))
   }
 
-  test("subscribe should invoke master only after delay") {
+  test("open session should invoke master only after delay") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 800, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 800, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
     // Wait 75% of the delay and ensure no interaction yet
-    verifyZeroInteractionsAfter(wait = 600, mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    verifyZeroInteractionsAfter(wait = 600, mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(ReplicationSession(member, cookie, ReplicationMode.Bootstrap)))
 
     // Wait delay remainder and verify subscribe call is done
-    verify(mockSubscribeAction, timeout(200)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
-    verifyNoMoreInteractions(mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    verify(mockMasterOpenSessionAction, timeout(200)).callOutgoingHandlers(argThat(matchMessage(openSessionRequest)))
+    verifyNoMoreInteractions(mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(ReplicationSession(member, cookie, ReplicationMode.Bootstrap)))
   }
 
-  test("subscribe should not invoke master twice if a session is already pending") {
+  test("open session should not invoke master twice if a session is already pending") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
     val expectedSession = ReplicationSession(member, cookie, ReplicationMode.Bootstrap)
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 800, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 800, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
     // Waiting 50% of the delay
-    verifyZeroInteractionsAfter(wait = 400, mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    verifyZeroInteractionsAfter(wait = 400, mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(expectedSession))
 
     // Try subscribe again
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
 
     // Wait delay remainder and verify subscribe call is done only once
     Thread.sleep(400)
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
-    verifyNoMoreInteractions(mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(openSessionRequest)))
+    verifyNoMoreInteractions(mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(expectedSession))
   }
 
-  test("session should be activated after receiving a subscribe response") {
+  test("session should be activated after receiving an open session response") {
     val startTimestamp = Timestamp(1234)
     val endTimestamp = Timestamp(5678)
     val cookie = "miam"
@@ -231,31 +231,31 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
-    val subscribeResponse: Map[String, MValue] = Map(
+    val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.End -> endTimestamp.toString)
 
 
-    val matchCaptor = MessageMatcher(subscribeRequest)
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
-    matchCaptor.replyCapturedMessageWith(subscribeResponse)
-    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    val matchCaptor = MessageMatcher(openSessionRequest)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(openSessionResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(expectedSession))
   }
 
-  test("session should NOT be activated if receiving wrong cookie in the subscribe response") {
+  test("session should NOT be activated if receiving wrong cookie in the open session response") {
     val startTimestamp = Timestamp(1234)
     val endTimestamp = Timestamp(5678)
     val cookie = "miam"
@@ -264,99 +264,99 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
-    val subscribeResponse: Map[String, MValue] = Map(
+    val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
       ReplicationAPIParams.Cookie -> "bad cookie",
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.End -> endTimestamp.toString)
 
-    val unsubscribeRequest: Map[String, MValue] = Map(
+    val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.SubscriptionId -> sessionId,
       ReplicationAPIParams.SessionId -> sessionId)
 
-    val matchCaptor = MessageMatcher(subscribeRequest)
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
-    matchCaptor.replyCapturedMessageWith(subscribeResponse)
-    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
-    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    verifyZeroInteractions(mockUnsubscribeAction)
+    val matchCaptor = MessageMatcher(openSessionRequest)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(openSessionResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockMasterOpenSessionAction)
+    verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(expectedSession))
   }
 
-  test("subscribe response error should remove pending session") {
+  test("open session response error should remove pending session") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
-    val subscribeResponse = new Exception("reponse error")
+    val openSessionResponse = new Exception("reponse error")
 
     // Verify onSessionEnd is invoked with the error
-    val matchCaptor = MessageMatcher(subscribeRequest)
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
-    matchCaptor.replyCapturedMessageWith(subscribeResponse)
-    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
-    verifyOnSessionEnd(1, subscribeResponse)
+    val matchCaptor = MessageMatcher(openSessionRequest)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(openSessionResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
+    verifyOnSessionEnd(1, openSessionResponse)
     sessionManager.sessions should be(Nil)
   }
 
-  test("subscribe response with identical start/end timestamps should not active session") {
+  test("open session response with identical start/end timestamps should not active session") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
     val sessionId = "9876"
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
-    val subscribeResponse: Map[String, MValue] = Map(
+    val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.End -> startTimestamp.toString)
 
-    val unsubscribeRequest: Map[String, MValue] = Map(
+    val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.SubscriptionId -> sessionId,
       ReplicationAPIParams.SessionId -> sessionId)
 
-    // Verify unsubscribe is sent and onSessionEnd is invoked without an error
-    val matchCaptor = MessageMatcher(subscribeRequest)
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
-    matchCaptor.replyCapturedMessageWith(subscribeResponse)
-    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
-    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    verifyZeroInteractions(mockUnsubscribeAction)
+    // Verify close session is sent and onSessionEnd is invoked without an error
+    val matchCaptor = MessageMatcher(openSessionRequest)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(openSessionResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockMasterOpenSessionAction)
+    verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEnd(1)
     sessionManager.sessions should be(Nil)
   }
 
-  test("subscribe should not invoke master twice if already have a session") {
+  test("open session should not invoke master twice if already have a session") {
     val startTimestamp = Timestamp(1234)
     val endTimestamp = Timestamp(5678)
     val cookie = "miam"
@@ -365,36 +365,36 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
-    val subscribeResponse: Map[String, MValue] = Map(
+    val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.End -> endTimestamp.toString)
 
-    val matchCaptor = MessageMatcher(subscribeRequest)
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
-    matchCaptor.replyCapturedMessageWith(subscribeResponse)
-    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    val matchCaptor = MessageMatcher(openSessionRequest)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(openSessionResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(expectedSession))
 
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    verifyZeroInteractionsAfter(wait = 100, mockSubscribeAction, mockUnsubscribeAction)
+    verifyZeroInteractionsAfter(wait = 100, mockMasterOpenSessionAction, mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(expectedSession))
   }
 
-  test("subscribe when have another service member session pending") {
+  test("open session when have another service member session pending") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
     val expectedSession = ReplicationSession(member, cookie, ReplicationMode.Bootstrap)
@@ -405,52 +405,52 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val otherSession = ReplicationSession(otherMember, otherCookie, ReplicationMode.Bootstrap)
     currentCookie = otherCookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(otherMember, txLogProxy, delay = 5000, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(otherMember, txLogProxy, delay = 5000, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
     sessionManager.sessions should be(List(otherSession))
-    verifyZeroInteractions(mockSubscribeAction, mockUnsubscribeAction)
+    verifyZeroInteractions(mockMasterOpenSessionAction, mockMasterCloseSessionAction)
 
     // Open new replication session
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
     // Validate now have two pending sessions
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(subscribeRequest)))
-    verifyNoMoreInteractions(mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(openSessionRequest)))
+    verifyNoMoreInteractions(mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions.toSet should be(Set(otherSession, expectedSession))
   }
 
-  test("unsubscribe before delay expires should should not invoke master") {
+  test("close pending session before pending delay expires should should not invoke master") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 500, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 500, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
 
     // Ensure no interaction yet
-    verifyZeroInteractionsAfter(wait = 200, mockSubscribeAction, mockUnsubscribeAction)
+    verifyZeroInteractionsAfter(wait = 200, mockMasterOpenSessionAction, mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(ReplicationSession(member, cookie, ReplicationMode.Bootstrap)))
 
-    // Unsubscribe and wait end of the delay
-    sessionManager.unsubscribe(member)
-    verifyZeroInteractionsAfter(wait = 400, mockSubscribeAction, mockUnsubscribeAction)
+    // Close session and wait end of the delay
+    sessionManager.closeSession(member)
+    verifyZeroInteractionsAfter(wait = 400, mockMasterOpenSessionAction, mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(Nil)
   }
 
-  test("unsubscribe pending session should ignore subscribe response") {
+  test("close pending session should ignore open session response") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
     val sessionId = "9876"
@@ -458,52 +458,52 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
 
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
-    val subscribeResponse: Map[String, MValue] = Map(
+    val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.End -> "5678")
 
-    val unsubscribeRequest: Map[String, MValue] = Map(
+    val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.SubscriptionId -> sessionId,
       ReplicationAPIParams.SessionId -> sessionId)
 
-    // Verify session is pending (open session reponse is delayed after unsubscribe)
-    val matchCaptor = MessageMatcher(subscribeRequest)
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
-    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    // Verify session is pending (open session reponse is delayed after call to openSession)
+    val matchCaptor = MessageMatcher(openSessionRequest)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    verifyNoMoreInteractionsAfter(wait = 100, mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(expectedSession))
 
-    // Unsubscribe pending session before receiving response
-    sessionManager.unsubscribe(member)
-    verifyZeroInteractionsAfter(wait = 100, mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    // close pending session before receiving response
+    sessionManager.closeSession(member)
+    verifyZeroInteractionsAfter(wait = 100, mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(Nil)
 
-    // Finally receive the subscribe response (after unsubscribing)
-    matchCaptor.replyCapturedMessageWith(subscribeResponse)
+    // Finally receive the open session response (after calling closeSession)
+    matchCaptor.replyCapturedMessageWith(openSessionResponse)
 
-    // Verify unsubscribe is sent after getting the late subscribe response
-    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    verifyZeroInteractionsAfter(wait = 100, mockSubscribeAction, mockUnsubscribeAction)
+    // Verify close session response is sent after getting the late open session response
+    verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
+    verifyZeroInteractionsAfter(wait = 100, mockMasterOpenSessionAction, mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(Nil)
   }
 
-  test("unsubscribe should unsubscribe proper session") {
+  test("close session should close the proper session") {
     val startTimestamp = Timestamp(1234)
     val endTimestamp = Timestamp(5678)
     val cookie = "miam"
@@ -512,51 +512,51 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
-    sessionManager.subscribe(member, txLogProxy, delay = 0, ActionProxy(mockSubscribeAction), ActionProxy(mockUnsubscribeAction),
+    sessionManager.openSession(member, txLogProxy, delay = 0, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
       ReplicationMode.Bootstrap, onSessionEnd)
-    val subscribeRequest: Map[String, MValue] = Map(
+    val openSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
 
-    val subscribeResponse: Map[String, MValue] = Map(
+    val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.End -> endTimestamp.toString)
 
     // Verify session is activated
-    val matchCaptor = MessageMatcher(subscribeRequest)
-    verify(mockSubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
-    matchCaptor.replyCapturedMessageWith(subscribeResponse)
-    verifyNoMoreInteractionsAfter(wait = 100, mockSubscribeAction)
-    verifyZeroInteractions(mockUnsubscribeAction)
+    val matchCaptor = MessageMatcher(openSessionRequest)
+    verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchCaptor))
+    matchCaptor.replyCapturedMessageWith(openSessionResponse)
+    verifyNoMoreInteractionsAfter(wait = 100, mockMasterOpenSessionAction)
+    verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
     sessionManager.sessions should be(List(expectedSession))
 
-    // Unsubscribe member without session (should do nothing)
+    // Calling closeSession for a member without session should do nothing
     val otherMember = ResolvedServiceMember(service.name, token + 1000, Seq(TokenRange.All))
-    sessionManager.unsubscribe(otherMember)
-    verifyZeroInteractionsAfter(wait = 100, mockUnsubscribeAction)
-    verifyZeroInteractions(mockSubscribeAction)
+    sessionManager.closeSession(otherMember)
+    verifyZeroInteractionsAfter(wait = 100, mockMasterCloseSessionAction)
+    verifyZeroInteractions(mockMasterOpenSessionAction)
     sessionManager.sessions should be(List(expectedSession))
 
-    // Unsubscribe
-    val unsubscribeRequest: Map[String, MValue] = Map(
+    // Closing the active session
+    val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.SubscriptionId -> sessionId,
       ReplicationAPIParams.SessionId -> sessionId)
 
-    sessionManager.unsubscribe(member)
-    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    verifyZeroInteractionsAfter(wait = 100, mockUnsubscribeAction, mockSubscribeAction)
+    sessionManager.closeSession(member)
+    verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
+    verifyZeroInteractionsAfter(wait = 100, mockMasterCloseSessionAction, mockMasterOpenSessionAction)
     sessionManager.sessions should be(Nil)
   }
 
-  test("replication mesage should store in tx log and store in proper order") {
+  test("replication message should store in tx log and store in proper order") {
     val startTimestamp = 0L
-    val session = subscribe(startTimestamp)
+    val session = openSession(startTimestamp)
 
     val tx1 = createRequestMessage(timestamp = 100L)
     val tx2 = createRequestMessage(timestamp = 200L)
@@ -565,12 +565,12 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val ordered = inOrder(txLogProxy.mockAppender, mockStore)
     currentLogId = 1000
 
-    // Publish transactions out of order
+    // Intentionally replicate transactions out of order
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 2, session.id.get, tx2))
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 3, session.id.get, tx3))
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 1, session.id.get, tx1))
 
-    // Wait for transaction processing, unfortunatly timeout mode is not implemented with InOrder
+    // Wait for transaction processing, unfortunately timeout mode is not implemented with InOrder
     Thread.sleep(100)
 
     // Verify transactions applied in order
@@ -585,12 +585,12 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     ordered.verify(txLogProxy.mockAppender).append(LogRecord(1005, tx2.timestamp, createResponseMessage(tx3)))
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
     pushTxReplyCount should be(3)
-    verifyZeroInteractions(mockSubscribeAction, mockUnsubscribeAction)
+    verifyZeroInteractions(mockMasterOpenSessionAction, mockMasterCloseSessionAction)
   }
 
   test("replication message tx log append error should result in consistency error") {
     val startTimestamp = 0L
-    val session = subscribe(startTimestamp)
+    val session = openSession(startTimestamp)
 
     currentLogId = 1000
 
@@ -601,12 +601,12 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val ordered = inOrder(txLogProxy.mockAppender, mockStore)
     when(txLogProxy.mockAppender.append(LogRecord(1002, tx1.timestamp, tx2))).thenThrow(new RuntimeException())
 
-    // Publish transactions out of order
+    // Intentionally replicate transactions out of order
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 2, session.id.get, tx2))
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 1, session.id.get, tx1))
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 3, session.id.get, tx3))
 
-    // Wait for transaction processing, unfortunatly timeout mode is not implemented with InOrder
+    // Wait for transaction processing, unfortunately timeout mode is not implemented with InOrder
     Thread.sleep(100)
 
     // Verify transactions applied in order up to the error
@@ -617,17 +617,17 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
     pushTxReplyCount should be(1)
 
-    val unsubscribeRequest: Map[String, MValue] = Map(
+    val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.SubscriptionId -> session.id.get,
       ReplicationAPIParams.SessionId -> session.id.get)
-    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    verifyZeroInteractions(mockSubscribeAction)
+    verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
+    verifyZeroInteractions(mockMasterOpenSessionAction)
   }
 
   test("replication message consistent store write error should result in consistency error") {
     val startTimestamp = 0L
-    val session = subscribe(startTimestamp)
+    val session = openSession(startTimestamp)
 
     currentLogId = 1000
 
@@ -637,7 +637,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val ordered = inOrder(txLogProxy.mockAppender, mockStore)
     when(mockStore.writeTransaction(argThat(matchMessage(tx1)))).thenThrow(new RuntimeException())
 
-    // Publish transactions out of order
+    // Intentionally replicate transactions out of order
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 2, session.id.get, tx2))
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 1, session.id.get, tx1))
 
@@ -650,17 +650,17 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
     pushTxReplyCount should be(0)
 
-    val unsubscribeRequest: Map[String, MValue] = Map(
+    val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.SubscriptionId -> session.id.get,
       ReplicationAPIParams.SessionId -> session.id.get)
-    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    verifyZeroInteractions(mockSubscribeAction)
+    verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
+    verifyZeroInteractions(mockMasterOpenSessionAction)
   }
 
   test("skip replication message sequence # should result in consistency error") {
     val startTimestamp = 0L
-    val session = subscribe(startTimestamp)
+    val session = openSession(startTimestamp)
 
     currentLogId = 1000
 
@@ -670,7 +670,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     val ordered = inOrder(txLogProxy.mockAppender, mockStore)
 
-    // Publish transactions with a sequence # gap, untill timeout and resume
+    // Replicate transactions with a sequence # gap until timeout and resume
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 3, session.id.get, tx3))
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 1, session.id.get, tx1))
     Thread.sleep((sessionTimeout * 1.5).toLong)
@@ -683,17 +683,17 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
     pushTxReplyCount should be(1)
 
-    val unsubscribeRequest: Map[String, MValue] = Map(
+    val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.SubscriptionId -> session.id.get,
       ReplicationAPIParams.SessionId -> session.id.get)
-    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    verifyZeroInteractions(mockSubscribeAction)
+    verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
+    verifyZeroInteractions(mockMasterOpenSessionAction)
   }
 
   test("stop receiving replication message should result in timeout error") {
     val startTimestamp = 0L
-    val session = subscribe(startTimestamp)
+    val session = openSession(startTimestamp)
 
     currentLogId = 1000
 
@@ -701,7 +701,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     val ordered = inOrder(txLogProxy.mockAppender, mockStore)
 
-    // Publish transactions with a sequence # gap, untill timeout and resume
+    // Publish transactions with a sequence # gap until timeout and resume
     sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 1, session.id.get, tx1))
     Thread.sleep((sessionTimeout * 1.5).toLong)
 
@@ -712,17 +712,17 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
     pushTxReplyCount should be(1)
 
-    val unsubscribeRequest: Map[String, MValue] = Map(
+    val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.SubscriptionId -> session.id.get,
       ReplicationAPIParams.SessionId -> session.id.get)
-    verify(mockUnsubscribeAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(unsubscribeRequest)))
-    verifyZeroInteractions(mockSubscribeAction)
+    verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
+    verifyZeroInteractions(mockMasterOpenSessionAction)
   }
 
   test("idle message should not result in timeout error") {
     val startTimestamp = 0L
-    val session = subscribe(startTimestamp)
+    val session = openSession(startTimestamp)
     currentLogId = 1000
 
     // Publish keep alive messages
@@ -736,7 +736,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     // Wait for transaction processing
     Thread.sleep(100)
 
-    verifyZeroInteractions(txLogProxy.mockAppender, mockStore, mockSubscribeAction, mockUnsubscribeAction)
+    verifyZeroInteractions(txLogProxy.mockAppender, mockStore, mockMasterOpenSessionAction, mockMasterCloseSessionAction)
     pushTxReplyCount should be(3)
   }
 }

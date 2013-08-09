@@ -42,30 +42,30 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     manager ! SessionManagerProtocol.TerminateMemberSessions(member)
   }
 
-  def handleSubscribeMessage(message: InMessage) {
-    manager ! SessionManagerProtocol.Subscribe(message)
+  def handleOpenSessionMessage(message: InMessage) {
+    manager ! SessionManagerProtocol.OpenSessionRequest(message)
   }
 
-  def handleUnsubscribeMessage(message: InMessage) {
-    manager ! SessionManagerProtocol.Unsubscribe(message)
+  def handleCloseSessionMessage(message: InMessage) {
+    manager ! SessionManagerProtocol.CloseSessionRequest(message)
   }
 
   def sessions: Iterable[ReplicationSession] = {
-    val subs = manager !? SessionManagerProtocol.GetSessions
-    subs.asInstanceOf[Iterable[ReplicationSession]]
+    val allSessions = manager !? SessionManagerProtocol.GetSessions
+    allSessions.asInstanceOf[Iterable[ReplicationSession]]
   }
 
   object SessionManagerProtocol {
 
-    case class Subscribe(message: InMessage)
+    case class OpenSessionRequest(message: InMessage)
 
-    case class Unsubscribe(message: InMessage)
+    case class CloseSessionRequest(message: InMessage)
 
     object GetSessions
 
     case class TerminateMemberSessions(member: ResolvedServiceMember)
 
-    case class TerminateSession(subscription: SessionActor, error: Option[Exception] = None)
+    case class TerminateSession(sessionActor: SessionActor, error: Option[Exception] = None)
 
     object Kill
 
@@ -73,13 +73,13 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
 
   class SessionManagerActor extends Actor {
 
-    private lazy val subscribeMeter = metrics.meter("subscribe", "subscribe", serviceScope)
-    private lazy val subscribeErrorMeter = metrics.meter("subscribe-error", "subscribe-error", serviceScope)
+    private lazy val openSessionMeter = metrics.meter("open-session", "open-session", serviceScope)
+    private lazy val openSessionErrorMeter = metrics.meter("open-session-error", "open-session-error", serviceScope)
 
-    private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "unsubscribe", serviceScope)
-    private lazy val unsubscribeErrorMeter = metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
+    private lazy val closeSessionMeter = metrics.meter("close-session", "close-session", serviceScope)
+    private lazy val closeSessionErrorMeter = metrics.meter("close-session-error", "close-session-error", serviceScope)
 
-    private lazy val terminateErrorMeter = metrics.meter("terminate-error", "terminate-error", serviceScope)
+    private lazy val terminateSessionErrorMeter = metrics.meter("terminate-session-error", "terminate-session-error", serviceScope)
 
     import SessionManagerProtocol._
 
@@ -141,11 +141,11 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     def act() {
       loop {
         react {
-          case Subscribe(message) => {
+          case OpenSessionRequest(message) => {
             try {
               // TODO: limit the number of concurrent replication sessions? Global limit or per service member?
-              subscribeMeter.mark()
-              debug("Received a subscribe request {}", message)
+              openSessionMeter.mark()
+              debug("Received a open session request {}", message)
 
               implicit val request = message
               val start = getOptionalParamLongValue(Start).getOrElse(Long.MinValue)
@@ -161,7 +161,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               val session = new SessionActor(nextId, member, source, cookie.getOrElse(""), message.source)
               sessions = session :: sessions
 
-              // Reply with a subscription response
+              // Reply with an open session response
               val response = new OutMessage()
               response.parameters += (SubscriptionId -> session.sessionId)
               response.parameters += (SessionId -> session.sessionId)
@@ -173,47 +173,47 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               session.start()
             } catch {
               case e: Exception => {
-                subscribeErrorMeter.mark()
-                warn("Error processing subscribe request {}: ", message, e)
+                openSessionErrorMeter.mark()
+                warn("Error processing open session request {}: ", message, e)
                 try {
                   val response = new OutMessage()
                   response.error = Some(e)
                   message.reply(response)
                 } catch {
-                  case ex: Exception => warn("Error replying subscribe request error {}: ", message, ex)
+                  case ex: Exception => warn("Error replying open session request error {}: ", message, ex)
                 }
               }
             }
           }
-          case Unsubscribe(message) => {
+          case CloseSessionRequest(message) => {
             try {
-              unsubscribeMeter.mark()
-              debug("Received an unsubscribe request {}", message)
+              closeSessionMeter.mark()
+              debug("Received a close session request {}", message)
 
               val id = getSessionId(message)
-              sessions.find(_.sessionId == id).foreach(subscription => {
-                subscription !? SessionProtocol.Kill
-                sessions = sessions.filterNot(_ == subscription)
+              sessions.find(_.sessionId == id).foreach(session => {
+                session !? SessionProtocol.Kill
+                sessions = sessions.filterNot(_ == session)
               })
               message.reply(Nil)
             } catch {
               case e: Exception => {
-                unsubscribeErrorMeter.mark()
-                warn("Error processing unsubscribe request {}: ", message, e)
+                closeSessionErrorMeter.mark()
+                warn("Error processing close session request {}: ", message, e)
               }
             }
           }
           case GetSessions => {
             try {
-              val replicationSessions = sessions.map(sessionActor => {
+              val allSessions = sessions.map(sessionActor => {
                 val mode = if (sessionActor.source.end.isDefined) ReplicationMode.Bootstrap else ReplicationMode.Live
                 ReplicationSession(sessionActor.member, sessionActor.cookie, mode,
                   Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end)
               })
-              reply(replicationSessions)
+              reply(allSessions)
             } catch {
               case e: Exception => {
-                warn("Error processing get subscriptions {}", e)
+                warn("Error processing get sessions {}", e)
                 reply(Nil)
               }
             }
@@ -228,7 +228,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               })
             } catch {
               case e: Exception => {
-                terminateErrorMeter.mark()
+                terminateSessionErrorMeter.mark()
                 warn("Error processing terminate session {}: ", sessionActor.member, e)
               }
             }
@@ -243,7 +243,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               })
             } catch {
               case e: Exception => {
-                terminateErrorMeter.mark()
+                terminateSessionErrorMeter.mark()
                 warn("Error processing terminate all sessions {}: ", e)
               }
             }
@@ -358,7 +358,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
       lastSendTime = currentTime
       pushMeter.mark()
 
-      trace("Pushed message to subscriber (seq={}, window={}).", sequence, currentWindowSize)
+      trace("Replicated message to slave (seq={}, window={}).", sequence, currentWindowSize)
     }
 
     def act() {
@@ -386,7 +386,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
                   isTerminating = true
                 }
               } else {
-                // Window size is full. Cancel session if haven't received an ack for a while.
+                // Window size is full. Close session if haven't received an ack for a while.
                 val elapsedTime = currentTime - lastSendTime
                 if (elapsedTime > maxIdleDurationInMs) {
                   ackTimeoutMeter.mark()
