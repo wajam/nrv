@@ -63,7 +63,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   def leave(timeout: Long) {
     synchronized {
-      if (!isLeaving) {
+      if (started && !isLeaving) {
         leavingLatch = new Some(new CountDownLatch(1))
         OperationLoop !? OperationLoop.SetMembersLeaving
         if (leavingLatch.get.await(timeout, TimeUnit.MILLISECONDS)) {
