@@ -227,6 +227,15 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       }
     }
 
+    private def forceServiceDown(service: Service) {
+      service.members.foreach {
+        member => {
+          val event = member.setStatus(MemberStatus.Down, triggerEvent = true)
+          updateStatusChangeMetrics(service, event)
+        }
+      }
+    }
+
     def act() {
       loop {
         react {
@@ -297,7 +306,16 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
             // Periodically executed to refresh the entire cluster
             debug("Forcing cluster sync")
             try {
-              allServices.foreach(service => syncService(service))
+              allServices.foreach(service => {
+                try {
+                  syncService(service)
+                } catch {
+                  case e: Exception => {
+                    error("Got an exception when forcing service '{}' sync: ", service, e)
+                    forceServiceDown(service)
+                  }
+                }
+              })
             } catch {
               case e: Exception =>
                 error("Got an exception when forcing cluster sync: ", e)
@@ -312,7 +330,13 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
               syncService(service)
             } catch {
               case e: Exception =>
-                error("Got an exception when syncing service members: ", e)
+                error("Got an exception when syncing service '{}' members: ", service, e)
+                try {
+                  forceServiceDown(service)
+                } catch {
+                  case e: Exception =>
+                    error("Got an exception when forcing the service '{}' down: ", service, e)
+                }
             } finally {
               sender ! true
             }
@@ -321,12 +345,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
           case ForceDown =>
             info("Forcing the whole cluster down")
             try {
-              allMembers.foreach {
-                case (service, member) => {
-                  val event = member.setStatus(MemberStatus.Down, triggerEvent = true)
-                  updateStatusChangeMetrics(service, event)
-                }
-              }
+              allServices.foreach(forceServiceDown)
             } catch {
               case e: Exception =>
                 error("Got an exception when forcing the cluster down: ", e)
