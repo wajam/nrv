@@ -1,12 +1,11 @@
 package com.wajam.nrv.protocol
 
-import java.nio.ByteBuffer
-import codec.MessageJavaSerializeCodec
-import com.wajam.nrv.data.Message
 import com.wajam.nrv.transport.nrv.NrvNettyTransport
-import com.wajam.nrv.cluster.LocalNode
+import com.wajam.nrv.data.Message
+import com.google.common.primitives.UnsignedBytes
+import java.nio.ByteBuffer
 import com.wajam.nrv.data.serialization.NrvProtobufSerializer
-import com.google.common.primitives.{Shorts, UnsignedBytes}
+import com.wajam.nrv.cluster.{Node, LocalNode}
 
 /**
  * Default protocol used by NRV. All nodes must have this protocol, since it's
@@ -14,10 +13,9 @@ import com.google.common.primitives.{Shorts, UnsignedBytes}
  */
 class NrvProtocol(localNode: LocalNode,
                   idleConnectionTimeoutMs: Long,
-                  maxConnectionPoolSize: Int)
-  extends Protocol("nrv") {
+                  maxConnectionPoolSize: Int) extends Protocol("nrv", localNode)  {
 
-  override val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name),
+  val transport = new NrvNettyTransport(localNode.listenAddress, localNode.ports(name),
     this, idleConnectionTimeoutMs, maxConnectionPoolSize)
 
   protected val resolveCodec = (msg: Message) => {
@@ -34,7 +32,7 @@ class NrvProtocol(localNode: LocalNode,
     transport.stop()
   }
 
-  def parse(message: AnyRef): Message = {
+  def parse(message: AnyRef, flags: Map[String, Any]): Message = {
     val bytes = message.asInstanceOf[Array[Byte]]
 
     val magicByte: Int = UnsignedBytes.toInt(bytes(0))
@@ -45,9 +43,10 @@ class NrvProtocol(localNode: LocalNode,
       throw new RuntimeException("The magic byte was not recognized.")
   }
 
-  def generate(message: Message): AnyRef = {
+  def generate(message: Message, flags: Map[String, Any]): AnyRef = {
     generateProtobuf(message)
   }
+
 
   private def parseProtobuf(message: Array[Byte]): Message = {
 
@@ -79,6 +78,22 @@ class NrvProtocol(localNode: LocalNode,
     buffer.put(bytes)
 
     buffer.array()
+  }
+
+  def sendMessage(destination: Node,
+                  message: AnyRef,
+                  closeAfter: Boolean,
+                  flags: Map[String, Any],
+                  completionCallback: (Option[Throwable]) => Unit) {
+    transport.sendMessage(destination.protocolsSocketAddress(name), message, closeAfter, completionCallback)
+  }
+
+  def sendResponse(connection: AnyRef,
+                   message: AnyRef,
+                   closeAfter: Boolean,
+                   flags: Map[String, Any],
+                   completionCallback: (Option[Throwable]) => Unit) {
+    transport.sendResponse(connection, message, closeAfter, completionCallback)
   }
 }
 

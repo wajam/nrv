@@ -9,25 +9,25 @@ import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.utils.{CurrentTime, Scheduler, UuidStringGenerator}
 import scala.actors.Actor
 import collection.immutable.TreeSet
-import ReplicationParam._
+import ReplicationAPIParams._
 import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
 
 /**
- * Manage all replication subscriptions the local service node is acting as a replication source. The replication
+ * Manage all the local master replication sessions the local service is acting as a replication source. The replication
  * source must be the master replica and the replication source must have transaction logs enabled.
  */
-class ReplicationPublisher(service: Service, store: ConsistentStore,
+class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
                            getTransactionLog: (ResolvedServiceMember) => TransactionLog,
                            getMemberCurrentConsistentTimestamp: (ResolvedServiceMember) => Option[Timestamp],
-                           publishAction: Action, publishTps: Int, publishWindowSize: => Int, maxIdleDurationInMs: Long)
+                           pushAction: Action, pushTps: Int, pushWindowSize: => Int, maxIdleDurationInMs: Long)
   extends CurrentTime with UuidStringGenerator with Logging with Instrumented {
 
-  private val manager = new SubscriptionManagerActor
+  private val manager = new SessionManagerActor
 
   private val serviceScope = service.name.replace(".", "-")
-  private val subscriptionsGauge = metrics.gauge("subscriptions", serviceScope) {
-    manager.subscriptionsCount
+  private val sessionsGauge = metrics.gauge("sessions", serviceScope) {
+    manager.sessionsCount
   }
 
   def start() {
@@ -35,57 +35,57 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
   }
 
   def stop() {
-    manager !? SubscriptionManagerProtocol.Kill
+    manager !? SessionManagerProtocol.Kill
   }
 
-  def terminateMemberSubscriptions(member: ResolvedServiceMember) {
-    manager ! SubscriptionManagerProtocol.TerminateMemberSubscriptions(member)
+  def terminateMemberSessions(member: ResolvedServiceMember) {
+    manager ! SessionManagerProtocol.TerminateMemberSessions(member)
   }
 
-  def handleSubscribeMessage(message: InMessage) {
-    manager ! SubscriptionManagerProtocol.Subscribe(message)
+  def handleOpenSessionMessage(message: InMessage) {
+    manager ! SessionManagerProtocol.OpenSessionRequest(message)
   }
 
-  def handleUnsubscribeMessage(implicit message: InMessage) {
-    manager ! SubscriptionManagerProtocol.Unsubscribe(message)
+  def handleCloseSessionMessage(message: InMessage) {
+    manager ! SessionManagerProtocol.CloseSessionRequest(message)
   }
 
-  def subscriptions: Iterable[ReplicationSubscription] = {
-    val subs = manager !? SubscriptionManagerProtocol.GetSubscriptions
-    subs.asInstanceOf[Iterable[ReplicationSubscription]]
+  def sessions: Iterable[ReplicationSession] = {
+    val allSessions = manager !? SessionManagerProtocol.GetSessions
+    allSessions.asInstanceOf[Iterable[ReplicationSession]]
   }
 
-  object SubscriptionManagerProtocol {
+  object SessionManagerProtocol {
 
-    case class Subscribe(message: InMessage)
+    case class OpenSessionRequest(message: InMessage)
 
-    case class Unsubscribe(message: InMessage)
+    case class CloseSessionRequest(message: InMessage)
 
-    object GetSubscriptions
+    object GetSessions
 
-    case class TerminateMemberSubscriptions(member: ResolvedServiceMember)
+    case class TerminateMemberSessions(member: ResolvedServiceMember)
 
-    case class TerminateSubscription(subscription: SubscriptionActor, error: Option[Exception] = None)
+    case class TerminateSession(sessionActor: SessionActor, error: Option[Exception] = None)
 
     object Kill
 
   }
 
-  class SubscriptionManagerActor extends Actor {
+  class SessionManagerActor extends Actor {
 
-    private lazy val subscribeMeter = metrics.meter("subscribe", "subscribe", serviceScope)
-    private lazy val subscribeErrorMeter = metrics.meter("subscribe-error", "subscribe-error", serviceScope)
+    private lazy val openSessionMeter = metrics.meter("open-session", "open-session", serviceScope)
+    private lazy val openSessionErrorMeter = metrics.meter("open-session-error", "open-session-error", serviceScope)
 
-    private lazy val unsubscribeMeter = metrics.meter("unsubscribe", "unsubscribe", serviceScope)
-    private lazy val unsubscribeErrorMeter = metrics.meter("unsubscribe-error", "subscribe-error", serviceScope)
+    private lazy val closeSessionMeter = metrics.meter("close-session", "close-session", serviceScope)
+    private lazy val closeSessionErrorMeter = metrics.meter("close-session-error", "close-session-error", serviceScope)
 
-    private lazy val terminateErrorMeter = metrics.meter("terminate-error", "terminate-error", serviceScope)
+    private lazy val terminateSessionErrorMeter = metrics.meter("terminate-session-error", "terminate-session-error", serviceScope)
 
-    import SubscriptionManagerProtocol._
+    import SessionManagerProtocol._
 
-    private var subscriptions: List[SubscriptionActor] = Nil
+    private var sessions: List[SessionActor] = Nil
 
-    def subscriptionsCount = subscriptions.size
+    def sessionsCount = sessions.size
 
     private def createResolvedServiceMember(token: Long): ResolvedServiceMember = {
       service.getMemberAtToken(token) match {
@@ -141,11 +141,11 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     def act() {
       loop {
         react {
-          case Subscribe(message) => {
+          case OpenSessionRequest(message) => {
             try {
-              // TODO: limit the number of concurent replication subscription? Global limit or per service member?
-              subscribeMeter.mark()
-              debug("Received a subscribe request {}", message)
+              // TODO: limit the number of concurrent replication sessions? Global limit or per service member?
+              openSessionMeter.mark()
+              debug("Received a open session request {}", message)
 
               implicit val request = message
               val start = getOptionalParamLongValue(Start).getOrElse(Long.MinValue)
@@ -158,103 +158,103 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
               val member = createResolvedServiceMember(token)
               val source = createSourceIterator(member, start, isLiveReplication)
 
-              val subscription = new SubscriptionActor(nextId, member, source, cookie.getOrElse(""), message.source)
-              subscriptions = subscription :: subscriptions
+              val session = new SessionActor(nextId, member, source, cookie.getOrElse(""), message.source)
+              sessions = session :: sessions
 
-              // Reply with a subscription response
+              // Reply with an open session response
               val response = new OutMessage()
-              response.parameters += (SubscriptionId -> subscription.subId)
+              response.parameters += (SubscriptionId -> session.sessionId)
+              response.parameters += (SessionId -> session.sessionId)
               response.parameters += (Start -> start)
               source.end.foreach(ts => response.parameters += (End -> ts.value))
               cookie.foreach(value => response.parameters += (Cookie -> value))
               message.reply(response)
 
-              subscription.start()
+              session.start()
             } catch {
               case e: Exception => {
-                subscribeErrorMeter.mark()
-                warn("Error processing subscribe request {}: ", message, e)
+                openSessionErrorMeter.mark()
+                warn("Error processing open session request {}: ", message, e)
                 try {
                   val response = new OutMessage()
                   response.error = Some(e)
                   message.reply(response)
                 } catch {
-                  case ex: Exception => warn("Error replying subscribe request error {}: ", message, ex)
+                  case ex: Exception => warn("Error replying open session request error {}: ", message, ex)
                 }
               }
             }
           }
-          case Unsubscribe(message) => {
+          case CloseSessionRequest(message) => {
             try {
-              unsubscribeMeter.mark()
-              debug("Received an unsubscribe request {}", message)
+              closeSessionMeter.mark()
+              debug("Received a close session request {}", message)
 
-              implicit val request = message
-              val id = getParamStringValue(SubscriptionId)
-              subscriptions.find(_.subId == id).foreach(subscription => {
-                subscription !? SubscriptionProtocol.Kill
-                subscriptions = subscriptions.filterNot(_ == subscription)
+              val id = getSessionId(message)
+              sessions.find(_.sessionId == id).foreach(session => {
+                session !? SessionProtocol.Kill
+                sessions = sessions.filterNot(_ == session)
               })
               message.reply(Nil)
             } catch {
               case e: Exception => {
-                unsubscribeErrorMeter.mark()
-                warn("Error processing unsubscribe request {}: ", message, e)
+                closeSessionErrorMeter.mark()
+                warn("Error processing close session request {}: ", message, e)
               }
             }
           }
-          case GetSubscriptions => {
+          case GetSessions => {
             try {
-              val subs = subscriptions.map(subscriptionActor => {
-                val mode = if (subscriptionActor.source.end.isDefined) ReplicationMode.Store else ReplicationMode.Live
-                ReplicationSubscription(subscriptionActor.member, subscriptionActor.cookie, mode,
-                  Some(subscriptionActor.subId), Some(subscriptionActor.source.start), subscriptionActor.source.end)
+              val allSessions = sessions.map(sessionActor => {
+                val mode = if (sessionActor.source.end.isDefined) ReplicationMode.Bootstrap else ReplicationMode.Live
+                ReplicationSession(sessionActor.member, sessionActor.cookie, mode,
+                  Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end)
               })
-              reply(subs)
+              reply(allSessions)
             } catch {
               case e: Exception => {
-                warn("Error processing get subscriptions {}", e)
+                warn("Error processing get sessions {}", e)
                 reply(Nil)
               }
             }
           }
-          case TerminateSubscription(subscriptionActor, exception) => {
+          case TerminateSession(sessionActor, exception) => {
             try {
-              subscriptions.find(_ == subscriptionActor).foreach(subscription => {
-                info("Subscription actor {} wants to be terminated. Dutifully perform euthanasia! {}",
-                  subscriptionActor.subId, subscriptionActor.member)
-                subscription !? SubscriptionProtocol.Kill
-                subscriptions = subscriptions.filterNot(_ == subscription)
+              sessions.find(_ == sessionActor).foreach(session => {
+                info("Session actor {} wants to be terminated. Dutifully perform euthanasia! {}",
+                  sessionActor.sessionId, sessionActor.member)
+                session !? SessionProtocol.Kill
+                sessions = sessions.filterNot(_ == session)
               })
             } catch {
               case e: Exception => {
-                terminateErrorMeter.mark()
-                warn("Error processing terminate subscription {}: ", subscriptionActor.member, e)
+                terminateSessionErrorMeter.mark()
+                warn("Error processing terminate session {}: ", sessionActor.member, e)
               }
             }
           }
-          case TerminateMemberSubscriptions(member) => {
+          case TerminateMemberSessions(member) => {
             try {
-              subscriptions.withFilter(_.member == member).foreach(subscription => {
-                info("Subscription {} is terminated. {}",
-                  subscription.subId, member)
-                subscription !? SubscriptionProtocol.Kill
-                subscriptions = subscriptions.filterNot(_ == subscription)
+              sessions.withFilter(_.member == member).foreach(session => {
+                info("Session {} is terminated. {}",
+                  session.sessionId, member)
+                session !? SessionProtocol.Kill
+                sessions = sessions.filterNot(_ == session)
               })
             } catch {
               case e: Exception => {
-                terminateErrorMeter.mark()
-                warn("Error processing terminate all subscriptions {}: ", e)
+                terminateSessionErrorMeter.mark()
+                warn("Error processing terminate all sessions {}: ", e)
               }
             }
           }
           case Kill => {
             try {
-              subscriptions.foreach(_ !? SubscriptionProtocol.Kill)
-              subscriptions = Nil
+              sessions.foreach(_ !? SessionProtocol.Kill)
+              sessions = Nil
             } catch {
               case e: Exception => {
-                warn("Error killing subscription manager ({}). {}", service.name, e)
+                warn("Error killing session manager ({}). {}", service.name, e)
               }
             } finally {
               reply(true)
@@ -266,9 +266,9 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
   }
 
-  object SubscriptionProtocol {
+  object SessionProtocol {
 
-    object PublishNext
+    object PushNext
 
     case class Ack(sequence: Long)
 
@@ -276,24 +276,24 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
   }
 
-  class SubscriptionActor(val subId: String, val member: ResolvedServiceMember, val source: ReplicationSourceIterator,
-                          val cookie: String, subscriber: Node) extends Actor with Logging {
+  class SessionActor(val sessionId: String, val member: ResolvedServiceMember, val source: ReplicationSourceIterator,
+                          val cookie: String, slave: Node) extends Actor with Logging {
 
-    private lazy val publishMeter = metrics.meter("publish", "publish", member.scopeName)
-    private lazy val publishErrorMeter = metrics.meter("publish-error", "publish-error", member.scopeName)
+    private lazy val pushMeter = metrics.meter("push", "push", member.scopeName)
+    private lazy val pushErrorMeter = metrics.meter("push-error", "push-error", member.scopeName)
 
     private lazy val ackMeter = metrics.meter("ack", "ack", member.scopeName)
     private lazy val ackTimeoutMeter = metrics.meter("ack-timeout", "ack-timeout", member.scopeName)
     private lazy val ackErrorMeter = metrics.meter("ack-error", "ack-error", member.scopeName)
 
-    import SubscriptionProtocol._
+    import SessionProtocol._
 
-    private val publishScheduler = new Scheduler(this, PublishNext, 1000, 1000 / publishTps,
-      blockingMessage = true, autoStart = false)
+    private val pushScheduler = new Scheduler(this, PushNext, 1000, 1000 / pushTps,
+      blockingMessage = true, autoStart = false, name = Some("MasterSessionActor.Push"))
     private var pendingSequences: TreeSet[Long] = TreeSet()
     private var lastSendTime = currentTime
     private var lastSequence = 0L
-    private var terminating = false
+    private var isTerminating = false
 
     private def nextSequence = {
       lastSequence += 1
@@ -302,8 +302,8 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
 
     override def start() = {
       super.start()
-      if (publishTps > 0) {
-        publishScheduler.start()
+      if (pushTps > 0) {
+        pushScheduler.start()
       }
       this
     }
@@ -316,20 +316,20 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
     }
 
     private def sendKeepAlive() {
-      sendPublish(None)
+      pushMessage(None)
     }
 
-    private def sendPublish(transaction: Option[Message]) {
+    private def pushMessage(transaction: Option[Message]) {
 
       def onReply(sequence: Long)(response: Message, optException: Option[Exception]) {
         optException match {
           case Some(e) => {
-            debug("Received an error response from the subscriber (seq={}): ", sequence, e)
-            manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, Some(e))
-            terminating = true
+            debug("Received an error response from the slave (seq={}): ", sequence, e)
+            manager ! SessionManagerProtocol.TerminateSession(SessionActor.this, Some(e))
+            isTerminating = true
           }
           case None => {
-            trace("Received an publish response from the subscriber (seq={}).", sequence)
+            trace("Received an push response from the slave (seq={}).", sequence)
             this ! Ack(sequence)
           }
         }
@@ -340,39 +340,40 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
       val data = transaction match {
         case Some(message) => {
           val timestamp = message.timestamp.get // Must fail if timestamp is missing
-          params += (ReplicationParam.Timestamp -> timestamp.value)
+          params += (ReplicationAPIParams.Timestamp -> timestamp.value)
           message
         }
         case None => null // Keep-alive
       }
       params += (Sequence -> sequence)
-      params += (SubscriptionId -> subId)
+      params += (SubscriptionId -> sessionId)
+      params += (SessionId -> sessionId)
 
-      val publishMessage = new OutMessage(params = params, data = data,
+      val pushMessage = new OutMessage(params = params, data = data,
         onReply = onReply(sequence), responseTimeout = service.responseTimeout)
-      publishMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, subscriber)))))
-      publishAction.call(publishMessage)
+      pushMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, slave)))))
+      pushAction.call(pushMessage)
 
       pendingSequences += sequence
       lastSendTime = currentTime
-      publishMeter.mark()
+      pushMeter.mark()
 
-      trace("Published message to subscriber (seq={}, window={}).", sequence, currentWindowSize)
+      trace("Replicated message to slave (seq={}, window={}).", sequence, currentWindowSize)
     }
 
     def act() {
       loop {
         react {
-          case PublishNext if !terminating => {
+          case PushNext if !isTerminating => {
             try {
-              if (currentWindowSize < publishWindowSize) {
+              if (currentWindowSize < pushWindowSize) {
                 if (source.hasNext) {
                   source.next() match {
-                    case Some(txMessage) => sendPublish(Some(txMessage))
+                    case Some(txMessage) => pushMessage(Some(txMessage))
                     case None => {
                       // No more message available at this time but the replication source is not empty
                       // (i.e. hasNext == true). We are expecting more transaction messages to be available soon.
-                      // Meanwhile send a keep-alive message every few seconds to subscriber to prevent subscription
+                      // Meanwhile send to slave a keep-alive message every few seconds to prevent session
                       // idle timeout.
                       if (currentTime - lastSendTime > math.min(maxIdleDurationInMs / 4, 5000)) {
                         sendKeepAlive()
@@ -380,62 +381,62 @@ class ReplicationPublisher(service: Service, store: ConsistentStore,
                     }
                   }
                 } else {
-                  info("Replication source is exhausted! Terminating subscription {} for {}.", subId, member)
-                  manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, None)
-                  terminating = true
+                  info("Replication source is exhausted! Terminating session {} for {}.", sessionId, member)
+                  manager ! SessionManagerProtocol.TerminateSession(SessionActor.this, None)
+                  isTerminating = true
                 }
               } else {
-                // Window size is full. Cancel subscription if havent received an ack for a while.
+                // Window size is full. Close session if haven't received an ack for a while.
                 val elapsedTime = currentTime - lastSendTime
                 if (elapsedTime > maxIdleDurationInMs) {
                   ackTimeoutMeter.mark()
-                  info("No ack received for {} ms. Terminating subscription {} for {}.", elapsedTime, subId, member)
-                  manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, None)
-                  terminating = true
+                  info("No ack received for {} ms. Terminating session {} for {}.", elapsedTime, sessionId, member)
+                  manager ! SessionManagerProtocol.TerminateSession(SessionActor.this, None)
+                  isTerminating = true
                 }
               }
             } catch {
               case e: Exception => {
-                publishErrorMeter.mark()
-                info("Error publishing a transaction (subid={}). {}: ", subId, member, e)
-                manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, Some(e))
-                terminating = true
+                pushErrorMeter.mark()
+                info("Error pushing a transaction to slave (subid={}). {}: ", sessionId, member, e)
+                manager ! SessionManagerProtocol.TerminateSession(SessionActor.this, Some(e))
+                isTerminating = true
               }
             } finally {
               reply(true)
             }
           }
-          case Ack(sequence) if !terminating => {
+          case Ack(sequence) if !isTerminating => {
             try {
               pendingSequences -= sequence
               ackMeter.mark()
             } catch {
               case e: Exception => {
                 ackErrorMeter.mark()
-                info("Error acknoledging transaction (subid={}, seq={}). {}: ", subId, sequence, member, e)
-                manager ! SubscriptionManagerProtocol.TerminateSubscription(SubscriptionActor.this, Some(e))
-                terminating = true
+                info("Error acknowledging transaction (subid={}, seq={}). {}: ", sessionId, sequence, member, e)
+                manager ! SessionManagerProtocol.TerminateSession(SessionActor.this, Some(e))
+                isTerminating = true
               }
             }
           }
           case Kill => {
             try {
               try {
-                publishScheduler.cancel()
+                pushScheduler.cancel()
                 source.close()
               } finally {
                 exit()
               }
             } catch {
               case e: Exception => {
-                info("Error killing actor (subid={}). {}: ", subId, member, e)
+                info("Error killing session actor (subid={}). {}: ", sessionId, member, e)
               }
             } finally {
               reply(true)
             }
           }
-          case _ if terminating => {
-            debug("Ignore actor message since subscription {} is terminating. {}", subId, member)
+          case _ if isTerminating => {
+            debug("Ignore actor message since session {} is terminating. {}", sessionId, member)
           }
         }
       }

@@ -225,9 +225,14 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
       case None => None
     }
 
-    val commitScheduler = new Scheduler(this, Commit, if (commitFrequency > 0) Random.nextInt(commitFrequency) else 0,
-      commitFrequency, blockingMessage = true, autoStart = false)
-    val checkPendingScheduler = new Scheduler(this, CheckPending, 100, 100, blockingMessage = true, autoStart = false)
+    val commitScheduler = if (commitFrequency > 0) {
+      Some(new Scheduler(this, Commit, Random.nextInt(commitFrequency), commitFrequency,
+        blockingMessage = true, autoStart = false, name = Some("ConsistencyActor.Commit")))
+    } else {
+      None
+    }
+    val checkPendingScheduler = new Scheduler(this, CheckPending, 100, 100,
+      blockingMessage = true, autoStart = false, name = Some("ConsistencyActor.CheckPending"))
 
     def queueSize = mailboxSize
 
@@ -235,15 +240,13 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
 
     override def start() = {
       super.start()
-      if (commitFrequency > 0) {
-        commitScheduler.start()
-      }
+      commitScheduler.foreach(_.start())
       checkPendingScheduler.start()
       this
     }
 
     def stop() {
-      commitScheduler.cancel()
+      commitScheduler.foreach(_.cancel())
       checkPendingScheduler.cancel()
       this !? Kill
     }

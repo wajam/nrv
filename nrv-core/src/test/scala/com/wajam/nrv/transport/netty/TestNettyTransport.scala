@@ -8,6 +8,7 @@ import org.jboss.netty.channel._
 import java.net.{InetSocketAddress, InetAddress}
 import com.wajam.nrv.data.{MString, InMessage, Message}
 import com.wajam.nrv.protocol.Protocol
+import com.wajam.nrv.cluster.Node
 
 @RunWith(classOf[JUnitRunner])
 class TestNettyTransport extends FunSuite with BeforeAndAfter {
@@ -52,13 +53,12 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
     }
   }
 
-  class MockProtocol extends Protocol("test") {
+  class MockProtocol extends Protocol("test", null) {
+    var receivedURI: String = null
 
-    override val transport = null
     var receivedMessage: String = null
 
-    override def parse(message: AnyRef): Message = {
-
+    override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
       val mockMessage = message.asInstanceOf[Message]
 
       receivedMessage = mockMessage.parameters.getOrElse("text", "").asInstanceOf[MString].value
@@ -72,14 +72,13 @@ class TestNettyTransport extends FunSuite with BeforeAndAfter {
 
     override def stop() {}
 
-    /**
-     * Generate a transport message from a standard Message object.
-     *
-     * @param message The standard Message object
-     * @return The message to be sent of the network
-     */
-    def generate(message: Message) = null
+    def generate(message: Message, flags: Map[String, Any]): AnyRef = null
+
+    def sendMessage(destination: Node, message: AnyRef, closeAfter: Boolean, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {}
+
+    def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {}
   }
+
 
   before {
     mockProtocol = new MockProtocol

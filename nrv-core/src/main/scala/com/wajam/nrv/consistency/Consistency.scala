@@ -54,6 +54,16 @@ sealed trait MemberConsistencyState
 
 object MemberConsistencyState {
 
+  def fromString(str:String): Option[MemberConsistencyState] = {
+    str match {
+      case Recovering.toString => Some(Recovering)
+      case Ok.toString => Some(Ok)
+      case Error.toString => Some(Error)
+      case "None" | "" => None
+      case _ => throw new IllegalArgumentException("Unsupported MemberConsistencyState: '%s'".format(str))
+    }
+  }
+
   /**
    * The consistency manager is verifying the service member consistency and taking action to ensure the consistency.
    * Going into this state when the service member is joining the cluster. The service member status cannot be Up

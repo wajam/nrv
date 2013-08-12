@@ -34,8 +34,9 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
   def setupCluster(nodeHost: String = "127.0.0.1") {
     idGenerator.reset
     reset(mockRecorder)
-    cluster = new Cluster(new LocalNode(nodeHost, Map("nrv" -> 12345, "dummy" -> 12346)), new StaticClusterManager, new ActionSupportOptions(tracer = Some(tracer)))
-    cluster.registerProtocol(new DummyProtocol("dummy"), default = true)
+    val node = new LocalNode(nodeHost, Map("nrv" -> 12345, "dummy" -> 12346))
+    cluster = new Cluster(node, new StaticClusterManager, new ActionSupportOptions(tracer = Some(tracer)))
+    cluster.registerProtocol(new DummyProtocol("dummy", node), default = true)
     service = cluster.registerService(new Service("test", new ActionSupportOptions(resolver = Some(new Resolver(1)))))
     val member = service.addMember(new ServiceMember(0, cluster.localNode))
     member.setStatus(MemberStatus.Up, triggerEvent = false)

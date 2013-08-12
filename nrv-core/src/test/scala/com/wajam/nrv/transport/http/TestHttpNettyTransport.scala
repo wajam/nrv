@@ -9,6 +9,7 @@ import com.wajam.nrv.service.Action
 import com.wajam.nrv.data.{InMessage, Message}
 import scala.Predef._
 import com.wajam.nrv.protocol.Protocol
+import com.wajam.nrv.cluster.Node
 
 @RunWith(classOf[JUnitRunner])
 class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
@@ -20,11 +21,10 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
   var nettyTransport: HttpNettyTransport = null
   var mockProtocol: MockProtocol = null
 
-  class MockProtocol extends Protocol("test") {
-    override val transport = null
+  class MockProtocol extends Protocol("test", null) {
     var receivedURI: String = null
 
-    override def parse(message: AnyRef): Message = {
+    override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
       receivedURI = message.asInstanceOf[HttpRequest].getUri
       notifier.synchronized {
         notifier.notify()
@@ -37,11 +37,15 @@ class TestHttpNettyTransport extends FunSuite with BeforeAndAfter {
 
     }
 
-    override def generate(message: Message): AnyRef = null
-
     override def start() {}
 
     override def stop() {}
+
+    def generate(message: Message, flags: Map[String, Any]): AnyRef = null
+
+    def sendMessage(destination: Node, message: AnyRef, closeAfter: Boolean, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {}
+
+    def sendResponse(connection: AnyRef, message: AnyRef, closeAfter: Boolean, flags: Map[String, Any], completionCallback: (Option[Throwable]) => Unit) {}
   }
 
   before {
