@@ -74,9 +74,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   private lazy val slaveReplicationSessionManager = new SlaveReplicationSessionManager(service, service,
     replicationSessionIdleTimeout, txLogCommitFrequency)
   @deprecated
-  private lazy val publishAction = new Action(s"/replication/publish/:${ReplicationAPIParams.SessionId}",
+  private lazy val publishAction = new Action("/replication/publish/:" + ReplicationAPIParams.SessionId,
     slaveReplicationSessionManager.handleReplicationMessage, ActionMethod.POST)
-  private lazy val slaveReplicateTxAction = new Action(s"/replication/slave/sessions/:${ReplicationAPIParams.SessionId}",
+  private lazy val slaveReplicateTxAction = new Action("/replication/slave/sessions/:" + ReplicationAPIParams.SessionId,
     slaveReplicationSessionManager.handleReplicationMessage, ActionMethod.PUT)
 
   // Master replication session management
@@ -97,14 +97,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   }
 
   @deprecated
-  private lazy val subscribeAction = new Action(s"/replication/subscribe/:${ReplicationAPIParams.Token}",
+  private lazy val subscribeAction = new Action("/replication/subscribe/:" + ReplicationAPIParams.Token,
     masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.POST)
   @deprecated
-  private lazy val unsubscribeAction = new Action(s"/replication/unsubscribe/:${ReplicationAPIParams.Token}",
+  private lazy val unsubscribeAction = new Action("/replication/unsubscribe/:" + ReplicationAPIParams.Token,
     masterReplicationSessionManager.handleCloseSessionMessage, ActionMethod.POST)
-  private lazy val masterOpenSessionAction = new Action(s"/replication/master/:${ReplicationAPIParams.Token}/sessions",
+  private lazy val masterOpenSessionAction = new Action("/replication/master/:" + ReplicationAPIParams.Token + "/sessions",
     masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.POST)
-  private lazy val masterCloseSessionAction = new Action(s"/replication/master/:${ReplicationAPIParams.Token}/sessions/:${ReplicationAPIParams.SessionId}",
+  private lazy val masterCloseSessionAction = new Action("/replication/master/:" + ReplicationAPIParams.Token + "/sessions/:" + ReplicationAPIParams.SessionId,
     masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.DELETE)
 
   private lazy val getConsistencyStateAction = new Action("/consistency/state/:" + ReplicationAPIParams.Token,
