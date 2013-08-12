@@ -40,7 +40,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                              timestampTimeoutExtraDelay: Int = 250,
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
                              replicationSessionIdleTimeout: Long = 30000L, replicationOpenSessionDelay: Long = 5000,
-                             replicationResolver: Option[Resolver] = None)
+                             replicationResolver: Option[Resolver] = None, replicationLegacyApi: Boolean = true)
   extends Consistency with Logging {
 
   import SlaveReplicationManagerProtocol._
@@ -92,8 +92,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
 
     new MasterReplicationSessionManager(service, service, getTransactionLog, getMemberCurrentConsistentTimestamp,
-      pushAction = publishAction, pushTps = replicationTps, pushWindowSize = replicationWindowSize,
-      maxIdleDurationInMs = replicationSessionIdleTimeout)
+      pushAction = if (replicationLegacyApi) publishAction else slaveReplicateTxAction, pushTps = replicationTps,
+      pushWindowSize = replicationWindowSize, maxIdleDurationInMs = replicationSessionIdleTimeout)
   }
 
   @deprecated
@@ -688,8 +688,13 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           }
           val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
             serializer = Some(serializer))
+          val (openAction, closeAction) = if (replicationLegacyApi) {
+            (subscribeAction, unsubscribeAction)
+          } else {
+            (masterOpenSessionAction, masterCloseSessionAction)
+          }
           slaveReplicationSessionManager.openSession(resolvedMember, txLog, openSessionDelay,
-            subscribeAction, unsubscribeAction, mode,
+            openAction, closeAction, mode,
             onSessionEnd = (error) => {
               info("Replication session terminated {}. {}", resolvedMember, error)
               updateMemberConsistencyState(member, newState = error.map(_ => MemberConsistencyState.Error))
