@@ -70,18 +70,6 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
     allSessions.asInstanceOf[Iterable[ReplicationSession]]
   }
 
-  private def firstStoreRecord(from: Option[Timestamp], ranges: Seq[TokenRange]): Option[Message] = {
-    val itr = from match {
-      case Some(timestamp) => store.readTransactions(timestamp, Long.MaxValue, ranges)
-      case None => store.readTransactions(Long.MinValue, Long.MaxValue, ranges)
-    }
-    try {
-      itr.find(_ => true)
-    } finally {
-      itr.close()
-    }
-  }
-
   object SessionManagerProtocol {
 
     case class OpenSessionRequest(member: ResolvedServiceMember, txLog: TransactionLog, openSessionAction: Action,
@@ -210,7 +198,6 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                     case _ => {
                       // No records in transaction log. Omit start if the local store is empty.
                       // The replication publisher will send all the transactions from the beginning.
-                      // TODO: prevent replication if store not empty and has no transaction log
                     }
                   }
                   params += (ReplicationAPIParams.Mode -> context.mode.toString)
