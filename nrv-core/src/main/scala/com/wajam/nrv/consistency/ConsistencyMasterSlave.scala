@@ -40,7 +40,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
                              timestampTimeoutExtraDelay: Int = 250,
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
                              replicationSessionIdleTimeout: Long = 30000L, replicationOpenSessionDelay: Long = 5000,
-                             replicationResolver: Option[Resolver] = None, replicationLegacyApi: Boolean = true)
+                             replicationResolver: Option[Resolver] = None)
   extends Consistency with Logging {
 
   import SlaveReplicationManagerProtocol._
@@ -73,9 +73,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   // Slave replication session management
   private lazy val slaveReplicationSessionManager = new SlaveReplicationSessionManager(service, service,
     replicationSessionIdleTimeout, txLogCommitFrequency)
-  @deprecated
-  private lazy val publishAction = new Action("/replication/publish/:" + ReplicationAPIParams.SessionId,
-    slaveReplicationSessionManager.handleReplicationMessage, ActionMethod.POST)
   private lazy val slaveReplicateTxAction = new Action("/replication/slave/sessions/:" + ReplicationAPIParams.SessionId,
     slaveReplicationSessionManager.handleReplicationMessage, ActionMethod.PUT)
 
@@ -92,16 +89,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
 
     new MasterReplicationSessionManager(service, service, getTransactionLog, getMemberCurrentConsistentTimestamp,
-      pushAction = if (replicationLegacyApi) publishAction else slaveReplicateTxAction, pushTps = replicationTps,
+      pushAction = slaveReplicateTxAction, pushTps = replicationTps,
       pushWindowSize = replicationWindowSize, maxIdleDurationInMs = replicationSessionIdleTimeout)
   }
 
-  @deprecated
-  private lazy val subscribeAction = new Action("/replication/subscribe/:" + ReplicationAPIParams.Token,
-    masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.POST)
-  @deprecated
-  private lazy val unsubscribeAction = new Action("/replication/unsubscribe/:" + ReplicationAPIParams.Token,
-    masterReplicationSessionManager.handleCloseSessionMessage, ActionMethod.POST)
   private lazy val masterOpenSessionAction = new Action("/replication/master/:" + ReplicationAPIParams.Token + "/sessions",
     masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.POST)
   private lazy val masterCloseSessionAction = new Action("/replication/master/:" + ReplicationAPIParams.Token + "/sessions/:" + ReplicationAPIParams.SessionId,
@@ -136,10 +127,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
         nrvCodec = Some(serializer.messageCodec))
       masterOpenSessionAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
       masterCloseSessionAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
-      publishAction.applySupport(resolver = Some(new Resolver(tokenExtractor = Resolver.TOKEN_RANDOM())),
-        nrvCodec = Some(serializer.messageCodec))
-      subscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
-      unsubscribeAction.applySupport(resolver = replicationResolver, nrvCodec = Some(serializer.messageCodec))
 
       masterReplicationSessionManager.start()
       slaveReplicationSessionManager.start()
@@ -181,9 +168,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     this.service.setCurrentConsistentTimestamp(getTokenRangeConsistentTimestamp)
 
     // Register replication actions
-    service.registerAction(publishAction)
-    service.registerAction(subscribeAction)
-    service.registerAction(unsubscribeAction)
     service.registerAction(slaveReplicateTxAction)
     service.registerAction(masterOpenSessionAction)
     service.registerAction(masterCloseSessionAction)
@@ -206,7 +190,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       case event: NewMemberAddedEvent => {
         updateRangeMemberCache()
         if (event.member.status == MemberStatus.Up && isSlaveReplicaOf(event.member)) {
-          SlaveReplicationManagerActor ! OpenSession(event.member, ReplicationMode.Store)
+          SlaveReplicationManagerActor ! OpenSession(event.member, ReplicationMode.Bootstrap)
         }
       }
       case _ => // Ignore unsupported events
@@ -683,18 +667,13 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
           metrics.consistencyOk.mark()
           info("Local replica restoreMemberConsistency: onSuccess {}", member)
           val openSessionDelay = mode match {
-            case ReplicationMode.Bootstrap | ReplicationMode.Store => replicationOpenSessionDelay
+            case ReplicationMode.Bootstrap => replicationOpenSessionDelay
             case ReplicationMode.Live => 0
           }
           val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
             serializer = Some(serializer))
-          val (openAction, closeAction) = if (replicationLegacyApi) {
-            (subscribeAction, unsubscribeAction)
-          } else {
-            (masterOpenSessionAction, masterCloseSessionAction)
-          }
           slaveReplicationSessionManager.openSession(resolvedMember, txLog, openSessionDelay,
-            openAction, closeAction, mode,
+            masterOpenSessionAction, masterCloseSessionAction, mode,
             onSessionEnd = (error) => {
               info("Replication session terminated {}. {}", resolvedMember, error)
               updateMemberConsistencyState(member, newState = error.map(_ => MemberConsistencyState.Error))
@@ -704,7 +683,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               txLog.close()
               if (member.status == MemberStatus.Up) {
                 // If session ends gracefully, assumes we can switch to live replication
-                val newMode = if (error.isDefined) ReplicationMode.Store else ReplicationMode.Live
+                val newMode = if (error.isDefined) ReplicationMode.Bootstrap else ReplicationMode.Live
                 SlaveReplicationManagerActor ! OpenSession(member, newMode)
               }
             })

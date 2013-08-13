@@ -154,7 +154,6 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
       info("Send close session request to master {}. {}", sessionId, context.member)
       var params: Map[String, MValue] = Map()
 
-      params += (ReplicationAPIParams.SubscriptionId -> sessionId)
       params += (ReplicationAPIParams.SessionId -> sessionId)
       params += (ReplicationAPIParams.Token -> context.member.token.toString)
       context.closeSessionAction.call(params, onReply = handleCloseSessionResponse(_, _))
@@ -214,8 +213,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                       // TODO: prevent replication if store not empty and has no transaction log
                     }
                   }
-                  val mode = if (context.mode == ReplicationMode.Bootstrap) ReplicationMode.Store else context.mode
-                  params += (ReplicationAPIParams.Mode -> mode.toString)
+                  params += (ReplicationAPIParams.Mode -> context.mode.toString)
                   debug("openSessionAction.call {}", params)
                   context.openSessionAction.call(params,
                     onReply = SessionManagerActor.this ! OpenSessionResponse(context, _, _))
