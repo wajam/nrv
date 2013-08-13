@@ -261,7 +261,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
               info("StatusTransitionAttemptEvent: status=Joining, prevState=None|Error, newState=Recovering, member={}",
                 member)
               updateMemberConsistencyState(event.member, Some(MemberConsistencyState.Recovering))
-              restoreMemberConsistency(member, onSuccess = {
+              restoreMemberConsistency(member, isMaster = true, onSuccess = {
                 metrics.consistencyOk.mark()
                 info("Local master restoreMemberConsistency: onSuccess {}", member)
                 updateMemberConsistencyState(event.member, Some(MemberConsistencyState.Ok))
@@ -578,7 +578,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
-  private def restoreMemberConsistency(member: ResolvedServiceMember, onSuccess: => Unit, onError: => Unit) {
+  private def restoreMemberConsistency(member: ResolvedServiceMember, isMaster: Boolean, onSuccess: => Unit, onError: => Unit) {
     try {
       // TODO: Use Future
       val recovery = new ConsistencyRecovery(txLogDir, service, Some(serializer))
@@ -625,10 +625,15 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
             }
           }
         }
-        case None => {
-          // No transaction log, assume the store is consistent
-          info("The service member has no transaction log and is assumed to be consistent {}", member)
+        case None if isMaster => {
+          // No transaction log and master service member, assume the store is consistent
+          info("The master service member has no transaction log and is assumed to be consistent {}", member)
           onSuccess
+        }
+        case None => {
+          // No transaction log and slave replica, assume the store is consistent
+          error("Service member is inconsistent. The slave service member has no transaction log {}", member)
+          onError
         }
       }
     } catch {
@@ -663,7 +668,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       // No recovery if already has a session to prevent transaction log corruption
       val resolvedMember = ResolvedServiceMember(service, member)
       if (!slaveReplicationSessionManager.sessions.exists(_.member == resolvedMember)) {
-        restoreMemberConsistency(resolvedMember, onSuccess = {
+        restoreMemberConsistency(resolvedMember, isMaster = false, onSuccess = {
           metrics.consistencyOk.mark()
           info("Local replica restoreMemberConsistency: onSuccess {}", member)
           val openSessionDelay = mode match {
