@@ -24,6 +24,8 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
   private val childWatches = new mutable.HashMap[String, Function1[NodeChildrenChanged, Unit]] with
     mutable.SynchronizedMap[String, Function1[NodeChildrenChanged, Unit]]
 
+  private var initializing = false
+
   override def start(): Boolean = {
     if (super.start()) {
       allServices.foreach(service => forceServiceCheck(service))
@@ -57,11 +59,18 @@ class ZookeeperClusterManager(val zk: ZookeeperClient) extends DynamicClusterMan
   }
 
   protected def initializeMembers() {
-    allServices.foreach(service => syncService(service))
+    try {
+      // Initialize member is invoked while starting the cluster manager i.e. before the started flag is set.
+      // the "initializing" flag ensure the all the services are synced synchronously during start.
+      initializing = true
+      allServices.foreach(service => syncService(service))
+    } finally {
+      initializing = false
+    }
   }
 
   private def connected = {
-    started && zk.connected
+    (started || initializing) && zk.connected
   }
 
   override protected def getServiceMembers(service: Service): Option[Seq[(ServiceMember, Seq[ServiceMemberVote])]] = {

@@ -63,7 +63,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
   def leave(timeout: Long) {
     synchronized {
-      if (!isLeaving) {
+      if (started && !isLeaving) {
         leavingLatch = new Some(new CountDownLatch(1))
         OperationLoop !? OperationLoop.SetMembersLeaving
         if (leavingLatch.get.await(timeout, TimeUnit.MILLISECONDS)) {
@@ -227,6 +227,15 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       }
     }
 
+    private def forceServiceDown(service: Service) {
+      service.members.foreach {
+        member => {
+          val event = member.setStatus(MemberStatus.Down, triggerEvent = true)
+          updateStatusChangeMetrics(service, event)
+        }
+      }
+    }
+
     def act() {
       loop {
         react {
@@ -297,7 +306,17 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
             // Periodically executed to refresh the entire cluster
             debug("Forcing cluster sync")
             try {
-              allServices.foreach(service => syncService(service))
+              allServices.foreach(service => {
+                try {
+                  syncService(service)
+                  resetSyncErrorCounter(service)
+                } catch {
+                  case e: Exception => {
+                    error("Got an exception when forcing service '{}' sync: ", service, e)
+                    incrementSyncErrorCounter(service)
+                  }
+                }
+              })
             } catch {
               case e: Exception =>
                 error("Got an exception when forcing cluster sync: ", e)
@@ -310,9 +329,11 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
             // Synchronise the members (i.e. add/delete/status change) of the received service
             try {
               syncService(service)
+              resetSyncErrorCounter(service)
             } catch {
               case e: Exception =>
-                error("Got an exception when syncing service members: ", e)
+                error("Got an exception when syncing service '{}' members: ", service, e)
+                incrementSyncErrorCounter(service)
             } finally {
               sender ! true
             }
@@ -321,12 +342,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
           case ForceDown =>
             info("Forcing the whole cluster down")
             try {
-              allMembers.foreach {
-                case (service, member) => {
-                  val event = member.setStatus(MemberStatus.Down, triggerEvent = true)
-                  updateStatusChangeMetrics(service, event)
-                }
-              }
+              allServices.foreach(forceServiceDown)
             } catch {
               case e: Exception =>
                 error("Got an exception when forcing the cluster down: ", e)
@@ -429,6 +445,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
         case _ => statusChangeUnknownMeter.mark()
       }
     }
+
+    val syncErrorCounter = metrics.counter(
+      "sync-error-count", name)
   }
 
   /**
@@ -460,6 +479,21 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       }
       case _ =>
     }
+  }
+
+  private def incrementSyncErrorCounter(service: Service) {
+    allServicesMetrics.syncErrorCounter += 1
+    getServiceMetrics(service).syncErrorCounter += 1
+  }
+
+  /**
+   * Assume only invoked from OperationLoop actor and does not require synchronization
+   */
+  private def resetSyncErrorCounter(service: Service) {
+    val serviceMetrics = getServiceMetrics(service)
+    allServicesMetrics.syncErrorCounter -= serviceMetrics.syncErrorCounter.count
+    serviceMetrics.syncErrorCounter.clear()
+
   }
 }
 
