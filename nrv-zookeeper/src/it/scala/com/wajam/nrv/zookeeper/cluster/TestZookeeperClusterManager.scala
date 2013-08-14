@@ -8,6 +8,8 @@ import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.ZookeeperClient
 import org.scalatest.matchers.ShouldMatchers
 import com.wajam.nrv.service
+import com.yammer.metrics.Metrics
+import com.yammer.metrics.core.Counter
 
 class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with ShouldMatchers {
 
@@ -308,32 +310,31 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with Shou
     cluster.stop()
   }
 
-  test("sabotaged service member of a started cluster should force the affected service down") {
+  test("sabotaged service member of a started cluster should update the sync error counter") {
+    val syncErrorCounter = Metrics.defaultRegistry().newCounter(classOf[ZookeeperClusterManager], "sync-error-count", "all")
+
     val cluster1 = createCluster(1).start()
     val cluster2 = createCluster(2).start()
     val cluster3 = createCluster(3).start()
+    syncErrorCounter.count() should be(0)
 
     // wait to come up
     waitForCondition[Iterable[MemberStatus]]({
       cluster1.allMembers.map(_.status)
     }, _.forall(_ == MemberStatus.Up))
 
-    // sabotage service member and wait service down
+    // sabotage service member and wait for sync error counter to increment
     val path = ZookeeperClusterManager.zkMemberPath(cluster1.service2.name, cluster1.service2_member16.token)
     cluster1.zk.set(path, "")
-    waitForCondition[Iterable[MemberStatus]]({
-      cluster1.service2.members.map(_.status)
-    }, _.forall(_ == MemberStatus.Down))
+    waitForCondition[Long]({
+      syncErrorCounter.count()
+    }, _ > 0)
 
-    // ensure the other service is not affected
-    assert(cluster1.service1.members.map(_.status).forall(_ == MemberStatus.Up),
-      cluster1.service1.members.map(_.status))
-
-    // repair service member and wait service to come up
+    // repair service member and wait sync error counter reset
     cluster1.zkCreateServiceMember(cluster1.service2, cluster1.service2_member16)
-    waitForCondition[Iterable[MemberStatus]]({
-      cluster1.allMembers.map(_.status)
-    }, _.forall(_ == MemberStatus.Up))
+    waitForCondition[Long]({
+      syncErrorCounter.count()
+    }, _ == 0)
   }
 
   test("when stopping a cluster, ServiceMembers should change like this: Up -> Leaving -> Down, and the Leaving -> Down change should be done according to votes") {

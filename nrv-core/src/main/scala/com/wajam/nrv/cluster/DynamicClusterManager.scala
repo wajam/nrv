@@ -309,10 +309,11 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
               allServices.foreach(service => {
                 try {
                   syncService(service)
+                  resetSyncErrorCounter(service)
                 } catch {
                   case e: Exception => {
                     error("Got an exception when forcing service '{}' sync: ", service, e)
-                    forceServiceDown(service)
+                    incrementSyncErrorCounter(service)
                   }
                 }
               })
@@ -328,15 +329,11 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
             // Synchronise the members (i.e. add/delete/status change) of the received service
             try {
               syncService(service)
+              resetSyncErrorCounter(service)
             } catch {
               case e: Exception =>
                 error("Got an exception when syncing service '{}' members: ", service, e)
-                try {
-                  forceServiceDown(service)
-                } catch {
-                  case e: Exception =>
-                    error("Got an exception when forcing the service '{}' down: ", service, e)
-                }
+                incrementSyncErrorCounter(service)
             } finally {
               sender ! true
             }
@@ -448,6 +445,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
         case _ => statusChangeUnknownMeter.mark()
       }
     }
+
+    val syncErrorCounter = metrics.counter(
+      "sync-error-count", name)
   }
 
   /**
@@ -479,6 +479,21 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       }
       case _ =>
     }
+  }
+
+  private def incrementSyncErrorCounter(service: Service) {
+    allServicesMetrics.syncErrorCounter += 1
+    getServiceMetrics(service).syncErrorCounter += 1
+  }
+
+  /**
+   * Assume only invoked from OperationLoop actor and does not require synchronization
+   */
+  private def resetSyncErrorCounter(service: Service) {
+    val serviceMetrics = getServiceMetrics(service)
+    allServicesMetrics.syncErrorCounter -= serviceMetrics.syncErrorCounter.count
+    serviceMetrics.syncErrorCounter.clear()
+
   }
 }
 
