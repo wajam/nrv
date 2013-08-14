@@ -102,7 +102,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
@@ -151,7 +151,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(openSessionRequest)))
     verifyNoMoreInteractions(mockMasterOpenSessionAction)
@@ -172,7 +172,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     // Wait 75% of the delay and ensure no interaction yet
     verifyZeroInteractionsAfter(wait = 600, mockMasterOpenSessionAction)
@@ -201,7 +201,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     // Waiting 50% of the delay
     verifyZeroInteractionsAfter(wait = 400, mockMasterOpenSessionAction)
@@ -237,7 +237,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
@@ -270,7 +270,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
@@ -280,7 +280,6 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
-      ReplicationAPIParams.SubscriptionId -> sessionId,
       ReplicationAPIParams.SessionId -> sessionId)
 
     val matchCaptor = MessageMatcher(openSessionRequest)
@@ -305,7 +304,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     val openSessionResponse = new Exception("reponse error")
 
@@ -332,7 +331,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
@@ -342,7 +341,6 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
-      ReplicationAPIParams.SubscriptionId -> sessionId,
       ReplicationAPIParams.SessionId -> sessionId)
 
     // Verify close session is sent and onSessionEnd is invoked without an error
@@ -371,7 +369,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
@@ -419,7 +417,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     // Validate now have two pending sessions
     verify(mockMasterOpenSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(openSessionRequest)))
@@ -465,7 +463,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
@@ -475,7 +473,6 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
-      ReplicationAPIParams.SubscriptionId -> sessionId,
       ReplicationAPIParams.SessionId -> sessionId)
 
     // Verify session is pending (open session reponse is delayed after call to openSession)
@@ -518,7 +515,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Token -> token.toString,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     val openSessionResponse: Map[String, MValue] = Map(
       ReplicationAPIParams.SessionId -> sessionId,
@@ -545,7 +542,6 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     // Closing the active session
     val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
-      ReplicationAPIParams.SubscriptionId -> sessionId,
       ReplicationAPIParams.SessionId -> sessionId)
 
     sessionManager.closeSession(member)
@@ -619,7 +615,6 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
-      ReplicationAPIParams.SubscriptionId -> session.id.get,
       ReplicationAPIParams.SessionId -> session.id.get)
     verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
     verifyZeroInteractions(mockMasterOpenSessionAction)
@@ -652,7 +647,6 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
-      ReplicationAPIParams.SubscriptionId -> session.id.get,
       ReplicationAPIParams.SessionId -> session.id.get)
     verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
     verifyZeroInteractions(mockMasterOpenSessionAction)
@@ -685,7 +679,6 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
-      ReplicationAPIParams.SubscriptionId -> session.id.get,
       ReplicationAPIParams.SessionId -> session.id.get)
     verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
     verifyZeroInteractions(mockMasterOpenSessionAction)
@@ -714,7 +707,6 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
 
     val closeSessionRequest: Map[String, MValue] = Map(
       ReplicationAPIParams.Token -> token.toString,
-      ReplicationAPIParams.SubscriptionId -> session.id.get,
       ReplicationAPIParams.SessionId -> session.id.get)
     verify(mockMasterCloseSessionAction, timeout(100)).callOutgoingHandlers(argThat(matchMessage(closeSessionRequest)))
     verifyZeroInteractions(mockMasterOpenSessionAction)

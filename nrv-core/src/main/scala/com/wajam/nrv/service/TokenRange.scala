@@ -16,8 +16,7 @@ case class TokenRange(start: Long, end: Long) {
 }
 
 object TokenRange {
-  val MaxToken = Int.MaxValue.toLong * 2
-
+  val MaxToken = 0xFFFFFFFFL // (Int.MaxValue.toLong * 2 + 1) or (1l<<32) - 1
   val All = TokenRange(0, MaxToken)
 }
 

@@ -7,9 +7,6 @@ object ReplicationAPIParams {
   val Start = "start_ts"
   val End = "end_ts"
   val Timestamp = "timestamp"
-  // TODO: remove this
-  @deprecated
-  val SubscriptionId = "sub_id"
   val SessionId = "session_id"
   val Sequence = "seq"
   val Mode = "mode"
@@ -47,7 +44,7 @@ object ReplicationAPIParams {
   }
 
   def getSessionId(implicit message: Message): String = {
-    getOptionalParamStringValue(SubscriptionId).getOrElse(getParamStringValue(SessionId))
+    getParamStringValue(SessionId)
   }
 }
 
@@ -56,8 +53,7 @@ sealed trait ReplicationMode
 object ReplicationMode {
   def apply(value: String): ReplicationMode = value match {
     case Live.toString => Live
-    case Bootstrap.toString => Bootstrap
-    case Store.toString => Bootstrap
+    case Bootstrap.toString | "store" => Bootstrap
   }
 
   object Live extends ReplicationMode {
@@ -66,11 +62,5 @@ object ReplicationMode {
 
   object Bootstrap extends ReplicationMode{
     override val toString = "bootstrap"
-  }
-
-  // TODO: remove this
-  @deprecated
-  object Store extends ReplicationMode{
-    override val toString = "store"
   }
 }

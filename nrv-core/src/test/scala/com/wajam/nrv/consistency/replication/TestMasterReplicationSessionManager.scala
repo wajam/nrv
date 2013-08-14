@@ -15,7 +15,7 @@ import com.wajam.nrv.consistency.persistence.{LogRecord, FileTransactionLog}
 import java.nio.file.Files
 import com.wajam.nrv.utils.timestamp.Timestamp
 import org.mockito.Mockito._
-import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Request, Index}
+import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Request}
 import org.mockito.ArgumentCaptor
 import scala.collection.JavaConversions._
 import com.wajam.nrv.utils.Closable
@@ -152,7 +152,6 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
       case (request, i) => {
         val publishParams: Map[String, MValue] = Map(
           ReplicationAPIParams.Timestamp -> request.timestamp.value,
-          ReplicationAPIParams.SubscriptionId -> sessionId,
           ReplicationAPIParams.SessionId -> sessionId,
           ReplicationAPIParams.Sequence -> (i + 1).toLong)
         new OutMessage(publishParams, data = request.message)
@@ -209,7 +208,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
       ReplicationAPIParams.Token -> remoteMember.token.toString,
       ReplicationAPIParams.Cookie -> "cookie",
       ReplicationAPIParams.Start -> "12345",
-      ReplicationAPIParams.Mode -> ReplicationMode.Store.toString)
+      ReplicationAPIParams.Mode -> ReplicationMode.Bootstrap.toString)
 
     val openSessionRequestMessage = new InMessage(openSessionRequest)
     var openSessionResponseMessage: Option[OutMessage] = None

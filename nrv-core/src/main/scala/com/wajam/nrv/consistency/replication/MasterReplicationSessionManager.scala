@@ -163,7 +163,6 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
 
               // Reply with an open session response
               val response = new OutMessage()
-              response.parameters += (SubscriptionId -> session.sessionId)
               response.parameters += (SessionId -> session.sessionId)
               response.parameters += (Start -> start)
               source.end.foreach(ts => response.parameters += (End -> ts.value))
@@ -346,7 +345,6 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
         case None => null // Keep-alive
       }
       params += (Sequence -> sequence)
-      params += (SubscriptionId -> sessionId)
       params += (SessionId -> sessionId)
 
       val pushMessage = new OutMessage(params = params, data = data,
