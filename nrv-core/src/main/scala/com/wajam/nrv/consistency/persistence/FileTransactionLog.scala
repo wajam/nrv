@@ -7,7 +7,7 @@ import java.io._
 import com.wajam.nrv.consistency.persistence.LogRecord._
 import java.util.zip.CRC32
 import java.nio.ByteBuffer
-import com.wajam.nrv.utils.PositionInputStream
+import java.nio.channels.FileChannel
 
 /**
  * Class for writing and reading transaction logs.
@@ -491,7 +491,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   private class FileTransactionLogIterator(initialIndex: Index) extends TransactionLogIterator {
     private var logStream: Option[DataInputStream] = None
-    private var positionStream: PositionInputStream = null
+    private var positionStream: FileInputStream = null
     private var nextRecord: Either[Exception, Option[FileRecord]] = Right(None)
     private var readFile: File = null
     private var fileHeader: Option[FileHeader] = None
@@ -535,7 +535,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
 
     /**
-     * Skip to the last file interval. Returns false if an error occured during the skip (e.g. skipped in the middle
+     * Skip to the last file interval. Returns false if an error occurred during the skip (e.g. skipped in the middle
      * of a record greater than the interval size). The iterator should not continue to be used the if this method
      * returns false.
      */
@@ -545,7 +545,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
           val fileSkipIntervalSize = header.fileSkipIntervalSize
           val fileLength = readFile.length()
           val lastSkipPosition = fileLength - (readFile.length() % fileSkipIntervalSize)
-          val skipLen = lastSkipPosition - positionStream.position
+          val skipLen = lastSkipPosition - positionStream.getChannel.position()
           if (skipLen > 0) {
             info("Skipping {} bytes to last interval (intervalSize={}, size={}): {}",
               skipLen, fileSkipIntervalSize, fileLength, readFile)
@@ -580,7 +580,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
           openNextFile()
         } else {
           info("Opening log file: {}", readFile)
-          val pis = new PositionInputStream(new FileInputStream(readFile))
+          val pis = new FileInputStream(readFile)
           val dis = new DataInputStream(pis)
           readFileHeader(dis) match {
             case Some(header) => {
@@ -622,7 +622,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         logStream match {
           case Some(dis) => {
             try {
-              val position = positionStream.position
+              val position = positionStream.getChannel.position()
               val fileSkipIntervalSize = fileHeader.get.fileSkipIntervalSize
               val lenBeforeSkip = fileSkipIntervalSize - position % fileSkipIntervalSize
               if (lenBeforeSkip <= 12) {
@@ -675,6 +675,73 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
             }
           }
           case _ => false
+        }
+      }
+    }
+  }
+
+  private class FileTransactionLogIterator2(initialIndex: Index) extends TransactionLogIterator {
+
+    // Position the iterator to the initial timestamp by reading tx from log as long the read timestamp is before the
+    // initial timestamp
+    // TODO: verify if need caching for mapping to openLogFile
+    private val logFiles = new LogFileIterator(FileTransactionLog.this, initialIndex).flatMap(openLogFile)
+
+    class OpenLogFile(val file: File, val header: FileHeader,
+                      val dataStream: DataInputStream, fileStream: FileInputStream) {
+
+      def channel: FileChannel = fileStream.getChannel
+
+      def close() {
+        dataStream.close()
+      }
+    }
+
+    private var currentLogfile: Option[OpenLogFile] = None
+
+    def hasNext = {
+      (for (file <- currentLogfile) yield file.channel.position() < file.channel.size()) match {
+        case Some(true) => true
+        case Some(false) => logFiles.hasNext
+        case None => false
+      }
+    }
+
+    def next() = {
+     ???
+    }
+
+    def close() {
+      currentLogfile.foreach(_.close())
+      currentLogfile = None
+    }
+
+    private def openLogFile(file: File): Option[OpenLogFile] = {
+      if (file.length() == 0) {
+        info("Empty log file: {}", file)
+        None
+      } else {
+        info("Opening log file: {}", file)
+        val fileStream = new FileInputStream(file)
+        val dataStream = new DataInputStream(fileStream)
+        val header = readFileHeader(file, dataStream)
+        if (fileStream.getChannel.position() < fileStream.getChannel.size) {
+          Some(new OpenLogFile(file, header, dataStream, fileStream))
+        } else None
+      }
+    }
+
+    private def readFileHeader(file: File, dis: DataInputStream): FileHeader = {
+      try {
+        val readMagic = dis.readLong()
+        val readVersion = dis.readInt()
+        val readService = dis.readUTF()
+        val readSkipIntervalSize = if (readVersion > 1) dis.readInt() else Int.MaxValue
+        FileHeader(readMagic, readVersion, readService, readSkipIntervalSize)
+      } catch {
+        case e: Exception => {
+          warn("Error reading log file header from {}: {}", file, e)
+          throw e
         }
       }
     }
