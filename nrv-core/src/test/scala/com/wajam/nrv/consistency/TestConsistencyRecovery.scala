@@ -63,7 +63,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     verifyZeroInteractions(mockStore)
   }
 
-  test("comfirmed complete transaction should NOT BE rewritten") {
+  test("confirmed complete transaction should NOT BE rewritten") {
     val txLog = createTxLog()
     val request = createRequestMessage(timestamp = 0)
     val r1 = txLog.append(Request(1, None, request))
@@ -82,7 +82,7 @@ class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter wi
     logDir.list() should be(Array("service-0000001000-1:.log"))
   }
 
-  test("uncomfirmed complete transaction should BE rewritten") {
+  test("unconfirmed complete transaction should BE rewritten") {
     val txLog = createTxLog()
     val request = createRequestMessage(timestamp = 0)
     val r1 = txLog.append(Request(1, None, request))

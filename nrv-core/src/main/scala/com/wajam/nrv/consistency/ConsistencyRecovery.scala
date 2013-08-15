@@ -299,15 +299,16 @@ class ConsistencyRecovery(logDir: String, store: ConsistentStore, serializer: Op
   }
 
   /**
-   * Truncate the specified transaction log from the specified timestamp. The truncation is exclusive i.e. done from
-   * the Request record immediately following the record matching the specified timestamp. This method assumes that
-   * the records from the specified timestamp are ordered by timestamp in ascending order (e.g. rewritten by recovery).
+   * Truncate the specified transaction log starting after the specified timestamp. The truncation is exclusive i.e.
+   * done from the Request record immediately following the record matching the specified timestamp. This method
+   * assumes that the records from the specified timestamp are ordered by timestamp in ascending order
+   * (e.g. rewritten by recovery).
    */
-  def truncateAfter(txLog: FileTransactionLog, fromTimestamp: Timestamp) {
-    val it = txLog.read(fromTimestamp)
+  def truncateAfter(txLog: FileTransactionLog, timestamp: Timestamp) {
+    val it = txLog.read(timestamp)
     val nextRequest = try {
       it.collectFirst {
-        case request: Request if request.timestamp > fromTimestamp => request
+        case request: Request if request.timestamp > timestamp => request
       }
     } finally {
       it.close()
