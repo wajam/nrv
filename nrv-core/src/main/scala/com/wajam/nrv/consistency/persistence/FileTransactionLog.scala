@@ -101,37 +101,34 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    * Returns the most recent consistent timestamp written on the log storage.
    */
   def getLastLoggedRecord: Option[LogRecord] = synchronized {
-
-    var result: Option[LogRecord] = None
-
     lastLoggedRecordTimer.time {
-      // Read the last timestamp from the last file. If the file is empty, do the same same the previous one and so on
-      // until a timestamp is found.
-      // TODO: rewrite with collect
-      getLogFiles.toList.reverse.find(file => {
-        val fileIndex = getIndexFromName(file.getName)
-        var it = FileTransactionLogIterator(fileIndex)
+      // Iterate log files in reverse order to find their last record. Stop at the first log file which contains a
+      // record.
+      getLogFiles.toList.reverse.toIterator.flatMap {
+        case file =>
+          val fileIndex = getIndexFromName(file.getName)
 
-        result = try {
-          // Try to skip to the last interval. It may fail if a record is larger than the actual interval size.
-          // If it fails fallback to sequential read to the last record
-          it.skipToCurrentLogFileLastInterval()
-          it.toIterable.lastOption
-        } catch {
-          case e: Exception => {
-            info("Failed to skip to the last log file interval. Falling back to sequential read. {}", file)
-            it.close()
-            it = FileTransactionLogIterator(fileIndex)
+          var it = FileTransactionLogIterator(fileIndex)
+          val record: Option[LogRecord] = try {
+            // Try to skip to the last interval. It may fail if a record is larger than the actual interval size.
+            // If it fails fallback to sequential read to the last record
+            it.skipToCurrentLogFileLastInterval()
             it.toIterable.lastOption
+          } catch {
+            case e: Exception => {
+              info("Failed to skip to the last log file interval. Falling back to sequential read. {}", file)
+              it.close()
+              it = FileTransactionLogIterator(fileIndex)
+              it.toIterable.lastOption
+            }
+          } finally {
+            it.close()
           }
-        } finally {
-          it.close()
-        }
-        result.isDefined
-      })
+          record
+      }.collectFirst {
+        case record: LogRecord => record
+      }
     }
-
-    result
   }
 
   /**
@@ -489,50 +486,51 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   private trait FileTransactionLogIterator extends TransactionLogIterator {
     private[persistence] def nextFileRecord(): FileRecord
+
     private[persistence] def skipToCurrentLogFileLastInterval()
   }
 
   private object FileTransactionLogIterator {
     def apply(initialIndex: Index): FileTransactionLogIterator = {
-        new FileTransactionLogIterator {
-//          val it = new ReadAheadFileTransactionLogIterator(new LogFileIterator(FileTransactionLog.this, initialIndex))
-          val it = new NewFileTransactionLogIterator(new LogFileIterator(FileTransactionLog.this, initialIndex))
+      new FileTransactionLogIterator {
+        // val it = new ReadAheadFileTransactionLogIterator(new LogFileIterator(FileTransactionLog.this, initialIndex))
+        val it = new NewFileTransactionLogIterator(new LogFileIterator(FileTransactionLog.this, initialIndex))
 
-          // Position the iterator to the initial index by reading tx from log as long the record id is before the
-          // initial Index id
-          var initialFileRecord: Option[FileRecord] = findInitialFileRecord()
+        // Position the iterator to the initial index by reading tx from log as long the record id is before the
+        // initial Index id
+        var initialFileRecord: Option[FileRecord] = findInitialFileRecord()
 
-          private def findInitialFileRecord(): Option[FileRecord] = {
-            if (it.hasNext) {
-              val fileRecord = it.nextFileRecord()
-              if (fileRecord.record.id < initialIndex.id) {
-                findInitialFileRecord()
-              } else Some(fileRecord)
-            } else None
-          }
+        private def findInitialFileRecord(): Option[FileRecord] = {
+          if (it.hasNext) {
+            val fileRecord = it.nextFileRecord()
+            if (fileRecord.record.id < initialIndex.id) {
+              findInitialFileRecord()
+            } else Some(fileRecord)
+          } else None
+        }
 
 
-          def hasNext = initialFileRecord.isDefined || it.hasNext
+        def hasNext = initialFileRecord.isDefined || it.hasNext
 
-          def next() = nextFileRecord().record
+        def next() = nextFileRecord().record
 
-          private[persistence] def nextFileRecord() = {
-            initialFileRecord match {
-              case Some(fileRecord) => {
-                initialFileRecord = None
-                fileRecord
-              }
-              case None => it.nextFileRecord()
+        private[persistence] def nextFileRecord() = {
+          initialFileRecord match {
+            case Some(fileRecord) => {
+              initialFileRecord = None
+              fileRecord
             }
-          }
-
-          private[persistence] def skipToCurrentLogFileLastInterval() = it.skipToCurrentLogFileLastInterval()
-
-          def close() {
-            it.close()
+            case None => it.nextFileRecord()
           }
         }
+
+        private[persistence] def skipToCurrentLogFileLastInterval() = it.skipToCurrentLogFileLastInterval()
+
+        def close() {
+          it.close()
+        }
       }
+    }
   }
 
   private class ReadAheadFileTransactionLogIterator(logFileIterator: LogFileIterator) extends FileTransactionLogIterator {
@@ -719,7 +717,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
   }
 
-  // TODO: add missing metrics
+  // TODO: add missing metrics ???
   private class NewFileTransactionLogIterator(logFileIterator: LogFileIterator) extends FileTransactionLogIterator {
 
     class OpenLogFile(val file: File, val header: FileHeader,
@@ -841,6 +839,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       }
     }
   }
+
 }
 
 /**
