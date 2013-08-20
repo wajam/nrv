@@ -58,10 +58,32 @@ class TestNode extends FunSuite {
     n2 should be(n1)
   }
 
-  test("local node any local address") {
+
+  test("local node allow dual loopback, and leave localIp alone") {
+    val n1 = new LocalNode("127.0.2.1", Map("nrv" -> 1000))
+    val n2 = new LocalNode("127.0.2.2", Map("nrv" -> 1000))
+
+    def checkValid(ip: String, localNode: LocalNode) = {
+      localNode.listenAddress.getHostAddress should be(ip)
+      localNode.host.getHostAddress should be(ip)
+
+      localNode.listenAddress.getHostName should be(ip)
+      localNode.host.getHostName should be(ip)
+
+      localNode.host.isLoopbackAddress should be(true)
+      localNode.listenAddress.isLoopbackAddress should be(true)
+    }
+
+    checkValid("127.0.2.1", n1)
+    checkValid("127.0.2.2", n2)
+  }
+
+  test("local node any local address and should resolve hostname") {
     val n1 = new LocalNode("0.0.0.0", Map("nrv" -> 1000))
 
     n1.listenAddress.isAnyLocalAddress should be(true)
     n1.host.isAnyLocalAddress should be(false)
+
+    n1.listenAddress.isLoopbackAddress should be(false)
   }
 }

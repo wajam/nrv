@@ -15,5 +15,4 @@ object InetUtils {
       case _ => None
     }
   }
-
 }

@@ -56,8 +56,18 @@ object Node {
   def listenAddressToHostAddress(listenAddress: InetAddress): InetAddress = {
     if (listenAddress.isAnyLocalAddress) InetUtils.firstInetAddress.getOrElse(listenAddress) else listenAddress
   }
+
   def addressByName(name: String): InetAddress = {
     val address = InetAddress.getByName(name)
-    if (address.isLoopbackAddress) InetUtils.firstInetAddress.getOrElse(address) else address
+    if (mustResolveLocalAddress(address)) InetUtils.firstInetAddress.getOrElse(address) else address
+  }
+
+  /**
+   * Force resolve only of the classic localhost or 127.0.0.1, but don't resolve
+   * every other 127.0.0.1/8 addresses. This allow multiple loopback for testing.
+   */
+  def mustResolveLocalAddress(address: InetAddress) = {
+    address.getAddress == Array[Byte](127,0,0,1) ||
+    address.getHostName == "localhost"
   }
 }
