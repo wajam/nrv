@@ -59,10 +59,10 @@ trait TransactionLog {
   }
 
   /**
-   * Returns the most recent sucessful response timestamp from the specified timestamp
+   * Returns the most recent successful response timestamp starting at the specified timestamp
    */
   def lastSuccessfulTimestamp(timestamp: Timestamp): Option[Timestamp] = {
-    val itr = read(timestamp)
+    val itr = read(timestamp).toSafeIterator
     try {
       val responseTimestamps = itr.collect {
         case response: Response if response.status == Response.Success => response.timestamp
@@ -74,4 +74,41 @@ trait TransactionLog {
   }
 }
 
-trait TransactionLogIterator extends Iterator[LogRecord] with Closable
+trait TransactionLogIterator extends Iterator[LogRecord] with Closable {
+
+  /**
+   * Creates a new iterator which stop iterating at the first encountered error.
+   * The new iterator read one record ahead and silently eat any resulting exception to stop iteration.
+   */
+  def toSafeIterator: TransactionLogIterator = {
+
+    val itr = this
+
+    new TransactionLogIterator {
+
+      var nextValue: Option[LogRecord] = getNextValue()
+
+      def hasNext = {
+        nextValue.isDefined
+      }
+
+      def next() = {
+        val value = nextValue
+        nextValue = getNextValue()
+        value.get
+      }
+
+      def close() = itr.close()
+
+      private def getNextValue(): Option[LogRecord] = {
+        try {
+          if (itr.hasNext) {
+            Some(itr.next())
+          } else None
+        } catch {
+          case e: Exception => None
+        }
+      }
+    }
+  }
+}

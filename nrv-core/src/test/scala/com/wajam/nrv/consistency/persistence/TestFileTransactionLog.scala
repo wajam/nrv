@@ -543,8 +543,9 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.commit()
     fileRecord1.length() should be > 0L
 
-    // Create an empty log file
+    // Create two consecutive empty log files
     new File(logDir, fileTxLog.getNameFromIndex(Index(125, Some(100)))).createNewFile()
+    new File(logDir, fileTxLog.getNameFromIndex(Index(135, Some(100)))).createNewFile()
 
     // This append create a new log file
     fileTxLog.rollLog()
@@ -568,7 +569,8 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileRecord4.length() should be > 0L
 
     val expectedFiles = Array("service-0000001000-100:100.log", "service-0000001000-125:100.log",
-      "service-0000001000-150:200.log", "service-0000001000-200:300.log", "service-0000001000-250:400.log")
+      "service-0000001000-135:100.log", "service-0000001000-150:200.log", "service-0000001000-200:300.log",
+      "service-0000001000-250:400.log")
     val actualFiles = logDir.list().sorted
     actualFiles should be(expectedFiles)
 
@@ -589,7 +591,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     doReturn(r1).doReturn(r2).doReturn(r3).doThrow(new IOException()).doReturn(r5).when(spySerializer).deserialize(anyObject())
 
     // Start at second transaction
-    val actualRecords = fileTxLog.read(Index(2)).toList
+    val actualRecords = fileTxLog.read(Index(2)).toSafeIterator.toList
     actualRecords should be(List(r2, r3))
   }
 
@@ -617,7 +619,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
       raf.setLength(newFileLen)
       raf.close()
 
-      fileTxLog.read.toList should be(List(r1))
+      fileTxLog.read.toSafeIterator.toList should be(List(r1))
     }
   }
 
@@ -655,7 +657,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
       raf.close()
       logFile.length() should be(r2FileLen)
 
-      fileTxLog.read.toList should be(List(r1))
+      fileTxLog.read.toSafeIterator.toList should be(List(r1))
     }
 
     // Partially fill end of r2 with random crap
@@ -669,7 +671,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
       raf.close()
       logFile.length() should be(r2FileLen)
 
-      fileTxLog.read.toList should be(List(r1))
+      fileTxLog.read.toSafeIterator.toList should be(List(r1))
     }
 
     // Partially fill middle of r2 with random crap
@@ -685,7 +687,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
       raf.close()
       logFile.length() should be(r2FileLen)
 
-      fileTxLog.read.toList should be(List(r1))
+      fileTxLog.read.toSafeIterator.toList should be(List(r1))
     }
 
     // Verify we can read all records if we restore the original log file from original buffer
@@ -711,7 +713,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val actualFiles = logDir.list().sorted
     actualFiles should be(expectedFiles)
 
-    val actualRecords = fileTxLog.read.toList
+    val actualRecords = fileTxLog.read.toSafeIterator.toList
     actualRecords should be(List(r1, r2))
   }
 
@@ -771,19 +773,19 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
 
     // Invalid header magic
     createEmptyLogFileWithHeader(id = 0, magic = new Random(0L).nextLong())
-    fileTxLog.read.toList should be(List())
+    fileTxLog.read.toSafeIterator.toList should be(List())
 
     // Invalid header version
     createEmptyLogFileWithHeader(id = 0, version = FileTransactionLog.LogFileCurVersion + 1)
-    fileTxLog.read.toList should be(List())
+    fileTxLog.read.toSafeIterator.toList should be(List())
 
     // Invalid header service
     createEmptyLogFileWithHeader(id = 0, service = "dummy")
-    fileTxLog.read.toList should be(List())
+    fileTxLog.read.toSafeIterator.toList should be(List())
 
     // Test again with a valid header
     createEmptyLogFileWithHeader(id = 0)
-    fileTxLog.read.toList should be(List(record))
+    fileTxLog.read.toSafeIterator.toList should be(List(record))
   }
 
   test("should properly write and read skip interval") {
