@@ -10,23 +10,11 @@ class CompositeTransactionLogIterator(iterators: Iterator[LogRecord]*) extends T
 
   def this(record: LogRecord, iterator: Iterator[LogRecord]) = this(List(record).toIterator, iterator)
 
-  private var itList = iterators.toList
+  private var itr = iterators.foldLeft(Iterator[LogRecord]())((a, b) => a ++ b)
 
-  @tailrec
-  final def hasNext = {
-    itList match {
-      case head :: _ if head.hasNext => true
-      case head :: tail => itList = tail; hasNext
-      case Nil => false
-    }
-  }
+  def hasNext = itr.hasNext
 
-  def next() = {
-    itList match {
-      case head :: _ => head.next()
-      case Nil => null
-    }
-  }
+  def next() = itr.next()
 
   def close() {
     iterators.foreach(_ match {
