@@ -146,7 +146,6 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
         }
         Index(idGenerator.nextId, Some(consistentTimestamp))
       }
-      println("*** appendIdleIndex" + index)
       lastWrittenConsistentTimestamp.update(index.consistentTimestamp)
     } catch {
       case _: OutdatedIndexException => {
@@ -302,7 +301,6 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
           }
           consistentTimestamp = Some(tx.timestamp)
 
-          println("*** checkPendingConsistency: " + pendingTransactions.values)
           if (pendingTransactions.isEmpty) {
             // No more pending transactions, append an idle Index. This ensure that the last transaction can be
             // seen by processes that are limited by the recorder currentConsistentTimestamp (e.g. percolation on

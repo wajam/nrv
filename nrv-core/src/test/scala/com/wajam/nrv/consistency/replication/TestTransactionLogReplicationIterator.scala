@@ -151,7 +151,6 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
       recorder.checkPending()
       recorder.appendMessage(message)
       recorder.checkPending()
-      println("appendMessage: " + message.timestamp)
     }
 
     // Append a deterministic initial transaction in log. This is where the consumer will start reading.
@@ -169,7 +168,6 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
           val requests = (1 to Random.nextInt(10 + 1)).map(i => createRequestMessage(timestamp = i + appendedCount))
           val responses = requests.map(r => createResponseMessage(r))
 
-          println("@@ append: %s-%s".format(requests.headOption.map(_.timestamp), requests.lastOption.map(_.timestamp)))
           Random.shuffle(requests).foreach(appendMessage(_))
           txLog.rollLog()
           Random.shuffle(responses).foreach(appendMessage(_))
@@ -210,8 +208,6 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
       // Consume until end of iterator (not expected) or the final transaction is consumed.
       @tailrec
       def consume(last: Option[Message]): Option[Message] = {
-        println("consume: " + last.map(_.timestamp) + ", " + txLog.getLastLoggedRecord)
-
         if (itr.hasNext && !isFinalTx(last)) {
           itr.next() match {
             case tx@Some(_) => consume(tx)
@@ -230,7 +226,6 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
     appendedCount should be >= maxTxCount
     // Update current timestamp past consistency delay to ensure a final Index record is appended
     currentId = appendedCount * 2 * 10 + consistencyDelay
-    println("#### currentId: " + currentId)
 
     // Consume all appended transactions
     val lastConsumed = Future.blocking(consumer, 5000L)
