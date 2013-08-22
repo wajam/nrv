@@ -15,11 +15,11 @@ import com.yammer.metrics.scala.Instrumented
  * log and the current consistent timestamp advance. If the consistent timestamp advance beyond the end of the log,
  * the iterator is closed and hasNext() returns false.
  * <p><p>
- * This class is not thread safe and must invoked from a single thread or synchronized externaly.
+ * This class is not thread safe and must invoked from a single thread or synchronized externally.
  */
 class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start: Timestamp,
                                         txLog: TransactionLog, currentConsistentTimestamp: => Option[Timestamp],
-                                        mustDrain: => Boolean = false)
+                                        isDraining: => Boolean = false)
   extends ReplicationSourceIterator with Instrumented {
 
   val end = None
@@ -39,8 +39,8 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
 
   def hasNext = {
     readMoreLogRecords()
-    itr.hasNext || (!mustDrain && lastRecordIsIndexEqualsToCurrentConsistentTimestamp) ||
-      (mustDrain && pendingTransactions.nonEmpty)
+    itr.hasNext || (!isDraining && lastRecordIsIndexAtCurrentConsistentTimestamp) ||
+      (isDraining && pendingTransactions.nonEmpty)
   }
 
   def next() = {
@@ -78,7 +78,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
    * the last read record consistent timestamp.
    */
   private def isHeadTransactionReady: Boolean = {
-    if (mustDrain && !itr.hasNext && pendingTransactions.nonEmpty) {
+    if (isDraining && !itr.hasNext && pendingTransactions.nonEmpty) {
       true
     } else {
       val ready = for {
@@ -90,7 +90,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
     }
   }
 
-  private def lastRecordIsIndexEqualsToCurrentConsistentTimestamp: Boolean = {
+  private def lastRecordIsIndexAtCurrentConsistentTimestamp: Boolean = {
     lastReadRecord match {
       case Some(lastIndex: Index) => lastIndex.consistentTimestamp == currentConsistentTimestamp
       case _ => false
@@ -115,7 +115,7 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
     // Read records until the head transaction is ready (see definition above) but never going beyond the the current
     // consistent timestamp.
     while (itr.hasNext && (lastReadRecord.isEmpty || !isHeadTransactionReady &&
-      (mustDrain && lastRecordIsBeforeOrEqualsToCurrentConsistentTimestamp(indexCanEqualsConsistentTimestamp = true) ||
+      (isDraining && lastRecordIsBeforeOrEqualsToCurrentConsistentTimestamp(indexCanEqualsConsistentTimestamp = true) ||
         lastRecordIsBeforeOrEqualsToCurrentConsistentTimestamp(indexCanEqualsConsistentTimestamp = false)))) {
       val record = itr.next()
       record match {
