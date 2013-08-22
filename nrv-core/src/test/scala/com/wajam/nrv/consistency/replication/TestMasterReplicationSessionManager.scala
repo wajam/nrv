@@ -520,12 +520,12 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     val expectedTxMessages = toTransactionMessages(logRecords, startTimestamp)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(5)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(6)).callOutgoingHandlers(messageCaptor.capture())
 
-    // Verify received all expected messages until to consistent timestamp (i.e. 2, 3, 4, 5, 6)
+    // Verify received all expected messages until to consistent timestamp (i.e. 2, 3, 4, 5, 6, 7)
     val actualTxMessages = messageCaptor.getAllValues.toList
-    assertReplicationMessagesEquals(actualTxMessages, expectedTxMessages, size = 5)
-    actualTxMessages.size should be(5)
+    assertReplicationMessagesEquals(actualTxMessages, expectedTxMessages, size = 6)
+    actualTxMessages.size should be(6)
 
     // Wait for idle message
     reset(mockSlaveReplicateTxAction)
