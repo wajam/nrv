@@ -731,7 +731,6 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
   }
 
-  // TODO: add missing metrics ???
   private class NewFileTransactionLogIterator(logFileIterator: LogFileIterator) extends FileTransactionLogIterator {
 
     class OpenLogFile(val file: File, val header: FileHeader,
@@ -764,7 +763,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       ensureInitialized()
 
       val openFile = currentLogfile.get
-      if (openFile.channel.position() < openFile.channel.size()) {
+      if (openFile.channel.position() < openFile.channel.size()) readNextTimer.time {
         // Haven't reach the end of the current log file, read the record from the current log file
         val position = openFile.channel.position()
         val fileSkipIntervalSize = openFile.header.fileSkipIntervalSize
@@ -838,6 +837,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
 
     private def openLogFile(file: File): Option[OpenLogFile] = {
+      readOpenMeter.mark()
+
       if (file.length() == 0) {
         info("Empty log file: {}", file)
         None
