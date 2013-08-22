@@ -77,8 +77,6 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   lazy private val readIndexTimer = metrics.timer("read-index-time")
   lazy private val readTimestampTimer = metrics.timer("read-timestamp-time")
-  lazy private val readNextCalls = metrics.meter("read-next-calls", "read-next-calls")
-  lazy private val readNextError = metrics.meter("read-next-error", "read-next-error")
   lazy private val readNextTimer = metrics.timer("read-next-time")
   lazy private val readOpenMeter = metrics.meter("read-open-calls", "read-open-calls")
 
@@ -512,9 +510,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
       var initialized = false
       var initialRecord: Option[FileLogRecord] = None
 
-      // TODO: remove this once ReadAheadFileTransactionLogIterator is annihilated
-      // val it = new ReadAheadFileTransactionLogIterator(new LogFileIterator(FileTransactionLog.this, initialIndex))
-      val it = new NewFileTransactionLogIterator(new LogFileIterator(FileTransactionLog.this, initialIndex))
+      val it = new FileTransactionLogIteratorImpl(new LogFileIterator(FileTransactionLog.this, initialIndex))
 
       def hasNext = {
         ensureInitialized()
@@ -551,187 +547,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
   }
 
-  private class ReadAheadFileTransactionLogIterator(logFileIterator: LogFileIterator) extends FileTransactionLogIterator {
-    private var logStream: Option[DataInputStream] = None
-    private var positionStream: FileInputStream = null
-    private var nextRecord: Either[Exception, Option[FileLogRecord]] = Right(None)
-    private var readFile: File = null
-    private var fileHeader: Option[FileHeader] = None
-
-    private val logFiles = logFileIterator
-    openNextFile()
-
-    def hasNext: Boolean = {
-      nextRecord match {
-        case Right(Some(_)) => true
-        case _ => false
-      }
-    }
-
-    def next(): FileLogRecord = {
-      readNextCalls.mark()
-
-      val result = nextRecord match {
-        case Right(Some(record)) => record
-        case Left(e) => throw new IOException(e)
-        case _ => throw new IllegalStateException("Must not be invoked beyond the end of the iterator")
-      }
-
-      // Read ahead the next transaction for a future call
-      readNextRecord()
-
-      result
-    }
-
-    /**
-     * Skip to the last file interval. Throws an exception if an error occurred during the skip (e.g. skipped in the
-     * middle of a record greater than the interval size).
-     */
-    def skipToCurrentLogFileLastInterval() {
-      (logStream, fileHeader) match {
-        case (Some(dis), Some(header)) => {
-          val fileSkipIntervalSize = header.fileSkipIntervalSize
-          val fileLength = readFile.length()
-          val lastSkipPosition = fileLength - (readFile.length() % fileSkipIntervalSize)
-          val skipLen = lastSkipPosition - positionStream.getChannel.position()
-          if (skipLen > 0) {
-            info("Skipping {} bytes to last interval (intervalSize={}, size={}): {}",
-              skipLen, fileSkipIntervalSize, fileLength, readFile)
-            dis.skip(skipLen)
-            readNextRecord()
-
-            nextRecord match {
-              case Left(e) => throw new IOException(e)
-              case _ =>
-            }
-          }
-        }
-        case _ =>
-      }
-    }
-
-    def close() {
-      logStream.foreach(_.close())
-      logStream = None
-      positionStream = null
-      readFile = null
-    }
-
-    private def openNextFile(): Boolean = {
-      readOpenMeter.mark()
-
-      logStream.foreach(_.close())
-      logStream = None
-      readFile = null
-
-      if (logFiles.hasNext) {
-        readFile = logFiles.next()
-        if (readFile.length() == 0) {
-          info("Skipping empty log file: {}", readFile)
-          openNextFile()
-        } else {
-          info("Opening log file: {}", readFile)
-          val pis = new FileInputStream(readFile)
-          val dis = new DataInputStream(pis)
-          readFileHeader(dis) match {
-            case Some(header) => {
-              positionStream = pis
-              logStream = Some(dis)
-              fileHeader = Some(header)
-              readNextRecord()
-            }
-            case None => {
-              nextRecord = Right(None)
-              false
-            }
-          }
-        }
-      } else {
-        false
-      }
-    }
-
-    private def readFileHeader(dis: DataInputStream): Option[FileHeader] = {
-      try {
-        val readMagic = dis.readLong()
-        val readVersion = dis.readInt()
-        val readService = dis.readUTF()
-        val readSkipIntervalSize = if (readVersion > 1) dis.readInt() else Int.MaxValue
-        Some(FileHeader(readMagic, readVersion, readService, readSkipIntervalSize))
-      } catch {
-        case e: Exception => {
-          readNextError.mark()
-          warn("Error reading log file header from {}: {}", readFile, e)
-          nextRecord = Left(e)
-          None
-        }
-      }
-    }
-
-    private def readNextRecord(): Boolean = {
-      readNextTimer.time {
-        logStream match {
-          case Some(dis) => {
-            try {
-              val position = positionStream.getChannel.position()
-              val fileSkipIntervalSize = fileHeader.get.fileSkipIntervalSize
-              val lenBeforeSkip = fileSkipIntervalSize - position % fileSkipIntervalSize
-              if (lenBeforeSkip <= 12) {
-                positionStream.skip(lenBeforeSkip)
-              }
-
-              // Read the first byte of the CRC outside of the inner try/catch. Assume this is the end of the current
-              // log file (and continue reading from the next file) if we get an EOFException while reading the first
-              // byte. Any exception (including EOFException) while reading remaining bytes of the record means that
-              // the record is corrupted and we don't continue reading.
-              val crcBuf = new Array[Byte](8)
-              dis.readFully(crcBuf, 0, 1)
-              try {
-                dis.readFully(crcBuf, 1, 7)
-                var crc = ByteBuffer.wrap(crcBuf).getLong
-                var recordLen = dis.readInt()
-
-                // Detect padding to next skip interval
-                if (crc == 0 && recordLen == 0) {
-                  require(lenBeforeSkip > 12)
-                  dis.skip(lenBeforeSkip - 12)
-                  crc = dis.readLong()
-                  recordLen = dis.readInt()
-                }
-
-                require(recordLen >= MinRecordLen && recordLen <= MaxRecordLen,
-                  "Record length %d is out of bound".format(recordLen))
-                val buf = new Array[Byte](recordLen)
-                dis.readFully(buf)
-                val eor = dis.readInt()
-                require(eor == EOR, "End of record magic number 0x%x not 0x%x".format(eor, EOR))
-                require(crc == computeRecordCrc(buf), "CRC should be %d but is %d".format(crc, computeRecordCrc(buf)))
-                val record = recordSerializer.deserialize(buf)
-                nextRecord = Right(Some(FileLogRecord(record, position, readFile)))
-                true
-              } catch {
-                case e: Exception => {
-                  readNextError.mark()
-                  warn("Error reading transaction from {}: {}", readFile, e)
-                  nextRecord = Left(e)
-                  false
-                }
-              }
-            } catch {
-              case e: EOFException => {
-                info("End of log file: {}", readFile)
-                nextRecord = Right(None)
-                openNextFile()
-              }
-            }
-          }
-          case _ => false
-        }
-      }
-    }
-  }
-
-  private class NewFileTransactionLogIterator(logFileIterator: LogFileIterator) extends FileTransactionLogIterator {
+  private class FileTransactionLogIteratorImpl(logFileIterator: LogFileIterator) extends FileTransactionLogIterator {
 
     class OpenLogFile(val file: File, val header: FileHeader,
                       val dataStream: DataInputStream, fileStream: FileInputStream) {
