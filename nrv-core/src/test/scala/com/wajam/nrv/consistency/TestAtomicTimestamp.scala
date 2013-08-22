@@ -6,7 +6,10 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.utils.{Promise, Future}
 import scala.annotation.tailrec
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class TestAtomicTimestamp extends FunSuite {
   test("update None over None") {
     val atom = new AtomicTimestamp(updateIfGreater, None)

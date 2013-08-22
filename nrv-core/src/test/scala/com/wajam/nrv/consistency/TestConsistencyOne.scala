@@ -7,7 +7,10 @@ import org.scalatest.matchers.ShouldMatchers._
 import org.mockito.Mockito._
 import com.wajam.nrv.data.OutMessage
 import com.wajam.nrv.cluster.Node
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class TestConsistencyOne extends FunSuite with MockitoSugar {
 
   def replica(token: Int = 0, host: String = "localhost", port: Int = 1234, selected: Boolean = true) = {

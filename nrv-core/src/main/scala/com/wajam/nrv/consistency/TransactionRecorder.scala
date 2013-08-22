@@ -138,7 +138,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
           // WHY this protection?
           // If Index is the final record of a transaction log, the recovery logic assume the log is consistent with the
           // storage and the recovery process is skip. Imagine this twisted scenario: A new Request is appended
-          // concurently but just a microsecond before the idle Index. The member becomes inconsistent after the
+          // concurrently but just a microsecond before the idle Index. The member becomes inconsistent after the
           // store is updated but before the Response is written in the log. The transaction log is now inconsistent
           // with the store but the recovery will be skip because the transaction log is terminated an Index record!
           info("Skip oudated idle Index. indexCTS={}, maxTs={}", consistentTimestamp, currentMaxTimestamp)
@@ -291,7 +291,7 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
           // transactions up to that transaction
           pendingTransactions = pendingTransactions.from(Timestamp(tx.timestamp.value + 1))
           consistentTimestamp match {
-            case Some(ts) if (ts > tx.timestamp) => {
+            case Some(ts) if ts > tx.timestamp => {
               // Ensure we are not going back in time!!!
               consistencyErrorCheckPending.mark()
               error("Consistency error consistent timestamp going backward {}.", tx)
@@ -303,8 +303,8 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
 
           if (pendingTransactions.isEmpty) {
             // No more pending transactions, append an idle Index. This ensure that the last transaction can be
-            // seens by processes that are limited by the recorder currentConsistentTimestamp (e.g. percolation on
-            // feeder, store internal GC, etc) if no new write transactions are seens for a while.
+            // seen by processes that are limited by the recorder currentConsistentTimestamp (e.g. percolation on
+            // feeder, store internal GC, etc) if no new write transactions are seen for a while.
             appendIdleIndex(tx.timestamp)
           } else {
             // Check for more consistent transaction
