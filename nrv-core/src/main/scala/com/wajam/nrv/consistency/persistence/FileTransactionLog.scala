@@ -812,6 +812,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
      * Skip to the last file interval.
      */
     def skipToCurrentLogFileLastInterval() {
+      ensureInitialized()
+
       currentLogfile match {
         case Some(openFile) => {
           val fileSkipIntervalSize = openFile.header.fileSkipIntervalSize
@@ -824,7 +826,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
             openFile.dataStream.skip(skipLen)
           }
         }
-        case None =>
+        case None => warn("Cannot skip to last interval. No current open log file")
       }
     }
 
