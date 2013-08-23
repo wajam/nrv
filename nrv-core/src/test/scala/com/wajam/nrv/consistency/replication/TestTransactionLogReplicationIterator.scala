@@ -273,4 +273,24 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
     itr.next().flatMap(_.timestamp) should be(Some(Timestamp(4L)))
     itr.hasNext should be(false)
   }
+
+  test("should returns transactions in proper order when older tx start after complete tx") {
+    val request1 = createRequestMessage(timestamp = 1)
+    val request2 = createRequestMessage(timestamp = 2)
+    val request3 = createRequestMessage(timestamp = 3)
+    val request4 = createRequestMessage(timestamp = 4)
+
+    txLog.append(LogRecord(110, None, request1))
+    txLog.append(LogRecord(120, None, createResponseMessage(request1)))
+    txLog.append(LogRecord(130, None, request4))
+    txLog.append(LogRecord(140, None, createResponseMessage(request4)))
+    txLog.append(LogRecord(150, None, request2))
+    txLog.append(LogRecord(160, None, createResponseMessage(request2)))
+    txLog.append(LogRecord(170, None, request3))
+    txLog.append(LogRecord(180, None, createResponseMessage(request3)))
+    txLog.append(Index(190, Some(4)))
+
+    val itr = new TransactionLogReplicationIterator(member, start = 1L, txLog, currentConsistentTimestamp = Some(4L), isDraining = false)
+    itr.take(100).flatten.flatMap(_.timestamp).map(_.value).toList should be(List(1L, 2L, 3L, 4L))
+  }
 }
