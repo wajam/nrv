@@ -84,7 +84,8 @@ class TransactionLogReplicationIterator(member: ResolvedServiceMember, val start
       val ready = for {
         (_, tx) <- pendingTransactions.headOption
         headResponse <- tx.response
-        maxTimestamp <- currentConsistentTimestamp
+        lastRecord <- lastReadRecord
+        maxTimestamp <- lastRecord.consistentTimestamp
       } yield headResponse.timestamp <= maxTimestamp
       ready.getOrElse(false)
     }

@@ -284,13 +284,20 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
     txLog.append(LogRecord(120, None, createResponseMessage(request1)))
     txLog.append(LogRecord(130, None, request4))
     txLog.append(LogRecord(140, None, createResponseMessage(request4)))
-    txLog.append(LogRecord(150, None, request2))
-    txLog.append(LogRecord(160, None, createResponseMessage(request2)))
-    txLog.append(LogRecord(170, None, request3))
-    txLog.append(LogRecord(180, None, createResponseMessage(request3)))
+    txLog.append(LogRecord(150, Some(1L), request2))
+    txLog.append(LogRecord(160, Some(1L), createResponseMessage(request2)))
+    txLog.append(LogRecord(170, Some(1L), request3))
+    txLog.append(LogRecord(180, Some(1L), createResponseMessage(request3)))
     txLog.append(Index(190, Some(4)))
 
-    val itr = new TransactionLogReplicationIterator(member, start = 1L, txLog, currentConsistentTimestamp = Some(4L), isDraining = false)
+
+    var currentConsistentTimestamp: Option[Timestamp] = None
+
+    val itr = new TransactionLogReplicationIterator(member, start = 1L, txLog, currentConsistentTimestamp, isDraining = false)
+    itr.take(100).flatten.flatMap(_.timestamp).map(_.value).toList should be(List())
+    currentConsistentTimestamp = Some(1L)
+    itr.take(100).flatten.flatMap(_.timestamp).map(_.value).toList should be(List())
+    currentConsistentTimestamp = Some(4L)
     itr.take(100).flatten.flatMap(_.timestamp).map(_.value).toList should be(List(1L, 2L, 3L, 4L))
   }
 }
