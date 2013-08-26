@@ -10,8 +10,6 @@ class ScribeTraceRecorder(scribeHost: String, scribePort: Int, samplingRate: Int
   scribeClient.start()
 
   def record(record: Record) {
-    executeIfSampled(record) { record =>
-      scribeClient.log(TraceRecordFormatter.record2TabSeparatedString(record))
-    }
+    scribeClient.log(TraceRecordFormatter.record2TabSeparatedString(record))
   }
 }
