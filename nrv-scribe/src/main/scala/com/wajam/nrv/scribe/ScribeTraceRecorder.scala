@@ -10,12 +10,7 @@ class ScribeTraceRecorder(scribeHost: String, scribePort: Int, samplingRate: Int
   scribeClient.start()
 
   def record(record: Record) {
-    val sampled = record.context.sampled match {
-      case Some(value) => value
-      case None => record.context.traceId.hashCode % samplingRate == 0
-    }
-
-    if (sampled) {
+    executeIfSampled(record) { record =>
       scribeClient.log(TraceRecordFormatter.record2TabSeparatedString(record))
     }
   }
