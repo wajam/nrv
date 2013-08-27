@@ -45,7 +45,7 @@ object NrvBuild extends Build {
   )
 
   var scribeDeps = Seq(
-    "org.apache.thrift" % "libthrift" % "0.6.1" exclude("org.slf4j", "slf4j-api"),
+    "org.apache.thrift" % "libthrift" % "0.6.1" exclude("org.slf4j", "slf4j-api") exclude("org.slf4j", "slf4j-log4j12"),
     "org.apache.thrift" % "libfb303" % "0.6.1"
   )
 
