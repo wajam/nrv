@@ -1,0 +1,456 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<diagram program="umlet" version="12.0">
+  <zoom_level>10</zoom_level>
+  <element>
+    <type>com.umlet.element.Note</type>
+    <coordinates>
+      <x>30</x>
+      <y>540</y>
+      <w>230</w>
+      <h>120</h>
+    </coordinates>
+    <panel_attributes>A custom service extends
+nrv.Service. The logic behind
+each service call is defined
+through an instance of "Action"
+and is associated with a path.
+e.g. "/path/example/"
+bg=yellow</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>180</x>
+      <y>380</y>
+      <w>180</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;-</panel_attributes>
+    <additional_attributes>160;30;30;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>630</x>
+      <y>150</y>
+      <w>50</w>
+      <h>110</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>30;90;30;30;30;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>110</x>
+      <y>160</y>
+      <w>260</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+</panel_attributes>
+    <additional_attributes>240;30;50;30;30;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>460</x>
+      <y>150</y>
+      <w>340</w>
+      <h>250</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>320;230;320;30;30;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>450</x>
+      <y>380</y>
+      <w>240</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m1= 1
+m2=*</panel_attributes>
+    <additional_attributes>30;30;220;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>660</x>
+      <y>290</y>
+      <w>66</w>
+      <h>110</h>
+    </coordinates>
+    <panel_attributes>lt=-&gt;&gt;&gt;
+   1
+m2=   1</panel_attributes>
+    <additional_attributes>40;30;40;90</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>350</x>
+      <y>260</y>
+      <w>140</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>Cluster
+--</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Note</type>
+    <coordinates>
+      <x>540</x>
+      <y>50</y>
+      <w>260</w>
+      <h>40</h>
+    </coordinates>
+    <panel_attributes>A Consistency can optionally
+be created to manage replication.
+bg=yellow</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>420</x>
+      <y>860</y>
+      <w>260</w>
+      <h>60</h>
+    </coordinates>
+    <panel_attributes>« trait » MessageHandler
+--
++handleIncoming(message, next)
++handleOutgoing(message, next)</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>520</x>
+      <y>760</y>
+      <w>210</w>
+      <h>120</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>30;100;30;60;190;60;190;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>340</x>
+      <y>380</y>
+      <w>140</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>Service
+--</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>40</x>
+      <y>380</y>
+      <w>170</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>MyService
+--</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>380</x>
+      <y>540</y>
+      <w>350</w>
+      <h>220</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>330;200;330;120;30;120;30;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>270</x>
+      <y>10</y>
+      <w>550</w>
+      <h>930</h>
+    </coordinates>
+    <panel_attributes>NRV</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>670</x>
+      <y>380</y>
+      <w>140</w>
+      <h>80</h>
+    </coordinates>
+    <panel_attributes>ServiceMember
+--
+token
+status</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>360</x>
+      <y>60</y>
+      <w>170</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>/Consistency/
+--
++bindService()</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>320</x>
+      <y>540</y>
+      <w>110</w>
+      <h>220</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>30;200;30;120;90;120;90;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Note</type>
+    <coordinates>
+      <x>510</x>
+      <y>520</y>
+      <w>290</w>
+      <h>110</h>
+    </coordinates>
+    <panel_attributes>Actions receive requests, compute a
+responses using their implementation,
+and execute the reply handling logic
+calling successively the resolver,
+switchboard, protocol and others,
+similar to a chain of responsibility.
+bg=yellow</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>20</x>
+      <y>340</y>
+      <w>210</w>
+      <h>110</h>
+    </coordinates>
+    <panel_attributes>Your Service
+--
+bg=orange</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>70</x>
+      <y>400</y>
+      <w>290</w>
+      <h>154</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+action logic
+definition</panel_attributes>
+    <additional_attributes>270;110;70;110;70;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>320</x>
+      <y>760</y>
+      <w>250</w>
+      <h>120</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>230;100;230;60;30;60;30;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>460</x>
+      <y>240</y>
+      <w>160</w>
+      <h>70</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m1= 1
+m2=1
+localNode</panel_attributes>
+    <additional_attributes>30;50;140;50</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>350</x>
+      <y>150</y>
+      <w>140</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>/ClusterManager/
+--</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>380</x>
+      <y>280</y>
+      <w>50</w>
+      <h>120</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m1=  1
+m2=  *</panel_attributes>
+    <additional_attributes>30;30;30;100</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>600</x>
+      <y>240</y>
+      <w>140</w>
+      <h>80</h>
+    </coordinates>
+    <panel_attributes>Node
+--
+hostname
+ports
+status</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>340</x>
+      <y>480</y>
+      <w>140</w>
+      <h>90</h>
+    </coordinates>
+    <panel_attributes>Action
+--
+path
+implementation
+--
++call(data)</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>380</x>
+      <y>540</y>
+      <w>190</w>
+      <h>220</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>170;200;170;120;30;120;30;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>380</x>
+      <y>400</y>
+      <w>50</w>
+      <h>100</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;30;80</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>520</x>
+      <y>760</y>
+      <w>50</w>
+      <h>120</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>30;100;30;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>110</x>
+      <y>60</y>
+      <w>270</w>
+      <h>320</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+</panel_attributes>
+    <additional_attributes>250;30;30;30;30;300</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>380</x>
+      <y>80</y>
+      <w>50</w>
+      <h>90</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>30;70;30;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>490</x>
+      <y>740</y>
+      <w>140</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>Switchboard
+--
+-execute(action)</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>650</x>
+      <y>740</y>
+      <w>110</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>/Protocol/
+--
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>390</x>
+      <y>170</y>
+      <w>50</w>
+      <h>110</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>30;90;30;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>290</x>
+      <y>740</y>
+      <w>180</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>/Resolver/
+--
++resolve(token):Node[]</panel_attributes>
+    <additional_attributes/>
+  </element>
+</diagram>
