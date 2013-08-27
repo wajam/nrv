@@ -50,7 +50,6 @@ class HttpProtocol(name: String,
       case req: HttpRequest => {
         msg.protocolName = name
         msg.method = req.getMethod.getName
-        msg.serviceName = HttpHeaders.getHost(req, "")
         msg.path = new URI(req.getUri).getPath
         msg.attachments(HttpProtocol.KEEP_ALIVE_KEY) = isKeepAlive(req)
         msg.code = if (req.getHeader(HttpProtocol.CODE_HEADER) != null) {

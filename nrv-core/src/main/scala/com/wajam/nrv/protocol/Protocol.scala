@@ -55,7 +55,12 @@ abstract class Protocol(val name: String,
       val optAction = resolveAction(message.serviceName, message.actionURL.path, message.method)
 
       optAction match {
-        case Some(foundAction) => foundAction.callIncomingHandlers(message)
+        case Some(foundAction) => {
+          if (message.serviceName.isEmpty) {
+            message.serviceName = foundAction.service.name
+          }
+          foundAction.callIncomingHandlers(message)
+        }
         case None =>
           error("Couldn't find services/action for received message {}", message)
           throw new RouteException("No route found for received message " + message.toString)
