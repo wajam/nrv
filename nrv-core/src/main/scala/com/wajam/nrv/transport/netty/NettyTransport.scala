@@ -79,16 +79,25 @@ abstract class NettyTransport(host: InetAddress,
                            message: AnyRef,
                            closeAfter: Boolean,
                            completionCallback: Option[Throwable] => Unit = (_) => {}) {
-    var writeChannel: Channel = null
-    val pooledConnection = connectionPool.getPooledConnection(destination)
-    pooledConnection match {
-      case Some(channel) => writeChannel = channel
+
+    val optConnection = connectionPool.getPooledConnection(destination) match {
+      case pooledConnection @ Some(_) => pooledConnection
       case None => {
-        writeChannel = client.openConnection(destination)
+        try {
+          Some(client.openConnection(destination))
+        } catch {
+          case e: Exception => {
+            completionCallback(Some(e))
+            None
+          }
+        }
       }
     }
-    //write the message on the connection and pool only if not closeAfter
-    writeOnChannel(writeChannel, message, Some(destination), completionCallback, closeAfter, !closeAfter)
+
+    optConnection.foreach { connection =>
+      //write the message on the connection and pool only if not closeAfter
+      writeOnChannel(connection, message, Some(destination), completionCallback, closeAfter, !closeAfter)
+    }
   }
 
   private def writeOnChannel(channel: Channel,
