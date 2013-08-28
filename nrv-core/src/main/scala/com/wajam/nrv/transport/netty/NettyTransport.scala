@@ -4,7 +4,6 @@ import java.util.concurrent.Executors
 import org.jboss.netty.channel.group.DefaultChannelGroup
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory
 import org.jboss.netty.bootstrap.{ClientBootstrap, ServerBootstrap}
-import org.jboss.netty.handler.codec.http.{DefaultHttpMessage, DefaultHttpResponse, DefaultHttpChunk, DefaultHttpChunkTrailer}
 import com.wajam.nrv.protocol.{HttpProtocol, Protocol}
 import org.jboss.netty.channel._
 import com.wajam.nrv.Logging
@@ -13,6 +12,7 @@ import org.jboss.netty.util.HashedWheelTimer
 import com.wajam.nrv.transport.Transport
 import org.jboss.netty.handler.timeout._
 import java.nio.channels.ClosedChannelException
+import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean}
 
 /**
  * Transport implementation based on Netty.
@@ -32,23 +32,38 @@ abstract class NettyTransport(host: InetAddress,
   val idleTimeoutIsSec = 30
   val connectionTimeoutInMs = 5000
   val connectionPool = new NettyConnectionPool(idleTimeoutMs, maxPoolSize)
-  val allChannels = new DefaultChannelGroup
+  val allChannels = new AtomicReference[DefaultChannelGroup](new DefaultChannelGroup)
   val timer = new HashedWheelTimer()
+
+  val started = new AtomicBoolean(false)
 
   lazy val server = new NettyServer(host, port, factory)
   lazy val client = new NettyClient(factory)
 
   override def start() {
-    server.start()
-    client.start()
+    if (started.compareAndSet(false, true)) {
+      allChannels.set(new DefaultChannelGroup)
+      server.start()
+      client.start()
+    }
   }
 
   override def stop() {
-    allChannels.close().awaitUninterruptibly()
-    allChannels.clear()
-    server.stop()
-    client.stop()
-    timer.stop()
+    if (started.compareAndSet(true, false)) {
+      //save current channel group reference
+      val channelsToClose = allChannels.get()
+
+      //switch to ShutdownChannelGroup, so new established connections will be closed
+      allChannels.set(ShutdownChannelGroup)
+
+      //close all channels
+      channelsToClose.close().awaitUninterruptibly()
+      channelsToClose.clear()
+
+      server.stop()
+      client.stop()
+      timer.stop()
+    }
   }
 
   def sendResponse(connection: AnyRef,
@@ -64,16 +79,25 @@ abstract class NettyTransport(host: InetAddress,
                            message: AnyRef,
                            closeAfter: Boolean,
                            completionCallback: Option[Throwable] => Unit = (_) => {}) {
-    var writeChannel: Channel = null
-    val pooledConnection = connectionPool.getPooledConnection(destination)
-    pooledConnection match {
-      case Some(channel) => writeChannel = channel
+
+    val optConnection = connectionPool.getPooledConnection(destination) match {
+      case pooledConnection @ Some(_) => pooledConnection
       case None => {
-        writeChannel = client.openConnection(destination)
+        try {
+          Some(client.openConnection(destination))
+        } catch {
+          case e: Exception => {
+            completionCallback(Some(e))
+            None
+          }
+        }
       }
     }
-    //write the message on the connection and pool only if not closeAfter
-    writeOnChannel(writeChannel, message, Some(destination), completionCallback, closeAfter, !closeAfter)
+
+    optConnection.foreach { connection =>
+      //write the message on the connection and pool only if not closeAfter
+      writeOnChannel(connection, message, Some(destination), completionCallback, closeAfter, !closeAfter)
+    }
   }
 
   private def writeOnChannel(channel: Channel,
@@ -134,7 +158,7 @@ abstract class NettyTransport(host: InetAddress,
 
     def start() {
       log.info("Starting server. host={} port={}", host, port)
-      allChannels.add(serverBootstrap.bind(new java.net.InetSocketAddress(host, port)))
+      allChannels.get.add(serverBootstrap.bind(new java.net.InetSocketAddress(host, port)))
       log.info("Server started.")
     }
 
@@ -175,11 +199,15 @@ abstract class NettyTransport(host: InetAddress,
     }
 
     def openConnection(destination: InetSocketAddress): Channel = {
-      log.debug("Opening connection to: {}", destination)
-      val connectFuture = clientBootstrap.connect(destination)
-      val channel = connectFuture.awaitUninterruptibly.getChannel
-      allChannels.add(channel)
-      channel
+      if (started.get()) {
+        log.debug("Opening connection to: {}", destination)
+        val connectFuture = clientBootstrap.connect(destination)
+        val channel = connectFuture.awaitUninterruptibly.getChannel
+        allChannels.get.add(channel)
+        channel
+      } else {
+        throw new RuntimeException("Transport closed: " + protocol.name + "[" + host + ":" + port + "]")
+      }
     }
 
     class DefaultPipelineFactory extends ChannelPipelineFactory {
@@ -222,13 +250,13 @@ abstract class NettyTransport(host: InetAddress,
     override def channelOpen(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       log.trace("New connection opened: {}", ctx.getChannel)
       connectionEstablishedEvent(isServer)
-      allChannels.add(ctx.getChannel)
+      allChannels.get.add(ctx.getChannel)
     }
 
     override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
       log.trace("Connection closed: {}", ctx.getChannel)
       connectionClosedEvent(isServer)
-      allChannels.remove(ctx.getChannel)
+      allChannels.get.remove(ctx.getChannel)
     }
 
     override def writeRequested(ctx: ChannelHandlerContext, e: MessageEvent) {
@@ -240,6 +268,18 @@ abstract class NettyTransport(host: InetAddress,
       log.trace("Message sent on connection {}", ctx.getChannel)
       messageSentEvent()
       super.writeComplete(ctx, e)
+    }
+  }
+
+  /**
+   * Channel group that closes connections as they are added to the group.
+   *
+   * It is used in the shutdown process to avoid creating new connections while releasing the Netty resources.
+   */
+  object ShutdownChannelGroup extends DefaultChannelGroup {
+    override def add(channel: Channel) = {
+      channel.close()
+      false
     }
   }
 }
