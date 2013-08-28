@@ -4,10 +4,14 @@ import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.matchers.ShouldMatchers._
 import java.util.{TimeZone, Calendar}
 import java.net.{InetAddress, InetSocketAddress}
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
+import com.wajam.nrv.utils.InetUtils
 
 /**
  *
  */
+@RunWith(classOf[JUnitRunner])
 class TestTraceRecordFormatter extends FunSuite {
 
   val expectedTime = "2012-10-01T16:57:27.992-0400"
@@ -15,9 +19,10 @@ class TestTraceRecordFormatter extends FunSuite {
   time.clear()
   time.set(2012, 9, 01, 15, 57, 27)
   time.set(Calendar.MILLISECOND, 992)
+  val hostname = InetUtils.firstInetAddress.map(_.getHostName).getOrElse("")
 
   test("ServRecv should be properly formatted") {
-    val expected = expectedTime + "\t\tServerRecv\tTID\tSID\tPID\tservice\tprotocol\tMETHOD\t/resource\t\t\t\t\t\t"
+    val expected = expectedTime + "\t\tServerRecv\tTID\tSID\tPID\tservice\tprotocol\tMETHOD\t/resource\t" + hostname + "\t\t\t\t\t"
 
     val context = TraceContext("TID", "SID", Some("PID"))
     val annotation = Annotation.ServerRecv(new RpcName("service", "protocol", "METHOD", "/resource"))
@@ -28,7 +33,7 @@ class TestTraceRecordFormatter extends FunSuite {
   }
 
   test("ServRecv without parent should be properly formatted") {
-    val expected = expectedTime + "\t\tServerRecv\tTID\tSID\t\tservice\tprotocol\tMETHOD\t/resource\t\t\t\t\t\t"
+    val expected = expectedTime + "\t\tServerRecv\tTID\tSID\t\tservice\tprotocol\tMETHOD\t/resource\t" + hostname + "\t\t\t\t\t"
 
     val context = TraceContext("TID", "SID", None)
     val annotation = Annotation.ServerRecv(new RpcName("service", "protocol", "METHOD", "/resource"))
@@ -39,7 +44,7 @@ class TestTraceRecordFormatter extends FunSuite {
   }
 
   test("ServRecv with empty rpc name should be properly formatted") {
-    val expected = expectedTime + "\t\tServerRecv\tTID\tSID\tPID\t\t\t\t\t\t\t\t\t\t"
+    val expected = expectedTime + "\t\tServerRecv\tTID\tSID\tPID\t\t\t\t\t" + hostname + "\t\t\t\t\t"
 
     val context = TraceContext("TID", "SID", Some("PID"))
     val annotation = Annotation.ServerRecv(new RpcName(null, null, null, null))
@@ -50,7 +55,7 @@ class TestTraceRecordFormatter extends FunSuite {
   }
 
   test("ClientSend should be properly formatted") {
-    val expected = expectedTime + "\t\tClientSend\tTID\tSID\tPID\tservice\tprotocol\tMETHOD\t/resource\t\t\t\t\t\t"
+    val expected = expectedTime + "\t\tClientSend\tTID\tSID\tPID\tservice\tprotocol\tMETHOD\t/resource\t" + hostname + "\t\t\t\t\t"
 
     val context = TraceContext("TID", "SID", Some("PID"))
     val annotation = Annotation.ClientSend(new RpcName("service", "protocol", "METHOD", "/resource"))
@@ -61,7 +66,7 @@ class TestTraceRecordFormatter extends FunSuite {
   }
 
   test("ClientRecv should be properly formatted") {
-    val expected = expectedTime + "\t\tClientRecv\tTID\tSID\tPID\t\t\t\t\t\t\t\t200\t\t"
+    val expected = expectedTime + "\t\tClientRecv\tTID\tSID\tPID\t\t\t\t\t" + hostname + "\t\t\t200\t\t"
 
     val context = TraceContext("TID", "SID", Some("PID"))
     val annotation = Annotation.ClientRecv(Some(200))
@@ -72,7 +77,7 @@ class TestTraceRecordFormatter extends FunSuite {
   }
 
   test("ServerSend should be properly formatted") {
-    val expected = expectedTime + "\t\tServerSend\tTID\tSID\tPID\t\t\t\t\t\t\t\t200\t\t"
+    val expected = expectedTime + "\t\tServerSend\tTID\tSID\tPID\t\t\t\t\t" + hostname + "\t\t\t200\t\t"
 
     val context = TraceContext("TID", "SID", Some("PID"))
     val annotation = Annotation.ServerSend(Some(200))
@@ -83,7 +88,7 @@ class TestTraceRecordFormatter extends FunSuite {
   }
 
   test("ServerSend without response code should be properly formatted") {
-    val expected = expectedTime + "\t\tServerSend\tTID\tSID\tPID\t\t\t\t\t\t\t\t\t\t"
+    val expected = expectedTime + "\t\tServerSend\tTID\tSID\tPID\t\t\t\t\t" + hostname + "\t\t\t\t\t"
 
     val context = TraceContext("TID", "SID", Some("PID"))
     val annotation = Annotation.ServerSend(None)
@@ -94,7 +99,7 @@ class TestTraceRecordFormatter extends FunSuite {
   }
 
   test("Message should be properly formatted") {
-    val expected = expectedTime + "\t\tMessage\tTID\tSID\tPID\t\t\t\t\t\t\t\t\tThis is a message!\t"
+    val expected = expectedTime + "\t\tMessage\tTID\tSID\tPID\t\t\t\t\t" + hostname + "\t\t\t\tThis is a message!\t"
 
     val context = TraceContext("TID", "SID", Some("PID"))
     val annotation = Annotation.Message("This is a message!")
@@ -105,7 +110,7 @@ class TestTraceRecordFormatter extends FunSuite {
   }
 
   test("Message with a source should be properly formatted") {
-    val expected = expectedTime + "\t\tMessage\tTID\tSID\tPID\t\t\t\t\t\t\t\t\tThis is a message!\tSource"
+    val expected = expectedTime + "\t\tMessage\tTID\tSID\tPID\t\t\t\t\t" + hostname + "\t\t\t\tThis is a message!\tSource"
 
     val context = TraceContext("TID", "SID", Some("PID"))
     val annotation = Annotation.Message("This is a message!", Some("Source"))
@@ -116,7 +121,7 @@ class TestTraceRecordFormatter extends FunSuite {
   }
 
   test("Message with duration should be properly formatted") {
-    val expected = expectedTime + "\t1234\tMessage\tTID\tSID\tPID\t\t\t\t\t\t\t\t\tThis is a message!\t"
+    val expected = expectedTime + "\t1234\tMessage\tTID\tSID\tPID\t\t\t\t\t" + hostname + "\t\t\t\tThis is a message!\t"
 
     val context = TraceContext("TID", "SID", Some("PID"))
     val annotation = Annotation.Message("This is a message!")
@@ -127,7 +132,7 @@ class TestTraceRecordFormatter extends FunSuite {
   }
 
   test("Message with tab should be properly escaped") {
-    val expected = expectedTime + "\t\tMessage\tTID\tSID\tPID\t\t\t\t\t\t\t\t\tThere was a tab in this message!\t"
+    val expected = expectedTime + "\t\tMessage\tTID\tSID\tPID\t\t\t\t\t" + hostname + "\t\t\t\tThere was a tab in this message!\t"
 
     val context = TraceContext("TID", "SID", Some("PID"))
     val annotation = Annotation.Message("There was a tab\tin this message!")
@@ -145,7 +150,7 @@ class TestTraceRecordFormatter extends FunSuite {
     val record = new Record(context, time.getTimeInMillis, annotation)
 
     val actual = TraceRecordFormatter.record2TabSeparatedString(record)
-    actual should fullyMatch regex (expected)
+    actual should fullyMatch regex expected
   }
 
   test("ServerAddress should be properly formatted") {
@@ -156,6 +161,6 @@ class TestTraceRecordFormatter extends FunSuite {
     val record = new Record(context, time.getTimeInMillis, annotation)
 
     val actual = TraceRecordFormatter.record2TabSeparatedString(record)
-    actual should fullyMatch regex (expected)
+    actual should fullyMatch regex expected
   }
 }

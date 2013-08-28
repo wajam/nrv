@@ -1,6 +1,7 @@
 package com.wajam.nrv.tracing
 
 import java.text.SimpleDateFormat
+import com.wajam.nrv.utils.InetUtils
 
 /**
  * Format trace record in a tab delimited string.
@@ -21,7 +22,7 @@ import java.text.SimpleDateFormat
  * protocol      X                                   X
  * method        !                                   !
  * path          X                                   X
- * hostname                                                                  !           !
+ * hostname      !           !           !           !           !           !           !
  * ipaddress                                                                 X           X
  * port                                                                      X           X
  * responsecode              !           !
@@ -130,7 +131,7 @@ object TraceRecordFormatter {
           val addr = sa.addr
           (Option(addr.getHostName), Option(addr.getAddress.getHostAddress), Option(addr.getPort))
         case _ =>
-          (None, None, None)
+          (InetUtils.firstInetAddress.map(_.getHostName), None, None)
       }
     }
 

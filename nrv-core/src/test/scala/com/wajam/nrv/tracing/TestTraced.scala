@@ -9,10 +9,13 @@ import com.wajam.nrv.utils.ControlableCurrentTime
 import com.yammer.metrics.scala.Timer
 import java.util.concurrent.TimeUnit
 import com.yammer.metrics.Metrics
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
 /**
  *
  */
+@RunWith(classOf[JUnitRunner])
 class TestTraced extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   val mockRecorder: TraceRecorder = mock[TraceRecorder]
