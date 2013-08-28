@@ -69,7 +69,8 @@ object Tracer {
  */
 class Tracer(recorder: TraceRecorder = NullTraceRecorder,
              val currentTimeGenerator: CurrentTime = new CurrentTime {},
-             idGenerator: IdGenerator[String] = new UuidStringGenerator {}) {
+             idGenerator: IdGenerator[String] = new UuidStringGenerator {},
+             samplingRate: Int = 1) {
 
   private val localContext = new ThreadLocalVariable[Option[TraceContext]](None)
 
@@ -81,20 +82,30 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
     localContext.value
   }
 
+  def isSampled(traceId: String): Option[Boolean] = {
+    traceId.hashCode % samplingRate == 0 match {
+      case true  => Some(true)
+      case false => None
+    }
+  }
+
   /**
    * Creates and returns a new subcontext object from the specified context. This method Just create a new context
    * object and does not affect the tracer current context.
    */
   def createSubcontext(parent: TraceContext): TraceContext = {
-    TraceContext(parent.traceId, idGenerator.nextId, Some(parent.spanId), parent.sampled)
+    val parentTraceId = parent.traceId
+    val sampled = parent.sampled.orElse(isSampled(parentTraceId))
+    TraceContext(parentTraceId, idGenerator.nextId, Some(parent.spanId), sampled)
   }
 
   /**
    * Creates abd returns a new context. This method Just create a new context object and does not affect the tracer
    * current context.
    */
-  def createContext(sampled: Option[Boolean]): TraceContext = {
-    TraceContext(idGenerator.nextId, idGenerator.nextId, None, sampled)
+  def createRootContext(sampled: Option[Boolean] = None): TraceContext = {
+    val traceId = idGenerator.nextId
+    TraceContext(traceId, idGenerator.nextId, None, sampled.orElse(isSampled(traceId)))
   }
 
   /**
@@ -107,7 +118,7 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
 
     val context: TraceContext = (currentContext, newContext) match {
       // No current or new context provided. Create a brand new one.
-      case (None, None) => TraceContext(idGenerator.nextId, idGenerator.nextId, None, None)
+      case (None, None) => createRootContext()
       // No new context provided, create a subcontext of current context.
       case (Some(cur), None) => createSubcontext(cur)
       // No current context but one is provided, use provided context.
@@ -130,7 +141,14 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
     if (currentContext.isEmpty)
       throw new IllegalStateException("No trace context")
 
-    recorder.record(Record(currentContext.get, currentTimeGenerator.currentTime, annotation, duration))
+    record(Record(currentContext.get, currentTimeGenerator.currentTime, annotation, duration))
+  }
+
+  def record(record: Record) {
+    record.context.sampled match {
+      case Some(true) => recorder.record(record)
+      case _          =>
+    }
   }
 
   /**
@@ -147,7 +165,7 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
       block
     } finally {
       val end = currentTimeGenerator.currentTime
-      recorder.record(Record(currentContext.get, end, Message(message, source), Some(end - start)))
+      record(Record(currentContext.get, end, Message(message, source), Some(end - start)))
     }
   }
 
@@ -158,7 +176,7 @@ class Tracer(recorder: TraceRecorder = NullTraceRecorder,
     if (child.parentId != Option(parent.spanId))
       throw new IllegalArgumentException("Child parentId [%s] does not match parent spanId [%s]".format(child.parentId, parent.spanId))
 
-    if (child.sampled != parent.sampled)
+    if (parent.sampled.isDefined && child.sampled != parent.sampled)
       throw new IllegalArgumentException("Child sampled flag [%s] MUST match parent sampled flag [%s]".format(child.sampled, parent.sampled))
 
     if (child.spanId == parent.spanId)

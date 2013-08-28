@@ -82,7 +82,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     var called = false
     TraceFilter.handleIncoming(action, message, _ => called = true)
 
-    val expectedContext = TraceContext("0", "1", None)
+    val expectedContext = TraceContext("0", "1", None, Some(true))
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv(expectedRpcName)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
@@ -112,7 +112,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     message.protocolName = "dummy"
     message.serviceName = service.name
 
-    val expectedContext = TraceContext("TID", "SID", None)
+    val expectedContext = TraceContext("TID", "SID", None, Some(true))
     TraceFilter.setContextInMessageMetadata(message, Some(expectedContext))
     var called = false
     TraceFilter.handleIncoming(action, message, _ => called = true)
@@ -137,8 +137,8 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
 
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be(true)
-    verify(mockRecorder).record(Record(expectedContext, time.currentTime, ServerRecv(expectedRpcName)))
-    verify(mockRecorder).record(argThat(matchRecord(classOf[ServerAddress])))
+    verify(mockRecorder, never()).record(Record(expectedContext, time.currentTime, ServerRecv(expectedRpcName)))
+    verify(mockRecorder, never()).record(argThat(matchRecord(classOf[ServerAddress])))
   }
 
   test("Should record incoming response with matching out message trace context") {
@@ -147,8 +147,8 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     val message = new InMessage()
     message.function = MessageType.FUNCTION_RESPONSE
 
-    val originalContext = TraceContext("TID", "SID", None)
-    val clientRecvContext = TraceContext("TID", "0", Some("SID"))
+    val originalContext = TraceContext("TID", "SID", None, Some(true))
+    val clientRecvContext = TraceContext("TID", "0", Some("SID"), Some(true))
     val outMessage = new OutMessage()
     outMessage.attachments(TraceHeader.OriginalContext) = originalContext
     TraceFilter.setContextInMessageMetadata(outMessage, Some(clientRecvContext))
@@ -187,11 +187,11 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     message.serviceName = service.name
 
     var called = false
-    tracer.trace(Some(TraceContext("TID", "SID", None))) {
+    tracer.trace(Some(TraceContext("TID", "SID", None, Some(true)))) {
       TraceFilter.handleOutgoing(action, message, _ => called = true)
     }
 
-    val expectedContext = TraceContext("TID", "0", Some("SID"))
+    val expectedContext = TraceContext("TID", "0", Some("SID"), Some(true))
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be(true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend(expectedRpcName)))
@@ -227,7 +227,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     var called = false
     TraceFilter.handleOutgoing(action, message, _ => called = true)
 
-    val expectedContext = TraceContext("0", "1", None)
+    val expectedContext = TraceContext("0", "1", None, Some(true))
     val expectedRpcName = RpcName(service.name, "dummy", "", "/test1")
     called should be(true)
     verify(mockRecorder).record(Record(expectedContext, time.currentTime, ClientSend(expectedRpcName)))
@@ -242,7 +242,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     message.protocolName = "dummy"
     message.code = 201
 
-    val expectedContext: TraceContext = TraceContext("TID", "SID", None)
+    val expectedContext: TraceContext = TraceContext("TID", "SID", None, Some(true))
     var called = false
     tracer.trace(Some(expectedContext)) {
       TraceFilter.handleOutgoing(action, message, _ => called = true)
@@ -275,7 +275,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     var called = false
     TraceFilter.handleIncoming(action, message, _ => called = true)
 
-    val expectedContext: TraceContext = TraceContext("0", "1", None)
+    val expectedContext: TraceContext = TraceContext("0", "1", None, Some(true))
     val expectedAddress = ServerAddress(new InetSocketAddress(InetUtils.firstInetAddress.get.getHostName, 12346))
 
     called should be(true)
@@ -317,8 +317,8 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
     parentAction.stop()
     childAction.stop()
 
-    val parentContext = TraceContext("0", "1", None)
-    val childContext = TraceContext("0", "2", Some("1"))
+    val parentContext = TraceContext("0", "1", None, Some(true))
+    val childContext = TraceContext("0", "2", Some("1"), Some(true))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientSend], parentContext, originalTime)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ClientAddress], parentContext, originalTime)))
     verify(mockRecorder).record(argThat(matchRecord(classOf[ServerRecv], parentContext, originalTime)))

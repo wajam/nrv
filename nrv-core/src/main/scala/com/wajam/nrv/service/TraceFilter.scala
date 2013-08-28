@@ -91,7 +91,7 @@ object TraceFilter extends MessageHandler with Logging {
 
     (traceId, spanId, parentId, sampled) match {
       case (Some(tid), Some(sid), pid, s) => Some(TraceContext(tid, sid, pid, s))
-      case (_, _, _, s) => Some(tracer.createContext(s)) // Support sampled header without any other header for debuging
+      case (_, _, _, s) => Some(tracer.createRootContext(s)) // Support sampled header without any other header for debuging
     }
   }
 
