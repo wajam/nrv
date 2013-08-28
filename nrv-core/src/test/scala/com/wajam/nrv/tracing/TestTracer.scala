@@ -6,10 +6,13 @@ import com.wajam.nrv.tracing.Annotation.Message
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
 import com.wajam.nrv.utils.{ControlableSequentialStringIdGenerator, ControlableCurrentTime}
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
 /**
  *
  */
+@RunWith(classOf[JUnitRunner])
 class TestTracer extends FunSuite with BeforeAndAfter with MockitoSugar {
 
   val mockRecorder: TraceRecorder = mock[TraceRecorder]
