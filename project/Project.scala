@@ -30,12 +30,12 @@ object NrvBuild extends Build {
   )
 
   val commonDepsVersionSpecific = (scalaVersion {
-    case "2.9.1" | "2.9.2" => Seq(
+    case "2.9.2" => Seq(
       "com.twitter" % "util-core" % "6.1.0"
     )
-    case "2.10.2" => Seq(
+    case version => Seq(
       "com.twitter" %% "util-core" % "6.1.0",
-      "org.scala-lang" % "scala-actors" % "2.10.2"
+      "org.scala-lang" % "scala-actors" % version
     )
   })
 
@@ -68,8 +68,7 @@ object NrvBuild extends Build {
     publishMavenStyle := true,
     organization := "com.wajam",
     version := "0.1-SNAPSHOT",
-    scalaVersion := "2.10.2",
-    crossScalaVersions := Seq("2.9.1")
+    scalaVersion := "2.10.2"
   )
 
   lazy val root = Project(PROJECT_NAME, file("."))
