@@ -44,7 +44,7 @@ private class Executor extends Actor with Logging {
   def act() {
     loop {
       react {
-        case computation: (() => Unit) =>
+        case computation: Function0[_] =>
           try {
             computation()
           } catch {

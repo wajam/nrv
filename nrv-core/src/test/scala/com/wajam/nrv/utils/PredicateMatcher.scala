@@ -21,12 +21,6 @@ import org.mockito.ArgumentMatcher
 class PredicateMatcher[T](predicate: (T) => Boolean) extends ArgumentMatcher {
 
   def matches(ref: Object): Boolean = {
-    ref match {
-      case refT: T => predicate(refT)
-      case unknownRefT =>
-        throw new IllegalArgumentException(
-          ("The predicate doesn't provide the right parameter for that match." +
-            " The required type is: %s").format(unknownRefT.getClass.getCanonicalName))
-    }
+    predicate(ref.asInstanceOf[T])
   }
 }

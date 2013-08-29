@@ -42,12 +42,12 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
     outMessage.sentTime = System.currentTimeMillis()
     outMessage.path = "/test"
     outMessage.token = 0
-    switchboard.handleOutgoing(null, outMessage, _ => {
+    switchboard.handleOutgoing(null, outMessage, () => {
       val inMessage = new InMessage()
       inMessage.function = MessageType.FUNCTION_RESPONSE
       inMessage.rendezvousId = outMessage.rendezvousId
       inMessage.token = outMessage.token
-      switchboard.handleIncoming(null, inMessage, Unit => {
+      switchboard.handleIncoming(null, inMessage, () => {
         sync.success(inMessage.matchingOutMessage.get)
       })
     })
@@ -77,7 +77,7 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
     val donePromise = Promise[Boolean]
     val mockAction = mock[Action]
     @volatile var rejectCount = 0
-    when(mockAction.callOutgoingHandlers(argThat(matchMessageCode(503)))).then(new Answer[Unit]() {
+    when(mockAction.callOutgoingHandlers(argThat(matchMessageCode(503)))).thenAnswer(new Answer[Unit]() {
       def answer(invocation: InvocationOnMock) {
         rejectCount += 1
         if (rejectCount > minRejectedCount) {
@@ -103,7 +103,7 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
     val bannedPromise = Promise[Boolean]
     val mockAction = mock[Action]
     @volatile var bannedCount = 0
-    when(mockAction.callOutgoingHandlers(argThat(matchMessageCode(429)))).then(new Answer[Unit]() {
+    when(mockAction.callOutgoingHandlers(argThat(matchMessageCode(429)))).thenAnswer(new Answer[Unit]() {
       def answer(invocation: InvocationOnMock) {
         bannedCount += 1
         bannedPromise.trySuccess(true)
@@ -131,7 +131,7 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
     val message = new InMessage()
     message.path = "/test"
     message.token = token
-    switchboard.handleIncoming(action, message, _ => {
+    switchboard.handleIncoming(action, message, () => {
       Thread.sleep(delay)
     })
   }

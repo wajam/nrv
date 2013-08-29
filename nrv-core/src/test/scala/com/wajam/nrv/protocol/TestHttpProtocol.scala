@@ -9,6 +9,7 @@ import org.jboss.netty.handler.codec.http._
 import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.data._
 import com.wajam.nrv.data.MString
+import scala.language.reflectiveCalls
 
 /**
  *

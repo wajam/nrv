@@ -426,7 +426,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     } yield recorder
   }
 
-  override def handleIncoming(action: Action, message: InMessage, next: Unit => Unit) {
+  override def handleIncoming(action: Action, message: InMessage, next: () => Unit) {
     message.function match {
       case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
         message.method match {
@@ -440,7 +440,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
-  private def executeConsistentIncomingReadRequest(req: InMessage, next: Unit => Unit) {
+  private def executeConsistentIncomingReadRequest(req: InMessage, next: () => Unit) {
     lastWriteTimestamp.get match {
       case timestamp@Some(_) => {
         req.timestamp = timestamp
@@ -452,8 +452,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
-  private def executeConsistentIncomingWriteRequest(req: InMessage, next: Unit => Unit) {
-    fetchTimestampAndExecuteNext(req, _ => {
+  private def executeConsistentIncomingWriteRequest(req: InMessage, next: () => Unit) {
+    fetchTimestampAndExecuteNext(req, () => {
       getRecorderFromMessage(req) match {
         case Some(recorder) => {
           try {
@@ -474,7 +474,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     })
   }
 
-  private def fetchTimestampAndExecuteNext(req: InMessage, next: Unit => Unit) {
+  private def fetchTimestampAndExecuteNext(req: InMessage, next: () => Unit) {
     timestampGenerator.fetchTimestamps(req.serviceName, (timestamps: Seq[Timestamp], optException) => {
       try {
         if (optException.isDefined) {
@@ -492,7 +492,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }, 1, req.token)
   }
 
-  override def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
+  override def handleOutgoing(action: Action, message: OutMessage, next: () => Unit) {
     message.function match {
       case MessageType.FUNCTION_RESPONSE if requiresConsistency(message) => {
         //CASE: send response to the original sender node. Does not uses resolver to populate destination nodes.
@@ -535,11 +535,11 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     }
   }
 
-  private def executeConsistentOutgoingReadResponse(res: OutMessage, next: Unit => Unit) {
+  private def executeConsistentOutgoingReadResponse(res: OutMessage, next: () => Unit) {
     next()
   }
 
-  private def executeConsistentOutgoingWriteResponse(res: OutMessage, next: Unit => Unit) {
+  private def executeConsistentOutgoingWriteResponse(res: OutMessage, next: () => Unit) {
     getRecorderFromMessage(res) match {
       case Some(recorder) => {
         try {
@@ -560,14 +560,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
     next()
   }
 
-  def executeConsistentOutgoingReadRequest(message: OutMessage, next: (Unit) => Unit) {
+  def executeConsistentOutgoingReadRequest(message: OutMessage, next: () => Unit) {
     // Select the first available destination. Read messages are handled by the master if available but any replicas
     // could also handle it.
     message.destination.deselectAllReplicasButOne()
     next()
   }
 
-  def executeConsistentOutgoingWriteRequest(action: Action, message: OutMessage, next: (Unit) => Unit) {
+  def executeConsistentOutgoingWriteRequest(action: Action, message: OutMessage, next: () => Unit) {
     // Only the master (first resolved node) may handle write messages
     message.destination.replicas match {
       case master :: _ if master.selected => {

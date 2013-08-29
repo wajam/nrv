@@ -81,10 +81,10 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
   }
 
   override def handleOutgoing(action: Action, outMessage: OutMessage) {
-    this.handleOutgoing(action, outMessage, Unit => {})
+    this.handleOutgoing(action, outMessage, () => {})
   }
 
-  override def handleOutgoing(action: Action, outMessage: OutMessage, next: Unit => Unit) {
+  override def handleOutgoing(action: Action, outMessage: OutMessage, next: () => Unit) {
     outMessage.function match {
       case MessageType.FUNCTION_CALL =>
         this !(new SentMessageContext(action, outMessage), next)
@@ -95,10 +95,10 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
   }
 
   override def handleIncoming(action: Action, inMessage: InMessage) {
-    this.handleIncoming(action, inMessage, Unit => {})
+    this.handleIncoming(action, inMessage, () => {})
   }
 
-  override def handleIncoming(action: Action, inMessage: InMessage, next: Unit => Unit) {
+  override def handleIncoming(action: Action, inMessage: InMessage, next: () => Unit) {
     inMessage.matchingOutMessage match {
       // no matching out message, we need to find matching message
       case None =>
@@ -160,19 +160,19 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
             case e: Exception => error("Error in switchboard processing CheckTimeout: {}", e)
           }
         }
-        case (sending: SentMessageContext, next: (Unit => Unit)) => {
+        case (sending: SentMessageContext, next: Function0[_]) => {
           try {
             sent.mark()
 
             sending.outMessage.rendezvousId = nextId
             rendezvous += (sending.outMessage.rendezvousId -> sending)
 
-            execute(sending.action, sending.outMessage, next)
+            execute(sending.action, sending.outMessage, () => next())
           } catch {
             case e: Exception => error("Error in switchboard processing SentMessageContext: {}", e)
           }
         }
-        case (receiving: ReceivedMessageContext, next: (Unit => Unit)) => {
+        case (receiving: ReceivedMessageContext, next: Function0[_]) => {
           try {
             received.mark()
 
@@ -190,7 +190,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
 
               }
             }
-            execute(receiving.action, receiving.inMessage, next)
+            execute(receiving.action, receiving.inMessage, () => next())
           } catch {
             case e: Exception => error("Error in switchboard processing ReceivedMessageContext: {}", e)
           }
@@ -199,7 +199,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
     }
   }
 
-  private def execute(action: Action, message: Message, next: (Unit => Unit)) {
+  private def execute(action: Action, message: Message, next: (() => Unit)) {
     if (message.token >= 0) {
       val executor = executors((message.token % numExecutor).toInt)
       executor.execute(action, message, next)
@@ -245,7 +245,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
 
     def bannedListSize = bannedTokens.size()
 
-    def execute(action: Action, message: Message, next: (Unit => Unit)) {
+    def execute(action: Action, message: Message, next: (() => Unit)) {
       if (!rejectMessageWhenOverloadedOrBanned(action, message)) {
         recentTokens += message.token
         this ! next
@@ -302,7 +302,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
     def act() {
       loop {
         react {
-          case next: (Unit => Unit) =>
+          case next: Function0[_] =>
             try {
               next()
             } catch {

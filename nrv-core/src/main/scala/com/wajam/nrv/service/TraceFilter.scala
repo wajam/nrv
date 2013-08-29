@@ -14,10 +14,10 @@ import com.wajam.nrv.data.MValue._
 object TraceFilter extends MessageHandler with Logging {
 
   override def handleIncoming(action: Action, message: InMessage) {
-    handleIncoming(action, message, _ => {})
+    handleIncoming(action, message, () => {})
   }
 
-  override def handleIncoming(action: Action, message: InMessage, next: (Unit) => Unit) {
+  override def handleIncoming(action: Action, message: InMessage, next: () => Unit) {
 
     message.function match {
       // Message is an incoming request. Adopt received trace context. A new trace context will be automatically
@@ -55,10 +55,10 @@ object TraceFilter extends MessageHandler with Logging {
   }
 
   override def handleOutgoing(action: Action, message: OutMessage) {
-    handleOutgoing(action, message, _ => {})
+    handleOutgoing(action, message, () => {})
   }
 
-  override def handleOutgoing(action: Action, message: OutMessage, next: (Unit) => Unit) {
+  override def handleOutgoing(action: Action, message: OutMessage, next: () => Unit) {
     message.function match {
       // Message is a call to an external service. Create a sub context (i.e. new span) for the call.
       case MessageType.FUNCTION_CALL =>

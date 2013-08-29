@@ -17,7 +17,7 @@ class TestTraceRecordFormatter extends FunSuite {
   val expectedTime = "2012-10-01T16:57:27.992-0400"
   val time: Calendar = Calendar.getInstance(TimeZone.getTimeZone("EST"))
   time.clear()
-  time.set(2012, 9, 01, 15, 57, 27)
+  time.set(2012, 9, 1, 15, 57, 27)
   time.set(Calendar.MILLISECOND, 992)
   val hostname = InetUtils.firstInetAddress.map(_.getHostName).getOrElse("")
 

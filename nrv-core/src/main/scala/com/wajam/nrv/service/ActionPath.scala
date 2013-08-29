@@ -1,6 +1,7 @@
 package com.wajam.nrv.service
 
 import com.wajam.nrv.InvalidParameter
+import scala.language.implicitConversions
 
 /**
  * Path used in NRV to represent an action and part of the ActionPath

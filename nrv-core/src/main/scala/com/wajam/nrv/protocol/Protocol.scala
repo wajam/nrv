@@ -143,7 +143,7 @@ abstract class Protocol(val name: String,
                   response.error = Some(new RuntimeException(throwable))
                   response.function = MessageType.FUNCTION_RESPONSE
 
-                  handleIncoming(action, response, Unit => {})
+                  handleIncoming(action, response, () => {})
                 }
                 case None =>
               }

@@ -1,5 +1,7 @@
 package com.wajam.nrv.data
 
+import scala.language.implicitConversions
+
 /**
  * Value container for the types allowed in the serialization process.
  *
