@@ -22,6 +22,8 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
   require(numExecutor > 0)
   require(maxTaskExecutorQueueSize > 0)
 
+  import Switchboard.SwitchboardCallback
+
   private val TIMEOUT_CHECK_IN_MS = 100
   private val rendezvous = collection.mutable.HashMap[Int, SentMessageContext]()
   private var id = 0
@@ -87,7 +89,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
   override def handleOutgoing(action: Action, outMessage: OutMessage, next: () => Unit) {
     outMessage.function match {
       case MessageType.FUNCTION_CALL =>
-        this !(new SentMessageContext(action, outMessage), next)
+        this !(new SentMessageContext(action, outMessage), SwitchboardCallback(next))
 
       case _ =>
         next()
@@ -102,7 +104,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
     inMessage.matchingOutMessage match {
       // no matching out message, we need to find matching message
       case None =>
-        this !(new ReceivedMessageContext(action, inMessage), next)
+        this !(new ReceivedMessageContext(action, inMessage), SwitchboardCallback(next))
 
       case Some(outMessage) =>
         next()
@@ -160,19 +162,19 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
             case e: Exception => error("Error in switchboard processing CheckTimeout: {}", e)
           }
         }
-        case (sending: SentMessageContext, next: Function0[_]) => {
+        case (sending: SentMessageContext, SwitchboardCallback(next)) => {
           try {
             sent.mark()
 
             sending.outMessage.rendezvousId = nextId
             rendezvous += (sending.outMessage.rendezvousId -> sending)
 
-            execute(sending.action, sending.outMessage, () => next())
+            execute(sending.action, sending.outMessage, next)
           } catch {
             case e: Exception => error("Error in switchboard processing SentMessageContext: {}", e)
           }
         }
-        case (receiving: ReceivedMessageContext, next: Function0[_]) => {
+        case (receiving: ReceivedMessageContext, SwitchboardCallback(next)) => {
           try {
             received.mark()
 
@@ -190,7 +192,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
 
               }
             }
-            execute(receiving.action, receiving.inMessage, () => next())
+            execute(receiving.action, receiving.inMessage, next)
           } catch {
             case e: Exception => error("Error in switchboard processing ReceivedMessageContext: {}", e)
           }
@@ -248,7 +250,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
     def execute(action: Action, message: Message, next: (() => Unit)) {
       if (!rejectMessageWhenOverloadedOrBanned(action, message)) {
         recentTokens += message.token
-        this ! next
+        this ! SwitchboardCallback(next)
       }
     }
 
@@ -302,7 +304,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
     def act() {
       loop {
         react {
-          case next: Function0[_] =>
+          case SwitchboardCallback(next) =>
             try {
               next()
             } catch {
@@ -312,5 +314,11 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
       }
     }
   }
+
+}
+
+object Switchboard {
+
+  private case class SwitchboardCallback(next: () => Unit)
 
 }
