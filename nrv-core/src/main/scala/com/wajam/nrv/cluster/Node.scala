@@ -20,7 +20,7 @@ sealed class Node(val host: InetAddress, val ports: Map[String, Int]) extends Se
 
   val protocolsSocketAddress: Map[String, InetSocketAddress] = ports.map(tup => (tup._1 -> new InetSocketAddress(host, tup._2)))
 
-  lazy val uniqueKey = "%s_%d".format(host.getHostName, ports("nrv"))
+  lazy val uniqueKey = "%s_%d".format(hostname, ports("nrv"))
 
   override def hashCode(): Int = uniqueKey.hashCode
 
@@ -29,7 +29,23 @@ sealed class Node(val host: InetAddress, val ports: Map[String, Int]) extends Se
     case _ => false
   }
 
-  override def toString: String = "%s:%s".format(host.getHostName, ports.map(t => "%s=%d".format(t._1, t._2)).mkString(","))
+  def hostname  = fastGetHostName()
+  def address = "%d.%d.%d.%d".format(host.getAddress: _*)
+
+  /**
+   * Special wrapper for address.getHostname
+   *
+   * Skip hostname resolution for host address since it will fail anyway (which is excepted and desirable), it will also
+   * take non negligible time.
+   */
+  private def fastGetHostName() = {
+    if (!Node.isTestAddress(host))
+      host.getHostName
+    else
+      address
+  }
+
+  override def toString: String = "%s:%s".format(hostname, ports.map(t => "%s=%d".format(t._1, t._2)).mkString(","))
 }
 
 sealed class LocalNode(val listenAddress: InetAddress, ports: Map[String, Int])
@@ -40,6 +56,20 @@ sealed class LocalNode(val listenAddress: InetAddress, ports: Map[String, Int])
 }
 
 object Node {
+
+  /**
+   * Every loopback address (127.0.0.0/8) outside the 127.0.0.0/16 range is reserved as a test address.
+   *
+   * This allow multiple test service on the same machine, providing they have different loopback ip.
+   */
+  def isTestAddress(address: InetAddress) = {
+    val addr = address.getAddress
+
+    address.isLoopbackAddress &&
+    addr(0) == 127 &&
+    addr(1) != 0 &&
+    addr(2) != 0
+  }
 
   def fromString(nodeString: String): Node = {
     val Array(strHost, strPorts) = nodeString.split(":")
@@ -56,8 +86,11 @@ object Node {
   def listenAddressToHostAddress(listenAddress: InetAddress): InetAddress = {
     if (listenAddress.isAnyLocalAddress) InetUtils.firstInetAddress.getOrElse(listenAddress) else listenAddress
   }
+
   def addressByName(name: String): InetAddress = {
     val address = InetAddress.getByName(name)
-    if (address.isLoopbackAddress) InetUtils.firstInetAddress.getOrElse(address) else address
+
+    // Do not resolve a test address, otherwise it will not be possible to bind more than one on the same host.
+    if (address.isLoopbackAddress && !Node.isTestAddress(address)) InetUtils.firstInetAddress.getOrElse(address) else address
   }
 }
