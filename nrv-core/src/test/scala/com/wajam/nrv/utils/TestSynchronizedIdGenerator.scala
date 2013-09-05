@@ -4,6 +4,9 @@ import org.scalatest.FunSuite
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.matchers.ShouldMatchers._
+import scala.concurrent.{Future => SFuture, Await}
+import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext.Implicits.global
 
 @RunWith(classOf[JUnitRunner])
 class TestSynchronizedIdGenerator extends FunSuite {
@@ -22,11 +25,11 @@ class TestSynchronizedIdGenerator extends FunSuite {
     val iterations = 20000
 
     // Generate ids concurently
-    val workers = 0.to(15).map(_ => Future.future({
+    val workers = 0.to(15).map(_ => SFuture({
       for (i <- 1 to iterations) yield generator.nextId
     }))
 
-    val ids = (for (worker <- workers) yield Future.blocking(worker)).flatten.toList
+    val ids = Await.result(SFuture.sequence(workers), Duration.Inf).flatten
     ids.size should be(workers.size * iterations)
     ids.size should be > ids.distinct.size
   }
@@ -36,11 +39,11 @@ class TestSynchronizedIdGenerator extends FunSuite {
     val iterations = 20000
 
     // Generate ids concurently
-    val workers = 0.to(15).map(_ => Future.future({
+    val workers = 0.to(15).map(_ => SFuture({
       for (i <- 1 to iterations) yield generator.nextId
     }))
 
-    val ids = (for (worker <- workers) yield Future.blocking(worker)).flatten.toList
+    val ids = Await.result(SFuture.sequence(workers), Duration.Inf).flatten
     ids.size should be(workers.size * iterations)
     ids.size should be(ids.distinct.size)
   }

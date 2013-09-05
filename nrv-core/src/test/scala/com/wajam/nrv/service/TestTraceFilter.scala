@@ -5,7 +5,7 @@ import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.protocol.DummyProtocol
 import com.wajam.nrv.tracing._
-import com.wajam.nrv.utils._
+import com.wajam.nrv.utils.{InetUtils, ControlableCurrentTime, ControlableSequentialStringIdGenerator}
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import com.wajam.nrv.data.{MessageType, InMessage, OutMessage}
@@ -18,6 +18,8 @@ import com.wajam.nrv.tracing.Annotation._
 import com.wajam.nrv.tracing.RpcName
 import com.wajam.nrv.tracing.TraceContext
 import com.wajam.nrv.tracing.Record
+import scala.concurrent.{Promise, Await}
+import scala.concurrent.duration._
 
 /**
  *
@@ -312,7 +314,7 @@ class TestTraceFilter extends FunSuite with BeforeAndAfter with MockitoSugar {
         syncResponse.success("OK")
     })
 
-    Future.blocking(syncResponse.future, 1000) should be("OK")
+    Await.result(syncResponse.future, 1.second) should be("OK")
 
     parentAction.stop()
     childAction.stop()

@@ -1,7 +1,6 @@
 package com.wajam.nrv.data
 
 import org.mockito.ArgumentMatcher
-import com.wajam.nrv.utils.Future
 import org.hamcrest.Description
 
 class MessageMatcher[T <: Message](params: Iterable[(String, MValue)],

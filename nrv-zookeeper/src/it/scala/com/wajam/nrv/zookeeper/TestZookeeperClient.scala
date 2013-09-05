@@ -5,12 +5,12 @@ import org.scalatest.junit.JUnitRunner
 import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.ZookeeperClient._
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import com.wajam.nrv.utils.{Future, Promise}
 import org.scalatest.matchers.ShouldMatchers._
 import java.io.IOException
 import com.yammer.metrics.scala.MetricsGroup
-import org.apache.zookeeper.Watcher.Event.{EventType, KeeperState}
 import java.util.concurrent.atomic.AtomicInteger
+import scala.concurrent.{Promise, Await}
+import scala.concurrent.duration._
 
 @RunWith(classOf[JUnitRunner])
 class TestZookeeperClient extends FunSuite with BeforeAndAfter {
@@ -47,7 +47,7 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
     }
     zClient.connect()
 
-    Future.blocking(pConnected.future, 1000)
+    Await.result(pConnected.future, 1.second)
 
     assert(pConnected.future.isCompleted)
   }
@@ -154,7 +154,7 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
 
     zClient.set("/tests/getwatch", "value3")
 
-    Future.blocking(p.future, 1000)
+    Await.result(p.future, 1.second)
     assert(nbNotif == 2)
   }
 
@@ -186,7 +186,7 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
     })) == Seq("chl1"))
     zClient.delete("/tests/childwatch/chl1")
 
-    Future.blocking(p.future, 1000)
+    Await.result(p.future, 1.second)
     assert(nbNotif == 4)
   }
 

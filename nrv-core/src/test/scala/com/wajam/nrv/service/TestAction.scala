@@ -8,7 +8,8 @@ import java.lang.String
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.{TimeoutException, RemoteException, InvalidParameter}
 import com.wajam.nrv.data.{MString, OutMessage, InMessage}
-import com.wajam.nrv.utils.{Future, Promise}
+import scala.concurrent.{Promise, Await}
+import scala.concurrent.duration._
 
 import com.wajam.nrv.data.MValue._
 
@@ -29,6 +30,13 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
   after {
     service.stop()
+  }
+
+  def completePromise[T](p: Promise[T])(value: T, optException: Option[Exception]) {
+    optException match {
+      case Some(e) => p.failure(e)
+      case None => p.success(value)
+    }
   }
 
   test("call, reply") {
@@ -58,10 +66,10 @@ class TestAction extends FunSuite with BeforeAndAfter {
       })
     }
 
-    var value = Future.blocking(syncCall.future, 1000)
+    var value = Await.result(syncCall.future, 1.second)
     assert(value == "call_value", "expected 'call_value', got '" + value + "'")
 
-    value = Future.blocking(syncResponse.future, 1000)
+    value = Await.result(syncResponse.future, 1.second)
     assert(value == "response_value", "expected 'response_key', got '" + value + "'")
 
     action.stop()
@@ -76,11 +84,11 @@ class TestAction extends FunSuite with BeforeAndAfter {
     action.start()
 
     action.tracer.trace() {
-      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _))
+      action.call(Map("call_key" -> "call_value"), onReply = completePromise(syncResponse))
     }
 
     val except = intercept[RemoteException] {
-      Future.blocking(syncResponse.future, 1000)
+      Await.result(syncResponse.future, 1.second)
       fail("Shouldn't be call because an exception occured")
     }
 
@@ -98,7 +106,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     action.start()
 
-    val req = new OutMessage(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _), responseTimeout = 100)
+    val req = new OutMessage(Map("call_key" -> "call_value"), onReply = completePromise(syncResponse), responseTimeout = 100)
 
     action.tracer.trace() {
       action.call(req)
@@ -111,7 +119,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val start = System.currentTimeMillis()
     intercept[TimeoutException] {
-      Future.blocking(syncResponse.future, 10000)
+      Await.result(syncResponse.future, 10.seconds)
     }
     assert((System.currentTimeMillis() - start) < 500)
 
@@ -128,7 +136,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
     action.start()
 
     action.tracer.trace() {
-      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _))
+      action.call(Map("call_key" -> "call_value"), onReply = completePromise(syncResponse))
     }
 
     action.switchboard.getTime = () => {
@@ -138,7 +146,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val start = System.currentTimeMillis()
     intercept[TimeoutException] {
-      Future.blocking(syncResponse.future, 10000)
+      Await.result(syncResponse.future, 10.seconds)
     }
     assert((System.currentTimeMillis() - start) < 500)
 
@@ -155,7 +163,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
     action.start()
 
     action.tracer.trace() {
-      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _), responseTimeout = 100)
+      action.call(Map("call_key" -> "call_value"), onReply = completePromise(syncResponse), responseTimeout = 100)
     }
 
     action.switchboard.getTime = () => {
@@ -165,7 +173,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val start = System.currentTimeMillis()
     intercept[TimeoutException] {
-      Future.blocking(syncResponse.future, 10000)
+      Await.result(syncResponse.future, 10.seconds)
     }
     assert((System.currentTimeMillis() - start) < 500)
 
@@ -186,7 +194,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     action.callIncomingHandlers(message)
 
-    assert("1".equals(Future.blocking(syncCall.future, 1000)))
+    assert("1".equals(Await.result(syncCall.future, 1.second)))
 
     action.stop()
   }

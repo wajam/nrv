@@ -4,10 +4,12 @@ import org.scalatest.FunSuite
 import AtomicTimestamp._
 import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.utils.timestamp.Timestamp
-import com.wajam.nrv.utils.{Promise, Future}
 import scala.annotation.tailrec
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+import scala.concurrent.{Future, Await}
+import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext.Implicits.global
 
 @RunWith(classOf[JUnitRunner])
 class TestAtomicTimestamp extends FunSuite {
@@ -94,10 +96,10 @@ class TestAtomicTimestamp extends FunSuite {
       }
 
       verifyEqualsOrGreaterUntilIncrementorsCompleted(atom.get)
-      Timestamp(incrementors.map(Future.blocking(_)).max)
+      Timestamp(incrementors.map(Await.result(_, Duration.Inf)).max)
     }
 
-    val value = Future.blocking(watcher)
+    val value = Await.result(watcher, Duration.Inf)
     value should be > initValue
     Some(value) should be (atom.get)
   }

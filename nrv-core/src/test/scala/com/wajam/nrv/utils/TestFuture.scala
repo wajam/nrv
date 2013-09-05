@@ -5,6 +5,7 @@ import com.wajam.nrv.TimeoutException
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 
+//TODO delete
 @RunWith(classOf[JUnitRunner])
 class TestFuture extends FunSuite {
 

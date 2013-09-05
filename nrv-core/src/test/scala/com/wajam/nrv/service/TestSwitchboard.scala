@@ -7,10 +7,11 @@ import org.scalatest.junit.JUnitRunner
 import org.mockito.Matchers._
 import org.mockito.Mockito._
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
-import com.wajam.nrv.utils.{Future, Promise}
 import org.mockito.ArgumentMatcher
 import org.mockito.stubbing.Answer
 import org.mockito.invocation.InvocationOnMock
+import scala.concurrent.{Promise, Await}
+import scala.concurrent.duration._
 
 @RunWith(classOf[JUnitRunner])
 class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
@@ -52,7 +53,7 @@ class TestSwitchboard extends FunSuite with MockitoSugar with BeforeAndAfter {
       })
     })
 
-    assert(Future.blocking(sync.future, 100) != null)
+    assert(Await.result(sync.future, 100.millis) != null)
   }
 
   test("timeout") {
