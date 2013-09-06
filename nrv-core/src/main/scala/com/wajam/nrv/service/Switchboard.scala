@@ -22,6 +22,8 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
   require(numExecutor > 0)
   require(maxTaskExecutorQueueSize > 0)
 
+  import Switchboard.SwitchboardCallback
+
   private val TIMEOUT_CHECK_IN_MS = 100
   private val rendezvous = collection.mutable.HashMap[Int, SentMessageContext]()
   private var id = 0
@@ -81,13 +83,13 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
   }
 
   override def handleOutgoing(action: Action, outMessage: OutMessage) {
-    this.handleOutgoing(action, outMessage, Unit => {})
+    this.handleOutgoing(action, outMessage, () => {})
   }
 
-  override def handleOutgoing(action: Action, outMessage: OutMessage, next: Unit => Unit) {
+  override def handleOutgoing(action: Action, outMessage: OutMessage, next: () => Unit) {
     outMessage.function match {
       case MessageType.FUNCTION_CALL =>
-        this !(new SentMessageContext(action, outMessage), next)
+        this !(new SentMessageContext(action, outMessage), SwitchboardCallback(next))
 
       case _ =>
         next()
@@ -95,14 +97,14 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
   }
 
   override def handleIncoming(action: Action, inMessage: InMessage) {
-    this.handleIncoming(action, inMessage, Unit => {})
+    this.handleIncoming(action, inMessage, () => {})
   }
 
-  override def handleIncoming(action: Action, inMessage: InMessage, next: Unit => Unit) {
+  override def handleIncoming(action: Action, inMessage: InMessage, next: () => Unit) {
     inMessage.matchingOutMessage match {
       // no matching out message, we need to find matching message
       case None =>
-        this !(new ReceivedMessageContext(action, inMessage), next)
+        this !(new ReceivedMessageContext(action, inMessage), SwitchboardCallback(next))
 
       case Some(outMessage) =>
         next()
@@ -160,7 +162,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
             case e: Exception => error("Error in switchboard processing CheckTimeout: {}", e)
           }
         }
-        case (sending: SentMessageContext, next: (Unit => Unit)) => {
+        case (sending: SentMessageContext, SwitchboardCallback(next)) => {
           try {
             sent.mark()
 
@@ -172,7 +174,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
             case e: Exception => error("Error in switchboard processing SentMessageContext: {}", e)
           }
         }
-        case (receiving: ReceivedMessageContext, next: (Unit => Unit)) => {
+        case (receiving: ReceivedMessageContext, SwitchboardCallback(next)) => {
           try {
             received.mark()
 
@@ -199,7 +201,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
     }
   }
 
-  private def execute(action: Action, message: Message, next: (Unit => Unit)) {
+  private def execute(action: Action, message: Message, next: (() => Unit)) {
     if (message.token >= 0) {
       val executor = executors((message.token % numExecutor).toInt)
       executor.execute(action, message, next)
@@ -245,10 +247,10 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
 
     def bannedListSize = bannedTokens.size()
 
-    def execute(action: Action, message: Message, next: (Unit => Unit)) {
+    def execute(action: Action, message: Message, next: (() => Unit)) {
       if (!rejectMessageWhenOverloadedOrBanned(action, message)) {
         recentTokens += message.token
-        this ! next
+        this ! SwitchboardCallback(next)
       }
     }
 
@@ -302,7 +304,7 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
     def act() {
       loop {
         react {
-          case next: (Unit => Unit) =>
+          case SwitchboardCallback(next) =>
             try {
               next()
             } catch {
@@ -312,5 +314,11 @@ class Switchboard(val name: String = "", val numExecutor: Int = 100, val maxTask
       }
     }
   }
+
+}
+
+object Switchboard {
+
+  private case class SwitchboardCallback(next: () => Unit)
 
 }

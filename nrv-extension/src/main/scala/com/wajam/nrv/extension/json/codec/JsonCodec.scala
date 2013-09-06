@@ -15,8 +15,8 @@ class JsonCodec extends Codec {
     val contentEncoding = context.asInstanceOf[String]
     data match {
       case s: String => s.getBytes(contentEncoding)
-      case l: Seq[Any] => JsonRender.render(toJValue(l)).getBytes(contentEncoding)
-      case m: Map[String, Any] => JsonRender.render(toJValue(m)).getBytes(contentEncoding)
+      case l: Seq[_] => JsonRender.render(toJValue(l)).getBytes(contentEncoding)
+      case m: Map[_, _] => JsonRender.render(toJValue(m)).getBytes(contentEncoding)
       case v: JValue => JsonRender.render(v).getBytes(contentEncoding)
       case _ => throw new RuntimeException("Invalid type, can not render json for " + data.getClass)
     }
@@ -37,8 +37,8 @@ object JsonCodec {
       case i: Int => JInt(i)
       case d: Double => JDouble(d)
       case b: Boolean => JBool(b)
-      case seq: Seq[Any] => JArray(seq.map(toJValue(_: Any)).toList)
-      case map: Map[String, Any] => JObject(map.map(e => JField(e._1, toJValue(e._2))).toList)
+      case seq: Seq[_] => JArray(seq.map(toJValue(_: Any)).toList)
+      case map: Map[_, _] => JObject(map.map(e => JField(e._1.toString, toJValue(e._2))).toList)
       case _ => throw new RuntimeException("Invalid type, can not render json for " + value.getClass)
     }
   }

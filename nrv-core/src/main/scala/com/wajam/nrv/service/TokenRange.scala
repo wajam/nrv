@@ -1,5 +1,7 @@
 package com.wajam.nrv.service
 
+import scala.language.implicitConversions
+
 case class TokenRange(start: Long, end: Long) {
   def contains(token: Long) = token >= start && token <= end
 

@@ -3,6 +3,7 @@ package com.wajam.nrv.consistency.persistence
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.data.{MessageType, Message}
 import com.wajam.nrv.consistency.persistence.LogRecord.Response.Status
+import scala.language.implicitConversions
 
 sealed trait LogRecord {
   val id: Long

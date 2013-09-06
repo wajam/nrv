@@ -206,7 +206,7 @@ class HttpProtocol(name: String,
     val length = data.length
     val offsets = 0 until length by size
 
-    (for(o <- offsets) yield new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(data, o, min(length - o, size)))) toSeq
+    (for(o <- offsets) yield new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(data, o, min(length - o, size)))).toSeq
   }
 
   private def encodeData(message: Message): Option[Array[Byte]] = {

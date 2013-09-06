@@ -95,7 +95,7 @@ class Action(val path: ActionPath,
     outMessage.sentTime = System.currentTimeMillis()
 
     // resolve endpoints
-    this.resolver.handleOutgoing(this, outMessage, _ => {
+    this.resolver.handleOutgoing(this, outMessage, ()  => {
       if (outMessage.destination.selectedReplicas.size == 0) {
         msgOutUnavailableRecipient.mark()
         throw new UnavailableException
@@ -106,10 +106,10 @@ class Action(val path: ActionPath,
         outMessage.attachments(TraceHeader.OriginalContext) = tracer.currentContext.get
       }
 
-      this.switchboard.handleOutgoing(this, outMessage, _ => {
-        TraceFilter.handleOutgoing(this, outMessage, _ => {
-          this.consistency.handleOutgoing(this, outMessage, _ => {
-            this.protocol.handleOutgoing(this, outMessage, _ => {
+      this.switchboard.handleOutgoing(this, outMessage, () => {
+        TraceFilter.handleOutgoing(this, outMessage, () => {
+          this.consistency.handleOutgoing(this, outMessage, () => {
+            this.protocol.handleOutgoing(this, outMessage, () => {
               outMessage.sentTime = System.currentTimeMillis()
             })
           })
@@ -126,9 +126,9 @@ class Action(val path: ActionPath,
   protected[nrv] def callIncomingHandlers(fromMessage: InMessage) {
     this.msgInMeter.mark()
 
-    this.resolver.handleIncoming(this, fromMessage, _ => {
-      this.switchboard.handleIncoming(this, fromMessage, _ => {
-        TraceFilter.handleIncoming(this, fromMessage, _ => {
+    this.resolver.handleIncoming(this, fromMessage, () => {
+      this.switchboard.handleIncoming(this, fromMessage, () => {
+        TraceFilter.handleIncoming(this, fromMessage, () => {
 
           // Generate the reply callback, if applicable.
           fromMessage.function match {
@@ -141,7 +141,7 @@ class Action(val path: ActionPath,
             case _ =>
           }
 
-          this.consistency.handleIncoming(this, fromMessage, _ => {
+          this.consistency.handleIncoming(this, fromMessage, () => {
             fromMessage.function match {
               case MessageType.FUNCTION_CALL =>
                 // handle the message, catch errors to throw them back to the caller

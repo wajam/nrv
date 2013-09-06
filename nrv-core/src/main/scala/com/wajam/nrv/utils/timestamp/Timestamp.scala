@@ -1,5 +1,7 @@
 package com.wajam.nrv.utils.timestamp
 
+import scala.language.implicitConversions
+
 /**
  * Describe a timestamp
  */

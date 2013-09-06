@@ -1,5 +1,7 @@
 package com.wajam.nrv.service
 
+import scala.language.implicitConversions
+
 /**
  * Method associated to an action, similar to HTTP method
  */

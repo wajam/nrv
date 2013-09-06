@@ -33,7 +33,7 @@ trait MessageHandler {
   def handleIncoming(action: Action, message: InMessage) {
   }
 
-  def handleIncoming(action: Action, message: InMessage, next: Unit => Unit) {
+  def handleIncoming(action: Action, message: InMessage, next: () => Unit) {
     this.handleIncoming(action, message)
     next()
   }
@@ -41,7 +41,7 @@ trait MessageHandler {
   def handleOutgoing(action: Action, message: OutMessage) {
   }
 
-  def handleOutgoing(action: Action, message: OutMessage, next: Unit => Unit) {
+  def handleOutgoing(action: Action, message: OutMessage, next: () => Unit) {
     this.handleOutgoing(action, message)
     next()
   }
