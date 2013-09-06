@@ -33,6 +33,15 @@ class Action(val path: ActionPath,
   // overrides defaults with passed options
   applySupportOptions(actionSupportOptions)
 
+  def call(params: Iterable[(String, MValue)]): Future[InMessage] = {
+    call(params, null, null)
+  }
+
+  def call(params: Iterable[(String, MValue)],
+           responseTimeout: Long): Future[InMessage] = {
+    call(params, null, null, responseTimeout)
+  }
+
   def call(params: Iterable[(String, MValue)],
            meta: Iterable[(String, MValue)],
            data: Any): Future[InMessage] = {
@@ -43,7 +52,7 @@ class Action(val path: ActionPath,
            meta: Iterable[(String, MValue)],
            data: Any,
            responseTimeout: Long): Future[InMessage] = {
-    val p = Promise[InMessage]
+    val p = Promise[InMessage]()
     def complete(msg: InMessage, optException: Option[Exception]) {
       optException match {
         case Some(e) => p.failure(e)
@@ -54,6 +63,7 @@ class Action(val path: ActionPath,
     p.future
   }
 
+  @deprecated("Use call methods returning Future", "September 2013")
   def call(params: Iterable[(String, MValue)],
            onReply: ((InMessage, Option[Exception]) => Unit),
            meta: Iterable[(String, MValue)] = null,
@@ -62,6 +72,7 @@ class Action(val path: ActionPath,
     this.call(new OutMessage(params, meta, data, onReply = onReply, responseTimeout = responseTimeout))
   }
 
+  @deprecated("Use call methods returning Future", "September 2013")
   def call(message: OutMessage) {
     this.checkSupported()
 
