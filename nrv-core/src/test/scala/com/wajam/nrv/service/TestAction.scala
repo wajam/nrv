@@ -51,7 +51,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
       action.call(Map("call_key" -> "call_value", "param" -> "param_value"))
     }
 
-    var value = Await.result(syncCall.future, 1.second)
+    val value = Await.result(syncCall.future, 1.second)
     assert(value == "call_value", "expected 'call_value', got '" + value + "'")
 
     value = Await.result(syncResponse, 1.second).parameters.getOrElse("response_key", "") match {

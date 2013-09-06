@@ -72,7 +72,6 @@ class Action(val path: ActionPath,
     this.call(new OutMessage(params, meta, data, onReply = onReply, responseTimeout = responseTimeout))
   }
 
-  @deprecated("Use call methods returning Future", "September 2013")
   def call(message: OutMessage) {
     this.checkSupported()
 
