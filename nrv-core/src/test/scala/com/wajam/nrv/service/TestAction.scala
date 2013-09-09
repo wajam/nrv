@@ -51,14 +51,14 @@ class TestAction extends FunSuite with BeforeAndAfter {
       action.call(Map("call_key" -> "call_value", "param" -> "param_value"))
     }
 
-    val value = Await.result(syncCall.future, 1.second)
-    assert(value == "call_value", "expected 'call_value', got '" + value + "'")
+    val syncCallValue = Await.result(syncCall.future, 1.second)
+    assert(syncCallValue == "call_value", "expected 'call_value', got '" + syncCallValue + "'")
 
-    value = Await.result(syncResponse, 1.second).parameters.getOrElse("response_key", "") match {
+    val syncResponseValue = Await.result(syncResponse, 1.second).parameters.getOrElse("response_key", "") match {
       case MString(s) => s
       case _ => fail("Expected parameter 'response_key'")
     }
-    assert(value == "response_value", "expected 'response_key', got '" + value + "'")
+    assert(syncResponseValue == "response_value", "expected 'response_key', got '" + syncResponseValue + "'")
 
     action.stop()
   }
