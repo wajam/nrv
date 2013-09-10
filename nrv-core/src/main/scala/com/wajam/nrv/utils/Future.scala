@@ -9,6 +9,7 @@ import com.wajam.nrv.TimeoutException
  * https://github.com/phaller/scala/blob/execution-context/src/library/scala/concurrent/ from which traits of NRV's
  * implementation are partly taken from.
  */
+@deprecated("Use Scala futures", "September 2013")
 trait Future[T] extends Awaitable[T] {
   def onSuccess[U](pf: PartialFunction[T, U]): this.type = onComplete {
     case Left(t) => // do nothing
@@ -111,6 +112,7 @@ trait Future[T] extends Awaitable[T] {
   }
 }
 
+@deprecated("Use Scala futures", "September 2013")
 trait Promise[T] {
 
   def future: Future[T]
@@ -160,8 +162,10 @@ object Future {
     threadInitNumber - 1
   }
 
+  @deprecated("Use Scala futures", "September 2013")
   def apply[U](f: => U): Future[U] = this.future(f)
 
+  @deprecated("Use Scala futures", "September 2013")
   def future[U](f: => U): Future[U] = {
     val p = Promise[U]
 
@@ -185,6 +189,7 @@ object Future {
 }
 
 object Promise {
+  @deprecated("Use Scala futures", "September 2013")
   def apply[T]: Promise[T] = new PromiseImpl[T]
 }
 

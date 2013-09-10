@@ -11,10 +11,13 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.consistency.persistence.LogRecord.Index
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.service.TokenRange
-import com.wajam.nrv.utils.{Future, IdGenerator}
+import com.wajam.nrv.utils.IdGenerator
 import com.wajam.nrv.data.Message
 import scala.annotation.tailrec
 import scala.util.Random
+import scala.concurrent.{Future, Await}
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 @RunWith(classOf[JUnitRunner])
 class TestTransactionLogReplicationIterator extends TestTransactionBase with BeforeAndAfter {
@@ -222,13 +225,13 @@ class TestTransactionLogReplicationIterator extends TestTransactionBase with Bef
     }
 
     // Wait for the appender and consumer to complete
-    val appendedCount = Future.blocking(appender, 5000L)
+    val appendedCount = Await.result(appender, 5.seconds)
     appendedCount should be >= maxTxCount
     // Update current timestamp past consistency delay to ensure a final Index record is appended
     currentId = appendedCount * 2 * 10 + consistencyDelay
 
     // Consume all appended transactions
-    val lastConsumed = Future.blocking(consumer, 5000L)
+    val lastConsumed = Await.result(consumer, 5.seconds)
     lastConsumed.get.timestamp should be(Some(Timestamp(appendedCount)))
 
     consistencyErrorCount should be(0)

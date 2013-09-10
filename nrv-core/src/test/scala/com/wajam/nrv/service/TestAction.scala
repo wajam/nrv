@@ -8,7 +8,8 @@ import java.lang.String
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.{TimeoutException, RemoteException, InvalidParameter}
 import com.wajam.nrv.data.{MString, OutMessage, InMessage}
-import com.wajam.nrv.utils.{Future, Promise}
+import scala.concurrent.{Future, Promise, Await}
+import scala.concurrent.duration._
 
 import com.wajam.nrv.data.MValue._
 
@@ -33,7 +34,6 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
   test("call, reply") {
     val syncCall = Promise[String]
-    val syncResponse = Promise[String]
 
     val action = service.registerAction(new Action("/test/:param", req => {
       req.parameters.getOrElse("call_key", "") match {
@@ -47,40 +47,35 @@ class TestAction extends FunSuite with BeforeAndAfter {
     }))
     action.start()
 
-    action.tracer.trace() {
-      action.call(Map("call_key" -> "call_value", "param" -> "param_value"), onReply = (resp, err) => {
-        resp.parameters.getOrElse("response_key", "") match {
-          case MString(s) =>
-            syncResponse.success(s)
-          case _ =>
-            syncResponse.failure(new Exception("Expected paramter 'response_key'"))
-        }
-      })
+    val syncResponse: Future[InMessage] = action.tracer.trace() {
+      action.call(Map("call_key" -> "call_value", "param" -> "param_value"))
     }
 
-    var value = Future.blocking(syncCall.future, 1000)
-    assert(value == "call_value", "expected 'call_value', got '" + value + "'")
+    val syncCallValue = Await.result(syncCall.future, 1.second)
+    assert(syncCallValue == "call_value", "expected 'call_value', got '" + syncCallValue + "'")
 
-    value = Future.blocking(syncResponse.future, 1000)
-    assert(value == "response_value", "expected 'response_key', got '" + value + "'")
+    val syncResponseValue = Await.result(syncResponse, 1.second).parameters.getOrElse("response_key", "") match {
+      case MString(s) => s
+      case _ => fail("Expected parameter 'response_key'")
+    }
+    assert(syncResponseValue == "response_value", "expected 'response_key', got '" + syncResponseValue + "'")
 
     action.stop()
   }
 
   test("call error") {
-    val syncResponse = Promise[InMessage]
 
     val action = service.registerAction(new Action("/test_error", req => {
       throw new InvalidParameter("TEST ERROR")
     }))
     action.start()
 
-    action.tracer.trace() {
-      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _))
+    val syncResponse = action.tracer.trace() {
+      action.call(Map("call_key" -> "call_value"))
     }
 
     val except = intercept[RemoteException] {
-      Future.blocking(syncResponse.future, 1000)
+      Await.result(syncResponse, 1.second)
       fail("Shouldn't be call because an exception occured")
     }
 
@@ -98,7 +93,15 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     action.start()
 
-    val req = new OutMessage(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _), responseTimeout = 100)
+
+    def completePromise(value: InMessage, optException: Option[Exception]) {
+      optException match {
+        case Some(e) => syncResponse.failure(e)
+        case None => syncResponse.success(value)
+      }
+    }
+
+    val req = new OutMessage(Map("call_key" -> "call_value"), onReply = completePromise, responseTimeout = 100)
 
     action.tracer.trace() {
       action.call(req)
@@ -111,7 +114,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val start = System.currentTimeMillis()
     intercept[TimeoutException] {
-      Future.blocking(syncResponse.future, 10000)
+      Await.result(syncResponse.future, 10.seconds)
     }
     assert((System.currentTimeMillis() - start) < 500)
 
@@ -119,7 +122,6 @@ class TestAction extends FunSuite with BeforeAndAfter {
   }
 
   test("action default timeout") {
-    val syncResponse = Promise[InMessage]
 
     val action = service.registerAction(new Action("/test_timeout", req => {
       // no reply, make it timeout
@@ -127,8 +129,8 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     action.start()
 
-    action.tracer.trace() {
-      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _))
+    val syncResponse = action.tracer.trace() {
+      action.call(Map("call_key" -> "call_value"))
     }
 
     action.switchboard.getTime = () => {
@@ -138,7 +140,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val start = System.currentTimeMillis()
     intercept[TimeoutException] {
-      Future.blocking(syncResponse.future, 10000)
+      Await.result(syncResponse, 10.seconds)
     }
     assert((System.currentTimeMillis() - start) < 500)
 
@@ -146,7 +148,6 @@ class TestAction extends FunSuite with BeforeAndAfter {
   }
 
   test("action call method timeout") {
-    val syncResponse = Promise[InMessage]
 
     val action = service.registerAction(new Action("/test_timeout", req => {
       // no reply, make it timeout
@@ -154,8 +155,8 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     action.start()
 
-    action.tracer.trace() {
-      action.call(Map("call_key" -> "call_value"), onReply = syncResponse.complete(_, _), responseTimeout = 100)
+    val syncResponse = action.tracer.trace() {
+      action.call(Map("call_key" -> "call_value"), responseTimeout = 100)
     }
 
     action.switchboard.getTime = () => {
@@ -165,7 +166,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     val start = System.currentTimeMillis()
     intercept[TimeoutException] {
-      Future.blocking(syncResponse.future, 10000)
+      Await.result(syncResponse, 10.seconds)
     }
     assert((System.currentTimeMillis() - start) < 500)
 
@@ -186,7 +187,7 @@ class TestAction extends FunSuite with BeforeAndAfter {
 
     action.callIncomingHandlers(message)
 
-    assert("1".equals(Future.blocking(syncCall.future, 1000)))
+    assert("1".equals(Await.result(syncCall.future, 1.second)))
 
     action.stop()
   }

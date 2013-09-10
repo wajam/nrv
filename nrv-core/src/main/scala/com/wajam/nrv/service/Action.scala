@@ -1,12 +1,10 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.utils.{Promise, Future}
 import com.yammer.metrics.scala.Instrumented
 import java.util.concurrent.TimeUnit
-import scala.Unit
 import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
 import com.wajam.nrv.data._
-import scala.Some
+import scala.concurrent.{Future, Promise}
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -35,6 +33,15 @@ class Action(val path: ActionPath,
   // overrides defaults with passed options
   applySupportOptions(actionSupportOptions)
 
+  def call(params: Iterable[(String, MValue)]): Future[InMessage] = {
+    call(params, null, null)
+  }
+
+  def call(params: Iterable[(String, MValue)],
+           responseTimeout: Long): Future[InMessage] = {
+    call(params, null, null, responseTimeout)
+  }
+
   def call(params: Iterable[(String, MValue)],
            meta: Iterable[(String, MValue)],
            data: Any): Future[InMessage] = {
@@ -45,11 +52,18 @@ class Action(val path: ActionPath,
            meta: Iterable[(String, MValue)],
            data: Any,
            responseTimeout: Long): Future[InMessage] = {
-    val p = Promise[InMessage]
-    this.call(params, p.complete(_, _), meta, data, responseTimeout)
+    val p = Promise[InMessage]()
+    def complete(msg: InMessage, optException: Option[Exception]) {
+      optException match {
+        case Some(e) => p.failure(e)
+        case None => p.success(msg)
+      }
+    }
+    this.call(params, complete, meta, data, responseTimeout)
     p.future
   }
 
+  @deprecated("Use call methods returning Future", "September 2013")
   def call(params: Iterable[(String, MValue)],
            onReply: ((InMessage, Option[Exception]) => Unit),
            meta: Iterable[(String, MValue)] = null,
