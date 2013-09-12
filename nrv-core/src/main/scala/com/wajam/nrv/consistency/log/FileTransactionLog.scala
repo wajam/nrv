@@ -1,10 +1,10 @@
-package com.wajam.nrv.consistency.persistence
+package com.wajam.nrv.consistency.log
 
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
 import java.io._
-import com.wajam.nrv.consistency.persistence.LogRecord._
+import com.wajam.nrv.consistency.log.LogRecord._
 import java.util.zip.CRC32
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -291,7 +291,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    * found record and the iterator used to do the search. The iterator is positioned at the record following the
    * found record.
    */
-  private[persistence] def findRequestInFile(timestamp: Timestamp, logFile: File): (Option[Request], TransactionLogIterator) = {
+  private[log] def findRequestInFile(timestamp: Timestamp, logFile: File): (Option[Request], TransactionLogIterator) = {
     val nextFileFirstId = getNextLogFile(Some(logFile)).map(file =>
       getIndexFromName(file.getName)).map(_.id).getOrElse(Long.MaxValue)
     val it = FileTransactionLogIterator(getIndexFromName(logFile.getName)).toTransactionLogIterator
@@ -423,7 +423,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
    * Returns the log file that most likely contain the record with the specified timestamp. The record is garantee to
    * NOT be in a following log file but may be in an earlier log file.
    */
-  private[persistence] def guessLogFile(timestamp: Timestamp): Option[File] = {
+  private[log] def guessLogFile(timestamp: Timestamp): Option[File] = {
     // Find last log file having a consistent timestamp less than searched timestamp
     getLogFiles.toSeq.reverseIterator.find(file =>
       getIndexFromName(file.getName).consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) < timestamp)
@@ -432,7 +432,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   /**
    * Returns the log file following the specified log file
    */
-  private[persistence] def getNextLogFile(logFile: Option[File]): Option[File] = {
+  private[log] def getNextLogFile(logFile: Option[File]): Option[File] = {
     logFile match {
       case Some(file) => {
         val remaining = getLogFiles.dropWhile(_ != file)
@@ -448,7 +448,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   /**
    * Returns the log file preceding the sepcified log file
    */
-  private[persistence] def getPrevLogFile(logFile: Option[File]): Option[File] = {
+  private[log] def getPrevLogFile(logFile: Option[File]): Option[File] = {
     logFile match {
       case Some(file) => {
         val remaining = getLogFiles.toSeq.reverseIterator.dropWhile(_ != file)
@@ -461,11 +461,11 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
   }
 
-  private[persistence] def getNameFromIndex(index: Index): String = {
+  private[log] def getNameFromIndex(index: Index): String = {
     "%s-%d:%s.log".format(filePrefix, index.id, index.consistentTimestamp.getOrElse("").toString)
   }
 
-  private[persistence] def getIndexFromName(name: String): Index = {
+  private[log] def getIndexFromName(name: String): Index = {
     val end = name.lastIndexOf(".")
     val start = name.lastIndexOf("-", end) + 1
     name.substring(start, end).split(":") match {
@@ -691,7 +691,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
  * Iterator which returns the log files in ascending order that contain transactions from the specified initial index.
  * Includes log file added after the iterator creation.
  */
-private[persistence] class LogFileIterator(txLog: FileTransactionLog, initialIndex: Index) extends Iterator[File] {
+private[log] class LogFileIterator(txLog: FileTransactionLog, initialIndex: Index) extends Iterator[File] {
   private var logFiles = txLog.getLogFiles(initialIndex).toIterator
   private var lastFile: Option[File] = None
 

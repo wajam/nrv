@@ -5,10 +5,10 @@ import com.wajam.nrv.consistency.{TransactionRecorder, ResolvedServiceMember, Te
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import java.io.File
-import com.wajam.nrv.consistency.persistence.{LogRecord, FileTransactionLog}
+import com.wajam.nrv.consistency.log.{LogRecord, FileTransactionLog}
 import java.nio.file.Files
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.consistency.persistence.LogRecord.Index
+import com.wajam.nrv.consistency.log.LogRecord.Index
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.service.TokenRange
 import com.wajam.nrv.utils.IdGenerator
