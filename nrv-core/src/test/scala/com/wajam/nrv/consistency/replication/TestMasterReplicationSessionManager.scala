@@ -11,15 +11,15 @@ import com.wajam.nrv.consistency.{TestTransactionBase, ResolvedServiceMember, Co
 import com.wajam.nrv.data._
 import com.wajam.nrv.cluster.{Cluster, StaticClusterManager, Node, LocalNode}
 import java.io.File
-import com.wajam.nrv.consistency.persistence.{LogRecord, FileTransactionLog}
+import com.wajam.nrv.consistency.log.{LogRecord, FileTransactionLog}
 import java.nio.file.Files
 import com.wajam.nrv.utils.timestamp.Timestamp
 import org.mockito.Mockito._
-import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Request}
+import com.wajam.nrv.consistency.log.LogRecord.{Response, Request}
 import org.mockito.ArgumentCaptor
 import scala.collection.JavaConversions._
 import com.wajam.nrv.utils.Closable
-import com.wajam.nrv.consistency.persistence.LogRecord.Index
+import com.wajam.nrv.consistency.log.LogRecord.Index
 import com.wajam.nrv.Logging
 
 @RunWith(classOf[JUnitRunner])

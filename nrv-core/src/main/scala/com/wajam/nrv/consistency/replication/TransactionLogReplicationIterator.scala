@@ -1,9 +1,9 @@
 package com.wajam.nrv.consistency.replication
 
-import com.wajam.nrv.consistency.persistence.{LogRecord, TransactionLogIterator, TimestampedRecord, TransactionLog}
+import com.wajam.nrv.consistency.log.{LogRecord, TransactionLogIterator, TimestampedRecord, TransactionLog}
 import com.wajam.nrv.utils.timestamp.Timestamp
 import collection.immutable.TreeMap
-import com.wajam.nrv.consistency.persistence.LogRecord.{Index, Response, Request}
+import com.wajam.nrv.consistency.log.LogRecord.{Index, Response, Request}
 import com.wajam.nrv.consistency.ResolvedServiceMember
 import com.yammer.metrics.scala.Instrumented
 

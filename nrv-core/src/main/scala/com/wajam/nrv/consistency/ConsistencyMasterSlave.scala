@@ -5,7 +5,7 @@ import com.wajam.nrv.data._
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
 import com.yammer.metrics.scala.{Meter, Instrumented}
 import com.wajam.nrv.utils.Event
-import com.wajam.nrv.consistency.persistence.{LogRecordSerializer, NullTransactionLog, FileTransactionLog}
+import com.wajam.nrv.consistency.log.{LogRecordSerializer, NullTransactionLog, FileTransactionLog}
 import java.util.concurrent.TimeUnit
 import com.yammer.metrics.core.Gauge
 import com.wajam.nrv.UnavailableException

@@ -13,10 +13,10 @@ import com.wajam.nrv.consistency.{TestTransactionBase, ResolvedServiceMember, Co
 import com.wajam.nrv.data._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import MessageMatcher._
-import com.wajam.nrv.consistency.persistence.LogRecord.Index
+import com.wajam.nrv.consistency.log.LogRecord.Index
 import java.util.UUID
 import com.wajam.nrv.utils.IdGenerator
-import com.wajam.nrv.consistency.persistence.{TransactionLogProxy, LogRecord}
+import com.wajam.nrv.consistency.log.{TransactionLogProxy, LogRecord}
 
 @RunWith(classOf[JUnitRunner])
 class TestSlaveReplicationSessionManager extends TestTransactionBase with BeforeAndAfter with MockitoSugar {

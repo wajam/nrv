@@ -1,4 +1,4 @@
-package com.wajam.nrv.consistency.persistence
+package com.wajam.nrv.consistency.log
 
 import com.wajam.nrv.protocol.codec.Codec
 import com.wajam.nrv.data.Message

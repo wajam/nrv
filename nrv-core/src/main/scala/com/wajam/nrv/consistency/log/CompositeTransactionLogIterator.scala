@@ -1,4 +1,4 @@
-package com.wajam.nrv.consistency.persistence
+package com.wajam.nrv.consistency.log
 
 import annotation.tailrec
 

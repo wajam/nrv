@@ -1,10 +1,10 @@
-package com.wajam.nrv.consistency.persistence
+package com.wajam.nrv.consistency.log
 
 import java.io._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import scala.Some
 import com.wajam.nrv.data.Message
-import com.wajam.nrv.consistency.persistence.LogRecord.{Index, Response, Request}
+import com.wajam.nrv.consistency.log.LogRecord.{Index, Response, Request}
 import com.wajam.nrv.protocol.codec.{GenericJavaSerializeCodec, MessageJavaSerializeCodec, Codec}
 import LogRecordSerializer._
 
@@ -135,7 +135,7 @@ class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
   }
 }
 
-private[persistence] object LogRecordSerializer {
+private[log] object LogRecordSerializer {
   val MinMessageLen = 0
   val MaxMessageLen = 1000000
 

@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency
 
-import persistence.LogRecord._
-import persistence._
+import com.wajam.nrv.consistency.log.LogRecord._
+import com.wajam.nrv.consistency.log._
 import com.wajam.nrv.utils.timestamp.Timestamp
 import java.io.File
 import com.wajam.nrv.utils.{TimestampIdGenerator, IdGenerator}

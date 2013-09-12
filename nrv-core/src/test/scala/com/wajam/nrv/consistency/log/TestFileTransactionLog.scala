@@ -1,4 +1,4 @@
-package com.wajam.nrv.consistency.persistence
+package com.wajam.nrv.consistency.log
 
 import org.scalatest.BeforeAndAfter
 import org.scalatest.matchers.ShouldMatchers._
@@ -10,9 +10,9 @@ import org.mockito.Mockito._
 import util.Random
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.consistency.persistence.LogRecord.Request
+import com.wajam.nrv.consistency.log.LogRecord.Request
 import com.wajam.nrv.consistency.TestTransactionBase
-import com.wajam.nrv.consistency.persistence.LogRecord.Index
+import com.wajam.nrv.consistency.log.LogRecord.Index
 
 @RunWith(classOf[JUnitRunner])
 class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {

@@ -7,16 +7,16 @@ import com.wajam.nrv.utils.timestamp.Timestamp
 import scala.actors.Actor
 import com.wajam.nrv.utils._
 import collection.immutable.TreeSet
-import com.wajam.nrv.consistency.persistence.TransactionLog
+import com.wajam.nrv.consistency.log.TransactionLog
 import ReplicationAPIParams._
-import com.wajam.nrv.consistency.persistence.LogRecord.{Response, Request}
-import com.wajam.nrv.consistency.persistence.LogRecord.Response.Success
+import com.wajam.nrv.consistency.log.LogRecord.{Response, Request}
+import com.wajam.nrv.consistency.log.LogRecord.Response.Success
 import annotation.tailrec
 import com.wajam.nrv.{TimeoutException, Logging}
 import java.util.{TimerTask, Timer}
 import com.yammer.metrics.scala.Instrumented
 import util.Random
-import com.wajam.nrv.consistency.persistence.LogRecord.Index
+import com.wajam.nrv.consistency.log.LogRecord.Index
 
 /**
  * Manage all local slave replication sessions for a service. Only one replication session per

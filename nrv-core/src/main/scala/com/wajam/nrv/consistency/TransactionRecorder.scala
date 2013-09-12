@@ -2,8 +2,8 @@ package com.wajam.nrv.consistency
 
 import scala.actors.Actor
 import com.yammer.metrics.scala.Instrumented
-import persistence.LogRecord.{Request, Response, Index}
-import persistence.TransactionLog
+import com.wajam.nrv.consistency.log.LogRecord.{Request, Response, Index}
+import com.wajam.nrv.consistency.log.TransactionLog
 import com.wajam.nrv.data.{MessageType, Message}
 import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.utils.{IdGenerator, TimestampIdGenerator, CurrentTime, Scheduler}

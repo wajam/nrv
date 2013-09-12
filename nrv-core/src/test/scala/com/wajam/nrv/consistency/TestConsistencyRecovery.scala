@@ -6,13 +6,12 @@ import org.scalatest.BeforeAndAfter
 import java.io.File
 import java.nio.file.Files
 import org.mockito.Mockito._
-import persistence.LogRecord.{Response, Request, Index}
-import persistence.FileTransactionLog
+import com.wajam.nrv.consistency.log.LogRecord.{Response, Request, Index}
+import com.wajam.nrv.consistency.log.FileTransactionLog
 import com.wajam.nrv.service.TokenRange
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.utils.IdGenerator
 import org.scalatest.matchers.ShouldMatchers._
-
 
 @RunWith(classOf[JUnitRunner])
 class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter with MockitoSugar {
