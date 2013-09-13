@@ -1,8 +1,10 @@
 package com.wajam.nrv.consistency
 
 import com.wajam.nrv.cluster.Node
-import com.wajam.nrv.service.Service
 
+/**
+ * Trait to read and update some cluster wide configuration and state necessary for consistent services.
+ */
 trait ConsistencyPersistence {
 
   def start()
@@ -12,7 +14,7 @@ trait ConsistencyPersistence {
   /**
    * Returns the list of all replicas (master service member + slaves replicas) per shard token.
    */
-  def explicitReplicasMapping: Map[Long, List[Node]] // TODO: Need caching + watch changes
+  def explicitReplicasMapping: Map[Long, List[Node]]
 
   /**
    * Returns the number of seconds the specified replica lag behind the master service member.
