@@ -35,7 +35,9 @@ import com.wajam.nrv.service.StatusTransitionEvent
  * - Messages timestamps are unique in the whole cluster and also sequenced per message token.
  *
  */
-class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDir: String, txLogEnabled: Boolean,
+class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
+                             val consistencyPersistence: ConsistencyPersistence,
+                             txLogDir: String, txLogEnabled: Boolean,
                              txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000,
                              timestampTimeoutExtraDelay: Int = 250,
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
@@ -132,6 +134,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
       slaveReplicationSessionManager.start()
       SlaveReplicationManagerActor.start()
 
+      consistencyPersistence.start()
+
       // Open a replication session for all service members the local node is a slave
       info("Startup replication open sessions  {}", service)
       service.members.withFilter(member => member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {
@@ -146,6 +150,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator, txLogDi
   override def stop() {
     synchronized {
       if (started) {
+        consistencyPersistence.stop()
+
         SlaveReplicationManagerActor !? Kill
         slaveReplicationSessionManager.stop()
         masterReplicationSessionManager.stop()
