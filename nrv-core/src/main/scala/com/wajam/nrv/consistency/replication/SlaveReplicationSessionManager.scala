@@ -324,12 +324,12 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
               val allSessions = sessions.valuesIterator.map {
                 case Left(pendingSession) => {
                   val context = pendingSession.context
-                  ReplicationSession(context.member, context.cookie, context.mode)
+                  ReplicationSession(context.member, context.cookie, context.mode, service.cluster.localNode)
                 }
                 case Right(sessionActor) => {
                   val context = sessionActor.context
-                  ReplicationSession(sessionActor.member, context.cookie, context.mode,
-                    id = Some(sessionActor.sessionId))
+                  ReplicationSession(sessionActor.member, context.cookie, context.mode, service.cluster.localNode,
+                    Some(sessionActor.sessionId), Some(sessionActor.startTimestamp), sessionActor.endTimestamp)
                 }
               }
               reply(allSessions.toList)
@@ -456,7 +456,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
     }
   }
 
-  class SessionActor(val sessionId: String, startTimestamp: Timestamp, endTimestamp: Option[Timestamp],
+  class SessionActor(val sessionId: String, val startTimestamp: Timestamp, val endTimestamp: Option[Timestamp],
                           val context: SessionManagerProtocol.OpenSessionRequest,
                           currentTimestampGauge: SessionCurrentTimestampGauge,
                           idGenerator: IdGenerator[Long]) extends Actor {

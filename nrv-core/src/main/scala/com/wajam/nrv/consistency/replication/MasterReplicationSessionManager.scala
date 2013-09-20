@@ -206,7 +206,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
             try {
               val allSessions = sessions.map(sessionActor => {
                 val mode = if (sessionActor.source.end.isDefined) ReplicationMode.Bootstrap else ReplicationMode.Live
-                ReplicationSession(sessionActor.member, sessionActor.cookie, mode,
+                ReplicationSession(sessionActor.member, sessionActor.cookie, mode, sessionActor.slave,
                   Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end)
               })
               reply(allSessions)
@@ -276,7 +276,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
   }
 
   class SessionActor(val sessionId: String, val member: ResolvedServiceMember, val source: ReplicationSourceIterator,
-                          val cookie: String, slave: Node) extends Actor with Logging {
+                          val cookie: String, val slave: Node) extends Actor with Logging {
 
     private lazy val pushMeter = metrics.meter("push", "push", member.scopeName)
     private lazy val pushErrorMeter = metrics.meter("push-error", "push-error", member.scopeName)

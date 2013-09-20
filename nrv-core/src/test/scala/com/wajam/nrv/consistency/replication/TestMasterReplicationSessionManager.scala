@@ -102,6 +102,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
 
     val openSessionRequestMessage = new InMessage(openSessionRequest)
     var openSessionResponseMessage: Option[OutMessage] = None
+    openSessionRequestMessage.source = remoteNode
     openSessionRequestMessage.replyCallback = (reply) => openSessionResponseMessage = Some(reply)
 
     sessionManager.handleOpenSessionMessage(openSessionRequestMessage)
@@ -109,6 +110,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     session.member should be(ResolvedServiceMember(service, member))
     session.cookie should be(cookie)
     session.id should be(Some(sessionId))
+    session.slave should be(remoteNode)
     // Do not verify session mode, start and end timestamps. These values can be different from the ones requested
     // if the master fallback to a different mode.
     openSessionResponseMessage.get.error should be(None)
