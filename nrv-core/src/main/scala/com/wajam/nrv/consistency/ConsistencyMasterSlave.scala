@@ -98,7 +98,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
   private lazy val masterOpenSessionAction = new Action("/replication/master/:" + ReplicationAPIParams.Token + "/sessions",
     masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.POST)
   private lazy val masterCloseSessionAction = new Action("/replication/master/:" + ReplicationAPIParams.Token + "/sessions/:" + ReplicationAPIParams.SessionId,
-    masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.DELETE)
+    masterReplicationSessionManager.handleCloseSessionMessage, ActionMethod.DELETE)
 
   private lazy val getConsistencyStateAction = new Action("/consistency/state/:" + ReplicationAPIParams.Token,
     handleGetConsistencyState, ActionMethod.GET)
