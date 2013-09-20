@@ -203,6 +203,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
     }
   }
 
+  def replicationSessions = masterReplicationSessionManager.sessions ++ slaveReplicationSessionManager.sessions
+
   private def getTokenRangeConsistentTimestamp(range: TokenRange): Timestamp = {
     rangeMembers.get(range) match {
       case Some(member) if cluster.isLocalNode(member.node) => {

@@ -17,10 +17,13 @@ import com.wajam.nrv.consistency.log.LogRecord.Index
 import java.util.UUID
 import com.wajam.nrv.utils.IdGenerator
 import com.wajam.nrv.consistency.log.{TransactionLogProxy, LogRecord}
+import com.wajam.nrv.cluster.{Node, LocalNode, StaticClusterManager, Cluster}
 
 @RunWith(classOf[JUnitRunner])
 class TestSlaveReplicationSessionManager extends TestTransactionBase with BeforeAndAfter with MockitoSugar {
 
+  var localNode: LocalNode = null
+  var cluster: Cluster = null
   var service: Service = null
   var member: ResolvedServiceMember = null
   var txLogProxy: TransactionLogProxy = null
@@ -39,7 +42,10 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
   var pushTxReplyCount = 0
 
   before {
+    localNode = new LocalNode(Map("nrv" -> 9999))
+    cluster = new Cluster(localNode, new StaticClusterManager)
     service = new Service("service")
+    service.applySupport(cluster = Some(cluster))
     member = ResolvedServiceMember(service.name, token, Seq(TokenRange.All))
     txLogProxy = new TransactionLogProxy
 
@@ -139,6 +145,12 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     message
   }
 
+  def createSession(cookie: String, mode: ReplicationMode, id: Option[String] = None,
+                    startTimestamp: Option[Timestamp] = None, endTimestamp: Option[Timestamp] = None,
+                    slave: Node = localNode, member: ResolvedServiceMember = member) = {
+    ReplicationSession(member, cookie, mode, localNode, id, startTimestamp, endTimestamp)
+  }
+
   test("open session should invoke master") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
@@ -157,7 +169,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     verifyNoMoreInteractions(mockMasterOpenSessionAction)
     verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
-    sessionManager.sessions should be(List(ReplicationSession(member, cookie, ReplicationMode.Bootstrap)))
+    sessionManager.sessions should be(List(createSession(cookie, ReplicationMode.Bootstrap)))
   }
 
   test("open session should invoke master only after delay") {
@@ -178,20 +190,20 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     verifyZeroInteractionsAfter(wait = 600, mockMasterOpenSessionAction)
     verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
-    sessionManager.sessions should be(List(ReplicationSession(member, cookie, ReplicationMode.Bootstrap)))
+    sessionManager.sessions should be(List(createSession(cookie, ReplicationMode.Bootstrap)))
 
     // Wait delay remainder and verify subscribe call is done
     verify(mockMasterOpenSessionAction, timeout(200)).callOutgoingHandlers(argThat(matchMessage(openSessionRequest)))
     verifyNoMoreInteractions(mockMasterOpenSessionAction)
     verifyZeroInteractions(mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
-    sessionManager.sessions should be(List(ReplicationSession(member, cookie, ReplicationMode.Bootstrap)))
+    sessionManager.sessions should be(List(createSession(cookie, ReplicationMode.Bootstrap)))
   }
 
   test("open session should not invoke master twice if a session is already pending") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
-    val expectedSession = ReplicationSession(member, cookie, ReplicationMode.Bootstrap)
+    val expectedSession = createSession(cookie, ReplicationMode.Bootstrap)
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
@@ -227,7 +239,8 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val endTimestamp = Timestamp(5678)
     val cookie = "miam"
     val sessionId = "9876"
-    val expectedSession = ReplicationSession(member, cookie, ReplicationMode.Bootstrap, id = Some(sessionId))
+    val expectedSession = createSession(cookie, ReplicationMode.Bootstrap, Some(sessionId),
+      Some(startTimestamp), Some(endTimestamp))
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
@@ -260,7 +273,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val endTimestamp = Timestamp(5678)
     val cookie = "miam"
     val sessionId = "9876"
-    val expectedSession = ReplicationSession(member, cookie, ReplicationMode.Bootstrap)
+    val expectedSession = createSession(cookie, ReplicationMode.Bootstrap)
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
@@ -359,7 +372,8 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val endTimestamp = Timestamp(5678)
     val cookie = "miam"
     val sessionId = "9876"
-    val expectedSession = ReplicationSession(member, cookie, ReplicationMode.Bootstrap, id = Some(sessionId))
+    val expectedSession = createSession(cookie, ReplicationMode.Bootstrap, Some(sessionId),
+      Some(startTimestamp), Some(endTimestamp))
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
@@ -395,12 +409,12 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
   test("open session when have another service member session pending") {
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
-    val expectedSession = ReplicationSession(member, cookie, ReplicationMode.Bootstrap)
+    val expectedSession = createSession(cookie, ReplicationMode.Bootstrap)
 
     // First session with a different service member
     val otherMember = ResolvedServiceMember(service.name, token + 1000, Seq(TokenRange.All))
     val otherCookie = "other"
-    val otherSession = ReplicationSession(otherMember, otherCookie, ReplicationMode.Bootstrap)
+    val otherSession = createSession(otherCookie, ReplicationMode.Bootstrap, member = otherMember)
     currentCookie = otherCookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
     sessionManager.openSession(otherMember, txLogProxy, delay = 5000, ActionProxy(mockMasterOpenSessionAction), ActionProxy(mockMasterCloseSessionAction),
@@ -439,7 +453,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     // Ensure no interaction yet
     verifyZeroInteractionsAfter(wait = 200, mockMasterOpenSessionAction, mockMasterCloseSessionAction)
     verifyOnSessionEndNotCalled()
-    sessionManager.sessions should be(List(ReplicationSession(member, cookie, ReplicationMode.Bootstrap)))
+    sessionManager.sessions should be(List(createSession(cookie, ReplicationMode.Bootstrap)))
 
     // Close session and wait end of the delay
     sessionManager.closeSession(member)
@@ -452,7 +466,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val startTimestamp = Timestamp(1234)
     val cookie = "miam"
     val sessionId = "9876"
-    val expectedSession = ReplicationSession(member, cookie, ReplicationMode.Bootstrap)
+    val expectedSession = createSession(cookie, ReplicationMode.Bootstrap)
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
@@ -505,7 +519,8 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val endTimestamp = Timestamp(5678)
     val cookie = "miam"
     val sessionId = "9876"
-    val expectedSession = ReplicationSession(member, cookie, ReplicationMode.Bootstrap, id = Some(sessionId))
+    val expectedSession = createSession(cookie, ReplicationMode.Bootstrap, Some(sessionId),
+      Some(startTimestamp), Some(endTimestamp))
 
     currentCookie = cookie
     when(txLogProxy.getLastLoggedRecord).thenReturn(Some(Index(-1, Some(startTimestamp))))
