@@ -45,14 +45,14 @@ trait Resource {
   private lazy val pathWithId = basePath + "/:" + idName
 
   /**
-   * Defines all operation supported by this resource.
+   * Defines all operations supported by this resource.
    */
   private[resource] lazy val operations = {
     (for (getOp <- get) yield OperationDefinition(ActionMethod.GET, pathWithId, getOp)) ++
-      (for (indexOp <- get) yield OperationDefinition(ActionMethod.GET, basePath, indexOp)) ++
-      (for (createOp <- get) yield OperationDefinition(ActionMethod.POST, basePath, createOp)) ++
-      (for (updateOp <- get) yield OperationDefinition(ActionMethod.PUT, pathWithId, updateOp)) ++
-      (for (deleteOp <- get) yield OperationDefinition(ActionMethod.DELETE, pathWithId, deleteOp))
+      (for (listOp <- list) yield OperationDefinition(ActionMethod.GET, basePath, listOp)) ++
+      (for (createOp <- create) yield OperationDefinition(ActionMethod.POST, basePath, createOp)) ++
+      (for (updateOp <- update) yield OperationDefinition(ActionMethod.PUT, pathWithId, updateOp)) ++
+      (for (deleteOp <- delete) yield OperationDefinition(ActionMethod.DELETE, pathWithId, deleteOp))
   }
 
 }
