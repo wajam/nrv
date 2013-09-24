@@ -13,7 +13,6 @@ package object resource {
    * Implicit class to add methods on a NRV service to register Resources to the service.
    */
   implicit class ResourcefulService(service: Service) {
-    this: Service =>
 
     /**
      * Register a resource with all the defined operations.
@@ -21,7 +20,7 @@ package object resource {
      */
     def registerResource(resource: Resource) {
       for(definition <- resource.operations) {
-        this.registerAction(new Action(definition.path, (request) => definition.operation(request), method = definition.method))
+        service.registerAction(new Action(definition.path, (request) => definition.operation(request), method = definition.method))
       }
     }
 

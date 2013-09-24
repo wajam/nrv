@@ -8,14 +8,19 @@ import com.wajam.nrv.service.ActionMethod
 trait Resource {
 
   /**
-   * Base path defining this resource.
+   * Name of this resource.
    */
-  def basePath: String
+  def resourceName: String
 
   /**
    * The name of the resource identifier in the ActionPath.
    */
   def idName: String
+
+  /**
+   * The parent resource if any.
+   */
+  def parent: Option[Resource]
 
   /**
    * Optional GET operation on the resource.
@@ -42,15 +47,16 @@ trait Resource {
    */
   def delete: Option[(Request) => Unit]
 
-  private lazy val pathWithId = basePath + "/:" + idName
+  private lazy val path: String = parent.map(p => p.pathWithId).getOrElse("") + "/" + resourceName
+  private lazy val pathWithId: String = path + "/:" + idName
 
   /**
    * Defines all operations supported by this resource.
    */
   private[resource] lazy val operations = {
     (for (getOp <- get) yield OperationDefinition(ActionMethod.GET, pathWithId, getOp)) ++
-      (for (listOp <- list) yield OperationDefinition(ActionMethod.GET, basePath, listOp)) ++
-      (for (createOp <- create) yield OperationDefinition(ActionMethod.POST, basePath, createOp)) ++
+      (for (listOp <- list) yield OperationDefinition(ActionMethod.GET, path, listOp)) ++
+      (for (createOp <- create) yield OperationDefinition(ActionMethod.POST, path, createOp)) ++
       (for (updateOp <- update) yield OperationDefinition(ActionMethod.PUT, pathWithId, updateOp)) ++
       (for (deleteOp <- delete) yield OperationDefinition(ActionMethod.DELETE, pathWithId, deleteOp))
   }
