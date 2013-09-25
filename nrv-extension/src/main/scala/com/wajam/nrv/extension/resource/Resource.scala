@@ -20,6 +20,10 @@ class Resource(resourceName: String, idName: String, parent: Option[Resource] = 
  * to the specific operation trait.
  */
 sealed trait Operation {
+
+  /**
+   * Register the Resource operation to a Service.
+   */
   def registerTo(service: Service): Unit = {}
 }
 
@@ -32,76 +36,69 @@ sealed trait Operation {
 trait Get extends Operation {
   this: Resource =>
 
-  val getAction = new Action(pathWithId, (message: InMessage) => get(message), method = ActionMethod.GET)
+  def get(service: Service): Option[Action] = service.findAction(pathWithId, ActionMethod.GET)
 
   protected def get: (Request) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
-    service.registerAction(getAction)
+    service.registerAction(new Action(pathWithId, (message: InMessage) => get(message), method = ActionMethod.GET))
     super.registerTo(service)
   }
 
-  def getAction(service: Service): Option[Action] = service.findAction(pathWithId, ActionMethod.GET)
 }
 
 trait List extends Operation {
   this: Resource =>
 
-  val listAction = new Action(path, (message: InMessage) => list(message), method = ActionMethod.GET)
+  def list(service: Service): Option[Action] = service.findAction(path, ActionMethod.GET)
 
   protected def list: (Request) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
-    service.registerAction(listAction)
+    service.registerAction(new Action(path, (message: InMessage) => list(message), method = ActionMethod.GET))
     super.registerTo(service)
   }
-
-  def listAction(service: Service): Option[Action] = service.findAction(path, ActionMethod.GET)
 
 }
 
 trait Create extends Operation {
   this: Resource =>
 
-  val createAction = new Action(path, (message: InMessage) => create(message), method = ActionMethod.POST)
+  def create(service: Service): Option[Action] = service.findAction(path, ActionMethod.POST)
 
   protected def create: (Request) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
-    service.registerAction(createAction)
+    service.registerAction(new Action(path, (message: InMessage) => create(message), method = ActionMethod.POST))
     super.registerTo(service)
   }
-
-  def createAction(service: Service): Option[Action] = service.findAction(path, ActionMethod.POST)
 
 }
 
 trait Update extends Operation {
   this: Resource =>
 
-  val updateAction = new Action(pathWithId, (message: InMessage) => update(message), method = ActionMethod.PUT)
+  def update(service: Service): Option[Action] = service.findAction(pathWithId, ActionMethod.PUT)
 
   protected def update: (Request) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
-    service.registerAction(updateAction)
+    service.registerAction(new Action(pathWithId, (message: InMessage) => update(message), method = ActionMethod.PUT))
     super.registerTo(service)
   }
 
-  def updateAction(service: Service): Option[Action] = service.findAction(pathWithId, ActionMethod.PUT)
 }
 
 trait Delete extends Operation {
   this: Resource =>
 
-  val deleteAction = new Action(pathWithId, (message: InMessage) => delete(message), method = ActionMethod.DELETE)
+  def delete(service: Service): Option[Action] = service.findAction(pathWithId, ActionMethod.DELETE)
 
   protected def delete: (Request) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
-    service.registerAction(deleteAction)
+    service.registerAction(new Action(pathWithId, (message: InMessage) => delete(message), method = ActionMethod.DELETE))
     super.registerTo(service)
   }
 
-  def deleteAction(service: Service): Option[Action] = service.findAction(pathWithId, ActionMethod.DELETE)
 }

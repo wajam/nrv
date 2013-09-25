@@ -1,6 +1,6 @@
 package com.wajam.nrv.extension
 
-import com.wajam.nrv.service.Service
+import com.wajam.nrv.service.{Action, Service}
 import com.wajam.nrv.data._
 import com.wajam.nrv.data.MString
 import com.wajam.nrv.data.MList
@@ -34,15 +34,30 @@ package object resource {
       }
     }
 
-    def get(resource: Resource with Get) = resource.getAction(service).get
+    /**
+     * Retrieve the corresponding GET Action for the given resource registered to a given service.
+     */
+    def get(resource: Resource with Get): Option[Action] = resource.get(service)
 
-    def list(resource: Resource with List) = resource.listAction(service).get
+    /**
+     * Retrieve the corresponding LIST Action for the given resource registered to a given service.
+     */
+    def list(resource: Resource with List): Option[Action] = resource.list(service)
 
-    def create(resource: Resource with Create) = resource.createAction(service).get
+    /**
+     * Retrieve the corresponding CREATE Action for the given resource registered to a given service.
+     */
+    def create(resource: Resource with Create): Option[Action] = resource.create(service)
 
-    def update(resource: Resource with Update) = resource.updateAction(service).get
+    /**
+     * Retrieve the corresponding UPDATE Action for the given resource registered to a given service.
+     */
+    def update(resource: Resource with Update): Option[Action] = resource.update(service)
 
-    def delete(resource: Resource with Delete) = resource.deleteAction(service).get
+    /**
+     * Retrieve the corresponding DELETE Action for the given resource registered to a given service.
+     */
+    def delete(resource: Resource with Delete): Option[Action] = resource.delete(service)
 
   }
 
