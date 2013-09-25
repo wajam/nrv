@@ -1,7 +1,9 @@
 package com.wajam.nrv.extension
 
-import com.wajam.nrv.service.{Action, Service}
-import com.wajam.nrv.data.{MValue, MString, MList, InMessage}
+import com.wajam.nrv.service.Service
+import com.wajam.nrv.data._
+import com.wajam.nrv.data.MString
+import com.wajam.nrv.data.MList
 
 /**
  * The resource package defines traits and classes that are useful when creating a NRV service based on
@@ -19,9 +21,7 @@ package object resource {
      * @param resource The resource to register
      */
     def registerResource(resource: Resource) {
-      for(definition <- resource.operations) {
-        service.registerAction(new Action(definition.path, (request) => definition.operation(request), method = definition.method))
-      }
+      resource.registerTo(service)
     }
 
     /**
@@ -34,10 +34,20 @@ package object resource {
       }
     }
 
+    def get(resource: Resource with Get) = resource.getAction(service).get
+
+    def list(resource: Resource with List) = resource.listAction(service).get
+
+    def create(resource: Resource with Create) = resource.createAction(service).get
+
+    def update(resource: Resource with Update) = resource.updateAction(service).get
+
+    def delete(resource: Resource with Delete) = resource.deleteAction(service).get
+
   }
 
   /**
-   * Implicit class to add convenience methods on an InMessage.
+   * Implicit class to add convenience methods to an InMessage.
    */
   implicit class Request(protected val request: InMessage) {
 
@@ -54,7 +64,7 @@ package object resource {
     }
 
     def getParamValue(name: String): Option[String] = {
-      getParamValues(name).filter(_.size > 0).map(values => values.head)
+      getParamValues(name).flatMap(_.headOption)
     }
 
     def getParamValue(name: String, default: String): String = {
