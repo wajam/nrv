@@ -133,7 +133,7 @@ package object resource {
     }
 
     def respond(response: Any, headers: Map[String, MValue] = Map(), code: Int = 200) {
-      request.reply(headers, meta = null, data = response, code = code)
+      request.reply(Map(), headers, response, code)
     }
 
   }
