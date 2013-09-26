@@ -1,12 +1,14 @@
 package com.wajam.nrv.transport.http
 
 import java.net.InetAddress
+import org.jboss.netty.handler.codec.oneone.{OneToOneDecoder, OneToOneEncoder}
+import org.jboss.netty.handler.stream.ChunkedWriteHandler
+import org.jboss.netty.handler.codec.http._
+import org.jboss.netty.channel.{ChannelFuture, Channel, ChannelHandlerContext, ChannelPipeline}
+import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.protocol.Protocol
 import com.wajam.nrv.transport.netty.{NettyTransportCodecFactory, NettyTransport}
-import org.jboss.netty.channel.{Channel, ChannelHandlerContext, ChannelPipeline}
-import org.jboss.netty.handler.codec.http._
-import com.yammer.metrics.scala.Instrumented
-import org.jboss.netty.handler.codec.oneone.{OneToOneDecoder, OneToOneEncoder}
+import com.wajam.nrv.protocol.HttpProtocol.HttpChunkedResponse
 
 /**
  * HTTP transport implementation backed by netty.
@@ -21,6 +23,19 @@ class HttpNettyTransport(host: InetAddress,
   val MAX_SIZE = 1048576 //1M
   val factory = new HttpNettyTransportCodecFactory
 
+  override def writeOnChannel(channel: Channel, message: AnyRef): ChannelFuture = {
+    message match {
+      case httpMessage: HttpMessage =>
+        channel.write(httpMessage)
+
+      case chunkedResponse: HttpChunkedResponse =>
+        channel.write(chunkedResponse.begin)
+        channel.write(chunkedResponse.input)
+        channel.write(chunkedResponse.emptyChunk)
+        channel.write(chunkedResponse.trailer)
+    }
+  }
+
   class HttpNettyTransportCodecFactory extends NettyTransportCodecFactory {
 
     def configureRequestEncoders(pipeline: ChannelPipeline) {
@@ -30,6 +45,7 @@ class HttpNettyTransport(host: InetAddress,
     def configureResponseEncoders(pipeline: ChannelPipeline) {
       pipeline.addLast("encoder", new HttpResponseEncoder())
       pipeline.addLast("deflater", new HttpContentCompressor())
+      pipeline.addLast("chunkedWriter", new ChunkedWriteHandler())
       pipeline.addLast("metrics", new ServerHttpResponseMetricUpdater())
     }
 
