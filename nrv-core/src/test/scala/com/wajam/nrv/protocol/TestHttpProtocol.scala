@@ -197,7 +197,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
       val req = protocol.generate(msg).asInstanceOf[HttpRequest]
 
-      assert("http://172.22.2.56:1909/path" === req.getUri)
+      assert("/path" === req.getUri)
     }
 
     test("should generate and parse a complete message (" + displayName + ")") {

@@ -90,14 +90,11 @@ class HttpProtocol(name: String,
           query.append(e._1).append("=").append(e._2).append('&')
         })
 
-        //TODO comment here
-        val destination = message.destination.selectedReplicas(0).node
         val path = if(message.path.startsWith("/")) message.path else "/" + message.path
-        val baseURI = "http://" + destination.address + ":" + destination.ports(name) + path
         val uri = if (query.length > 0) {
-          baseURI + "?" + query.toString()
+          path + "?" + query.toString()
         } else {
-          baseURI
+          path
         }
         val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(getHttpMethod(message.method)), uri)
         setRequestHeaders(request, message)
