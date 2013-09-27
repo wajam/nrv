@@ -3,13 +3,14 @@ package com.wajam.nrv.protocol
 import com.wajam.nrv.protocol.codec.{Codec, StringCodec}
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.handler.codec.http._
-import java.net.{InetSocketAddress, URI}
+import java.net.URI
 import scala.collection.JavaConverters._
 import com.wajam.nrv.cluster.{Node, LocalNode}
 import com.wajam.nrv.transport.http.HttpNettyTransport
 import com.wajam.nrv.data._
 import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.RouteException
+import com.wajam.nrv.data.MessageType._
 
 /**
  * Implementation of HTTP protocol.
@@ -51,12 +52,10 @@ class HttpProtocol(name: String,
         msg.protocolName = name
         msg.method = req.getMethod.getName
         msg.path = new URI(req.getUri).getPath
+        msg.function = FUNCTION_CALL
         msg.attachments(HttpProtocol.KEEP_ALIVE_KEY) = isKeepAlive(req)
-        msg.code = if (req.getHeader(HttpProtocol.CODE_HEADER) != null) {
-          req.getHeader(HttpProtocol.CODE_HEADER).toInt
-        } else {
-          200
-        }
+        msg.code = getHeaderValue(req, HttpProtocol.CODE_HEADER, "200").toInt
+        extractRendezVousFromHeaders(req, msg)
         val nettyUriDecoder = new QueryStringDecoder(req.getUri)
         val parsedParameters = Map.empty[String, Any] ++ nettyUriDecoder.getParameters.asScala.mapValues(_.asScala)
         msg.parameters ++= collapseSingletonLists(parsedParameters)
@@ -65,21 +64,11 @@ class HttpProtocol(name: String,
       }
       case res: HttpResponse => {
         msg.protocolName = name
-        msg.method = if (res.getHeader(HttpProtocol.METHOD_HEADER) != null) {
-          res.getHeader(HttpProtocol.METHOD_HEADER)
-        } else {
-          ActionMethod.GET
-        }
-        msg.serviceName = if (res.getHeader(HttpProtocol.SERVICE_HEADER) != null) {
-          res.getHeader(HttpProtocol.SERVICE_HEADER)
-        } else {
-          ""
-        }
-        msg.path = if (res.getHeader(HttpProtocol.PATH_HEADER) != null) {
-          res.getHeader(HttpProtocol.PATH_HEADER)
-        } else {
-          ""
-        }
+        msg.method = getHeaderValue(res, HttpProtocol.METHOD_HEADER, ActionMethod.GET)
+        msg.path = getHeaderValue(res, HttpProtocol.PATH_HEADER, "")
+        msg.function = FUNCTION_RESPONSE
+        msg.serviceName = getHeaderValue(res, HttpProtocol.SERVICE_HEADER, "")
+        extractRendezVousFromHeaders(res, msg)
         msg.code = res.getStatus.getCode
         mapHeaders(res, msg)
         mapContent(res, msg)
@@ -94,35 +83,41 @@ class HttpProtocol(name: String,
   }
 
   private def generate(message: Message): AnyRef = {
-    message match {
-      case req: InMessage => {
+    message.function match {
+      case FUNCTION_CALL => {
         val query = new StringBuilder()
-        req.parameters.foreach(e => {
+        message.parameters.foreach(e => {
           query.append(e._1).append("=").append(e._2).append('&')
         })
-        var uri = req.serviceName + req.path
-        if (query.length > 0) {
-          uri = uri + '?' + query
+
+        //TODO comment here
+        val destination = message.destination.selectedReplicas(0).node
+        val path = if(message.path.startsWith("/")) message.path else "/" + message.path
+        val baseURI = "http://" + destination.address + ":" + destination.ports(name) + path
+        val uri = if (query.length > 0) {
+          baseURI + "?" + query.toString()
+        } else {
+          baseURI
         }
-        val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(req.method), uri)
-        setRequestHeaders(request, req)
-        setAllContentAtOnce(request, encodeData(req))
+        val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(getHttpMethod(message.method)), uri)
+        setRequestHeaders(request, message)
+        setAllContentAtOnce(request, encodeData(message))
         request
       }
-      case res: OutMessage => {
-        encodeData(res) match {
-          case Some(data) if(enableChunkEncoding && data.length > chunkSize.get) => {
-            val chunkedResponse = HttpProtocol.HttpChunkedMessage(this, res, data)
-            setResponseHeaders(chunkedResponse.begin, res)
-            setKeepAlive(chunkedResponse.begin, res)
+      case FUNCTION_RESPONSE => {
+        encodeData(message) match {
+          case Some(data) if (enableChunkEncoding && data.length > chunkSize.get) => {
+            val chunkedResponse = HttpProtocol.HttpChunkedMessage(this, message, data)
+            setResponseHeaders(chunkedResponse.begin, message)
+            setKeepAlive(chunkedResponse.begin, message)
 
             chunkedResponse
           }
           case maybeData => {
-            val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
-            setResponseHeaders(response, res)
+            val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(message.code))
+            setResponseHeaders(response, message)
             setAllContentAtOnce(response, maybeData)
-            setKeepAlive(response, res)
+            setKeepAlive(response, message)
 
             response
           }
@@ -165,6 +160,7 @@ class HttpProtocol(name: String,
   private def setRequestHeaders(httpMessage: HttpMessage, message: Message) {
     setHeaders(httpMessage, message)
     httpMessage.addHeader(HttpProtocol.CODE_HEADER, message.code)
+    httpMessage.addHeader(HttpProtocol.RENDEZ_VOUS_ID, message.rendezvousId)
   }
 
   private def setResponseHeaders(httpMessage: HttpMessage, message: Message) {
@@ -172,6 +168,7 @@ class HttpProtocol(name: String,
     httpMessage.addHeader(HttpProtocol.METHOD_HEADER, message.method)
     httpMessage.addHeader(HttpProtocol.PATH_HEADER, message.path)
     httpMessage.addHeader(HttpProtocol.SERVICE_HEADER, message.serviceName)
+    httpMessage.addHeader(HttpProtocol.RENDEZ_VOUS_ID, message.rendezvousId)
   }
 
   private def setHeaders(httpMessage: HttpMessage, message: Message) {
@@ -273,6 +270,27 @@ class HttpProtocol(name: String,
     errorMessage
   }
 
+  private def getHttpMethod(method: String): String = {
+    method match {
+      case ActionMethod.POST | ActionMethod.PUT | ActionMethod.DELETE => method
+      case _ => "GET"
+    }
+  }
+
+  private def getHeaderValue(httpMessage: HttpMessage, headerName: String, defaultIfAbsent: String): String = {
+    if (httpMessage.getHeader(headerName) != null) {
+      httpMessage.getHeader(headerName)
+    } else {
+      defaultIfAbsent
+    }
+  }
+
+  private def extractRendezVousFromHeaders(req: HttpMessage, msg: InMessage) {
+    if (req.getHeader(HttpProtocol.RENDEZ_VOUS_ID) != null) {
+      msg.rendezvousId = req.getHeader(HttpProtocol.RENDEZ_VOUS_ID).toInt
+    }
+  }
+
   def sendMessage(destination: Node,
                   message: AnyRef,
                   closeAfter: Boolean,
@@ -300,6 +318,7 @@ object HttpProtocol {
   val METHOD_HEADER = "nrv-method-header"
   val PATH_HEADER = "nrv-path-header"
   val SERVICE_HEADER = "nrv-service-header"
+  val RENDEZ_VOUS_ID = "nrv-rendez-vous-id"
 
   case class HttpChunkedMessage(begin: DefaultHttpResponse,
                                 chunks: Seq[DefaultHttpChunk],
@@ -311,7 +330,7 @@ object HttpProtocol {
     val EMPTY_CHUNK = new DefaultHttpChunk(ChannelBuffers.EMPTY_BUFFER)
     val TRAILER = new DefaultHttpChunkTrailer
 
-    def apply(protocol: HttpProtocol, res: OutMessage, data: Array[Byte]) = {
+    def apply(protocol: HttpProtocol, res: Message, data: Array[Byte]) = {
       val begin = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
       begin.addHeader("Transfer-Encoding", "chunked")
       begin.setChunked(true)
@@ -321,5 +340,6 @@ object HttpProtocol {
       new HttpChunkedMessage(begin, chunks, EMPTY_CHUNK, TRAILER)
     }
   }
+
 }
 

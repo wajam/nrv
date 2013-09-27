@@ -86,4 +86,10 @@ class TestNode extends FunSuite {
 
     n1.listenAddress.isLoopbackAddress should be(false)
   }
+
+  test("local node with IP containing numbers higher than 127") {
+    val n = new LocalNode("128.128.128.128", Map("nrv" -> 1000))
+
+    assert(n.address === "128.128.128.128")
+  }
 }
