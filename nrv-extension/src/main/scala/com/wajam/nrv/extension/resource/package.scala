@@ -29,7 +29,7 @@ package object resource {
      * @param resources The list of resources to register
      */
     def registerResources(resources: Resource*) {
-      for(r <- resources) {
+      for (r <- resources) {
         registerResource(r)
       }
     }
@@ -40,9 +40,9 @@ package object resource {
     def get(resource: Resource with Get): Option[Action] = resource.get(service)
 
     /**
-     * Retrieve the corresponding LIST Action for the given resource registered to a given service.
+     * Retrieve the corresponding INDEX Action for the given resource registered to a given service.
      */
-    def list(resource: Resource with List): Option[Action] = resource.list(service)
+    def index(resource: Resource with Index): Option[Action] = resource.index(service)
 
     /**
      * Retrieve the corresponding CREATE Action for the given resource registered to a given service.
@@ -66,74 +66,129 @@ package object resource {
    */
   implicit class Request(protected val request: InMessage) {
 
+    import Request._
+
     def path = request.path
 
     def token = request.token
 
-    def paramString(param: String): String = {
-      paramString(param, throw new InvalidParameter(s"Parameter $param must be specified"))
+    /**
+     * Get the value for the given parameter name.
+     *
+     * @param name The parameter name
+     * @param extractor The extracting partial function that convert a MValue to a type T
+     * @tparam T The type of the parameter value
+     * @return the value of the parameter
+     */
+    def param[T](name: String)(implicit extractor: Extractor[T]): Option[T] = {
+      request.parameters.get(name).map(extractor orElse fail(name))
     }
 
-    def paramString(param: String, default: => String): String = paramOptionalString(param).getOrElse(default)
-
-    def paramOptionalString(param: String): Option[String] = paramOptionalSeqString(param) match {
-      case Some(head :: _) => Some(head)
-      case _ => None
+    /**
+     * Get the value for the given parameter name.
+     *
+     * @param name The parameter name
+     * @param extractor The extracting partial function that convert a MValue to a type T
+     * @param default The default value if the parameter is not specified in the message.
+     * @tparam T The type of the parameter value
+     * @return the value of the parameter
+     */
+    def param[T](name: String, default: => T)(implicit extractor: Extractor[T]): T = {
+      param(name)(extractor).getOrElse(default)
     }
 
-    def paramOptionalSeqString(param: String): Option[Seq[String]] = request.parameters.get(param).map {
-      case MList(values) => values.map(_.toString).toSeq
-      case value: MValue => Seq(value.toString)
-      case value => throw new InvalidParameter(s"Parameter $param unsupported value $value")
+    /**
+     * Get the value for the given parameter name or throw an InvalidParameter exception is the
+     * parameter is not set in the message.
+     *
+     * @param name The parameter name
+     * @param extractor The extracting partial function that convert a MValue to a type T
+     * @tparam T The type of the parameter value
+     * @return the value of the parameter
+     */
+    def checkedParam[T](name: String)(implicit extractor: Extractor[T]): T = {
+      param(name)(extractor).getOrElse(throw new InvalidParameter(s"Parameter $name must be specified"))
     }
 
-    def paramBoolean(param: String): Boolean = {
-      paramBoolean(param, throw new InvalidParameter(s"Parameter $param must be specified"))
-    }
-
-    def paramBoolean(param: String, default: => Boolean): Boolean = paramOptionalBoolean(param).getOrElse(default)
-
-    def paramOptionalBoolean(param: String): Option[Boolean] = paramOptionalString(param).map {
-      case "1" => true
-      case "0" => false
-      case "true" => true
-      case "false" => false
-      case "t" => true
-      case "f" => false
-      case value => throw new InvalidParameter(s"Parameter $param unsupported value $value")
-    }
-
-    def paramLong(param: String): Long = {
-      paramLong(param, throw new InvalidParameter(s"Parameter $param must be specified"))
-    }
-
-    def paramLong(param: String, default: => Long): Long = paramOptionalLong(param).getOrElse(default)
-
-    def paramOptionalLong(param: String): Option[Long] = {
-      try {
-        paramOptionalString(param).map(_.toLong)
-      } catch {
-        case e: Exception => throw new InvalidParameter(s"Parameter $param must be numeric")
-      }
-    }
-
-    def paramInt(param: String): Int = {
-      paramInt(param, throw new InvalidParameter(s"Parameter $param must be specified"))
-    }
-
-    def paramInt(param: String, default: => Int): Int = paramOptionalInt(param).getOrElse(default)
-
-    def paramOptionalInt(param: String): Option[Int] = {
-      val value = paramOptionalLong(param)
-      try {
-        value.map(_.toInt)
-      } catch {
-        case e: Exception => throw new InvalidParameter(s"Parameter $param unsupported value $value")
-      }
-    }
-
+    /**
+     * Respond to the request.
+     *
+     * @param response The response body
+     * @param headers The response HTTP headers
+     * @param code The response code
+     */
     def respond(response: Any, headers: Map[String, MValue] = Map(), code: Int = 200) {
       request.reply(Map(), headers, response, code)
+    }
+
+  }
+
+  object Request {
+
+    /**
+     * Message parameter value extractor. Given a MValue, try to extract a T
+     */
+    type Extractor[T] = PartialFunction[MValue, T]
+
+    /**
+     * Extractor for String value. Convert the MValue to a String or, in the case of MList, convert the head to a String
+     */
+    implicit def stringExtractor: Extractor[String] = {
+      case MList(head :: _) => head.toString
+      case other => other.toString
+    }
+
+    /**
+     * Extractor for Long. Convert MString, MLong or MInt to Long.
+     */
+    implicit def longExtractor: Extractor[Long] = {
+      case MString(s) => s.toLong
+      case MLong(l) => l
+      case MInt(i) => i.toLong
+    }
+
+    /**
+     * Extractor for Int. Convert MString or MInt to Int.
+     */
+    implicit def intExtractor: Extractor[Int] = {
+      case MString(s) => s.toInt
+      case MInt(i) => i
+    }
+
+    /**
+     * Extractor for Double. Convert MString, MInt, MLong and MDouble to Double.
+     */
+    implicit def doubleExtractor: Extractor[Double] = {
+      case MString(s) => s.toDouble
+      case MInt(i) => i.toDouble
+      case MLong(l) => l.toDouble
+      case MDouble(d) => d
+    }
+
+    /**
+     * Extractor for Boolean. Convert MString to Boolean if the contained string is in [1, 0, t, f, true, false]
+     * Converts MBoolean to Boolean.
+     */
+    implicit def booleanExtractor: Extractor[Boolean] = {
+      case MString(s) => s.toLowerCase match {
+        case "1" | "true" | "t" => true
+        case "0" | "false" | "f" => false
+        case _ => throw new InvalidParameter(s"$s is not a boolean.")
+      }
+      case MBoolean(b) => b
+    }
+
+    /**
+     * Extractor for List[String]. Converts MList to List[String] or wrap any MValue converted to a string in a
+     * single element List.
+     */
+    implicit def listStringExtractor: Extractor[scala.collection.immutable.List[String]] = {
+      case MList(values) => values.map(_.toString).toList
+      case other => List(other.toString)
+    }
+
+    def fail[T](name: String): PartialFunction[MValue, T] = {
+      case value => throw new InvalidParameter(s"Parameter $name unsupported value $value")
     }
 
   }
