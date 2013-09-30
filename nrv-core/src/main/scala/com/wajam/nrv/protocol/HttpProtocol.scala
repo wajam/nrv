@@ -17,7 +17,6 @@ import HttpProtocol.{HttpChunkedResponse, HttpChunkedInputStream, HttpChunkedByt
 import scala.Some
 import com.wajam.nrv.data.MList
 import com.wajam.nrv.data.MString
-import com.wajam.nrv.protocol.ParsingException
 
 /**
  * Implementation of HTTP protocol.

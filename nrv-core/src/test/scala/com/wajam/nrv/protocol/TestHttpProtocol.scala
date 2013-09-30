@@ -264,6 +264,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
   test("should generate a HttpChunkedResponse from an InputStream") {
     val dataStream = new ByteArrayInputStream(fixture.sampleJsonData.getBytes)
     val msg = new OutMessage(code = 200, data = dataStream)
+    msg.function = MessageType.FUNCTION_RESPONSE
 
     assert(unchunkedProtocol.generate(msg).isInstanceOf[HttpChunkedResponse])
   }
