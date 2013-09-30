@@ -26,6 +26,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
   var nrvProtocol: NrvProtocol = null
 
   var tempFile: File = null
+  val fileSize: Int = 1024
 
   before {
     localNode = new LocalNode("localhost", Map("nrv" -> 19191, "test" -> 1909))
@@ -60,7 +61,7 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
     val os = new FileOutputStream(tempFile)
 
     var size = 0
-    while(size < 1024*1024) {
+    while(size < fileSize) {
       val content = "a".getBytes()
       os.write(content)
       os.flush()
@@ -87,8 +88,11 @@ class TestNrvProtocol extends FunSuite with BeforeAndAfter {
 
     val fis = new FileInputStream(tempFile)
 
-    /* Check that the first bytes are correct */
-    for(i <- 0 to 10)
+    /* Check that the content is correct */
+    for(i <- 0 to fileSize - 1)
       assert(is(i) === fis.read())
+
+    /* Check that the size is correct */
+    assert(fis.read() == -1)
   }
 }

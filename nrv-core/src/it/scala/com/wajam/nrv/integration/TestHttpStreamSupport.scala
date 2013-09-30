@@ -21,10 +21,10 @@ class TestHttpStreamSupport extends FunSuite with BeforeAndAfter with ShouldMatc
   var service: Service = null
   var httpProtocol: HttpProtocol = null
 
-  val notifier = new Object()
   var received: AnyRef = null
 
   var tempFile: File = null
+  val fileSize: Int = 1024
 
   before {
     localNode = new LocalNode("127.0.0.1", Map("nrv" -> 12345, "http" -> 8000))
@@ -35,13 +35,13 @@ class TestHttpStreamSupport extends FunSuite with BeforeAndAfter with ShouldMatc
 
     httpProtocol = new HttpProtocol("http", localNode, 1000, 100)
 
-    /* Create a temporary file and fill it with 1MB of data */
+    /* Create a temporary file and fill it with data */
     tempFile = File.createTempFile("file", ".tmp")
 
     val os = new FileOutputStream(tempFile)
 
     var size = 0
-    while(size < 1024*1024) {
+    while(size < fileSize) {
       val content = "a".getBytes()
       os.write(content)
       os.flush()
@@ -80,8 +80,12 @@ class TestHttpStreamSupport extends FunSuite with BeforeAndAfter with ShouldMatc
 
     assert(connection.getResponseCode === HttpURLConnection.HTTP_OK)
     assert(connection.getHeaderField("Transfer-Encoding") === "chunked")
-    /* Check that the first bytes are correct */
-    for(i <- 0 to 10)
-      assert(connection.getContent.asInstanceOf[InputStream].read() === new FileInputStream(tempFile).read())
+
+    /* Check that the content is correct */
+    val fis = new FileInputStream(tempFile)
+
+    /* Check until the {fileSize + 1}th byte, which should return -1 in both cases */
+    for(i <- 0 to fileSize)
+      assert(connection.getContent.asInstanceOf[InputStream].read() === fis.read())
   }
 }
