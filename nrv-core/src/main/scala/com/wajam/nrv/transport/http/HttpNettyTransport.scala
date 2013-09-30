@@ -8,7 +8,7 @@ import org.jboss.netty.channel.{ChannelFuture, Channel, ChannelHandlerContext, C
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.protocol.Protocol
 import com.wajam.nrv.transport.netty.{NettyTransportCodecFactory, NettyTransport}
-import com.wajam.nrv.protocol.HttpProtocol.HttpChunkedResponse
+import com.wajam.nrv.protocol.HttpProtocol.{HttpChunkedResponse, CHUNK_EMPTY, CHUNK_TRAILER}
 
 /**
  * HTTP transport implementation backed by netty.
@@ -31,8 +31,8 @@ class HttpNettyTransport(host: InetAddress,
       case chunkedResponse: HttpChunkedResponse =>
         channel.write(chunkedResponse.begin)
         channel.write(chunkedResponse.input)
-        channel.write(chunkedResponse.emptyChunk)
-        channel.write(chunkedResponse.trailer)
+        channel.write(CHUNK_EMPTY)
+        channel.write(CHUNK_TRAILER)
     }
   }
 

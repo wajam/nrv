@@ -309,9 +309,6 @@ object HttpProtocol {
     val begin: DefaultHttpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
     begin.addHeader("Transfer-Encoding", "chunked")
     begin.setChunked(true)
-
-    val emptyChunk: DefaultHttpChunk = CHUNK_EMPTY
-    val trailer: DefaultHttpChunkTrailer = CHUNK_TRAILER
   }
 
   trait HttpChunkedStream extends ChunkedStream {
