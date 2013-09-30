@@ -73,19 +73,19 @@ package object resource {
     def token = request.token
 
     /**
-     * Get the value for the given parameter name.
+     * Get the value for the given optional parameter name.
      *
      * @param name The parameter name
      * @param extractor The extracting partial function that convert a MValue to a type T
      * @tparam T The type of the parameter value
      * @return the value of the parameter
      */
-    def param[T](name: String)(implicit extractor: Extractor[T]): Option[T] = {
+    def optionalParam[T](name: String)(implicit extractor: Extractor[T]): Option[T] = {
       request.parameters.get(name).map(extractor orElse fail(name))
     }
 
     /**
-     * Get the value for the given parameter name.
+     * Get the value for the given parameter name or the specified default value.
      *
      * @param name The parameter name
      * @param extractor The extracting partial function that convert a MValue to a type T
@@ -94,7 +94,7 @@ package object resource {
      * @return the value of the parameter
      */
     def param[T](name: String, default: => T)(implicit extractor: Extractor[T]): T = {
-      param(name)(extractor).getOrElse(default)
+      optionalParam(name)(extractor).getOrElse(default)
     }
 
     /**
@@ -106,8 +106,8 @@ package object resource {
      * @tparam T The type of the parameter value
      * @return the value of the parameter
      */
-    def checkedParam[T](name: String)(implicit extractor: Extractor[T]): T = {
-      param(name)(extractor).getOrElse(throw new InvalidParameter(s"Parameter $name must be specified"))
+    def param[T](name: String)(implicit extractor: Extractor[T]): T = {
+      param[T](name, throw new InvalidParameter(s"Parameter $name must be specified"))(extractor)
     }
 
     /**

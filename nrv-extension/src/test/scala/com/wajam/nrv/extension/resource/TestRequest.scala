@@ -23,12 +23,12 @@ class TestRequest extends FunSuite with ShouldMatchers {
     message.parameters("kb") = true
     message.parameters("klist") = MList(Seq("a", "b", "c"))
 
-    message.param[String]("ks") should be(Some("string"))
-    message.param[String]("ki") should be(Some("1"))
-    message.param[String]("kl") should be(Some("1"))
-    message.param[String]("kd") should be(Some("1.2"))
-    message.param[String]("kb") should be(Some("true"))
-    message.param[String]("klist") should be(Some("a"))
+    message.optionalParam[String]("ks") should be(Some("string"))
+    message.optionalParam[String]("ki") should be(Some("1"))
+    message.optionalParam[String]("kl") should be(Some("1"))
+    message.optionalParam[String]("kd") should be(Some("1.2"))
+    message.optionalParam[String]("kb") should be(Some("true"))
+    message.optionalParam[String]("klist") should be(Some("a"))
   }
 
   test("test parameter extraction to a Long") {
@@ -40,19 +40,20 @@ class TestRequest extends FunSuite with ShouldMatchers {
     message.parameters("kb") = true
     message.parameters("klist") = MList(Seq(1, 2, 3))
 
-    message.param[Long]("ks") should be(Some(1))
-    message.param[Long]("ki") should be(Some(1))
-    message.param[Long]("kl") should be(Some(1))
+    message.optionalParam[Long]("ks") should be(Some(1))
+    message.optionalParam[Long]("ki") should be(Some(1))
+    message.optionalParam[Long]("kl") should be(Some(1))
 
     intercept[InvalidParameter] {
-      message.param[Long]("kd")
-    }
-    intercept[InvalidParameter] {
-      message.param[Long]("kb")
+      message.optionalParam[Long]("kd")
     }
 
     intercept[InvalidParameter] {
-      message.param[Long]("klist")
+      message.optionalParam[Long]("kb")
+    }
+
+    intercept[InvalidParameter] {
+      message.optionalParam[Long]("klist")
     }
   }
 
@@ -65,22 +66,22 @@ class TestRequest extends FunSuite with ShouldMatchers {
     message.parameters("kb") = true
     message.parameters("klist") = MList(Seq(1, 2, 3))
 
-    message.param[Int]("ks") should be(Some(1))
-    message.param[Int]("ki") should be(Some(1))
+    message.optionalParam[Int]("ks") should be(Some(1))
+    message.optionalParam[Int]("ki") should be(Some(1))
 
     intercept[InvalidParameter] {
-      message.param[Int]("kl")
+      message.optionalParam[Int]("kl")
     }
 
     intercept[InvalidParameter] {
-      message.param[Int]("kd")
+      message.optionalParam[Int]("kd")
     }
     intercept[InvalidParameter] {
-      message.param[Int]("kb")
+      message.optionalParam[Int]("kb")
     }
 
     intercept[InvalidParameter] {
-      message.param[Int]("klist")
+      message.optionalParam[Int]("klist")
     }
   }
 
@@ -93,17 +94,17 @@ class TestRequest extends FunSuite with ShouldMatchers {
     message.parameters("kb") = true
     message.parameters("klist") = MList(Seq(1, 2, 3))
 
-    message.param[Double]("ks") should be(Some(1.0))
-    message.param[Double]("ki") should be(Some(1.0))
-    message.param[Double]("kl") should be(Some(1.0))
-    message.param[Double]("kd") should be(Some(1.2))
+    message.optionalParam[Double]("ks") should be(Some(1.0))
+    message.optionalParam[Double]("ki") should be(Some(1.0))
+    message.optionalParam[Double]("kl") should be(Some(1.0))
+    message.optionalParam[Double]("kd") should be(Some(1.2))
 
     intercept[InvalidParameter] {
-      message.param[Double]("kb")
+      message.optionalParam[Double]("kb")
     }
 
     intercept[InvalidParameter] {
-      message.param[Double]("klist")
+      message.optionalParam[Double]("klist")
     }
   }
 
@@ -116,23 +117,23 @@ class TestRequest extends FunSuite with ShouldMatchers {
     message.parameters("kb") = true
     message.parameters("klist") = MList(Seq(1, 2, 3))
 
-    message.param[Boolean]("ks") should be(Some(true))
-    message.param[Boolean]("kb") should be(Some(true))
+    message.optionalParam[Boolean]("ks") should be(Some(true))
+    message.optionalParam[Boolean]("kb") should be(Some(true))
 
     intercept[InvalidParameter] {
-      message.param[Boolean]("ki")
+      message.optionalParam[Boolean]("ki")
     }
 
     intercept[InvalidParameter] {
-      message.param[Boolean]("kl")
+      message.optionalParam[Boolean]("kl")
     }
 
     intercept[InvalidParameter] {
-      message.param[Boolean]("kd")
+      message.optionalParam[Boolean]("kd")
     }
 
     intercept[InvalidParameter] {
-      message.param[Boolean]("klist")
+      message.optionalParam[Boolean]("klist")
     }
   }
 
@@ -145,12 +146,12 @@ class TestRequest extends FunSuite with ShouldMatchers {
     message.parameters("kb") = true
     message.parameters("klist") = MList(Seq("1", "2", "3"))
 
-    message.param[List[String]]("ks") should be(Some(List("a")))
-    message.param[List[String]]("ki") should be(Some(List("1")))
-    message.param[List[String]]("kl") should be(Some(List("1")))
-    message.param[List[String]]("kd") should be(Some(List("1.2")))
-    message.param[List[String]]("kb") should be(Some(List("true")))
-    message.param[List[String]]("klist") should be(Some(List("1", "2", "3")))
+    message.optionalParam[List[String]]("ks") should be(Some(List("a")))
+    message.optionalParam[List[String]]("ki") should be(Some(List("1")))
+    message.optionalParam[List[String]]("kl") should be(Some(List("1")))
+    message.optionalParam[List[String]]("kd") should be(Some(List("1.2")))
+    message.optionalParam[List[String]]("kb") should be(Some(List("true")))
+    message.optionalParam[List[String]]("klist") should be(Some(List("1", "2", "3")))
 
   }
 
@@ -165,13 +166,13 @@ class TestRequest extends FunSuite with ShouldMatchers {
     message.parameters("f2") = "0"
     message.parameters("f3") = "f"
 
-    message.param[Boolean]("t1") should be(Some(true))
-    message.param[Boolean]("t2") should be(Some(true))
-    message.param[Boolean]("t3") should be(Some(true))
-    message.param[Boolean]("t4") should be(Some(true))
-    message.param[Boolean]("f1") should be(Some(false))
-    message.param[Boolean]("f2") should be(Some(false))
-    message.param[Boolean]("f3") should be(Some(false))
+    message.optionalParam[Boolean]("t1") should be(Some(true))
+    message.optionalParam[Boolean]("t2") should be(Some(true))
+    message.optionalParam[Boolean]("t3") should be(Some(true))
+    message.optionalParam[Boolean]("t4") should be(Some(true))
+    message.optionalParam[Boolean]("f1") should be(Some(false))
+    message.optionalParam[Boolean]("f2") should be(Some(false))
+    message.optionalParam[Boolean]("f3") should be(Some(false))
 
   }
 
@@ -185,7 +186,7 @@ class TestRequest extends FunSuite with ShouldMatchers {
     val message = new InMessage()
 
     intercept[InvalidParameter] {
-      message.checkedParam[Long]("key")
+      message.param[Long]("key")
     }
   }
 
