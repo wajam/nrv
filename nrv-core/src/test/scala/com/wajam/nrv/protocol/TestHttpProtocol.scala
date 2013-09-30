@@ -1,16 +1,17 @@
 package com.wajam.nrv.protocol
 
-import org.scalatest.junit.JUnitRunner
+import java.io.ByteArrayInputStream
+import scala.language.reflectiveCalls
 import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.cluster.{Node, LocalNode, StaticClusterManager, Cluster}
+import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import org.jboss.netty.handler.codec.http._
-import com.wajam.nrv.service.{Replica, Shard, Endpoints, ActionMethod}
+import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
+import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.data._
-import com.wajam.nrv.data.MString
-import scala.language.reflectiveCalls
-import java.net.InetAddress
+import com.wajam.nrv.protocol.HttpProtocol.HttpChunkedResponse
 
 /**
  *
@@ -109,7 +110,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
       msg.function = MessageType.FUNCTION_RESPONSE
 
       val res = protocol.generate(msg) match {
-        case chunkedMessage:HttpProtocol.HttpChunkedMessage => chunkedMessage.begin
+        case chunkedResponse: HttpProtocol.HttpChunkedResponse => chunkedResponse.begin
         case default:DefaultHttpResponse => default
         case _ => fail("Invalid response")
       }
@@ -140,7 +141,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
       msg.function = MessageType.FUNCTION_RESPONSE
 
       val res = protocol.generate(msg) match {
-        case chunkedMessage:HttpProtocol.HttpChunkedMessage => chunkedMessage.begin
+        case chunkedResponse: HttpChunkedResponse => chunkedResponse.begin
         case default:DefaultHttpResponse => default
         case _ => fail("Invalid response")
       }
@@ -181,7 +182,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
       msg.function = MessageType.FUNCTION_RESPONSE
 
       val res = protocol.generate(msg) match {
-        case chunkedMessage:HttpProtocol.HttpChunkedMessage => chunkedMessage.begin
+        case chunkedResponse: HttpChunkedResponse => chunkedResponse.begin
         case default:DefaultHttpResponse => default
         case _ => fail("Invalid response")
       }
@@ -232,8 +233,8 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     msg.destination = destination
 
     chunkedProtocol.generate(msg) match {
-      case chunkedMessage:HttpProtocol.HttpChunkedMessage => {
-        assert(chunkedMessage.begin.getHeader("Transfer-Encoding") === "chunked")
+      case chunkedResponse: HttpChunkedResponse => {
+        assert(chunkedResponse.begin.getHeader("Transfer-Encoding") === "chunked")
       }
       case _ => fail("Response was not chunked")
     }
@@ -247,15 +248,23 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     msg.destination = destination
 
     chunkedProtocol.generate(msg) match {
-      case chunkedMessage:HttpProtocol.HttpChunkedMessage => {
-        assert(chunkedMessage.chunks.length >= 1)
-        chunkedMessage.chunks.foreach { chunk =>
-          val size = chunk.getContent.readableBytes
-          if (chunk != chunkedMessage.chunks.last) assert(size === chunkSize)
-          else assert(size <= chunkSize)
-        }
+      case chunkedResponse: HttpChunkedResponse => {
+        assert(chunkedResponse.input.hasNextChunk)
+
+        assert(chunkedResponse.input.nextChunk().asInstanceOf[HttpChunk].getContent.array().size  === chunkSize)
       }
       case _ => fail("Response was not chunked")
     }
+  }
+
+  /**
+   * Tests for streaming
+   */
+
+  test("should generate a HttpChunkedResponse from an InputStream") {
+    val dataStream = new ByteArrayInputStream(fixture.sampleJsonData.getBytes)
+    val msg = new OutMessage(code = 200, data = dataStream)
+
+    assert(unchunkedProtocol.generate(msg).isInstanceOf[HttpChunkedResponse])
   }
 }

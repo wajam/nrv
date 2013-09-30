@@ -28,7 +28,7 @@ sealed trait Operation {
 }
 
 /**
- * The following traits define GET, LIST, CREATE, UPDATE, DELETE operations.
+ * The following traits define GET, INDEX, CREATE, UPDATE, DELETE operations.
  *
  * The have to be mixed-in to a Resource.
  */
@@ -47,15 +47,15 @@ trait Get extends Operation {
 
 }
 
-trait List extends Operation {
+trait Index extends Operation {
   this: Resource =>
 
-  def list(service: Service): Option[Action] = service.findAction(path, ActionMethod.GET)
+  def index(service: Service): Option[Action] = service.findAction(path, ActionMethod.GET)
 
-  protected def list: (Request) => Unit
+  protected def index: (Request) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
-    service.registerAction(new Action(path, (message: InMessage) => list(message), method = ActionMethod.GET))
+    service.registerAction(new Action(path, (message: InMessage) => index(message), method = ActionMethod.GET))
     super.registerTo(service)
   }
 
