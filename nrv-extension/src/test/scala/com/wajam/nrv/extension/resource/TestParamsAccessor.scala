@@ -5,14 +5,14 @@ import org.scalatest.junit.JUnitRunner
 import org.scalatest.FunSuite
 import com.wajam.nrv.data.{MList, InMessage}
 import org.scalatest.matchers.ShouldMatchers
-import com.wajam.nrv.extension.resource.Request._
+import com.wajam.nrv.extension.resource.ParamsAccessor._
 import com.wajam.nrv.InvalidParameter
 
 /**
  * Test class for Request
  */
 @RunWith(classOf[JUnitRunner])
-class TestRequest extends FunSuite with ShouldMatchers {
+class TestParamsAccessor extends FunSuite with ShouldMatchers {
 
   test("test parameter extraction to a String") {
     val message = new InMessage()
