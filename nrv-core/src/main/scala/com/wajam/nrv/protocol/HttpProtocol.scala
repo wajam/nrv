@@ -1,15 +1,18 @@
 package com.wajam.nrv.protocol
 
-import com.wajam.nrv.protocol.codec.{Codec, StringCodec}
-import org.jboss.netty.buffer.ChannelBuffers
+import java.io.{ByteArrayInputStream, InputStream}
+import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
+import org.jboss.netty.handler.stream.{ChunkedStream, ChunkedInput}
 import org.jboss.netty.handler.codec.http._
-import java.net.{InetSocketAddress, URI}
+import java.net.URI
 import scala.collection.JavaConverters._
+import com.wajam.nrv.protocol.codec.{Codec, StringCodec}
 import com.wajam.nrv.cluster.{Node, LocalNode}
 import com.wajam.nrv.transport.http.HttpNettyTransport
 import com.wajam.nrv.data._
 import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.RouteException
+import HttpProtocol.{HttpChunkedResponse, HttpChunkedInputStream, HttpChunkedByteStream}
 
 /**
  * Implementation of HTTP protocol.
@@ -110,22 +113,31 @@ class HttpProtocol(name: String,
         request
       }
       case res: OutMessage => {
-        encodeData(res) match {
-          case Some(data) if(enableChunkEncoding && data.length > chunkSize.get) => {
-            val chunkedResponse = HttpProtocol.HttpChunkedMessage(this, res, data)
-            setResponseHeaders(chunkedResponse.begin, res)
-            setKeepAlive(chunkedResponse.begin, res)
-
-            chunkedResponse
-          }
-          case maybeData => {
-            val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
-            setResponseHeaders(response, res)
-            setAllContentAtOnce(response, maybeData)
-            setKeepAlive(response, res)
+        res.messageData match {
+          case is: InputStream =>
+            val stream = HttpChunkedInputStream(is)
+            val response = HttpChunkedResponse(res, stream)
+            setResponseHeaders(response.begin, res)
+            setKeepAlive(response.begin, res)
 
             response
-          }
+          case _ =>
+            encodeData(res) match {
+              case Some(data: Array[Byte]) if enableChunkEncoding && data.length > chunkSize.get =>
+                val stream = HttpChunkedByteStream(data, chunkSize.get)
+                val response = HttpChunkedResponse(res, stream)
+                setResponseHeaders(response.begin, res)
+                setKeepAlive(response.begin, res)
+
+                response
+              case maybeData =>
+                val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
+                setResponseHeaders(response, res)
+                setAllContentAtOnce(response, maybeData)
+                setKeepAlive(response, res)
+
+                response
+            }
         }
       }
     }
@@ -196,17 +208,6 @@ class HttpProtocol(name: String,
       res.attachments(Protocol.CLOSE_AFTER) = true
       response.setHeader("Connection", "close")
     }
-  }
-
-  // Split an OutMessage in chunks, according to the chunk size set in configuration
-  private def splitInChunks(message: Message, data: Array[Byte]): Seq[DefaultHttpChunk] = {
-    import math.min
-
-    val size = chunkSize.get
-    val length = data.length
-    val offsets = 0 until length by size
-
-    (for(o <- offsets) yield new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(data, o, min(length - o, size)))).toSeq
   }
 
   private def encodeData(message: Message): Option[Array[Byte]] = {
@@ -301,25 +302,35 @@ object HttpProtocol {
   val PATH_HEADER = "nrv-path-header"
   val SERVICE_HEADER = "nrv-service-header"
 
-  case class HttpChunkedMessage(begin: DefaultHttpResponse,
-                                chunks: Seq[DefaultHttpChunk],
-                                emptyChunk: DefaultHttpChunk,
-                                trailer: DefaultHttpChunkTrailer)
+  val CHUNK_EMPTY = new DefaultHttpChunk(ChannelBuffers.EMPTY_BUFFER)
+  val CHUNK_TRAILER = new DefaultHttpChunkTrailer
 
-  object HttpChunkedMessage {
+  case class HttpChunkedResponse(res: OutMessage, input: ChunkedInput) {
+    val begin: DefaultHttpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
+    begin.addHeader("Transfer-Encoding", "chunked")
+    begin.setChunked(true)
+  }
 
-    val EMPTY_CHUNK = new DefaultHttpChunk(ChannelBuffers.EMPTY_BUFFER)
-    val TRAILER = new DefaultHttpChunkTrailer
+  trait HttpChunkedStream extends ChunkedStream {
 
-    def apply(protocol: HttpProtocol, res: OutMessage, data: Array[Byte]) = {
-      val begin = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(res.code))
-      begin.addHeader("Transfer-Encoding", "chunked")
-      begin.setChunked(true)
+    override def nextChunk(): HttpChunk = {
+      val next = super.nextChunk()
 
-      val chunks = protocol.splitInChunks(res, data)
-
-      new HttpChunkedMessage(begin, chunks, EMPTY_CHUNK, TRAILER)
+      if(next == null)
+        // Should not happen if used with ChunkedWriteHandler
+        CHUNK_EMPTY
+      else
+        new DefaultHttpChunk(next.asInstanceOf[ChannelBuffer])
     }
   }
+
+  case class HttpChunkedInputStream(inputStream: InputStream)
+    extends ChunkedStream(inputStream)
+    with HttpChunkedStream
+
+  case class HttpChunkedByteStream(bytes: Array[Byte], chunkSize: Int)
+    extends ChunkedStream(new ByteArrayInputStream(bytes), chunkSize)
+    with HttpChunkedStream
+
 }
 

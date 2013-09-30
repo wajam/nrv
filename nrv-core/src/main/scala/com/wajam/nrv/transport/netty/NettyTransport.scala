@@ -106,15 +106,7 @@ abstract class NettyTransport(host: InetAddress,
                              completionCallback: Option[Throwable] => Unit = (_) => {},
                              closeAfter: Boolean,
                              canBePooled: Boolean) {
-    val future = message match {
-      case chunkedMessage:HttpProtocol.HttpChunkedMessage => {
-        channel.write(chunkedMessage.begin)
-        chunkedMessage.chunks.foreach(channel.write(_))
-        channel.write(chunkedMessage.emptyChunk)
-        channel.write(chunkedMessage.trailer)
-      }
-      case a => channel.write(a)
-    }
+    val future = writeOnChannel(channel, message)
     future.addListener(new ChannelFutureListener {
       override def operationComplete(p1: ChannelFuture) {
         val t = p1.getCause
@@ -144,6 +136,8 @@ abstract class NettyTransport(host: InetAddress,
       future.addListener(ChannelFutureListener.CLOSE_ON_FAILURE)
     }
   }
+
+  def writeOnChannel(channel: Channel, message: AnyRef): ChannelFuture = channel.write(message)
 
   class NettyServer(host: InetAddress, port: Int, factory: NettyTransportCodecFactory) extends Logging {
 
