@@ -12,7 +12,7 @@ import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.protocol.HttpProtocol
 
 @RunWith(classOf[JUnitRunner])
-class TestHttpNettyTransport extends FunSuite with BeforeAndAfter with ShouldMatchers {
+class TestHttpStreamSupport extends FunSuite with BeforeAndAfter with ShouldMatchers {
 
   var localNode: LocalNode = null
 

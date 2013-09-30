@@ -6,7 +6,7 @@ import com.wajam.nrv.utils.Observable
 import com.wajam.nrv.tracing.Tracer
 import com.wajam.nrv.consistency.ConsistencyOne
 import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
-import com.wajam.nrv.protocol.codec.GenericJavaSerializeCodec
+import com.wajam.nrv.protocol.codec.HybridCodec
 
 /**
  * A cluster composed of services that are provided by nodes.
@@ -20,7 +20,7 @@ class Cluster(val localNode: LocalNode,
   // assign default resolver, switchboard, etc.
   applySupport(cluster = Some(this), switchboard = Some(new Switchboard),
     resolver = Some(new Resolver), tracer = Some(new Tracer), consistency = Some(new ConsistencyOne),
-    responseTimeout = Some(1000L), nrvCodec = Some(new GenericJavaSerializeCodec))
+    responseTimeout = Some(1000L), nrvCodec = Some(new HybridCodec))
 
   applySupportOptions(actionSupportOptions)
 
