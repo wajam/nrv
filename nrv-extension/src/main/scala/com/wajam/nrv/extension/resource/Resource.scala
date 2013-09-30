@@ -38,7 +38,7 @@ trait Get extends Operation {
 
   def get(service: Service): Option[Action] = service.findAction(pathWithId, ActionMethod.GET)
 
-  protected def get: (Request) => Unit
+  protected def get: (InMessage) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
     service.registerAction(new Action(pathWithId, (message: InMessage) => get(message), method = ActionMethod.GET))
@@ -52,10 +52,10 @@ trait Index extends Operation {
 
   def index(service: Service): Option[Action] = service.findAction(path, ActionMethod.GET)
 
-  protected def index: (Request) => Unit
+  protected def index: (InMessage) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
-    service.registerAction(new Action(path, (message: InMessage) => index(message), method = ActionMethod.GET))
+    service.registerAction(new Action(path, index, method = ActionMethod.GET))
     super.registerTo(service)
   }
 
@@ -66,10 +66,10 @@ trait Create extends Operation {
 
   def create(service: Service): Option[Action] = service.findAction(path, ActionMethod.POST)
 
-  protected def create: (Request) => Unit
+  protected def create: (InMessage) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
-    service.registerAction(new Action(path, (message: InMessage) => create(message), method = ActionMethod.POST))
+    service.registerAction(new Action(path, create, method = ActionMethod.POST))
     super.registerTo(service)
   }
 
@@ -80,10 +80,10 @@ trait Update extends Operation {
 
   def update(service: Service): Option[Action] = service.findAction(pathWithId, ActionMethod.PUT)
 
-  protected def update: (Request) => Unit
+  protected def update: (InMessage) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
-    service.registerAction(new Action(pathWithId, (message: InMessage) => update(message), method = ActionMethod.PUT))
+    service.registerAction(new Action(pathWithId, update, method = ActionMethod.PUT))
     super.registerTo(service)
   }
 
@@ -94,10 +94,10 @@ trait Delete extends Operation {
 
   def delete(service: Service): Option[Action] = service.findAction(pathWithId, ActionMethod.DELETE)
 
-  protected def delete: (Request) => Unit
+  protected def delete: (InMessage) => Unit
 
   abstract override def registerTo(service: Service): Unit = {
-    service.registerAction(new Action(pathWithId, (message: InMessage) => delete(message), method = ActionMethod.DELETE))
+    service.registerAction(new Action(pathWithId, delete, method = ActionMethod.DELETE))
     super.registerTo(service)
   }
 

@@ -4,6 +4,7 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.FunSuite
 import com.wajam.nrv.service.{Service, ActionMethod}
+import com.wajam.nrv.data.InMessage
 
 /**
  * Test class for Resource
@@ -11,13 +12,13 @@ import com.wajam.nrv.service.{Service, ActionMethod}
 @RunWith(classOf[JUnitRunner])
 class TestResource extends FunSuite {
 
-  val NoOp = (req: Request) => {}
+  val NoOp = (req: InMessage) => {}
 
   test("should have correct path for GET operation") {
     val testService = new Service("test")
 
     val resource = new Resource("test", "id") with Get {
-      protected def get: (Request) => Unit = NoOp
+      protected def get: (InMessage) => Unit = NoOp
     }
 
     resource.registerTo(testService)
@@ -30,7 +31,7 @@ class TestResource extends FunSuite {
     val testService = new Service("test")
 
     val resource = new Resource("test", "id") with Index {
-      protected def index: (Request) => Unit = NoOp
+      protected def index: (InMessage) => Unit = NoOp
     }
 
     resource.registerTo(testService)
@@ -43,7 +44,7 @@ class TestResource extends FunSuite {
     val testService = new Service("test")
 
     val resource = new Resource("test", "id") with Create {
-      protected def create: (Request) => Unit = NoOp
+      protected def create: (InMessage) => Unit = NoOp
     }
 
     resource.registerTo(testService)
@@ -56,7 +57,7 @@ class TestResource extends FunSuite {
     val testService = new Service("test")
 
     val resource = new Resource("test", "id") with Update {
-      protected def update: (Request) => Unit = NoOp
+      protected def update: (InMessage) => Unit = NoOp
     }
 
     resource.registerTo(testService)
@@ -69,7 +70,7 @@ class TestResource extends FunSuite {
     val testService = new Service("test")
 
     val resource = new Resource("test", "id") with Delete {
-      protected def delete: (Request) => Unit = NoOp
+      protected def delete: (InMessage) => Unit = NoOp
     }
 
     resource.registerTo(testService)
@@ -82,11 +83,11 @@ class TestResource extends FunSuite {
     val testService = new Service("test")
 
     val resource = new Resource("test", "id") with Get with Index with Create with Update with Delete {
-      protected def delete: (Request) => Unit = NoOp
-      protected def update: (Request) => Unit = NoOp
-      protected def get: (Request) => Unit = NoOp
-      protected def index: (Request) => Unit = NoOp
-      protected def create: (Request) => Unit = NoOp
+      protected def delete: (InMessage) => Unit = NoOp
+      protected def update: (InMessage) => Unit = NoOp
+      protected def get: (InMessage) => Unit = NoOp
+      protected def index: (InMessage) => Unit = NoOp
+      protected def create: (InMessage) => Unit = NoOp
     }
 
     resource.registerTo(testService)
@@ -98,19 +99,19 @@ class TestResource extends FunSuite {
     val testService = new Service("test")
 
     val resource1 = new Resource("test1", "id") with Get with Index with Create with Update with Delete {
-      protected def delete: (Request) => Unit = NoOp
-      protected def update: (Request) => Unit = NoOp
-      protected def get: (Request) => Unit = NoOp
-      protected def index: (Request) => Unit = NoOp
-      protected def create: (Request) => Unit = NoOp
+      protected def delete: (InMessage) => Unit = NoOp
+      protected def update: (InMessage) => Unit = NoOp
+      protected def get: (InMessage) => Unit = NoOp
+      protected def index: (InMessage) => Unit = NoOp
+      protected def create: (InMessage) => Unit = NoOp
     }
 
     val resource2 = new Resource("test2", "id") with Get with Index with Create with Update with Delete {
-      protected def delete: (Request) => Unit = NoOp
-      protected def update: (Request) => Unit = NoOp
-      protected def get: (Request) => Unit = NoOp
-      protected def index: (Request) => Unit = NoOp
-      protected def create: (Request) => Unit = NoOp
+      protected def delete: (InMessage) => Unit = NoOp
+      protected def update: (InMessage) => Unit = NoOp
+      protected def get: (InMessage) => Unit = NoOp
+      protected def index: (InMessage) => Unit = NoOp
+      protected def create: (InMessage) => Unit = NoOp
     }
 
     resource1.registerTo(testService)
@@ -123,11 +124,11 @@ class TestResource extends FunSuite {
     val testService = new Service("test")
 
     val resource = new Resource("test", "id") with Get with Index with Create with Update with Delete {
-      protected def delete: (Request) => Unit = NoOp
-      protected def update: (Request) => Unit = NoOp
-      protected def get: (Request) => Unit = NoOp
-      protected def index: (Request) => Unit = NoOp
-      protected def create: (Request) => Unit = NoOp
+      protected def delete: (InMessage) => Unit = NoOp
+      protected def update: (InMessage) => Unit = NoOp
+      protected def get: (InMessage) => Unit = NoOp
+      protected def index: (InMessage) => Unit = NoOp
+      protected def create: (InMessage) => Unit = NoOp
     }
 
     resource.registerTo(testService)
