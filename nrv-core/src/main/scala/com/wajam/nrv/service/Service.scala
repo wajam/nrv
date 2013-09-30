@@ -1,7 +1,7 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.utils.{Event, Observable}
 import com.wajam.nrv.cluster.Node
+import com.wajam.commons.{Event, Observable}
 
 /**
  * Service handled by the cluster that offers actions that can be executed on remote nodes. A service

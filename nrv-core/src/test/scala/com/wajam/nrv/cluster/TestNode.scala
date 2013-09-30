@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 import org.scalatest.matchers.ShouldMatchers._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.utils.InetUtils
+import com.wajam.commons.InetUtils
 
 @RunWith(classOf[JUnitRunner])
 class TestNode extends FunSuite {

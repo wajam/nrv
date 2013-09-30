@@ -6,7 +6,7 @@ import java.util.{TimeZone, Calendar}
 import java.net.{InetAddress, InetSocketAddress}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import com.wajam.nrv.utils.InetUtils
+import com.wajam.commons.InetUtils
 
 /**
  *

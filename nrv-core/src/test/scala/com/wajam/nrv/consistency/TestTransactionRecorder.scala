@@ -11,11 +11,11 @@ import org.mockito.Matchers._
 import com.wajam.nrv.data.{Message, InMessage}
 import org.scalatest.matchers.ShouldMatchers._
 
-import com.wajam.nrv.utils.IdGenerator
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.consistency.log.LogRecord.Index
 import com.wajam.nrv.consistency.log.{TransactionLogProxy, LogRecord}
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
+import com.wajam.commons.IdGenerator
 
 @RunWith(classOf[JUnitRunner])
 class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter with MockitoSugar {

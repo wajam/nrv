@@ -3,7 +3,7 @@ package com.wajam.nrv.data
 import com.wajam.nrv.cluster.Node
 import scala.Option
 import com.wajam.nrv.service.{Endpoints, ActionMethod, ActionURL}
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 
 /**
  * Base used for outbound and inbound messages.

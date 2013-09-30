@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.log
 
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 import java.io.IOException
 import util.Random
 import org.junit.runner.RunWith

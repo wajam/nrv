@@ -2,13 +2,13 @@ package com.wajam.nrv.consistency
 
 import com.wajam.nrv.consistency.log.LogRecord._
 import com.wajam.nrv.consistency.log._
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 import java.io.File
-import com.wajam.nrv.utils.{TimestampIdGenerator, IdGenerator}
 import java.nio.file.Files
 import com.wajam.nrv.Logging
 import collection.mutable
 import com.yammer.metrics.scala.Instrumented
+import com.wajam.commons.{IdGenerator, TimestampIdGenerator}
 
 /**
  * Helper class that ensure that service members transaction log are consistent with the consistent store.

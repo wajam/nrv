@@ -19,6 +19,7 @@ object NrvBuild extends Build {
   )
 
   var commonDeps = Seq(
+    "com.wajam" %% "commons-core" % "0.1-SNAPSHOT",
     "org.slf4j" % "slf4j-api" % "1.6.4",
     "nl.grons" %% "metrics-scala" % "2.2.0" exclude("org.slf4j", "slf4j-api"),
     "io.netty" % "netty" % "3.5.0.Final",
@@ -26,18 +27,10 @@ object NrvBuild extends Build {
     "junit" % "junit" % "4.10" % "test,it",
     "org.mockito" % "mockito-core" % "1.9.0" % "test,it",
     "com.google.protobuf" % "protobuf-java" % "2.4.1",
-    "com.google.guava" % "guava" % "12.0"
+    "com.google.guava" % "guava" % "12.0",
+    "com.twitter" %% "util-core" % "6.1.0",
+    "org.scala-lang" % "scala-actors" % "2.10.2"
   )
-
-  val commonDepsVersionSpecific = (scalaVersion {
-    case "2.9.2" => Seq(
-      "com.twitter" % "util-core" % "6.1.0"
-    )
-    case version => Seq(
-      "com.twitter" %% "util-core" % "6.1.0",
-      "org.scala-lang" % "scala-actors" % version
-    )
-  })
 
   var zookeeperDeps = Seq(
     "org.apache.zookeeper" % "zookeeper" % "3.4.3-cdh4.1.1" exclude("javax.jms", "jms") exclude("com.sun.jmx", "jmxri") exclude("com.sun.jdmk", "jmxtools"),
@@ -62,7 +55,6 @@ object NrvBuild extends Build {
 
   val defaultSettings = Defaults.defaultSettings ++ Defaults.itSettings ++ Seq(
     libraryDependencies ++= commonDeps,
-    libraryDependencies <++= commonDepsVersionSpecific,
     resolvers ++= commonResolvers,
     retrieveManaged := true,
     publishMavenStyle := true,

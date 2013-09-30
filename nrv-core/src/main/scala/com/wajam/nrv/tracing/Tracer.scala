@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat
 import java.net.InetSocketAddress
 import com.wajam.nrv.utils._
 import com.wajam.nrv.tracing.Annotation.Message
+import com.wajam.commons.{ThreadLocalVariable, CurrentTime, IdGenerator, UuidStringGenerator}
 
 /**
  * Trace context information. All trace events initiated from a common ancestor call share the same TraceId.

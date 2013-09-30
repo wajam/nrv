@@ -1,8 +1,8 @@
 package com.wajam.nrv.consistency.replication
 
 import com.wajam.nrv.data.Message
-import com.wajam.nrv.utils.Closable
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
+import com.wajam.commons.Closable
 
 /**
  * Replication source iterator that abstract the source of the transaction to replicate. Transactions are ordered by

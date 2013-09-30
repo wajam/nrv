@@ -1,7 +1,7 @@
 package com.wajam.nrv.tracing
 
 import java.text.SimpleDateFormat
-import com.wajam.nrv.utils.InetUtils
+import com.wajam.commons.InetUtils
 
 /**
  * Format trace record in a tab delimited string.

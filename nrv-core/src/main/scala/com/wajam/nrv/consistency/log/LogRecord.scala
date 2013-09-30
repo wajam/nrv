@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency.log
 
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 import com.wajam.nrv.data.{MessageType, Message}
 import com.wajam.nrv.consistency.log.LogRecord.Response.Status
 import scala.language.implicitConversions

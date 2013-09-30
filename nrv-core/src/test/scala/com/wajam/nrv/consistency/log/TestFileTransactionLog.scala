@@ -4,7 +4,7 @@ import org.scalatest.BeforeAndAfter
 import org.scalatest.matchers.ShouldMatchers._
 import java.io._
 import java.nio.file.Files
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 import org.mockito.Matchers._
 import org.mockito.Mockito._
 import util.Random

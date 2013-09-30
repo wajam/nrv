@@ -5,11 +5,11 @@ import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
 import com.wajam.nrv.{UnavailableException, TimeoutException, Logging}
 import java.util.concurrent.atomic.AtomicBoolean
-import com.wajam.nrv.utils.Scheduler
 import com.twitter.util.RingBuffer
 import com.google.common.cache.{RemovalNotification, RemovalListener, CacheBuilder}
 import java.util.concurrent.TimeUnit
 import java.text.SimpleDateFormat
+import com.wajam.nrv.utils.Scheduler
 
 /**
  * Handle incoming messages and find matching outgoing messages, having same

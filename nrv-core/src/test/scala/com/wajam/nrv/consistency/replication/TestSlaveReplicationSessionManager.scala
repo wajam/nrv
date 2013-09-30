@@ -11,13 +11,13 @@ import com.wajam.nrv.service._
 import com.wajam.nrv.service.ActionProxy._
 import com.wajam.nrv.consistency.{TestTransactionBase, ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data._
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 import MessageMatcher._
 import com.wajam.nrv.consistency.log.LogRecord.Index
 import java.util.UUID
-import com.wajam.nrv.utils.IdGenerator
 import com.wajam.nrv.consistency.log.{TransactionLogProxy, LogRecord}
 import com.wajam.nrv.cluster.{Node, LocalNode, StaticClusterManager, Cluster}
+import com.wajam.commons.IdGenerator
 
 @RunWith(classOf[JUnitRunner])
 class TestSlaveReplicationSessionManager extends TestTransactionBase with BeforeAndAfter with MockitoSugar {

@@ -2,7 +2,7 @@ package com.wajam.nrv.cluster
 
 import java.net.{InetSocketAddress, InetAddress}
 import com.wajam.nrv.InvalidParameter
-import com.wajam.nrv.utils.InetUtils
+import com.wajam.commons.InetUtils
 
 /**
  * Node (machine/process) that is member of a cluster and its services.

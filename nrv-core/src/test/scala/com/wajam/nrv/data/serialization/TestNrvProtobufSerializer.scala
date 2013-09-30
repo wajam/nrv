@@ -11,7 +11,7 @@ import java.net.InetAddress
 import com.wajam.nrv.protocol.codec._
 import com.wajam.nrv.data._
 import com.wajam.nrv.data.MValue._
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtobufSerializer extends FunSuite {

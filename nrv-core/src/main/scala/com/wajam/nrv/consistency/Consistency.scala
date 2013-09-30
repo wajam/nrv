@@ -1,10 +1,8 @@
 package com.wajam.nrv.consistency
 
 import com.wajam.nrv.service.{ServiceMember, MessageHandler, Service}
-import com.wajam.nrv.utils.{Observable, VotableEvent, Event}
 import com.wajam.nrv.cluster.Cluster
-import com.wajam.nrv.utils.timestamp.Timestamp
-import com.wajam.nrv.data.Message
+import com.wajam.commons.{VotableEvent, Event, Observable}
 
 /**
  * Manage consistency inside the cluster based on events

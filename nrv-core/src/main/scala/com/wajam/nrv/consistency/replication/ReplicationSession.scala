@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.replication
 
 import com.wajam.nrv.consistency.ResolvedServiceMember
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 import com.wajam.nrv.cluster.Node
 
 case class ReplicationSession(member: ResolvedServiceMember,

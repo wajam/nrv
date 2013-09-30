@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency
 
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 import AtomicTimestamp._
 import java.util.concurrent.atomic.AtomicReference
 

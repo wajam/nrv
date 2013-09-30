@@ -9,15 +9,15 @@ import com.wajam.nrv.consistency.log.{LogRecord, FileTransactionLog}
 import java.nio.file.Files
 import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.consistency.log.LogRecord.Index
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 import com.wajam.nrv.service.TokenRange
-import com.wajam.nrv.utils.IdGenerator
 import com.wajam.nrv.data.Message
 import scala.annotation.tailrec
 import scala.util.Random
 import scala.concurrent.{Future, Await}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
+import com.wajam.commons.IdGenerator
 
 @RunWith(classOf[JUnitRunner])
 class TestTransactionLogReplicationIterator extends TestTransactionBase with BeforeAndAfter {

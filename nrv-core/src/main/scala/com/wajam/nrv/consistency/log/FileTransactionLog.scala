@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency.log
 
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
 import java.io._
@@ -8,8 +8,8 @@ import com.wajam.nrv.consistency.log.LogRecord._
 import java.util.zip.CRC32
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
-import com.wajam.nrv.utils.Closable
 import scala.annotation.tailrec
+import com.wajam.commons.Closable
 
 /**
  * Class for writing and reading transaction logs.

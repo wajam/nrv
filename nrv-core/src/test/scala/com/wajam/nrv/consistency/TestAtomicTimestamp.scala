@@ -3,7 +3,7 @@ package com.wajam.nrv.consistency
 import org.scalatest.FunSuite
 import AtomicTimestamp._
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.commons.timestamp.Timestamp
 import scala.annotation.tailrec
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
