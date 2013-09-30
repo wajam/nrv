@@ -29,8 +29,8 @@ class TestResource extends FunSuite {
   test("should have correct path for LIST operation") {
     val testService = new Service("test")
 
-    val resource = new Resource("test", "id") with List {
-      protected def list: (Request) => Unit = NoOp
+    val resource = new Resource("test", "id") with Index {
+      protected def index: (Request) => Unit = NoOp
     }
 
     resource.registerTo(testService)
@@ -81,11 +81,11 @@ class TestResource extends FunSuite {
   test("should register all actions to a service") {
     val testService = new Service("test")
 
-    val resource = new Resource("test", "id") with Get with List with Create with Update with Delete {
+    val resource = new Resource("test", "id") with Get with Index with Create with Update with Delete {
       protected def delete: (Request) => Unit = NoOp
       protected def update: (Request) => Unit = NoOp
       protected def get: (Request) => Unit = NoOp
-      protected def list: (Request) => Unit = NoOp
+      protected def index: (Request) => Unit = NoOp
       protected def create: (Request) => Unit = NoOp
     }
 
@@ -97,19 +97,19 @@ class TestResource extends FunSuite {
   test("should register all actions of multiple resources to a service") {
     val testService = new Service("test")
 
-    val resource1 = new Resource("test1", "id") with Get with List with Create with Update with Delete {
+    val resource1 = new Resource("test1", "id") with Get with Index with Create with Update with Delete {
       protected def delete: (Request) => Unit = NoOp
       protected def update: (Request) => Unit = NoOp
       protected def get: (Request) => Unit = NoOp
-      protected def list: (Request) => Unit = NoOp
+      protected def index: (Request) => Unit = NoOp
       protected def create: (Request) => Unit = NoOp
     }
 
-    val resource2 = new Resource("test2", "id") with Get with List with Create with Update with Delete {
+    val resource2 = new Resource("test2", "id") with Get with Index with Create with Update with Delete {
       protected def delete: (Request) => Unit = NoOp
       protected def update: (Request) => Unit = NoOp
       protected def get: (Request) => Unit = NoOp
-      protected def list: (Request) => Unit = NoOp
+      protected def index: (Request) => Unit = NoOp
       protected def create: (Request) => Unit = NoOp
     }
 
@@ -122,18 +122,18 @@ class TestResource extends FunSuite {
   test("should allow retrieving a resource action from a service") {
     val testService = new Service("test")
 
-    val resource = new Resource("test", "id") with Get with List with Create with Update with Delete {
+    val resource = new Resource("test", "id") with Get with Index with Create with Update with Delete {
       protected def delete: (Request) => Unit = NoOp
       protected def update: (Request) => Unit = NoOp
       protected def get: (Request) => Unit = NoOp
-      protected def list: (Request) => Unit = NoOp
+      protected def index: (Request) => Unit = NoOp
       protected def create: (Request) => Unit = NoOp
     }
 
     resource.registerTo(testService)
 
     assert(resource.get(testService).isDefined)
-    assert(resource.list(testService).isDefined)
+    assert(resource.index(testService).isDefined)
     assert(resource.create(testService).isDefined)
     assert(resource.update(testService).isDefined)
     assert(resource.delete(testService).isDefined)
