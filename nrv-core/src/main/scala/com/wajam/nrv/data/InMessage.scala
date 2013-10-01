@@ -30,7 +30,8 @@ class InMessage(params: Iterable[(String, MValue)] = null,
   def reply(message: OutMessage) {
     if (replyCallback == null)
       throw new Exception("Called reply on a message with no reply callback")
-
+    //set protocolName to the incoming protocol name to reuse the same protocol to send the response
+    message.protocolName = protocolName
     this.replyCallback(message)
   }
 }

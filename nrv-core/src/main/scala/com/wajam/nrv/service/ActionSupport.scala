@@ -26,6 +26,10 @@ trait ActionSupport {
   protected var _responseTimeout: Option[Long] = None
   protected var _nrvCodec: Option[Codec] = None
 
+  //Actions are bound to a default protocol (i.e. _protocol) but other supported
+  //protocol can be used to call the action.
+  protected var _supportedProtocols: Option[Set[Protocol]] = None
+
   def cluster: Cluster =
     if (_cluster != null)
       this._cluster
@@ -108,6 +112,16 @@ trait ActionSupport {
     }
   }
 
+  def supportedProtocols: Set[Protocol] = {
+    _supportedProtocols.getOrElse {
+      if (this.supporter != null) {
+        this.supporter.supportedProtocols
+      } else {
+        throw new UninitializedError
+      }
+    }
+  }
+
   def checkSupported() {
     this.cluster
     this.service
@@ -118,6 +132,7 @@ trait ActionSupport {
     this.consistency
     this.responseTimeout
     this.nrvCodec
+    this.supportedProtocols
   }
 
   def applySupport(cluster: Option[Cluster] = None,
@@ -128,7 +143,8 @@ trait ActionSupport {
                    tracer: Option[Tracer] = None,
                    consistency: Option[Consistency] = None,
                    responseTimeout: Option[Long] = None,
-                   nrvCodec: Option[(Codec)] = None) {
+                   nrvCodec: Option[(Codec)] = None,
+                   supportedProtocols: Option[Set[Protocol]] = None) {
 
     cluster.map(this._cluster = _)
     service.map(this._service = _)
@@ -139,11 +155,12 @@ trait ActionSupport {
     consistency.map(this._consistency = _)
     responseTimeout.map(timeout => this._responseTimeout = Some(timeout))
     nrvCodec.map(codec => this._nrvCodec = Some(codec))
+    supportedProtocols.map(supProtocols => this._supportedProtocols = Some(supProtocols))
   }
 
   def applySupportOptions(options: ActionSupportOptions) {
     this.applySupport(options.cluster, options.service, options.resolver, options.protocol, options.switchboard,
-      options.tracer, options.consistency, options.responseTimeout, options.nrvCodec)
+      options.tracer, options.consistency, options.responseTimeout, options.nrvCodec, options.supportedProtocols)
   }
 
   def supportedBy(supporter: ActionSupport) {
@@ -159,5 +176,6 @@ class ActionSupportOptions(val cluster: Option[Cluster] = None,
                            val tracer: Option[Tracer] = None,
                            val consistency: Option[Consistency] = None,
                            val responseTimeout: Option[Long] = None,
-                           val nrvCodec: Option[Codec] = None) {
+                           val nrvCodec: Option[Codec] = None,
+                           val supportedProtocols: Option[Set[Protocol]] = None) {
 }

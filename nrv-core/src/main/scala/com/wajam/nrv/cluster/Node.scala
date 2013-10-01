@@ -30,7 +30,7 @@ sealed class Node(val host: InetAddress, val ports: Map[String, Int]) extends Se
   }
 
   def hostname  = fastGetHostName()
-  def address = "%d.%d.%d.%d".format(host.getAddress: _*)
+  lazy val address = host.getHostAddress
 
   /**
    * Special wrapper for address.getHostname

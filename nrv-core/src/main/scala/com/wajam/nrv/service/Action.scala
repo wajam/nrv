@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
 import com.wajam.nrv.data._
 import scala.concurrent.{Future, Promise}
+import com.wajam.nrv.protocol.Protocol
 
 /**
  * Action that binds a path to a callback. This is analogous to a RPC endpoint function,
@@ -52,6 +53,14 @@ class Action(val path: ActionPath,
            meta: Iterable[(String, MValue)],
            data: Any,
            responseTimeout: Long): Future[InMessage] = {
+    call(params, meta, data, responseTimeout, None)
+  }
+
+  def call(params: Iterable[(String, MValue)],
+           meta: Iterable[(String, MValue)],
+           data: Any,
+           responseTimeout: Long,
+           protocolName: Option[String]): Future[InMessage] = {
     val p = Promise[InMessage]()
     def complete(msg: InMessage, optException: Option[Exception]) {
       optException match {
@@ -59,7 +68,7 @@ class Action(val path: ActionPath,
         case None => p.success(msg)
       }
     }
-    this.call(params, complete, meta, data, responseTimeout)
+    call(params, complete, meta, data, responseTimeout, protocolName)
     p.future
   }
 
@@ -68,8 +77,13 @@ class Action(val path: ActionPath,
            onReply: ((InMessage, Option[Exception]) => Unit),
            meta: Iterable[(String, MValue)] = null,
            data: Any = null,
-           responseTimeout: Long = responseTimeout) {
-    this.call(new OutMessage(params, meta, data, onReply = onReply, responseTimeout = responseTimeout))
+           responseTimeout: Long = responseTimeout,
+           protocolName: Option[String] = None) {
+    val message = new OutMessage(params, meta, data, onReply = onReply, responseTimeout = responseTimeout)
+    for(name <- protocolName) {
+      message.protocolName = name
+    }
+    call(message)
   }
 
   def call(message: OutMessage) {
@@ -87,6 +101,7 @@ class Action(val path: ActionPath,
   protected[nrv] def start() {
     this.checkSupported()
     this.protocol.bindAction(this)
+    this.supportedProtocols.foreach(p => p.bindAction(this))
     this.switchboard.start()
   }
 
@@ -123,7 +138,7 @@ class Action(val path: ActionPath,
       this.switchboard.handleOutgoing(this, outMessage, () => {
         TraceFilter.handleOutgoing(this, outMessage, () => {
           this.consistency.handleOutgoing(this, outMessage, () => {
-            this.protocol.handleOutgoing(this, outMessage, () => {
+            this.resolveOutProtocol(outMessage).handleOutgoing(this, outMessage, () => {
               outMessage.sentTime = System.currentTimeMillis()
             })
           })
@@ -224,6 +239,11 @@ class Action(val path: ActionPath,
   private def extractParamsFromPath(intoMessage: Message, path: String) {
     val (_, params) = this.path.matchesPath(path)
     intoMessage.parameters ++= params
+  }
+
+  private def resolveOutProtocol(outMessage: OutMessage): Protocol = {
+    //find the protocol to use to send this message with fallback to default protocol
+    supportedProtocols.find(p => p.name == outMessage.protocolName).getOrElse(protocol)
   }
 }
 

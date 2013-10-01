@@ -6,11 +6,12 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.matchers.ShouldMatchers._
+import com.wajam.nrv.service.{Replica, Shard, Endpoints}
 import org.jboss.netty.handler.codec.http._
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.data._
-import com.wajam.nrv.protocol.HttpProtocol._
+import com.wajam.nrv.protocol.HttpProtocol.HttpChunkedResponse
 
 /**
  *
@@ -18,7 +19,8 @@ import com.wajam.nrv.protocol.HttpProtocol._
 
 @RunWith(classOf[JUnitRunner])
 class TestHttpProtocol extends FunSuite with BeforeAndAfter {
-
+  val localnode = new LocalNode("localhost", Map("nrv" -> 19191, "http" -> 1909))
+  val destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, localnode, true)))))
   var unchunkedProtocol: HttpProtocol = null
   var chunkedProtocol: HttpProtocol = null
 
@@ -34,10 +36,9 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
   }
 
   before {
-    val localnode = new LocalNode("localhost", Map("nrv" -> 19191, "test" -> 1909))
     val cluster = new Cluster(localnode, new StaticClusterManager)
-    unchunkedProtocol = new HttpProtocol("test", localnode, 10000, 100)
-    chunkedProtocol = new HttpProtocol("test", localnode, 10000, 100, Some(chunkSize))
+    unchunkedProtocol = new HttpProtocol("http", localnode, 10000, 100)
+    chunkedProtocol = new HttpProtocol("http", localnode, 10000, 100, Some(chunkSize))
   }
 
   /**
@@ -96,6 +97,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
       val msg = new InMessage()
       msg.method = "GET"
       msg.code = 333
+      msg.destination = destination
 
       val req = protocol.generate(msg).asInstanceOf[HttpRequest]
 
@@ -105,6 +107,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     test("should use message code as status code (" + displayName + ")") {
       val msg = new OutMessage()
       msg.code = 500
+      msg.function = MessageType.FUNCTION_RESPONSE
 
       val res = protocol.generate(msg) match {
         case chunkedResponse: HttpProtocol.HttpChunkedResponse => chunkedResponse.begin
@@ -135,6 +138,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     test("should set method in special HTTP header on response (" + displayName + ")") {
       val msg = new OutMessage()
       msg.method = ActionMethod.GET
+      msg.function = MessageType.FUNCTION_RESPONSE
 
       val res = protocol.generate(msg) match {
         case chunkedResponse: HttpChunkedResponse => chunkedResponse.begin
@@ -148,6 +152,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     test("should set method in HTTP request (" + displayName + ")") {
       val msg = new InMessage()
       msg.method = ActionMethod.GET
+      msg.destination = destination
 
       val req = protocol.generate(msg).asInstanceOf[HttpRequest]
 
@@ -173,7 +178,8 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
 
     test("should set path in special HTTP header on response (" + displayName + ")") {
       val msg = new OutMessage()
-      msg.path = "path"
+      msg.path = "/path"
+      msg.function = MessageType.FUNCTION_RESPONSE
 
       val res = protocol.generate(msg) match {
         case chunkedResponse: HttpChunkedResponse => chunkedResponse.begin
@@ -181,23 +187,25 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
         case _ => fail("Invalid response")
       }
 
-      assert("path" === res.getHeader(HttpProtocol.PATH_HEADER))
+      assert("/path" === res.getHeader(HttpProtocol.PATH_HEADER))
     }
 
     test("should set path in HTTP request (" + displayName + ")") {
       val msg = new InMessage()
       msg.method = ActionMethod.GET
-      msg.path = "path"
+      msg.destination = destination
+      msg.path = "/path"
 
       val req = protocol.generate(msg).asInstanceOf[HttpRequest]
 
-      assert("path" === req.getUri)
+      assert("/path" === req.getUri)
     }
 
     test("should generate and parse a complete message (" + displayName + ")") {
       val msg = new InMessage()
       msg.method = ActionMethod.GET
-      msg.path = "path"
+      msg.path = "/path"
+      msg.destination = destination
 
       msg.metadata("CONTENT-TYPE") = MString("text/plain")
 
@@ -221,6 +229,8 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val msg = new OutMessage()
     msg.code = 200
     msg.messageData = fixture.sampleJsonData
+    msg.function = MessageType.FUNCTION_RESPONSE
+    msg.destination = destination
 
     chunkedProtocol.generate(msg) match {
       case chunkedResponse: HttpChunkedResponse => {
@@ -234,6 +244,8 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     val msg = new OutMessage()
     msg.code = 200
     msg.messageData = fixture.sampleJsonData
+    msg.function = MessageType.FUNCTION_RESPONSE
+    msg.destination = destination
 
     chunkedProtocol.generate(msg) match {
       case chunkedResponse: HttpChunkedResponse => {
@@ -252,6 +264,7 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
   test("should generate a HttpChunkedResponse from an InputStream") {
     val dataStream = new ByteArrayInputStream(fixture.sampleJsonData.getBytes)
     val msg = new OutMessage(code = 200, data = dataStream)
+    msg.function = MessageType.FUNCTION_RESPONSE
 
     assert(unchunkedProtocol.generate(msg).isInstanceOf[HttpChunkedResponse])
   }
