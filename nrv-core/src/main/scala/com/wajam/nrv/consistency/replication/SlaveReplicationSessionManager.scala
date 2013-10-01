@@ -3,7 +3,6 @@ package com.wajam.nrv.consistency.replication
 import com.wajam.nrv.service.{Action, Service}
 import com.wajam.nrv.consistency.{ConsistencyException, ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data.{MValue, InMessage, Message}
-import com.wajam.commons.timestamp.Timestamp
 import scala.actors.Actor
 import com.wajam.nrv.utils._
 import collection.immutable.TreeSet
@@ -17,6 +16,7 @@ import java.util.{TimerTask, Timer}
 import com.yammer.metrics.scala.Instrumented
 import util.Random
 import com.wajam.commons._
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 /**
  * Manage all local slave replication sessions for a service. Only one replication session per

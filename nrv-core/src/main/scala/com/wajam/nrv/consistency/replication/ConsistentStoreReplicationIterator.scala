@@ -1,8 +1,8 @@
 package com.wajam.nrv.consistency.replication
 
 import com.wajam.nrv.consistency.{ConsistentStore, ResolvedServiceMember}
-import com.wajam.commons.timestamp.Timestamp
 import com.yammer.metrics.scala.Instrumented
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 /**
  * Replication source iterator backed by a ConsistentStore. The iterator is bounded i.e. the first timestamp and the

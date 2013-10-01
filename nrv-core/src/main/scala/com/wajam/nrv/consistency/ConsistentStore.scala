@@ -1,9 +1,9 @@
 package com.wajam.nrv.consistency
 
 import com.wajam.nrv.data.Message
-import com.wajam.commons.timestamp.Timestamp
 import com.wajam.nrv.service.TokenRange
 import com.wajam.commons.Closable
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 /**
  * Trait defining the API a consistent data store service must implement to be replicated within an NRV cluster

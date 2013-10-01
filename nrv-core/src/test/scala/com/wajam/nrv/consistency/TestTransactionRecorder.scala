@@ -14,8 +14,8 @@ import org.scalatest.matchers.ShouldMatchers._
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.consistency.log.LogRecord.Index
 import com.wajam.nrv.consistency.log.{TransactionLogProxy, LogRecord}
-import com.wajam.commons.timestamp.Timestamp
 import com.wajam.commons.IdGenerator
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 @RunWith(classOf[JUnitRunner])
 class TestTransactionRecorder extends TestTransactionBase with BeforeAndAfter with MockitoSugar {

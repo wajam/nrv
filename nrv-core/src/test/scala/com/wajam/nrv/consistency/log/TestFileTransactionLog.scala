@@ -4,7 +4,6 @@ import org.scalatest.BeforeAndAfter
 import org.scalatest.matchers.ShouldMatchers._
 import java.io._
 import java.nio.file.Files
-import com.wajam.commons.timestamp.Timestamp
 import org.mockito.Matchers._
 import org.mockito.Mockito._
 import util.Random
@@ -13,6 +12,7 @@ import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.consistency.log.LogRecord.Request
 import com.wajam.nrv.consistency.TestTransactionBase
 import com.wajam.nrv.consistency.log.LogRecord.Index
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 @RunWith(classOf[JUnitRunner])
 class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {

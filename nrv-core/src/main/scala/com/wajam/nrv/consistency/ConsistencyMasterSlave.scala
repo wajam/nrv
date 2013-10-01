@@ -2,7 +2,6 @@ package com.wajam.nrv.consistency
 
 import com.wajam.nrv.service._
 import com.wajam.nrv.data._
-import com.wajam.commons.timestamp.{Timestamp, TimestampGenerator}
 import com.yammer.metrics.scala.{Meter, Instrumented}
 import com.wajam.nrv.consistency.log.{LogRecordSerializer, NullTransactionLog, FileTransactionLog}
 import java.util.concurrent.TimeUnit
@@ -15,6 +14,8 @@ import com.wajam.nrv.consistency.replication.ReplicationAPIParams._
 import com.wajam.nrv.service.StatusTransitionAttemptEvent
 import com.wajam.nrv.service.StatusTransitionEvent
 import com.wajam.commons.Event
+import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
+import com.wajam.nrv.consistency.replication.ReplicationAPIParams.Timestamp
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are

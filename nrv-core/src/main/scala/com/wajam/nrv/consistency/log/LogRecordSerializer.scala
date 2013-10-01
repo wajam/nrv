@@ -1,11 +1,11 @@
 package com.wajam.nrv.consistency.log
 
 import java.io._
-import com.wajam.commons.timestamp.Timestamp
 import com.wajam.nrv.data.Message
 import com.wajam.nrv.consistency.log.LogRecord.{Index, Response, Request}
 import com.wajam.nrv.protocol.codec.{GenericJavaSerializeCodec, Codec}
 import LogRecordSerializer._
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
 

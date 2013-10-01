@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.log
 
-import com.wajam.commons.timestamp.Timestamp
 import com.wajam.nrv.consistency.log.LogRecord.Index
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 object NullTransactionLog extends TransactionLog {
 

@@ -1,8 +1,8 @@
 package com.wajam.nrv.consistency
 
-import com.wajam.commons.timestamp.Timestamp
 import AtomicTimestamp._
 import java.util.concurrent.atomic.AtomicReference
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 /**
  * A timestamp that can be updated atomically according a predicate.
