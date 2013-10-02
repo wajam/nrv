@@ -1,7 +1,5 @@
 package com.wajam.nrv.utils.timestamp
 
-import com.wajam.nrv.utils.timestamp.Timestamp
-
 /**
  * Trait abstracting timestamp generation
  */

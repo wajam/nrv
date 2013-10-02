@@ -4,7 +4,8 @@ import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.protocol.DummyProtocol
-import com.wajam.nrv.tracing._
+import com.wajam.tracing._
+import com.wajam.commons.{InetUtils, ControlableCurrentTime, ControlableSequentialStringIdGenerator}
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import com.wajam.nrv.data.{MessageType, InMessage, OutMessage}
@@ -13,13 +14,12 @@ import org.hamcrest.Description
 import org.scalatest.matchers.ShouldMatchers._
 import java.net.InetSocketAddress
 import java.text.SimpleDateFormat
-import com.wajam.nrv.tracing.Annotation._
-import com.wajam.nrv.tracing.RpcName
-import com.wajam.nrv.tracing.TraceContext
-import com.wajam.nrv.tracing.Record
+import com.wajam.tracing.Annotation._
+import com.wajam.tracing.RpcName
+import com.wajam.tracing.TraceContext
+import com.wajam.tracing.Record
 import scala.concurrent.{Promise, Await}
 import scala.concurrent.duration._
-import com.wajam.commons.{InetUtils, ControlableSequentialStringIdGenerator, ControlableCurrentTime}
 
 /**
  *
