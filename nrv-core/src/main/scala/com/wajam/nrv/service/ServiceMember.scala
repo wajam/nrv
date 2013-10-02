@@ -2,7 +2,7 @@ package com.wajam.nrv.service
 
 import com.wajam.nrv.cluster.Node
 import java.io.Serializable
-import com.wajam.nrv.utils.{VotableEvent, Event, Observable}
+import com.wajam.commons.{VotableEvent, Event, Observable}
 
 /**
  * Node that is member of a service, at a specific position (token) in

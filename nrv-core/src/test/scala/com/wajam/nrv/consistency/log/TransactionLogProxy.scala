@@ -3,8 +3,8 @@ package com.wajam.nrv.consistency.log
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
 import com.wajam.nrv.consistency.log.LogRecord.Index
-import com.wajam.nrv.utils.timestamp.Timestamp
 import org.mockito.Mockito
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 trait TransactionAppender {
   def append(record: LogRecord)

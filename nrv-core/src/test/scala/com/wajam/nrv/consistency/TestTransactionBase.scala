@@ -2,7 +2,6 @@ package com.wajam.nrv.consistency
 
 import org.scalatest.FunSuite
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
-import com.wajam.nrv.utils.timestamp.Timestamp
 
 abstract class TestTransactionBase extends FunSuite {
 

@@ -5,12 +5,12 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.tracing.Annotation.Message
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
-import com.wajam.nrv.utils.ControlableCurrentTime
 import com.yammer.metrics.scala.Timer
 import java.util.concurrent.TimeUnit
 import com.yammer.metrics.Metrics
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+import com.wajam.commons.ControlableCurrentTime
 
 /**
  *

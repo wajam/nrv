@@ -1,5 +1,7 @@
 package com.wajam.nrv.utils
 
+import com.wajam.commons.{CurrentTime, IdGenerator}
+
 /**
  * Generate unique long id based on the current time. Can generate up to 10K unique id if invoked in
  * the same millisecond. This class is not thread safe and must be invoked from a single thread, synchronized

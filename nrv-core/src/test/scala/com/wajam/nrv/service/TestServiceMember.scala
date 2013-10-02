@@ -3,7 +3,7 @@ package com.wajam.nrv.service
 import org.scalatest.FunSuite
 import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.cluster.Node
-import com.wajam.nrv.utils.InetUtils
+import com.wajam.commons.InetUtils
 
 class TestServiceMember extends FunSuite {
 

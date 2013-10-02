@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.replication
 
 import com.wajam.nrv.data.Message
-import com.wajam.nrv.utils.Closable
+import com.wajam.commons.Closable
 import com.wajam.nrv.utils.timestamp.Timestamp
 
 /**

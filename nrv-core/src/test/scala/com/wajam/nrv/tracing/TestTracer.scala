@@ -5,9 +5,9 @@ import org.scalatest.matchers.ShouldMatchers._
 import com.wajam.nrv.tracing.Annotation.Message
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
-import com.wajam.nrv.utils.{ControlableSequentialStringIdGenerator, ControlableCurrentTime}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+import com.wajam.commons.{ControlableSequentialStringIdGenerator, ControlableCurrentTime}
 
 /**
  *

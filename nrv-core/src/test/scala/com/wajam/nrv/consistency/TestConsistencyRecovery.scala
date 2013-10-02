@@ -10,8 +10,8 @@ import com.wajam.nrv.consistency.log.LogRecord.{Response, Request, Index}
 import com.wajam.nrv.consistency.log.FileTransactionLog
 import com.wajam.nrv.service.TokenRange
 import org.scalatest.mock.MockitoSugar
-import com.wajam.nrv.utils.IdGenerator
 import org.scalatest.matchers.ShouldMatchers._
+import com.wajam.commons.IdGenerator
 
 @RunWith(classOf[JUnitRunner])
 class TestConsistencyRecovery extends TestTransactionBase with BeforeAndAfter with MockitoSugar {

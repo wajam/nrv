@@ -13,14 +13,14 @@ import com.wajam.nrv.cluster.{Cluster, StaticClusterManager, Node, LocalNode}
 import java.io.File
 import com.wajam.nrv.consistency.log.{LogRecord, FileTransactionLog}
 import java.nio.file.Files
-import com.wajam.nrv.utils.timestamp.Timestamp
 import org.mockito.Mockito._
 import com.wajam.nrv.consistency.log.LogRecord.{Response, Request}
 import org.mockito.ArgumentCaptor
 import scala.collection.JavaConversions._
-import com.wajam.nrv.utils.Closable
 import com.wajam.nrv.consistency.log.LogRecord.Index
 import com.wajam.nrv.Logging
+import com.wajam.commons.Closable
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 @RunWith(classOf[JUnitRunner])
 class TestMasterReplicationSessionManager extends TestTransactionBase with BeforeAndAfter with MockitoSugar with Logging {

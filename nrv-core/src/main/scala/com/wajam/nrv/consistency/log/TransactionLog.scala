@@ -1,8 +1,8 @@
 package com.wajam.nrv.consistency.log
 
-import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.consistency.log.LogRecord.{Response, Index}
-import com.wajam.nrv.utils.Closable
+import com.wajam.commons.Closable
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 trait TransactionLog {
   /**

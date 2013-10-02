@@ -3,13 +3,13 @@ package com.wajam.nrv.consistency
 import org.scalatest.FunSuite
 import AtomicTimestamp._
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.utils.timestamp.Timestamp
 import scala.annotation.tailrec
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import scala.concurrent.{Future, Await}
 import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext.Implicits.global
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 @RunWith(classOf[JUnitRunner])
 class TestAtomicTimestamp extends FunSuite {

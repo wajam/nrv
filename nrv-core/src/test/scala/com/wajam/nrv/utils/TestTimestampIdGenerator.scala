@@ -1,9 +1,10 @@
 package com.wajam.nrv.utils
 
 import org.scalatest.FunSuite
-import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.matchers.ShouldMatchers._
+import org.junit.runner.RunWith
+import com.wajam.commons.ControlableCurrentTime
 
 @RunWith(classOf[JUnitRunner])
 class TestTimestampIdGenerator extends FunSuite {

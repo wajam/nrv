@@ -5,7 +5,6 @@ import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.protocol.DummyProtocol
 import com.wajam.nrv.tracing._
-import com.wajam.nrv.utils.{InetUtils, ControlableCurrentTime, ControlableSequentialStringIdGenerator}
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import com.wajam.nrv.data.{MessageType, InMessage, OutMessage}
@@ -20,6 +19,7 @@ import com.wajam.nrv.tracing.TraceContext
 import com.wajam.nrv.tracing.Record
 import scala.concurrent.{Promise, Await}
 import scala.concurrent.duration._
+import com.wajam.commons.{InetUtils, ControlableSequentialStringIdGenerator, ControlableCurrentTime}
 
 /**
  *

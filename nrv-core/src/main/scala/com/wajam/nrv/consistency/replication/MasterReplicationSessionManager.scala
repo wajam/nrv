@@ -1,17 +1,18 @@
 package com.wajam.nrv.consistency.replication
 
 import com.wajam.nrv.service._
-import com.wajam.nrv.utils.timestamp.Timestamp
 import com.wajam.nrv.data._
 import com.wajam.nrv.consistency.{ConsistentStore, ResolvedServiceMember}
 import com.wajam.nrv.consistency.log.TransactionLog
 import com.wajam.nrv.cluster.Node
-import com.wajam.nrv.utils.{CurrentTime, Scheduler, UuidStringGenerator}
 import scala.actors.Actor
 import collection.immutable.TreeSet
 import ReplicationAPIParams._
 import com.wajam.nrv.Logging
 import com.yammer.metrics.scala.Instrumented
+import com.wajam.commons.{CurrentTime, UuidStringGenerator}
+import com.wajam.nrv.utils.Scheduler
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 /**
  * Manage all the local master replication sessions the local service is acting as a replication source. The replication

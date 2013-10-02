@@ -339,7 +339,7 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with Shou
 
   test("when stopping a cluster, ServiceMembers should change like this: Up -> Leaving -> Down, and the Leaving -> Down change should be done according to votes") {
     import com.wajam.nrv.service.{StatusTransitionAttemptEvent, MemberStatus}
-    import com.wajam.nrv.utils.Event
+    import com.wajam.commons.Event
     object VetoVoter {
       private var callCountDown = 3
       private var callCounter = 0

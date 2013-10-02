@@ -9,10 +9,10 @@ import org.apache.zookeeper.data.Stat
 import org.apache.zookeeper.KeeperException.{NoNodeException, Code}
 import scala.collection.JavaConversions._
 import com.yammer.metrics.scala.Instrumented
-import com.wajam.nrv.utils.{Event, Observable}
 import java.text.SimpleDateFormat
 import com.google.common.cache.CacheBuilder
 import scala.language.implicitConversions
+import com.wajam.commons.{Event, Observable}
 
 object ZookeeperClient {
   implicit def string2bytes(value: String) = value.getBytes

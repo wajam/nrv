@@ -11,10 +11,10 @@ import org.mockito.Matchers._
 import com.wajam.nrv.data.{Message, InMessage}
 import org.scalatest.matchers.ShouldMatchers._
 
-import com.wajam.nrv.utils.IdGenerator
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.consistency.log.LogRecord.Index
 import com.wajam.nrv.consistency.log.{TransactionLogProxy, LogRecord}
+import com.wajam.commons.IdGenerator
 import com.wajam.nrv.utils.timestamp.Timestamp
 
 @RunWith(classOf[JUnitRunner])

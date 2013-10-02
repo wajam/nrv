@@ -5,12 +5,13 @@ import com.yammer.metrics.scala.Instrumented
 import com.wajam.nrv.consistency.log.LogRecord.{Request, Response, Index}
 import com.wajam.nrv.consistency.log.TransactionLog
 import com.wajam.nrv.data.{MessageType, Message}
-import com.wajam.nrv.utils.timestamp.Timestamp
-import com.wajam.nrv.utils.{IdGenerator, TimestampIdGenerator, CurrentTime, Scheduler}
 import util.Random
 import com.wajam.nrv.Logging
 import collection.immutable.TreeMap
 import annotation.tailrec
+import com.wajam.commons.{CurrentTime, IdGenerator}
+import com.wajam.nrv.utils.{TimestampIdGenerator, Scheduler}
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 class TransactionRecorder(val member: ResolvedServiceMember, val txLog: TransactionLog,
                           consistencyDelay: Long, consistencyTimeout: Long, commitFrequency: Int,
