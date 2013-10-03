@@ -136,7 +136,7 @@ class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
 
 private[log] object LogRecordSerializer {
   val MinMessageLen = 0
-  val MaxMessageLen = 1000000
+  val MaxMessageLen = 2000000
 
   val RequestType = 1
   val ResponseType = 2
