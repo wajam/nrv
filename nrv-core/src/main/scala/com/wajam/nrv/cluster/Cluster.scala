@@ -2,11 +2,11 @@ package com.wajam.nrv.cluster
 
 import com.wajam.nrv.service._
 import com.wajam.nrv.Logging
-import com.wajam.nrv.tracing.Tracer
 import com.wajam.nrv.consistency.ConsistencyOne
 import com.wajam.nrv.protocol.{NrvProtocol, Protocol}
 import com.wajam.nrv.protocol.codec.HybridCodec
 import com.wajam.commons.Observable
+import com.wajam.tracing.Tracer
 
 /**
  * A cluster composed of services that are provided by nodes.

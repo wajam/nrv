@@ -1,12 +1,9 @@
 package com.wajam.nrv.service
 
 import com.wajam.nrv.data._
-import com.wajam.nrv.tracing.{RpcName, TraceContext, Tracer, Annotation}
 import com.wajam.nrv.Logging
 import java.net.InetSocketAddress
-import com.wajam.nrv.tracing.RpcName
-import com.wajam.nrv.tracing.TraceContext
-import com.wajam.nrv.data.MValue._
+import com.wajam.tracing.{Annotation, Tracer, RpcName, TraceContext}
 
 /**
  * Listen to incoming and and outgoing message and record trace information on the go

@@ -2,9 +2,9 @@ package com.wajam.nrv.service
 
 import com.wajam.nrv.protocol.Protocol
 import com.wajam.nrv.cluster.Cluster
-import com.wajam.nrv.tracing.Tracer
 import com.wajam.nrv.consistency.Consistency
 import com.wajam.nrv.protocol.codec.Codec
+import com.wajam.tracing.Tracer
 
 /**
  * ActionSupport trait handles protocol/resolver/... switching

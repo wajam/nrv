@@ -1,6 +1,6 @@
 package com.wajam.nrv.scribe
 
-import com.wajam.nrv.tracing.{TraceRecordFormatter, Record, TraceRecorder}
+import com.wajam.tracing.{TraceRecordFormatter, Record, TraceRecorder}
 
 /**
  * Scribe trace recorder.
