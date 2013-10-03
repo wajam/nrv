@@ -20,6 +20,7 @@ object NrvBuild extends Build {
 
   var commonDeps = Seq(
     "com.wajam" %% "commons-core" % "0.1-SNAPSHOT",
+    "com.wajam" %% "commons-tracing" % "0.1-SNAPSHOT",
     "org.slf4j" % "slf4j-api" % "1.6.4",
     "nl.grons" %% "metrics-scala" % "2.2.0" exclude("org.slf4j", "slf4j-api"),
     "io.netty" % "netty" % "3.5.0.Final",
