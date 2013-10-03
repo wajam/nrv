@@ -722,6 +722,6 @@ object FileTransactionLog {
   val LogFileMaxVersion: Int = 3
 
   val MinRecordLen = 0
-  val MaxRecordLen = 1000000
+  val MaxRecordLen = 2000000
   val EOR: Int = 0x5a
 }
