@@ -7,7 +7,7 @@ import com.wajam.nrv.consistency.log.{LogRecordSerializer, NullTransactionLog, F
 import java.util.concurrent.TimeUnit
 import com.yammer.metrics.core.Gauge
 import com.wajam.nrv.UnavailableException
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import com.wajam.nrv.consistency.replication._
 import scala.actors.Actor
 import com.wajam.nrv.consistency.replication.ReplicationAPIParams._

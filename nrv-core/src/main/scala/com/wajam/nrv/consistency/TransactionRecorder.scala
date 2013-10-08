@@ -6,7 +6,7 @@ import com.wajam.nrv.consistency.log.LogRecord.{Request, Response, Index}
 import com.wajam.nrv.consistency.log.TransactionLog
 import com.wajam.nrv.data.{MessageType, Message}
 import util.Random
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import collection.immutable.TreeMap
 import annotation.tailrec
 import com.wajam.commons.{CurrentTime, IdGenerator}

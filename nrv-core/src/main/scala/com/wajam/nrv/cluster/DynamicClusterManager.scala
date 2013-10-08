@@ -3,7 +3,7 @@ package com.wajam.nrv.cluster
 import scala.actors.Actor
 import com.wajam.nrv.utils.Scheduler
 import com.wajam.nrv.service._
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import com.yammer.metrics.scala.Instrumented
 import java.util.concurrent.{TimeUnit, CountDownLatch}
 import com.wajam.commons.TransformLogging

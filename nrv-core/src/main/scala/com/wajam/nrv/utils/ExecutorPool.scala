@@ -1,7 +1,7 @@
 package com.wajam.nrv.utils
 
 import scala.actors.Actor
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import scala.util.Random
 
 class ExecutorPool(val numExecutor: Int) {

@@ -8,7 +8,7 @@ import com.wajam.nrv.cluster.Node
 import scala.actors.Actor
 import collection.immutable.TreeSet
 import ReplicationAPIParams._
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.commons.{CurrentTime, UuidStringGenerator}
 import com.wajam.nrv.utils.Scheduler

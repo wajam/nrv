@@ -2,11 +2,8 @@ package com.wajam.nrv.extension.resource
 
 import com.wajam.nrv.data._
 import com.wajam.nrv.InvalidParameter
-import com.wajam.nrv.data.MLong
-import com.wajam.nrv.data.MDouble
-import com.wajam.nrv.data.MInt
-import com.wajam.nrv.data.MString
-import com.wajam.nrv.data.MList
+
+import scala.language.implicitConversions
 
 trait ParamsAccessor {
   import ParamsAccessor._

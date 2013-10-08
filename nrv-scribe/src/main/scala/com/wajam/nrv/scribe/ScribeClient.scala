@@ -8,7 +8,7 @@ import scribe.thrift.Scribe.Client
 import java.util.Collections
 import org.apache.thrift.TException
 import scala.actors.Actor
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import com.yammer.metrics.scala.Instrumented
 
 /**

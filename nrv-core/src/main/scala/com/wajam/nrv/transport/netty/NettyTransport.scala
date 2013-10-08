@@ -6,7 +6,7 @@ import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory
 import org.jboss.netty.bootstrap.{ClientBootstrap, ServerBootstrap}
 import com.wajam.nrv.protocol.{HttpProtocol, Protocol}
 import org.jboss.netty.channel._
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import java.net.{InetAddress, InetSocketAddress}
 import org.jboss.netty.util.HashedWheelTimer
 import com.wajam.nrv.transport.Transport

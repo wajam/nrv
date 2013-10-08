@@ -1,7 +1,7 @@
 package com.wajam.nrv.service
 
 import com.wajam.nrv.data._
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import java.net.InetSocketAddress
 import com.wajam.tracing.{Annotation, Tracer, RpcName, TraceContext}
 
