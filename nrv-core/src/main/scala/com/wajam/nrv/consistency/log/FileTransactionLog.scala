@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency.log
 
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import com.yammer.metrics.scala.Instrumented
 import java.io._
 import com.wajam.nrv.consistency.log.LogRecord._

@@ -2,7 +2,7 @@ package com.wajam.nrv.consistency
 
 import com.wajam.nrv.service.{ServiceMember, Action}
 import com.wajam.nrv.data.OutMessage
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 
 /**
  * Consistency that only sends messages to one replica (the first online)

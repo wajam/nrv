@@ -18,7 +18,7 @@ import com.wajam.nrv.consistency.log.LogRecord.{Response, Request}
 import org.mockito.ArgumentCaptor
 import scala.collection.JavaConversions._
 import com.wajam.nrv.consistency.log.LogRecord.Index
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import com.wajam.commons.Closable
 import com.wajam.nrv.utils.timestamp.Timestamp
 

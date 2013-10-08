@@ -2,7 +2,8 @@ package com.wajam.nrv.service
 
 import com.yammer.metrics.scala.Instrumented
 import java.util.concurrent.TimeUnit
-import com.wajam.nrv.{Logging, RemoteException, UnavailableException}
+import com.wajam.commons.Logging
+import com.wajam.nrv.{RemoteException, UnavailableException}
 import com.wajam.nrv.data._
 import scala.concurrent.{Future, Promise}
 import com.wajam.nrv.protocol.Protocol

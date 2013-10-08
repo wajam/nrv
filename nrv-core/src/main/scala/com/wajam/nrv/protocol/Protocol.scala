@@ -1,6 +1,7 @@
 package com.wajam.nrv.protocol
 
-import com.wajam.nrv.{RouteException, Logging}
+import com.wajam.commons.Logging
+import com.wajam.nrv.RouteException
 import com.wajam.nrv.service.{ActionMethod, Service, MessageHandler, Action}
 import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 import com.yammer.metrics.scala.Instrumented

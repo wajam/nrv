@@ -1,6 +1,6 @@
 package com.wajam.nrv.zookeeper
 
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import java.util.concurrent.{Callable, CountDownLatch}
 import org.apache.zookeeper.Watcher.Event.KeeperState
 import org.apache.zookeeper.ZooDefs.Ids

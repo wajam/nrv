@@ -11,7 +11,7 @@ import ReplicationAPIParams._
 import com.wajam.nrv.consistency.log.LogRecord.{Response, Request, Index}
 import com.wajam.nrv.consistency.log.LogRecord.Response.Success
 import annotation.tailrec
-import com.wajam.nrv.{TimeoutException, Logging}
+import com.wajam.nrv.TimeoutException
 import java.util.{TimerTask, Timer}
 import com.yammer.metrics.scala.Instrumented
 import util.Random

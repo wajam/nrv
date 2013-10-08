@@ -1,7 +1,7 @@
 package com.wajam.nrv.cluster
 
 import com.wajam.nrv.service.{ServiceMember, Service}
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 
 /**
  * Cluster manager that is responsible of persisting and distributing services and nodes

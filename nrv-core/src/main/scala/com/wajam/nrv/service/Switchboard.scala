@@ -2,8 +2,9 @@ package com.wajam.nrv.service
 
 import scala.actors.Actor
 import com.yammer.metrics.scala.Instrumented
+import com.wajam.commons.Logging
 import com.wajam.nrv.data.{Message, MessageType, InMessage, OutMessage}
-import com.wajam.nrv.{UnavailableException, TimeoutException, Logging}
+import com.wajam.nrv.{UnavailableException, TimeoutException}
 import java.util.concurrent.atomic.AtomicBoolean
 import com.twitter.util.RingBuffer
 import com.google.common.cache.{RemovalNotification, RemovalListener, CacheBuilder}

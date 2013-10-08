@@ -4,7 +4,7 @@ import com.wajam.nrv.cluster.{ServiceMemberVote, DynamicClusterManager}
 import com.wajam.nrv.service.{ServiceMember, Service}
 import com.wajam.nrv.zookeeper.ZookeeperClient
 import com.wajam.nrv.zookeeper.ZookeeperClient._
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.service.ZookeeperService
 import collection.mutable

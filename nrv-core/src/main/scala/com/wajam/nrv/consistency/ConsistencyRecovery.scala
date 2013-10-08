@@ -4,7 +4,7 @@ import com.wajam.nrv.consistency.log.LogRecord._
 import com.wajam.nrv.consistency.log._
 import java.io.File
 import java.nio.file.Files
-import com.wajam.nrv.Logging
+import com.wajam.commons.Logging
 import collection.mutable
 import com.yammer.metrics.scala.Instrumented
 import com.wajam.commons.{IdGenerator}
