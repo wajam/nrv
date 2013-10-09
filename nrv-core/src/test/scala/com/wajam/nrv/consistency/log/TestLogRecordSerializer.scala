@@ -26,11 +26,11 @@ class TestLogRecordSerializer extends TestTransactionBase {
 
   test("serializing a message > MaxMessageLen should fail") {
     val serializer = new LogRecordSerializer
-    val data = new Array[Byte](LogRecordSerializer.MaxMessageLen)
+    val data = new Array[Byte](10000)
     val request = Request(id = 3L, None, createRequestMessage(timestamp = 100, data = data))
 
     evaluating {
-      serializer.serialize(request)
+      serializer.serialize(request, maxMessageLen = data.length)
     } should produce[IllegalArgumentException]
   }
 

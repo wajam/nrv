@@ -214,8 +214,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   private def writeRecord(dos: DataOutputStream, record: LogRecord) {
 
-    val buf = recordSerializer.serialize(record)
-    validateRecordLength(buf.length + 16)
+    val buf = recordSerializer.serialize(record, MaxRecordLen)
+    validateRecordLength(buf.length)
 
     // Pad up to the skip interval if the record size would overlap the interval
     val lenBeforeSkip = skipIntervalSize - dos.size() % skipIntervalSize
@@ -612,7 +612,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         val eor = openFile.dataStream.readInt()
         require(eor == EOR, "End of record magic number 0x%x not 0x%x".format(eor, EOR))
         require(crc == computeRecordCrc(buf), "CRC should be %d but is %d".format(crc, computeRecordCrc(buf)))
-        val record = recordSerializer.deserialize(buf)
+        val record = recordSerializer.deserialize(buf, MaxRecordLen)
         FileLogRecord(record, position, openFile.file)
       } else {
         // Reached the end of the current log file, continue with the next available log file
