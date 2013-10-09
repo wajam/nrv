@@ -13,6 +13,7 @@ import com.wajam.nrv.consistency.log.LogRecord.Request
 import com.wajam.nrv.consistency.TestTransactionBase
 import com.wajam.nrv.consistency.log.LogRecord.Index
 import com.wajam.nrv.utils.timestamp.Timestamp
+import FileTransactionLog._
 
 @RunWith(classOf[JUnitRunner])
 class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
@@ -207,6 +208,19 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     files should be(Array("service-0000001000-0:.log"))
   }
 
+  test("should fail to append when record size > MaxRecordLen") {
+    val r1 = fileTxLog.append(LogRecord(id = 1L, None, createRequestMessage(timestamp = 1L)))
+    val logFile = new File(logDir, fileTxLog.getNameFromIndex(r1))
+    val fileLenAfterRecord1 = logFile.length()
+
+    evaluating {
+      val data = new Array[Byte](FileTransactionLog.MaxRecordLen - 80)
+      fileTxLog.append(LogRecord(id = 2L, None, createRequestMessage(timestamp = 2L, data = data)))
+    } should produce[IllegalArgumentException]
+
+    logFile.length() should be(fileLenAfterRecord1)
+  }
+
   test("should read record") {
     val record = LogRecord(id = 0, None, createRequestMessage(timestamp = 0))
     fileTxLog.append(record)
@@ -348,7 +362,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
   test("should not corrupt transaction log when append fail due to record persistence error") {
     val r1 = LogRecord(id = 100, None, createRequestMessage(timestamp = 0))
     val r2 = LogRecord(id = 101, None, createRequestMessage(timestamp = 1)) // Error
-    when(spySerializer.serialize(r2)).thenThrow(new RuntimeException("Forced error"))
+    when(spySerializer.serialize(r2, MaxRecordLen)).thenThrow(new RuntimeException("Forced error"))
     val r3 = LogRecord(id = 102, None, createRequestMessage(timestamp = 2))
     val logFile = new File(logDir, fileTxLog.getNameFromIndex(r1))
 
@@ -532,7 +546,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val fileRecord2 = new File(logDir, fileTxLog.getNameFromIndex(r2))
 
     val r3 = LogRecord(id = 200, Some(300), createRequestMessage(timestamp = 1002)) // Bad
-    when(spySerializer.serialize(r3)).thenThrow(new RuntimeException("Forced error"))
+    when(spySerializer.serialize(r3, MaxRecordLen)).thenThrow(new RuntimeException("Forced error"))
     val fileRecord3 = new File(logDir, fileTxLog.getNameFromIndex(r3))
 
     val r4 = LogRecord(id = 250, Some(400), createRequestMessage(timestamp = 1003)) // Good
@@ -588,7 +602,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     fileTxLog.commit()
 
     // Fail deserialization of the fourth transaction
-    doReturn(r1).doReturn(r2).doReturn(r3).doThrow(new IOException()).doReturn(r5).when(spySerializer).deserialize(anyObject())
+    doReturn(r1).doReturn(r2).doReturn(r3).doThrow(new IOException()).doReturn(r5).when(spySerializer).deserialize(anyObject(), anyInt())
 
     // Start at second transaction
     val actualRecords = fileTxLog.read(Index(2)).toSafeIterator.toList
@@ -920,7 +934,7 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     val record2 = LogRecord(id = 200, None, createRequestMessage(timestamp = 10))
     val fileRecord1 = new File(logDir, fileTxLog.getNameFromIndex(record1))
     val record3 = LogRecord(id = 300, Some(200), createRequestMessage(timestamp = 220))
-    when(spySerializer.serialize(record3)).thenThrow(new RuntimeException())
+    when(spySerializer.serialize(record3, MaxRecordLen)).thenThrow(new RuntimeException())
     val fileRecord3 = new File(logDir, fileTxLog.getNameFromIndex(record3))
 
     fileTxLog.append(record1)

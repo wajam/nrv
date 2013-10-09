@@ -174,7 +174,6 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         val record: T = block
         validateRecord(record)
 
-
         // Write the transaction event into the open log file
         writeRecord(logStream.getOrElse(openNewLogFile(record)), record)
         lastIndex = Some(record)
@@ -215,7 +214,8 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   private def writeRecord(dos: DataOutputStream, record: LogRecord) {
 
-    val buf = recordSerializer.serialize(record)
+    val buf = recordSerializer.serialize(record, MaxRecordLen)
+    validateRecordLength(buf.length)
 
     // Pad up to the skip interval if the record size would overlap the interval
     val lenBeforeSkip = skipIntervalSize - dos.size() % skipIntervalSize
@@ -228,6 +228,11 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     dos.write(buf)
     dos.writeInt(EOR) // End of record
     dos.flush()
+  }
+
+  private def validateRecordLength(recordLen: Int) {
+    require(recordLen >= MinRecordLen && recordLen <= MaxRecordLen,
+      s"Record length $recordLen is out of range ($MinRecordLen-$MaxRecordLen)")
   }
 
   private def computeRecordCrc(buffer: Array[Byte]): Long = {
@@ -601,14 +606,13 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
           recordLen = openFile.dataStream.readInt()
         }
 
-        require(recordLen >= MinRecordLen && recordLen <= MaxRecordLen,
-          "Record length %d is out of bound".format(recordLen))
+        validateRecordLength(recordLen)
         val buf = new Array[Byte](recordLen)
         openFile.dataStream.readFully(buf)
         val eor = openFile.dataStream.readInt()
         require(eor == EOR, "End of record magic number 0x%x not 0x%x".format(eor, EOR))
         require(crc == computeRecordCrc(buf), "CRC should be %d but is %d".format(crc, computeRecordCrc(buf)))
-        val record = recordSerializer.deserialize(buf)
+        val record = recordSerializer.deserialize(buf, MaxRecordLen)
         FileLogRecord(record, position, openFile.file)
       } else {
         // Reached the end of the current log file, continue with the next available log file
@@ -722,6 +726,6 @@ object FileTransactionLog {
   val LogFileMaxVersion: Int = 3
 
   val MinRecordLen = 0
-  val MaxRecordLen = 2000000
+  val MaxRecordLen = 1000000
   val EOR: Int = 0x5a
 }

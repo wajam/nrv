@@ -12,14 +12,14 @@ class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
   private[consistency] val messageCodec = new MessageProtobufCodec(dataCodec)
 
   @throws(classOf[IOException])
-  def serialize(record: LogRecord): Array[Byte] = {
+  def serialize(record: LogRecord, maxMessageLen: Int = DefaultMaxMessageLen): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
     val dos = new DataOutputStream(baos)
 
     record match {
       case req: Request => {
         dos.writeShort(RequestType)
-        writeRequest(req, dos)
+        writeRequest(req, dos, maxMessageLen)
       }
       case res: Response => {
         dos.writeShort(ResponseType)
@@ -35,14 +35,20 @@ class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
   }
 
   @throws(classOf[IOException])
-  private def writeRequest(record: Request, dos: DataOutputStream) {
+  private def writeRequest(record: Request, dos: DataOutputStream, maxMessageLen: Int) {
     dos.writeLong(record.id)
     writeTimestampOption(record.consistentTimestamp, dos)
     dos.writeLong(record.timestamp.value)
     dos.writeLong(record.token)
     val encodedMessage = messageCodec.encode(record.message)
+    validateMessageLength(encodedMessage.length, maxMessageLen)
     dos.writeInt(encodedMessage.length)
     dos.write(encodedMessage)
+  }
+
+  private def validateMessageLength(messageLen: Int, maxMessageLen: Int) {
+    require(messageLen >= 0 && messageLen <= maxMessageLen,
+      s"Message length $messageLen is out of range (0-$maxMessageLen)")
   }
 
   @throws(classOf[IOException])
@@ -66,13 +72,13 @@ class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
   }
 
   @throws(classOf[IOException])
-  def deserialize(data: Array[Byte]): LogRecord = {
+  def deserialize(data: Array[Byte], maxMessageLen: Int = DefaultMaxMessageLen): LogRecord = {
     val bais = new ByteArrayInputStream(data)
     val dis = new DataInputStream(bais)
 
     dis.readShort() match {
       case RequestType => {
-        readRequest(dis)
+        readRequest(dis, maxMessageLen)
       }
       case ResponseType => {
         readResponse(dis)
@@ -84,7 +90,7 @@ class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
   }
 
   @throws(classOf[IOException])
-  private def readRequest(dis: DataInputStream): Request = {
+  private def readRequest(dis: DataInputStream, maxMessageLen: Int): Request = {
     val id = dis.readLong()
     val consistentTimestamp = readTimestampOption(dis)
     val timestamp = Timestamp(dis.readLong())
@@ -92,9 +98,7 @@ class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
 
     // Read message
     val messageLen = dis.readInt()
-    if (messageLen < MinMessageLen || messageLen > MaxMessageLen) {
-      throw new IOException("Message length %d is out of bound".format(messageLen))
-    }
+    validateMessageLength(messageLen, maxMessageLen)
     val encodedMessage = new Array[Byte](messageLen)
     dis.readFully(encodedMessage)
     lazy val message = messageCodec.decode(encodedMessage).asInstanceOf[Message]
@@ -135,8 +139,7 @@ class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
 }
 
 private[log] object LogRecordSerializer {
-  val MinMessageLen = 0
-  val MaxMessageLen = 2000000
+  val DefaultMaxMessageLen = 1000000
 
   val RequestType = 1
   val ResponseType = 2
