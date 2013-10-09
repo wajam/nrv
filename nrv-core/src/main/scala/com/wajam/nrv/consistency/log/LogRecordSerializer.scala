@@ -48,7 +48,7 @@ class LogRecordSerializer(dataCodec: Codec = DefaultDataCodec) {
 
   private def validateMessageLength(messageLen: Int, maxMessageLen: Int) {
     require(messageLen >= 0 && messageLen <= maxMessageLen,
-      s"Message length $messageLen is out of bound")
+      s"Message length $messageLen is out of range (0-$maxMessageLen)")
   }
 
   @throws(classOf[IOException])

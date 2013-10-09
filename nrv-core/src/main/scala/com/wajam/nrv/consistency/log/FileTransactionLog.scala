@@ -232,7 +232,7 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
 
   private def validateRecordLength(recordLen: Int) {
     require(recordLen >= MinRecordLen && recordLen <= MaxRecordLen,
-      s"Record length $recordLen is out of bound")
+      s"Record length $recordLen is out of range ($MinRecordLen-$MaxRecordLen)")
   }
 
   private def computeRecordCrc(buffer: Array[Byte]): Long = {
