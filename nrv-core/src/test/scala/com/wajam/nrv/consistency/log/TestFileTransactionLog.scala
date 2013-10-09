@@ -207,6 +207,19 @@ class TestFileTransactionLog extends TestTransactionBase with BeforeAndAfter {
     files should be(Array("service-0000001000-0:.log"))
   }
 
+  test("should fail to append when record size > MaxRecordLen") {
+    val r1 = fileTxLog.append(LogRecord(id = 1L, None, createRequestMessage(timestamp = 1L)))
+    val logFile = new File(logDir, fileTxLog.getNameFromIndex(r1))
+    val fileLenAfterRecord1 = logFile.length()
+
+    evaluating {
+      val data = new Array[Byte](FileTransactionLog.MaxRecordLen - 80)
+      fileTxLog.append(LogRecord(id = 2L, None, createRequestMessage(timestamp = 2L, data = data)))
+    } should produce[IllegalArgumentException]
+
+    logFile.length() should be(fileLenAfterRecord1)
+  }
+
   test("should read record") {
     val record = LogRecord(id = 0, None, createRequestMessage(timestamp = 0))
     fileTxLog.append(record)

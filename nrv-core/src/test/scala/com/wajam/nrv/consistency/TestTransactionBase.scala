@@ -5,8 +5,8 @@ import com.wajam.nrv.data.{OutMessage, MessageType, InMessage, Message}
 
 abstract class TestTransactionBase extends FunSuite {
 
-  def createRequestMessage(timestamp: Long, token: Long = 0): InMessage = {
-    val request = new InMessage(Map("ts" -> timestamp, "tk" -> token))
+  def createRequestMessage(timestamp: Long, token: Long = 0, data: Any = null): InMessage = {
+    val request = new InMessage(Map("ts" -> timestamp, "tk" -> token), data = data)
     request.function = MessageType.FUNCTION_CALL
     request.token = token
     request.timestamp = Some(timestamp)

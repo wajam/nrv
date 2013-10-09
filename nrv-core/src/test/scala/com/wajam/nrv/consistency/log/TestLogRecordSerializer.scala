@@ -24,6 +24,16 @@ class TestLogRecordSerializer extends TestTransactionBase {
     actual should be(expected)
   }
 
+  test("serializing a message > MaxMessageLen should fail") {
+    val serializer = new LogRecordSerializer
+    val data = new Array[Byte](LogRecordSerializer.MaxMessageLen)
+    val request = Request(id = 3L, None, createRequestMessage(timestamp = 100, data = data))
+
+    evaluating {
+      serializer.serialize(request)
+    } should produce[IllegalArgumentException]
+  }
+
   test("should serialize and deserialize request record event without a consistant timestamp") {
     val serializer = new LogRecordSerializer
     val message = createRequestMessage(timestamp = 100, token = 200)
