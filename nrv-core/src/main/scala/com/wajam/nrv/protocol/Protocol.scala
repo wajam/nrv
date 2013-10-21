@@ -64,7 +64,7 @@ abstract class Protocol(val name: String,
         }
         case None =>
           error("Couldn't find services/action for received message {}", message)
-          throw new RouteException("No route found for received message " + message.toString)
+          throw new RouteException("No route found for received message " + message.toString, message.function)
       }
 
     } catch {
@@ -249,6 +249,6 @@ object Protocol {
   val FLAGS = "flags"
 }
 
-case class ParsingException(message: String, code: Int = 400) extends Exception(message)
+case class ParsingException(message: String, function: Int, code: Int = 400) extends Exception(message)
 
 case class ListenerException(message: String) extends Exception(message)

@@ -2,6 +2,7 @@ package com.wajam.nrv.protocol
 
 import codec.{DummyCodec, GenericJavaSerializeCodec}
 import com.wajam.nrv.data._
+import MessageType.FUNCTION_RESPONSE
 import com.wajam.nrv.service._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
@@ -133,7 +134,7 @@ class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with Shoul
 
     val protocol = new NrvProtocol(cluster.localNode, 10000, 100) {
       override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
-        throw new ParsingException("400")
+        throw new ParsingException("400", FUNCTION_RESPONSE)
       }
 
       override def handleIncoming(action: Action, message: InMessage) {

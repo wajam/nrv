@@ -139,11 +139,20 @@ class HttpProtocol(name: String,
   }
 
   override protected def handleIncomingMessageError(exception: Exception, connectionInfo: Option[AnyRef]) {
-    handleOutgoing(null, createErrorMessage(exception, exception match {
-      case pe: ParsingException => pe.code
-      case re: RouteException => 404
-      case _ => 500
-    }, connectionInfo))
+    val responseCode = exception match {
+      case pe: ParsingException if pe.function == FUNCTION_CALL => Some(pe.code)
+      case re: RouteException   if re.function == FUNCTION_CALL => Some(404)
+      case _                                                    => None
+    }
+
+    responseCode match {
+      // Message is a request: respond with error message
+      case Some(code) =>
+        handleOutgoing(null, createErrorMessage(exception, code, connectionInfo))
+      // Unable to know if response or request at this step: just log the error
+      case _ =>
+        error("Incoming message caused error: {}", exception.toString)
+    }
   }
 
   private def mapHeaders(httpMessage: HttpMessage, message: Message) {
@@ -164,7 +173,7 @@ class HttpProtocol(name: String,
     contentTypeCodecs.get(contentType) match {
       case Some(codec) => message.messageData = codec.decode(bytes, contentEncoding)
       case None => {
-        throw new ParsingException("Unsupported content-type " + contentType, 406)
+        throw new ParsingException("Unsupported content-type " + contentType, message.function, 406)
       }
     }
   }
@@ -264,6 +273,7 @@ class HttpProtocol(name: String,
   private def createErrorMessage(exception: Exception, code: Int, connectionInfo: Option[AnyRef]): OutMessage = {
     val errorMessage = new OutMessage()
     errorMessage.code = code
+    errorMessage.function = FUNCTION_RESPONSE
     errorMessage.messageData = exception.getMessage
     errorMessage.attachments(Protocol.CONNECTION_KEY) = connectionInfo
     errorMessage.attachments(Protocol.CLOSE_AFTER) = true

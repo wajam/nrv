@@ -6,19 +6,20 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.service.{Replica, Shard, Endpoints}
+import org.scalatest.mock.MockitoSugar
+import org.mockito.Mockito._
+import org.mockito.Matchers.{anyObject, argThat, eq => mockEq}
+import org.mockito.ArgumentMatcher
 import org.jboss.netty.handler.codec.http._
+import com.wajam.nrv.service._
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
-import com.wajam.nrv.service.ActionMethod
 import com.wajam.nrv.data._
+import com.wajam.nrv.data.MessageType._
 import com.wajam.nrv.protocol.HttpProtocol.HttpChunkedResponse
-
-/**
- *
- */
+import com.wajam.nrv.transport.http.HttpNettyTransport
 
 @RunWith(classOf[JUnitRunner])
-class TestHttpProtocol extends FunSuite with BeforeAndAfter {
+class TestHttpProtocol extends FunSuite with BeforeAndAfter with MockitoSugar {
   val localnode = new LocalNode("localhost", Map("nrv" -> 19191, "http" -> 1909))
   val destination = new Endpoints(Seq(new Shard(0, Seq(new Replica(0, localnode, true)))))
   var unchunkedProtocol: HttpProtocol = null
@@ -267,5 +268,130 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter {
     msg.function = MessageType.FUNCTION_RESPONSE
 
     assert(unchunkedProtocol.generate(msg).isInstanceOf[HttpChunkedResponse])
+  }
+
+  /**
+   * Tests for error handling
+   */
+
+  // Check the status code of a HTTP response
+  class IsResponseWithCode(code: Int) extends ArgumentMatcher {
+    def matches(response: Any) = {
+      response match {
+        case res: HttpResponse =>
+          res.getStatus.getCode == code
+        case _ =>
+          false
+      }
+    }
+  }
+
+  test("should send a 404 response when an incoming function call doesn't match any route") {
+    val transportMock = mock[HttpNettyTransport]
+    val protocol = new HttpProtocol("http", localnode, 10000, 100) {
+      override val transport = transportMock
+    }
+
+    val msg = new InMessage()
+    msg.function = FUNCTION_CALL
+    msg.attachments += (Protocol.CONNECTION_KEY -> Some(mock[AnyRef]))
+    msg.serviceName = "nonexistent"
+    msg.path = "/nonexistent"
+
+    protocol.handleIncoming(null, msg)
+
+    verify(transportMock).sendResponse(anyObject(), argThat(new IsResponseWithCode(404)), mockEq(true), anyObject())
+  }
+
+  test("should NOT send a response when an incoming function response doesn't match any route") {
+    val transportMock = mock[HttpNettyTransport]
+    val protocol = new HttpProtocol("http", localnode, 10000, 100) {
+      override val transport = transportMock
+    }
+
+    val msg = new InMessage()
+    msg.function = FUNCTION_RESPONSE
+    msg.attachments += (Protocol.CONNECTION_KEY -> Some(mock[AnyRef]))
+    msg.serviceName = "nonexistent"
+    msg.path = "/nonexistent"
+
+    protocol.handleIncoming(null, msg)
+
+    verifyZeroInteractions(transportMock)
+  }
+
+  test("should send a 406 response when unable to parse an incoming function call") {
+    val serviceName = "dummy-service"
+    val path = "/dummy-path"
+
+    val dummyService = mock[Service]
+    val dummyAction  = mock[Action]
+
+    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, serviceName + path)
+    // Voluntarily set an unknown content type
+    request.setHeader("CONTENT-TYPE", "unknown/unknown")
+
+
+    // Bind action to mocked service to avoid throwing RouteException
+    when(dummyService.findAction(anyObject(), anyObject())).thenReturn(Some(dummyAction))
+
+    val transportMock = mock[HttpNettyTransport]
+    val protocol = new HttpProtocol("http", localnode, 10000, 100) {
+      override val transport = transportMock
+    }
+
+    protocol.services += (serviceName -> dummyService)
+
+    // Inject the request as if it came from transport, connectionInfo is not important
+    protocol.transportMessageReceived(request, Some(mock[AnyRef]), Map[String, Any]())
+
+    verify(transportMock).sendResponse(anyObject(), argThat(new IsResponseWithCode(406)), mockEq(true), anyObject())
+  }
+
+  test("should NOT send a response when unable to parse an incoming function response") {
+    val serviceName = "dummy-service"
+
+    val dummyService = mock[Service]
+    val dummyAction  = mock[Action]
+
+    val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
+    // Voluntarily set an unknown content type
+    response.setHeader("CONTENT-TYPE", "unknown/unknown")
+
+    // Bind action to mocked service to avoid throwing RouteException
+    when(dummyService.findAction(anyObject(), anyObject())).thenReturn(Some(dummyAction))
+
+    val transportMock = mock[HttpNettyTransport]
+    val protocol = new HttpProtocol("http", localnode, 10000, 100) {
+      override val transport = transportMock
+    }
+
+    protocol.services += (serviceName -> dummyService)
+
+    // Inject the response as if it came from transport, connectionInfo is not important
+    protocol.transportMessageReceived(response, Some(mock[AnyRef]), Map[String, Any]())
+
+    verifyZeroInteractions(transportMock)
+  }
+
+  test("should NOT send a response when a generic exception is thrown") {
+    val serviceName = "dummy-service"
+    val path = "/dummy-path"
+
+    val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, serviceName + path) {
+      // Will throw a generic exception at the very beginning of parsing
+      override def getMethod: HttpMethod = throw new Exception
+    }
+    request.setHeader("CONTENT-TYPE", "unknown/unknown")
+
+    val transportMock = mock[HttpNettyTransport]
+    val protocol = new HttpProtocol("http", localnode, 10000, 100) {
+      override val transport = transportMock
+    }
+
+    // Inject the request as if it came from transport, connectionInfo is not important
+    protocol.transportMessageReceived(request, Some(mock[AnyRef]), Map[String, Any]())
+
+    verifyZeroInteractions(transportMock)
   }
 }
