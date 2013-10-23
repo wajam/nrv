@@ -139,6 +139,8 @@ abstract class NettyTransport(host: InetAddress,
 
   def writeOnChannel(channel: Channel, message: AnyRef): ChannelFuture = channel.write(message)
 
+  def closeChannel(channel: Option[AnyRef]) = channel.map(_.asInstanceOf[Channel].close())
+
   class NettyServer(host: InetAddress, port: Int, factory: NettyTransportCodecFactory) extends Logging {
 
     val serverMessageHandler = new MessageHandler(true)

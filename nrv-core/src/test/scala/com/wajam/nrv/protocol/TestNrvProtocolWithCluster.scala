@@ -2,6 +2,7 @@ package com.wajam.nrv.protocol
 
 import codec.{DummyCodec, GenericJavaSerializeCodec}
 import com.wajam.nrv.data._
+import MessageType.FUNCTION_RESPONSE
 import com.wajam.nrv.service._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner

@@ -70,7 +70,7 @@ abstract class Protocol(val name: String,
     } catch {
       case e: RouteException => {
         routingError.mark()
-        handleIncomingMessageError(e, message.attachments(Protocol.CONNECTION_KEY).asInstanceOf[Option[AnyRef]])
+        handleIncomingMessageError(message, e, message.attachments(Protocol.CONNECTION_KEY).asInstanceOf[Option[AnyRef]])
       }
     }
   }
@@ -177,17 +177,17 @@ abstract class Protocol(val name: String,
       case pe: ParsingException => {
         parsingError.mark()
         warn("Parsing exception: {}", pe)
-        handleIncomingMessageError(pe, connectionInfo)
+        handleIncomingMessageError(message, pe, connectionInfo)
       }
       case e: Exception => {
         receptionError.mark()
         warn("Exception caught while processing a message from transport", e)
-        handleIncomingMessageError(e, connectionInfo)
+        handleIncomingMessageError(message, e, connectionInfo)
       }
     }
   }
 
-  protected def handleIncomingMessageError(exception: Exception, connectionInfo: Option[AnyRef]) {}
+  protected def handleIncomingMessageError(message: AnyRef, exception: Exception, connectionInfo: Option[AnyRef]) {}
 
   /**
    * Parse the received message and convert it to a standard Message object.
