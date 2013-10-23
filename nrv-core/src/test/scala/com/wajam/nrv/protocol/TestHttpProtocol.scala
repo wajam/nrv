@@ -17,6 +17,7 @@ import com.wajam.nrv.data._
 import com.wajam.nrv.data.MessageType._
 import com.wajam.nrv.protocol.HttpProtocol.HttpChunkedResponse
 import com.wajam.nrv.transport.http.HttpNettyTransport
+import org.jboss.netty.channel.Channel
 
 @RunWith(classOf[JUnitRunner])
 class TestHttpProtocol extends FunSuite with BeforeAndAfter with MockitoSugar {
@@ -303,21 +304,23 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter with MockitoSugar {
     verify(transportMock).sendResponse(anyObject(), argThat(new IsResponseWithCode(404)), mockEq(true), anyObject())
   }
 
-  test("should NOT send a response when an incoming function response doesn't match any route") {
+  test("should close the connection without sending a response when an incoming function response doesn't match any route") {
     val transportMock = mock[HttpNettyTransport]
+    val channelMock = Some(mock[Channel])
     val protocol = new HttpProtocol("http", localnode, 10000, 100) {
       override val transport = transportMock
     }
 
     val msg = new InMessage()
     msg.function = FUNCTION_RESPONSE
-    msg.attachments += (Protocol.CONNECTION_KEY -> Some(mock[AnyRef]))
+    msg.attachments += (Protocol.CONNECTION_KEY -> channelMock)
     msg.serviceName = "nonexistent"
     msg.path = "/nonexistent"
 
     protocol.handleIncoming(null, msg)
 
-    verifyZeroInteractions(transportMock)
+    verify(transportMock, never()).sendResponse(anyObject(), anyObject(), anyObject(), anyObject())
+    verify(transportMock).closeChannel(channelMock)
   }
 
   test("should send a 406 response when unable to parse an incoming function call") {
@@ -348,11 +351,13 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter with MockitoSugar {
     verify(transportMock).sendResponse(anyObject(), argThat(new IsResponseWithCode(406)), mockEq(true), anyObject())
   }
 
-  test("should NOT send a response when unable to parse an incoming function response") {
+  test("should close the connection without sending a response when unable to parse an incoming function response") {
     val serviceName = "dummy-service"
 
     val dummyService = mock[Service]
     val dummyAction  = mock[Action]
+
+    val channelMock = Some(mock[Channel])
 
     val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
     // Voluntarily set an unknown content type
@@ -369,14 +374,17 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter with MockitoSugar {
     protocol.services += (serviceName -> dummyService)
 
     // Inject the response as if it came from transport, connectionInfo is not important
-    protocol.transportMessageReceived(response, Some(mock[AnyRef]), Map[String, Any]())
+    protocol.transportMessageReceived(response, channelMock, Map[String, Any]())
 
-    verifyZeroInteractions(transportMock)
+    verify(transportMock, never()).sendResponse(anyObject(), anyObject(), anyObject(), anyObject())
+    verify(transportMock).closeChannel(channelMock)
   }
 
-  test("should NOT send a response when a generic exception is thrown") {
+  test("should close the connection without sending a response when a generic exception is thrown") {
     val serviceName = "dummy-service"
     val path = "/dummy-path"
+
+    val channelMock = Some(mock[Channel])
 
     val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, serviceName + path) {
       // Will throw a generic exception at the very beginning of parsing
@@ -390,8 +398,9 @@ class TestHttpProtocol extends FunSuite with BeforeAndAfter with MockitoSugar {
     }
 
     // Inject the request as if it came from transport, connectionInfo is not important
-    protocol.transportMessageReceived(request, Some(mock[AnyRef]), Map[String, Any]())
+    protocol.transportMessageReceived(request, channelMock, Map[String, Any]())
 
-    verifyZeroInteractions(transportMock)
+    verify(transportMock, never()).sendResponse(anyObject(), anyObject(), anyObject(), anyObject())
+    verify(transportMock).closeChannel(channelMock)
   }
 }

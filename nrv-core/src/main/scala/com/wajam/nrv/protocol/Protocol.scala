@@ -64,13 +64,13 @@ abstract class Protocol(val name: String,
         }
         case None =>
           error("Couldn't find services/action for received message {}", message)
-          throw new RouteException("No route found for received message " + message.toString, message.function)
+          throw new RouteException("No route found for received message " + message.toString)
       }
 
     } catch {
       case e: RouteException => {
         routingError.mark()
-        handleIncomingMessageError(e, message.attachments(Protocol.CONNECTION_KEY).asInstanceOf[Option[AnyRef]])
+        handleIncomingMessageError(message, e, message.attachments(Protocol.CONNECTION_KEY).asInstanceOf[Option[AnyRef]])
       }
     }
   }
@@ -177,17 +177,17 @@ abstract class Protocol(val name: String,
       case pe: ParsingException => {
         parsingError.mark()
         warn("Parsing exception: {}", pe)
-        handleIncomingMessageError(pe, connectionInfo)
+        handleIncomingMessageError(message, pe, connectionInfo)
       }
       case e: Exception => {
         receptionError.mark()
         warn("Exception caught while processing a message from transport", e)
-        handleIncomingMessageError(e, connectionInfo)
+        handleIncomingMessageError(message, e, connectionInfo)
       }
     }
   }
 
-  protected def handleIncomingMessageError(exception: Exception, connectionInfo: Option[AnyRef]) {}
+  protected def handleIncomingMessageError(message: AnyRef, exception: Exception, connectionInfo: Option[AnyRef]) {}
 
   /**
    * Parse the received message and convert it to a standard Message object.
@@ -249,6 +249,6 @@ object Protocol {
   val FLAGS = "flags"
 }
 
-case class ParsingException(message: String, function: Int, code: Int = 400) extends Exception(message)
+case class ParsingException(message: String, code: Int = 400) extends Exception(message)
 
 case class ListenerException(message: String) extends Exception(message)

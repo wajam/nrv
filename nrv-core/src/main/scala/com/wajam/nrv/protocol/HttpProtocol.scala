@@ -138,20 +138,23 @@ class HttpProtocol(name: String,
     }
   }
 
-  override protected def handleIncomingMessageError(exception: Exception, connectionInfo: Option[AnyRef]) {
+  override protected def handleIncomingMessageError(message: AnyRef, exception: Exception, connectionInfo: Option[AnyRef]) {
     val responseCode = exception match {
-      case pe: ParsingException if pe.function == FUNCTION_CALL => Some(pe.code)
-      case re: RouteException   if re.function == FUNCTION_CALL => Some(404)
-      case _                                                    => None
+      case pe: ParsingException => Some(pe.code)
+      case re: RouteException   => Some(404)
+      case _                    => None
     }
 
-    responseCode match {
+    (responseCode, message) match {
       // Message is a request: respond with error message
-      case Some(code) =>
-        handleOutgoing(null, createErrorMessage(exception, code, connectionInfo))
-      // Unable to know if response or request at this step: just log the error
-      case _ =>
-        error("Incoming message caused error: {}", exception.toString)
+      case (Some(code), _: HttpRequest) =>
+        handleOutgoing(null, createErrorResponse(exception, code, connectionInfo))
+      case (Some(code), msg: Message) if msg.function == FUNCTION_CALL =>
+        handleOutgoing(null, createErrorResponse(exception, code, connectionInfo))
+      // Message is a response: log the error and close the connection
+      case (_, _) =>
+        error("Incoming response caused error: {}", exception.toString)
+        transport.closeChannel(connectionInfo)
     }
   }
 
@@ -173,7 +176,7 @@ class HttpProtocol(name: String,
     contentTypeCodecs.get(contentType) match {
       case Some(codec) => message.messageData = codec.decode(bytes, contentEncoding)
       case None => {
-        throw new ParsingException("Unsupported content-type " + contentType, message.function, 406)
+        throw new ParsingException("Unsupported content-type " + contentType, 406)
       }
     }
   }
@@ -270,7 +273,7 @@ class HttpProtocol(name: String,
     })
   }
 
-  private def createErrorMessage(exception: Exception, code: Int, connectionInfo: Option[AnyRef]): OutMessage = {
+  private def createErrorResponse(exception: Exception, code: Int, connectionInfo: Option[AnyRef]): OutMessage = {
     val errorMessage = new OutMessage()
     errorMessage.code = code
     errorMessage.function = FUNCTION_RESPONSE
