@@ -66,9 +66,7 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
     }).map(node => node.element)
   }
 
-  override def start() {
-    super.start()
-
+  def start() {
     for (action <- this.actions) {
       action.start()
     }
@@ -76,9 +74,7 @@ class Service(val name: String, actionSupportOptions: ActionSupportOptions = new
     consistency.start()
   }
 
-  override def stop() {
-    super.stop()
-
+  def stop() {
     for (action <- this.actions) {
       action.stop()
     }

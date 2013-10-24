@@ -8,10 +8,10 @@ trait Startable {
   /**
    * Start this component.
    */
-  def start() {}
+  def start()
 
   /**
    * Stop this component.
    */
-  def stop() {}
+  def stop()
 }
