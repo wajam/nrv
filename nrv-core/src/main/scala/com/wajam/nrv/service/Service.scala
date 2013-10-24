@@ -2,6 +2,7 @@ package com.wajam.nrv.service
 
 import com.wajam.nrv.cluster.Node
 import com.wajam.commons.{Event, Observable}
+import com.wajam.nrv.utils.Startable
 
 /**
  * Service handled by the cluster that offers actions that can be executed on remote nodes. A service
@@ -12,7 +13,7 @@ import com.wajam.commons.{Event, Observable}
  * Members of the service are represented by a consistent hashing ring (@see Ring)
  */
 class Service(val name: String, actionSupportOptions: ActionSupportOptions = new ActionSupportOptions())
-  extends ActionSupport with Observable {
+  extends ActionSupport with Startable with Observable {
 
   val ring = new Object with Ring[ServiceMember]
   var actions = List[Action]()
