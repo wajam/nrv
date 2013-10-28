@@ -425,10 +425,10 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
   }
 
   /**
-   * Returns the log file that most likely contain the record with the specified timestamp. The record is garantee to
+   * Returns the log file that most likely contain the record with the specified timestamp. The record is guarantee to
    * NOT be in a following log file but may be in an earlier log file.
    */
-  private[log] def guessLogFile(timestamp: Timestamp): Option[File] = {
+  def guessLogFile(timestamp: Timestamp): Option[File] = {
     // Find last log file having a consistent timestamp less than searched timestamp
     getLogFiles.toSeq.reverseIterator.find(file =>
       getIndexFromName(file.getName).consistentTimestamp.getOrElse(Timestamp(Long.MinValue)) < timestamp)
@@ -466,11 +466,11 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
     }
   }
 
-  private[log] def getNameFromIndex(index: Index): String = {
+  def getNameFromIndex(index: Index): String = {
     "%s-%d:%s.log".format(filePrefix, index.id, index.consistentTimestamp.getOrElse("").toString)
   }
 
-  private[log] def getIndexFromName(name: String): Index = {
+  def getIndexFromName(name: String): Index = {
     val end = name.lastIndexOf(".")
     val start = name.lastIndexOf("-", end) + 1
     name.substring(start, end).split(":") match {
