@@ -34,6 +34,7 @@ object JsonCodec {
       case v: JValue => v
       case s: String => JString(s)
       case l: Long => JInt(l)
+      case bi: BigInt => JInt(bi)
       case i: Int => JInt(i)
       case d: Double => JDouble(d)
       case b: Boolean => JBool(b)
