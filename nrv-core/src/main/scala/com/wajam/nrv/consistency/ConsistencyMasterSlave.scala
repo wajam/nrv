@@ -601,7 +601,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
             }
             case Some(lastStoreTimestamp) if lastStoreTimestamp < lastLogTimestamp => {
               info("Possible transaction log and storage inconsistency. Falling back to slower committed timestamp verification (store={}, log={}) {}",
-                lastLogTimestamp, lastLogTimestamp, member)
+                lastStoreTimestamp, lastLogTimestamp, member)
               val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
                 serializer = Some(serializer))
               txLog.lastSuccessfulTimestamp(lastStoreTimestamp) match {
@@ -611,7 +611,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
                 }
                 case Some(lastCommittedLogTimestamp) => {
                   error("Last transaction log committed timestamp and storage last timestamp are different! (store={}, log={}) {}",
-                    lastLogTimestamp, lastCommittedLogTimestamp, member)
+                    lastStoreTimestamp, lastCommittedLogTimestamp, member)
                   onError
                 }
                 case None => {
@@ -638,9 +638,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
           info("The master service member has no transaction log and is assumed to be consistent {}", member)
           onSuccess
         }
+        case None if service.getLastTimestamp(member.ranges).isEmpty => {
+          // Slave replica store is empty and has no transaction log, assume the store is consistent
+          info("Service member is consistent. The slave service member is empty and has no transaction log {}", member)
+          onSuccess
+        }
         case None => {
-          // No transaction log and slave replica, assume the store is consistent
-          error("Service member is inconsistent. The slave service member has no transaction log {}", member)
+          // Slave replica store is NON empty and has no transaction log, assume the store is inconsistent
+          error("Service member is inconsistent. The slave service member is NOT empty and has no transaction log {}", member)
           onError
         }
       }
