@@ -287,7 +287,10 @@ class FileTransactionLog(val service: String, val token: Long, val logDir: Strin
         }
       }
 
-      result.get
+      result match {
+        case Some(itr) => itr
+        case None => throw new NoSuchElementException(timestamp.toString)
+      }
     }
   }
 
