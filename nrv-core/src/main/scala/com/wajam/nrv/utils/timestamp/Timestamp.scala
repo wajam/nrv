@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 trait Timestamp extends Serializable with Ordered[Timestamp] {
   def value: Long
 
-  def timeMs: Long = (value - value % 10000) / 10000
+  def timeMs: Long = value / 10000
 
   def seq: Int = (value % 10000).toInt
 
