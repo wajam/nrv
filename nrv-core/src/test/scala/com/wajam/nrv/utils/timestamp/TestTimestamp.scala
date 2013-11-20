@@ -11,14 +11,14 @@ class TestTimestamp extends FunSuite {
 
   test("should fail if sequence value is out of bounds") {
     evaluating {
-      Timestamp(System.currentTimeMillis(), 10000)
+      Timestamp(System.currentTimeMillis(), Timestamp.SeqPerMs)
     } should produce[IndexOutOfBoundsException]
 
     evaluating {
       Timestamp(System.currentTimeMillis(), -1)
     } should produce[IndexOutOfBoundsException]
 
-    Timestamp(System.currentTimeMillis(), 0)
+    Timestamp(System.currentTimeMillis(), Timestamp.SeqPerMs - 1).seq should be(Timestamp.SeqPerMs - 1)
   }
 
   test("timeMs and seq should be preserved") {
@@ -29,8 +29,8 @@ class TestTimestamp extends FunSuite {
     val ts3 = Timestamp(ts2)
     
     ts1 should be(ts2)
-    ts1 should be(ts3)
     ts2 should be(ts3)
+    ts3 should be(ts1)
     
     for (ts <- Seq(ts1, ts2, ts3)) {
       ts.timeMs should be(expectedTimeMs)
