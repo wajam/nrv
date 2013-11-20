@@ -8,6 +8,10 @@ import scala.language.implicitConversions
 trait Timestamp extends Serializable with Ordered[Timestamp] {
   def value: Long
 
+  def timeMs: Long = (value - value % 10000) / 10000
+
+  def seq: Int = (value % 10000).toInt
+
   override def compare(t: Timestamp) = compareTo(t)
 
   override def compareTo(t: Timestamp): Int = {
@@ -28,14 +32,23 @@ trait Timestamp extends Serializable with Ordered[Timestamp] {
 }
 
 object Timestamp {
-  def apply(l: Long): Timestamp = new Timestamp {
-    val value = l
+  val MinSeq = 0
+  val MaxSeq = 9999
+
+  def apply(tsValue: Long): Timestamp = new Timestamp {
+    val value = tsValue
   }
-  def apply(l: String): Timestamp = new Timestamp {
-    val value = l.toLong
-  }
-  def apply(t: Timestamp): Timestamp = new Timestamp {
-    val value = t.value
+
+  def apply(ts: Timestamp): Timestamp = Timestamp(ts.value)
+
+  def apply(timeMs: Long, seq: Int): Timestamp = {
+    if (seq > Timestamp.MaxSeq) {
+      throw new IndexOutOfBoundsException(s"$seq > $MaxSeq")
+    } else if (seq < Timestamp.MinSeq) {
+      throw new IndexOutOfBoundsException(s"$seq < $MinSeq")
+    }
+
+    Timestamp(timeMs * 10000 + seq)
   }
 
   implicit def long2Timestamp(l: Long) = Timestamp(l)
