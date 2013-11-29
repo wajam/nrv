@@ -22,7 +22,7 @@ abstract class HttpHealth(cluster: Cluster) extends Resource("health", "", None)
 
     val headers = Map("Content-Type" -> contentType)
     val data = Map("status" -> status)
-    request.reply(Map(), headers, data, code = 200)
+    request.reply(Map(), headers, data, code = code)
   }
 
 }
