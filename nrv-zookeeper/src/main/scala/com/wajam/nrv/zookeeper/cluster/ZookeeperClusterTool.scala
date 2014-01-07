@@ -103,6 +103,10 @@ object ZookeeperClusterTool extends App {
           if (zkClient.exists(votesPath)) {
             lines = (votesPath, "") :: lines
           }
+          val replicasPath = zkMemberReplicasPath(service, member)
+          if(zkClient.exists(replicasPath)) {
+            lines = (replicasPath, zkClient.getString(replicasPath)) :: lines
+          }
         }
       }
     }
