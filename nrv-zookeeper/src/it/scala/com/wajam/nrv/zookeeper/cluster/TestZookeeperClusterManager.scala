@@ -1,15 +1,13 @@
 package com.wajam.nrv.zookeeper.cluster
 
-import org.scalatest.{BeforeAndAfter, FunSuite}
-import com.wajam.nrv.cluster.{LocalNode, ServiceMemberVote, Node, Cluster}
-import com.wajam.nrv.zookeeper.ZookeeperClient._
-import com.wajam.nrv.service._
-import org.apache.zookeeper.CreateMode
-import com.wajam.nrv.zookeeper.ZookeeperClient
-import org.scalatest.matchers.ShouldMatchers
-import com.wajam.nrv.service
 import com.yammer.metrics.Metrics
-import com.yammer.metrics.core.Counter
+import org.scalatest.{BeforeAndAfter, FunSuite}
+import org.scalatest.matchers.ShouldMatchers
+import com.wajam.nrv.cluster.{LocalNode, Node, Cluster}
+import com.wajam.nrv.service
+import com.wajam.nrv.service._
+import com.wajam.nrv.zookeeper.{ZookeeperTestHelpers, ZookeeperClient}
+import com.wajam.nrv.zookeeper.ZookeeperClient._
 
 class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with ShouldMatchers {
 
@@ -32,7 +30,7 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with Shou
     clusters = List[TestCluster]()
   }
 
-  class TestCluster(id: Int) {
+  class TestCluster(id: Int) extends ZookeeperTestHelpers {
     val localNode = new LocalNode("127.0.0.1", Map("nrv" -> (10010 + id)))
 
     // create a zookeeper chrooted on /tests/clustermanager
@@ -64,43 +62,6 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with Shou
     zkCreateServiceMember(service2, service2_member7)
     zkCreateServiceMember(service2, service2_member16)
     zkCreateServiceMember(service2, service2_member32)
-
-    def zkCreateService(service: Service) {
-      val path = ZookeeperClusterManager.zkServicePath(service.name)
-      zk.ensureAllExists(path, service.name, CreateMode.PERSISTENT)
-    }
-
-    def zkCreateServiceMember(service: Service, serviceMember: ServiceMember) {
-      val path = ZookeeperClusterManager.zkMemberPath(service.name, serviceMember.token)
-      val created = zk.ensureAllExists(path, serviceMember.toString, CreateMode.PERSISTENT)
-
-      // if node existed, overwrite
-      if (!created)
-        zk.set(path, serviceMember.toString)
-
-      val votePath = ZookeeperClusterManager.zkMemberVotesPath(service.name, serviceMember.token)
-      zk.ensureAllExists(votePath, "", CreateMode.PERSISTENT)
-    }
-
-    def zkDeleteServiceMember(service: Service, serviceMember: ServiceMember) {
-      val path = ZookeeperClusterManager.zkMemberPath(service.name, serviceMember.token)
-      zk.deleteRecursive(path)
-    }
-
-    def zkCastVote(service: Service, candidateMember: ServiceMember, voterMember: ServiceMember, votedStatus: MemberStatus) {
-      val vote = new ServiceMemberVote(candidateMember, voterMember, votedStatus)
-      val path = ZookeeperClusterManager.zkMemberVotePath(service.name, candidateMember.token, voterMember.token)
-      val created = zk.ensureAllExists(path, vote.toString, CreateMode.PERSISTENT)
-
-      // if node existed, overwrite
-      if (created)
-        zk.set(path, vote.toString)
-    }
-
-    def zkDeleteVote(service: Service, candidateMember: ServiceMember, voterMember: ServiceMember) {
-      val path = ZookeeperClusterManager.zkMemberVotePath(service.name, candidateMember.token, voterMember.token)
-      zk.delete(path)
-    }
 
     def start() = {
       cluster.start()
