@@ -104,7 +104,7 @@ object ZookeeperClusterTool extends App {
             lines = (votesPath, "") :: lines
           }
           val replicasPath = zkMemberReplicasPath(service, member)
-          if(zkClient.exists(replicasPath)) {
+          if (zkClient.exists(replicasPath)) {
             lines = (replicasPath, zkClient.getString(replicasPath)) :: lines
           }
         }

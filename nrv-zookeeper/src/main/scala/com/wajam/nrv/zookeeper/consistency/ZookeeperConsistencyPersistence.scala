@@ -1,6 +1,5 @@
 package com.wajam.nrv.zookeeper.consistency
 
-import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Await
 import com.wajam.commons.Event
@@ -18,7 +17,7 @@ import org.apache.zookeeper.KeeperException.Code
 import ZookeeperConsistencyPersistence._
 
 /**
- *  Cluster configuration backed by Zookeeper.
+ * Cluster configuration backed by Zookeeper.
  */
 class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(implicit ec: ExecutionContext, as: ActorSystem) extends ConsistencyPersistence {
 
@@ -58,9 +57,10 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
     mappingFuture.onSuccess {
       case (newSequence: Int, newMapping: ReplicasMapping) =>
         synchronized {
-          if(newSequence > mappingSequence)
+          if (newSequence > mappingSequence) {
             mappingSequence = newSequence
-          mapping = newMapping
+            mapping = newMapping
+          }
         }
     }
   }
@@ -87,7 +87,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
       // Fetches the entire (token -> replicas) mapping for the service.
       private def fetchReplicasMapping: ReplicasMapping = {
         service.members.map { member =>
-        // Get the node value from Zookeeper and watch for changes
+          // Get the node value from Zookeeper and watch for changes
           val replicas = fetchMemberReplicas(member)
 
           member.token -> replicas
@@ -121,9 +121,13 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
 
         def newMemberChildCallback(e: NodeChildrenChanged) = {
           // Replicas path has been created: trigger an update
-          if(zk.exists(replicasPath)) updateReplicasMapping()
+          if (zk.exists(replicasPath)) {
+            updateReplicasMapping()
+          }
           // Replicas path still doesn't exist: continue watching
-          else watchMemberReplicas(member, replicasPath)
+          else {
+            watchMemberReplicas(member, replicasPath)
+          }
         }
 
         val callback = newMemberChildCallbacks.get(memberPath).getOrElse {
@@ -138,6 +142,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
   ))
 
   case object Fetch
+
 }
 
 object ZookeeperConsistencyPersistence {

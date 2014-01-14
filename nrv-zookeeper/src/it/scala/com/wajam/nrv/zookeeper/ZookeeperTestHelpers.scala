@@ -19,8 +19,9 @@ trait ZookeeperTestHelpers {
     val created = zk.ensureAllExists(path, serviceMember.toString, CreateMode.PERSISTENT)
 
     // if node existed, overwrite
-    if (!created)
+    if (!created) {
       zk.set(path, serviceMember.toString)
+    }
 
     val votePath = ZookeeperClusterManager.zkMemberVotesPath(service.name, serviceMember.token)
     zk.ensureAllExists(votePath, "", CreateMode.PERSISTENT)
@@ -37,8 +38,9 @@ trait ZookeeperTestHelpers {
     val created = zk.ensureAllExists(path, vote.toString, CreateMode.PERSISTENT)
 
     // if node existed, overwrite
-    if (created)
+    if (created) {
       zk.set(path, vote.toString)
+    }
   }
 
   def zkDeleteVote(service: Service, candidateMember: ServiceMember, voterMember: ServiceMember) {
