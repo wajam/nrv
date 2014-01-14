@@ -55,11 +55,11 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
       )
     )
 
-    val members = originalMapping.map { case (token, nodes) =>
+    val members = originalMapping.flatMap { case (token, nodes) =>
       nodes.map { node =>
         new ServiceMember(token, node)
       }
-    }.flatten
+    }
 
     val service = new Service("test.service")
 
@@ -67,7 +67,7 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
 
     zkCreateService(service)
 
-    originalMapping.map { case (token, nodes) =>
+    originalMapping.foreach { case (token, nodes) =>
       zkCreateReplicasList(service, token, nodes)
     }
 

@@ -23,29 +23,71 @@ import ZookeeperConsistencyPersistence._
 class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(implicit ec: ExecutionContext, as: ActorSystem) extends ConsistencyPersistence {
 
   private var mapping: ReplicasMapping = Map()
-  private var mappingIndex: Int = 0
+  private var mappingSequence: Int = 0
+
+  private val serviceObserver: (Event) => Unit = {
+    case NewMemberAddedEvent(member) =>
+      updateReplicasMapping()
+  }
+
+  def start(): Unit = {
+    // Synchronously load the mapping from Zookeeper
+    synchronized {
+      mapping = Await.result(mappingFuture, askTimeout.duration)._2
+    }
+
+    // Trigger an update when a new service member is added
+    service.addObserver(serviceObserver)
+  }
+
+  def stop(): Unit = {
+    service.removeObserver(serviceObserver)
+  }
+
+  def explicitReplicasMapping: Map[Long, List[Node]] = mapping
+
+  def replicationLagSeconds(token: Long, node: Node): Option[Int] = ???
+
+  def replicationLagSeconds_= (token: Long, node: Node, lag: Option[Int]) = ???
+
+  def changeMasterServiceMember(token: Long, node: Node) = ???
+
+  private def mappingFuture = mappingFetcher.ask(Fetch).mapTo[(Int, ReplicasMapping)]
+
+  private def updateReplicasMapping(): Unit = {
+    mappingFuture.onSuccess {
+      case (newSequence: Int, newMapping: ReplicasMapping) =>
+        synchronized {
+          if(newSequence > mappingSequence)
+            mappingSequence = newSequence
+          mapping = newMapping
+        }
+    }
+  }
+
+  private implicit val askTimeout = Timeout(250)
 
   private val mappingFetcher = as.actorOf(Props(
     new Actor {
 
       // Callbacks must be instantiated once then cached so that ZookeeperClient doesn't create watch duplicates
-      private val newMemberChildCallbacks = new mutable.HashMap[String, NodeChildrenChanged => Unit]
+      private var newMemberChildCallbacks: Map[String, NodeChildrenChanged => Unit] = Map()
       private val replicasChangeCallback = (e: NodeValueChanged) => updateReplicasMapping()
 
-      private var index = 0
+      private var sequence = 0
 
       def receive = {
         case Fetch =>
           val mapping = fetchReplicasMapping
-          index = index + 1
+          sequence = sequence + 1
 
-          sender ! (index, mapping)
+          sender ! (sequence, mapping)
       }
 
       // Fetches the entire (token -> replicas) mapping for the service.
       private def fetchReplicasMapping: ReplicasMapping = {
         service.members.map { member =>
-          // Get the node value from Zookeeper and watch for changes
+        // Get the node value from Zookeeper and watch for changes
           val replicas = fetchMemberReplicas(member)
 
           member.token -> replicas
@@ -77,61 +119,25 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
       private def watchMemberReplicas(member: ServiceMember, replicasPath: String): Unit = {
         val memberPath = ZookeeperClusterManager.zkMemberPath(service.name, member.token)
 
-        val callback = newMemberChildCallbacks.getOrElseUpdate(memberPath, (e: NodeChildrenChanged) => {
+        def newMemberChildCallback(e: NodeChildrenChanged) = {
           // Replicas path has been created: trigger an update
           if(zk.exists(replicasPath)) updateReplicasMapping()
           // Replicas path still doesn't exist: continue watching
           else watchMemberReplicas(member, replicasPath)
-        })
+        }
+
+        val callback = newMemberChildCallbacks.get(memberPath).getOrElse {
+          val newCallback = newMemberChildCallback _
+          newMemberChildCallbacks += (memberPath -> newCallback)
+          newCallback
+        }
 
         zk.getChildren(memberPath, Some(callback))
       }
     }
   ))
 
-  private implicit val askTimeout = Timeout(250)
-
   case object Fetch
-
-  val serviceObserver: (Event) => Unit = {
-    case NewMemberAddedEvent(member) =>
-      updateReplicasMapping()
-  }
-
-  def start(): Unit = {
-    // Synchronously load the mapping from Zookeeper
-    synchronized {
-      mapping = Await.result(mappingFuture, askTimeout.duration)._2
-    }
-
-    // Trigger an update when a new service member is added
-    service.addObserver(serviceObserver)
-  }
-
-  def stop(): Unit = {
-    service.removeObserver(serviceObserver)
-  }
-
-  private def mappingFuture = mappingFetcher.ask(Fetch).mapTo[(Int, ReplicasMapping)]
-
-  private def updateReplicasMapping(): Unit = {
-    mappingFuture.onSuccess {
-      case (newIndex: Int, newMapping: ReplicasMapping) =>
-        synchronized {
-          if(newIndex > mappingIndex)
-            mappingIndex = newIndex
-            mapping = newMapping
-        }
-    }
-  }
-
-  def explicitReplicasMapping: Map[Long, List[Node]] = mapping
-
-  def replicationLagSeconds(token: Long, node: Node): Option[Int] = ???
-
-  def replicationLagSeconds_= (token: Long, node: Node, lag: Option[Int]) = ???
-
-  def changeMasterServiceMember(token: Long, node: Node) = ???
 }
 
 object ZookeeperConsistencyPersistence {
