@@ -11,11 +11,10 @@ import com.wajam.nrv.cluster.{Cluster, LocalNode, Node}
 import com.wajam.nrv.zookeeper.{ZookeeperTestHelpers, ZookeeperClient}
 import com.wajam.nrv.zookeeper.cluster.ZookeeperClusterManager
 
-
 @RunWith(classOf[JUnitRunner])
 class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
 
-  implicit val ac = ActorSystem("TestZookeeperConsistencyPersistence")
+  implicit val as = ActorSystem("TestZookeeperConsistencyPersistence")
   
   val TEST_PATH = "/tests/consistencypersistence"
 
@@ -23,6 +22,8 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
   var cluster: Cluster = _
 
   before {
+    import com.wajam.nrv.zookeeper.ZookeeperClient.string2bytes
+
     val zkRootClient = new ZookeeperClient("127.0.0.1")
     zkRootClient.deleteRecursive(TEST_PATH)
     zkRootClient.ensureAllExists(TEST_PATH, "")
