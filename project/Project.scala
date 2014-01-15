@@ -15,7 +15,8 @@ object NrvBuild extends Build {
     "Sonatype" at "http://oss.sonatype.org/content/repositories/release",
     "Cloudera" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
     "Twitter" at "http://maven.twttr.com/",
-    "Scallop" at "http://mvnrepository.com/"
+    "Scallop" at "http://mvnrepository.com/",
+    "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
   )
 
   var commonDeps = Seq(
@@ -30,7 +31,8 @@ object NrvBuild extends Build {
     "com.google.protobuf" % "protobuf-java" % "2.4.1",
     "com.google.guava" % "guava" % "12.0",
     "com.twitter" %% "util-core" % "6.1.0",
-    "org.scala-lang" % "scala-actors" % "2.10.2"
+    "org.scala-lang" % "scala-actors" % "2.10.2",
+    "com.typesafe.akka" %% "akka-actor" % "2.2.3"
   )
 
   var zookeeperDeps = Seq(

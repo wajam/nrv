@@ -173,5 +173,8 @@ object ZookeeperClusterManager {
 
   private[zookeeper] def zkMemberVotePath(serviceName: String, candidateToken: Long, voterToken: Long) =
     ZookeeperService.memberPath(serviceName, candidateToken) + "/votes/" + voterToken
+
+  private[zookeeper] def zkMemberReplicasPath(serviceName: String, candidateToken: Long) =
+    ZookeeperService.memberPath(serviceName, candidateToken) + "/replicas"
 }
 
