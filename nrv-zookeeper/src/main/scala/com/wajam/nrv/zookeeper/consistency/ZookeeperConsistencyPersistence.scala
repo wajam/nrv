@@ -120,12 +120,11 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
         val memberPath = ZookeeperClusterManager.zkMemberPath(service.name, member.token)
 
         def newMemberChildCallback(e: NodeChildrenChanged) = {
-          // Replicas path has been created: trigger an update
           if (zk.exists(replicasPath)) {
+            // Replicas path has been created: trigger an update
             updateReplicasMapping()
-          }
-          // Replicas path still doesn't exist: continue watching
-          else {
+          } else {
+            // Replicas path still doesn't exist: continue watching
             watchMemberReplicas(member, replicasPath)
           }
         }
