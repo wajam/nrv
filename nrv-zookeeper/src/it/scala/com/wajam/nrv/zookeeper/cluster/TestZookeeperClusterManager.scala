@@ -8,7 +8,10 @@ import com.wajam.nrv.service
 import com.wajam.nrv.service._
 import com.wajam.nrv.zookeeper.{ZookeeperTestHelpers, ZookeeperClient}
 import com.wajam.nrv.zookeeper.ZookeeperClient._
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with ShouldMatchers {
 
   var clusters = List[TestCluster]()
@@ -277,7 +280,7 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with Shou
     val cluster1 = createCluster(1).start()
     val cluster2 = createCluster(2).start()
     val cluster3 = createCluster(3).start()
-    syncErrorCounter.count() should be(0)
+    val initialErrorCount =  syncErrorCounter.count()
 
     // wait to come up
     waitForCondition[Iterable[MemberStatus]]({
@@ -289,13 +292,13 @@ class TestZookeeperClusterManager extends FunSuite with BeforeAndAfter with Shou
     cluster1.zk.set(path, "")
     waitForCondition[Long]({
       syncErrorCounter.count()
-    }, _ > 0)
+    }, _ > initialErrorCount)
 
     // repair service member and wait sync error counter reset
     cluster1.zkCreateServiceMember(cluster1.service2, cluster1.service2_member16)
     waitForCondition[Long]({
       syncErrorCounter.count()
-    }, _ == 0)
+    }, _ == initialErrorCount)
   }
 
   test("when stopping a cluster, ServiceMembers should change like this: Up -> Leaving -> Down, and the Leaving -> Down change should be done according to votes") {
