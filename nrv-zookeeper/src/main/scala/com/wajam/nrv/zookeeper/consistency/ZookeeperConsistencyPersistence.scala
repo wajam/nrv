@@ -27,6 +27,8 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
   private val serviceObserver: (Event) => Unit = {
     case NewMemberAddedEvent(member) =>
       updateReplicasMapping()
+
+    case _ =>
   }
 
   def start(): Unit = {
@@ -45,11 +47,11 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
 
   def explicitReplicasMapping: Map[Long, List[Node]] = mapping
 
-  def replicationLagSeconds(token: Long, node: Node): Option[Int] = ???
+  def replicationLagSeconds(token: Long, node: Node): Option[Int] = None
 
-  def replicationLagSeconds_= (token: Long, node: Node, lag: Option[Int]) = ???
+  def replicationLagSeconds_= (token: Long, node: Node, lag: Option[Int]) = Unit
 
-  def changeMasterServiceMember(token: Long, node: Node) = ???
+  def changeMasterServiceMember(token: Long, node: Node) = Unit
 
   private def mappingFuture = mappingFetcher.ask(Fetch).mapTo[(Int, ReplicasMapping)]
 
