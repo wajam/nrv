@@ -7,7 +7,7 @@ import com.wajam.nrv.zookeeper.ZookeeperClient._
 import org.apache.zookeeper.CreateMode
 
 trait ZookeeperTestHelpers {
-  val zk: ZookeeperClient
+  def zk: ZookeeperClient
 
   def zkCreateService(service: Service) {
     val path = ZookeeperClusterManager.zkServicePath(service.name)
