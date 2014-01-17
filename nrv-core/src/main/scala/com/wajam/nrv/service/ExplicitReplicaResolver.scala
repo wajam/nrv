@@ -1,7 +1,5 @@
 package com.wajam.nrv.service
 
-import com.wajam.nrv.service._
-import scala.Some
 import com.wajam.nrv.cluster.Node
 
 /**
@@ -10,7 +8,7 @@ import com.wajam.nrv.cluster.Node
  * on the specified explicit configuration. The master of the shard is resolved through nrv mechanics and added as
  * the head of the resolved node list. All other nodes are considered to be replicas.
  */
-class ExplicitReplicaResolver(explicitTokenMapping: Map[Long,List[Node]], resolver: Resolver)
+class ExplicitReplicaResolver(explicitTokenMapping: => Map[Long,List[Node]], resolver: Resolver)
   extends Resolver(resolver.replica, resolver.tokenExtractor, resolver.constraints, resolver.sorter) {
 
   override def resolve(service: Service, token: Long) = {
