@@ -32,3 +32,21 @@ trait ConsistencyPersistence {
    */
   def changeMasterServiceMember(token: Long, node: Node)
 }
+
+object ConsistencyPersistence {
+
+  val Noop = new ConsistencyPersistence {
+
+    def start() = Unit
+
+    def stop() = Unit
+
+    def explicitReplicasMapping = Map()
+
+    def replicationLagSeconds(token: Long, node: Node) = None
+
+    def replicationLagSeconds_= (token: Long, node: Node, lag: Option[Int]) = Unit
+
+    def changeMasterServiceMember(token: Long, node: Node) = Unit
+  }
+}
