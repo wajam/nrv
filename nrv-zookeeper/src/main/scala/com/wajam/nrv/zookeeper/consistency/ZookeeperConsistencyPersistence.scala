@@ -1,5 +1,6 @@
 package com.wajam.nrv.zookeeper.consistency
 
+import scala.language.postfixOps
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Await
 import scala.concurrent.duration._
