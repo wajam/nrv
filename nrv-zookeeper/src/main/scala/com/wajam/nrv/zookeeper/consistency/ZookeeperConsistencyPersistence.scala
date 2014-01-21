@@ -2,6 +2,7 @@ package com.wajam.nrv.zookeeper.consistency
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Await
+import scala.concurrent.duration._
 import com.wajam.commons.Event
 import com.wajam.nrv.consistency.ConsistencyPersistence
 import com.wajam.nrv.cluster.Node
@@ -67,7 +68,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
     }
   }
 
-  private implicit val askTimeout = Timeout(250)
+  private implicit val askTimeout = Timeout(1 second)
 
   private val mappingFetcher = as.actorOf(Props(
     new Actor {
