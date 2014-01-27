@@ -25,7 +25,7 @@ object NrvBuild extends Build {
     "org.slf4j" % "slf4j-api" % "1.6.4",
     "nl.grons" %% "metrics-scala" % "2.2.0" exclude("org.slf4j", "slf4j-api"),
     "io.netty" % "netty" % "3.5.0.Final",
-    "org.scalatest" %% "scalatest" % "1.9.1" % "test,it",
+    "org.scalatest" %% "scalatest" % "2.0" % "test,it",
     "junit" % "junit" % "4.10" % "test,it",
     "org.mockito" % "mockito-core" % "1.9.0" % "test,it",
     "com.google.protobuf" % "protobuf-java" % "2.4.1",

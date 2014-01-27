@@ -5,7 +5,7 @@ import java.net.{HttpURLConnection, URL}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{FunSuite, BeforeAndAfter}
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.{Matchers => ShouldMatchers}
 import com.wajam.nrv.data._
 import com.wajam.nrv.service._
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}

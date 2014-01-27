@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency.log
 
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import java.io.IOException
 import util.Random
 import org.junit.runner.RunWith

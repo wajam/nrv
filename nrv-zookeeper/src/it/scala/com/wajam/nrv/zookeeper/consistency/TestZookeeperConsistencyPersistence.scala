@@ -4,7 +4,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FlatSpec}
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import akka.actor.ActorSystem
 import com.wajam.nrv.service.{ServiceMember, Service}
 import com.wajam.nrv.cluster.{Cluster, LocalNode, Node}

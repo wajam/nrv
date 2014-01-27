@@ -10,7 +10,7 @@ import com.wajam.nrv.consistency.log.LogRecord.{Response, Request, Index}
 import com.wajam.nrv.consistency.log.FileTransactionLog
 import com.wajam.nrv.service.TokenRange
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import com.wajam.commons.IdGenerator
 
 @RunWith(classOf[JUnitRunner])

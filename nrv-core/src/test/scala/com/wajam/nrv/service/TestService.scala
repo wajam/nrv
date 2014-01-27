@@ -4,7 +4,7 @@ import com.wajam.nrv.cluster.Node
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import java.lang.IllegalArgumentException
 
 @RunWith(classOf[JUnitRunner])

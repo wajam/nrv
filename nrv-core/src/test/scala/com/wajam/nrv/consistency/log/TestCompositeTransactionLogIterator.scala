@@ -1,6 +1,6 @@
 package com.wajam.nrv.consistency.log
 
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import org.mockito.Mockito._
 import com.wajam.nrv.consistency.log.LogRecord.Index
 import com.wajam.nrv.consistency.TestTransactionBase

@@ -11,7 +11,7 @@ import org.mockito.Matchers._
 import com.wajam.nrv.data.{MessageType, InMessage, OutMessage}
 import org.mockito.ArgumentMatcher
 import org.hamcrest.Description
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import java.net.InetSocketAddress
 import java.text.SimpleDateFormat
 import com.wajam.tracing.Annotation._

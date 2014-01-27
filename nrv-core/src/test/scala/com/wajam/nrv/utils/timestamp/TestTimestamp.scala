@@ -1,7 +1,7 @@
 package com.wajam.nrv.utils.timestamp
 
 import org.scalatest.FunSuite
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import scala.collection.immutable.TreeSet
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner

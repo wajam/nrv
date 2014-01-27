@@ -4,7 +4,7 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.FunSuite
 import com.wajam.nrv.data.{MList, InMessage}
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.{Matchers => ShouldMatchers}
 import com.wajam.nrv.extension.resource.ParamsAccessor._
 import com.wajam.nrv.InvalidParameter
 

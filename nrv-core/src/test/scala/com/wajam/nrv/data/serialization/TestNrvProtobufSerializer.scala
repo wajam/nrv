@@ -3,8 +3,7 @@ package com.wajam.nrv.data.serialization
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.FunSuite
-import org.scalatest.matchers.ShouldMatchers._
-import com.wajam.nrv.data.{SerializableMessage, MessageType, Message, InMessage}
+import org.scalatest.Matchers._
 import com.wajam.nrv.service.{Shard, Replica, Endpoints, ActionMethod}
 import com.wajam.nrv.cluster.Node
 import java.net.InetAddress

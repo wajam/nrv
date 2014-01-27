@@ -5,7 +5,7 @@ import org.scalatest.junit.JUnitRunner
 import org.apache.zookeeper.CreateMode
 import com.wajam.nrv.zookeeper.ZookeeperClient._
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import java.io.IOException
 import com.yammer.metrics.scala.MetricsGroup
 import java.util.concurrent.atomic.AtomicInteger

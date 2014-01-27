@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency.log
 
 import org.scalatest.BeforeAndAfter
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import java.io._
 import java.nio.file.Files
 import org.mockito.Matchers._

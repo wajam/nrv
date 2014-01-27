@@ -2,7 +2,7 @@ package com.wajam.nrv.consistency
 
 import org.scalatest.FunSuite
 import AtomicTimestamp._
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import scala.annotation.tailrec
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner

@@ -9,7 +9,7 @@ import org.scalatest.BeforeAndAfter
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import com.wajam.nrv.data.{Message, InMessage}
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.consistency.log.LogRecord.Index

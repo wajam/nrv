@@ -4,7 +4,7 @@ import org.scalatest.{BeforeAndAfter, FunSuite}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.jboss.netty.channel.Channel
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import org.scalatest.mock.MockitoSugar
 import org.mockito.Mockito._
 import java.net.{InetSocketAddress, SocketAddress}

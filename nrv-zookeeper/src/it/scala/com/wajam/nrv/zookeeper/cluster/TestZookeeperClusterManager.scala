@@ -2,7 +2,7 @@ package com.wajam.nrv.zookeeper.cluster
 
 import com.yammer.metrics.Metrics
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.{Matchers => ShouldMatchers}
 import com.wajam.nrv.cluster.{LocalNode, Node, Cluster}
 import com.wajam.nrv.service
 import com.wajam.nrv.service._

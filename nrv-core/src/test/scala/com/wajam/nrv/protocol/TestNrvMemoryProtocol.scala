@@ -5,7 +5,7 @@ import com.wajam.nrv.cluster.LocalNode
 import com.wajam.nrv.data.{Message, OutMessage}
 import org.mockito.Mockito._
 import org.mockito.Matchers._
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.{Matchers => ShouldMatchers}
 import com.wajam.nrv.utils.PredicateMatcher
 
 class TestNrvMemoryProtocol  extends FunSuite with ShouldMatchers  {
