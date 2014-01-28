@@ -155,6 +155,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
         val publishParams: Map[String, MValue] = Map(
           ReplicationAPIParams.Timestamp -> request.timestamp.value,
           ReplicationAPIParams.SessionId -> sessionId,
+          ReplicationAPIParams.ConsistentTimestamp -> currentConsistentTimestamp.get.value,
           ReplicationAPIParams.Sequence -> (i + 1).toLong)
         new OutMessage(publishParams, data = request.message)
       }
@@ -556,22 +557,32 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
 
-    val allexpectedTxMessages = toTransactionMessages(allLogRecords, startTimestamp)
-    val (expectedTxMessages, newExpectedTxMessages) = allexpectedTxMessages.partition(
-      _.getData[Message].timestamp.get <= logRecords.last.consistentTimestamp.get.value)
+    val oldConsistentTimestamp = currentConsistentTimestamp.get.value
+    val oldExpectedTxMessages = toTransactionMessages(
+      allLogRecords.collect {
+        case request: Request if request.timestamp <= oldConsistentTimestamp => request
+      },
+      startTimestamp)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(expectedTxMessages.size)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(oldExpectedTxMessages.size)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received all expected messages
     val actualTxMessages = messageCaptor.getAllValues
-    assertReplicationMessagesEquals(actualTxMessages, expectedTxMessages)
+    assertReplicationMessagesEquals(actualTxMessages, oldExpectedTxMessages)
     actualTxMessages.size should be > 0
 
     // Append new log records and verify they are replicated after advancing the consistent timestamp
     reset(mockSlaveReplicateTxAction)
     newLogRecords.foreach(txLog.append(_))
     currentConsistentTimestamp = newLogRecords.last.consistentTimestamp
+
+    val newConsistentTimestamp = currentConsistentTimestamp.get.value
+    val newExpectedTxMessages = toTransactionMessages(
+      allLogRecords.collect {
+        case request: Request if request.timestamp > oldConsistentTimestamp && request.timestamp <= newConsistentTimestamp => request
+      },
+      startTimestamp)
 
     val newMessageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
     verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(newExpectedTxMessages.size)).callOutgoingHandlers(newMessageCaptor.capture())
