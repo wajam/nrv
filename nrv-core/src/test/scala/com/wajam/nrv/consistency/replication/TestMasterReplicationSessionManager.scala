@@ -557,19 +557,19 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
 
-    val oldConsistentTimestamp = currentConsistentTimestamp.get.value
-    val oldExpectedTxMessages = toTransactionMessages(
+    val initialConsistentTimestamp = currentConsistentTimestamp.get.value
+    val initialExpectedTxMessages = toTransactionMessages(
       allLogRecords.collect {
-        case request: Request if request.timestamp <= oldConsistentTimestamp => request
+        case request: Request if request.timestamp <= initialConsistentTimestamp => request
       },
       startTimestamp)
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
-    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(oldExpectedTxMessages.size)).callOutgoingHandlers(messageCaptor.capture())
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(initialExpectedTxMessages.size)).callOutgoingHandlers(messageCaptor.capture())
 
     // Verify received all expected messages
     val actualTxMessages = messageCaptor.getAllValues
-    assertReplicationMessagesEquals(actualTxMessages, oldExpectedTxMessages)
+    assertReplicationMessagesEquals(actualTxMessages, initialExpectedTxMessages)
     actualTxMessages.size should be > 0
 
     // Append new log records and verify they are replicated after advancing the consistent timestamp
@@ -580,7 +580,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     val newConsistentTimestamp = currentConsistentTimestamp.get.value
     val newExpectedTxMessages = toTransactionMessages(
       allLogRecords.collect {
-        case request: Request if request.timestamp > oldConsistentTimestamp && request.timestamp <= newConsistentTimestamp => request
+        case request: Request if request.timestamp > initialConsistentTimestamp && request.timestamp <= newConsistentTimestamp => request
       },
       startTimestamp)
 
