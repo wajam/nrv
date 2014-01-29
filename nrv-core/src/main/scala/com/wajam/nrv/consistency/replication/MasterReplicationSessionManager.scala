@@ -347,6 +347,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
       }
       params += (Sequence -> sequence)
       params += (SessionId -> sessionId)
+      params += (ConsistentTimestamp -> getMemberCurrentConsistentTimestamp(member).get.value)
 
       val pushMessage = new OutMessage(params = params, data = data,
         onReply = onReply(sequence), responseTimeout = service.responseTimeout)

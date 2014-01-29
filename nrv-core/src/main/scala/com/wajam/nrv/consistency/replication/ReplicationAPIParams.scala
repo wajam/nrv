@@ -7,6 +7,7 @@ object ReplicationAPIParams {
   val Start = "start_ts"
   val End = "end_ts"
   val Timestamp = "timestamp"
+  val ConsistentTimestamp = "consistent_ts"
   val SessionId = "session_id"
   val Sequence = "seq"
   val Mode = "mode"
