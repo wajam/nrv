@@ -7,7 +7,7 @@ import org.scalatest.junit.JUnitRunner
 import java.io.File
 import com.wajam.nrv.consistency.log.{LogRecord, FileTransactionLog}
 import java.nio.file.Files
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import com.wajam.nrv.consistency.log.LogRecord.Index
 import com.wajam.nrv.service.TokenRange
 import com.wajam.nrv.data.Message

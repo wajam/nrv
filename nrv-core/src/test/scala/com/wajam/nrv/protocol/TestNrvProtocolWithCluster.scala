@@ -8,7 +8,7 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.{Matchers => ShouldMatchers}
 
 @RunWith(classOf[JUnitRunner])
 class TestNrvProtocolWithCluster extends FunSuite with BeforeAndAfter with ShouldMatchers {

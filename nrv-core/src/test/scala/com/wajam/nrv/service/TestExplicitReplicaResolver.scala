@@ -3,7 +3,7 @@ package com.wajam.nrv.service
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.FunSuite
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.{Matchers => ShouldMatchers}
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service._
 

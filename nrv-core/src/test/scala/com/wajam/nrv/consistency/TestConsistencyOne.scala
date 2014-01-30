@@ -3,7 +3,7 @@ package com.wajam.nrv.consistency
 import org.scalatest.FunSuite
 import com.wajam.nrv.service.{Replica, Shard, Endpoints, Action}
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import org.mockito.Mockito._
 import com.wajam.nrv.data.OutMessage
 import com.wajam.nrv.cluster.Node

@@ -5,13 +5,13 @@ import com.wajam.nrv.cluster.{StaticClusterManager, Cluster, Node, LocalNode}
 import com.wajam.nrv.data._
 import org.mockito.Mockito._
 import org.mockito.Matchers._
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.Matchers.{atLeast => _, atMost => _, _}
 import org.scalatest.mock.MockitoSugar
 import com.wajam.nrv.service._
 import com.wajam.nrv.protocol.codec.GenericJavaSerializeCodec
 import com.wajam.nrv.utils.PredicateMatcher
 
-class TestLocalOptimizedProtocol  extends FunSuite with ShouldMatchers with MockitoSugar {
+class TestLocalOptimizedProtocol extends FunSuite with MockitoSugar {
 
 
 

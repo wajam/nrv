@@ -3,7 +3,7 @@ package com.wajam.nrv.protocol
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import org.jboss.netty.handler.codec.http._
 import com.wajam.nrv.cluster.{LocalNode, StaticClusterManager, Cluster}
 import com.wajam.nrv.service._

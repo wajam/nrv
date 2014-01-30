@@ -2,7 +2,7 @@ package com.wajam.nrv.consistency.log
 
 import com.wajam.nrv.consistency.TestTransactionBase
 import com.wajam.nrv.consistency.log.LogRecord.{Response, Index}
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import org.mockito.Mockito._
 import org.scalatest.mock.MockitoSugar
 import org.junit.runner.RunWith

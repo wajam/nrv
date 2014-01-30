@@ -1,7 +1,7 @@
 package com.wajam.nrv.service
 
 import org.scalatest.FunSuite
-import org.scalatest.matchers.ShouldMatchers._
+import org.scalatest.Matchers._
 import com.wajam.nrv.cluster.Node
 import com.wajam.commons.InetUtils
 
