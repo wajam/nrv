@@ -6,7 +6,7 @@ import com.wajam.nrv.consistency.{ConsistentStore, ResolvedServiceMember}
 import com.wajam.nrv.consistency.log.TransactionLog
 import com.wajam.nrv.cluster.Node
 import scala.actors.Actor
-import collection.immutable.TreeSet
+import collection.immutable.TreeMap
 import ReplicationAPIParams._
 import com.wajam.commons.Logging
 import com.yammer.metrics.scala.Instrumented
@@ -159,13 +159,14 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               val member = createResolvedServiceMember(token)
               val source = createSourceIterator(member, start, isLiveReplication)
 
-              val session = new SessionActor(nextId, member, source, cookie.getOrElse(""), message.source)
+              val session = new SessionActor(nextId, member, source, cookie.getOrElse(""), message.source, start)
               sessions = session :: sessions
 
               // Reply with an open session response
               val response = new OutMessage()
               response.parameters += (SessionId -> session.sessionId)
               response.parameters += (Start -> start)
+              getMemberCurrentConsistentTimestamp(member).foreach(ts => response.parameters += (ConsistentTimestamp -> ts.value))
               source.end.foreach(ts => response.parameters += (End -> ts.value))
               cookie.foreach(value => response.parameters += (Cookie -> value))
               message.reply(response)
@@ -208,7 +209,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               val allSessions = sessions.map(sessionActor => {
                 val mode = if (sessionActor.source.end.isDefined) ReplicationMode.Bootstrap else ReplicationMode.Live
                 ReplicationSession(sessionActor.member, sessionActor.cookie, mode, sessionActor.slave,
-                  Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end)
+                  Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end, sessionActor.replicationDelta)
               })
               reply(allSessions)
             } catch {
@@ -276,8 +277,13 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
 
   }
 
-  class SessionActor(val sessionId: String, val member: ResolvedServiceMember, val source: ReplicationSourceIterator,
-                          val cookie: String, val slave: Node) extends Actor with Logging {
+  class SessionActor(val sessionId: String,
+                     val member: ResolvedServiceMember,
+                     val source: ReplicationSourceIterator,
+                     val cookie: String,
+                     val slave: Node,
+                     startTimestamp: Timestamp)
+    extends Actor with Logging {
 
     private lazy val pushMeter = metrics.meter("push", "push", member.scopeName)
     private lazy val pushErrorMeter = metrics.meter("push-error", "push-error", member.scopeName)
@@ -290,10 +296,17 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
 
     private val pushScheduler = new Scheduler(this, PushNext, 1000, 1000 / pushTps,
       blockingMessage = true, autoStart = false, name = Some("MasterSessionActor.Push"))
-    private var pendingSequences: TreeSet[Long] = TreeSet()
+    private var pendingSequences: TreeMap[Long, Option[Timestamp]] = TreeMap()
     private var lastSendTime = currentTime
     private var lastSequence = 0L
     private var isTerminating = false
+    private var lastSlaveTimestamp: Option[Timestamp] = Some(startTimestamp)
+
+    def replicationDelta: Option[Int] = {
+      for(lastTs <- lastSlaveTimestamp;
+          consistentTs <- getMemberCurrentConsistentTimestamp(member))
+      yield (consistentTs.value - lastTs.value).toInt
+    }
 
     private def nextSequence = {
       lastSequence += 1
@@ -310,7 +323,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
 
     private def currentWindowSize: Int = {
       pendingSequences.headOption match {
-        case Some(firstPendingSequence) => (lastSequence - firstPendingSequence).toInt + 1
+        case Some((firstPendingSequence, _)) => (lastSequence - firstPendingSequence).toInt + 1
         case None => 0
       }
     }
@@ -341,9 +354,13 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
         case Some(message) => {
           val timestamp = message.timestamp.get // Must fail if timestamp is missing
           params += (ReplicationAPIParams.Timestamp -> timestamp.value)
+          pendingSequences += (sequence -> message.timestamp)
           message
         }
-        case None => null // Keep-alive
+        case None => {
+          pendingSequences += (sequence -> None)
+          null
+        } // Keep-alive
       }
       params += (Sequence -> sequence)
       params += (SessionId -> sessionId)
@@ -354,7 +371,6 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
       pushMessage.destination = new Endpoints(Seq(new Shard(-1, Seq(new Replica(-1, slave)))))
       pushAction.call(pushMessage)
 
-      pendingSequences += sequence
       lastSendTime = currentTime
       pushMeter.mark()
 
@@ -408,6 +424,11 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
           }
           case Ack(sequence) if !isTerminating => {
             try {
+              // Update lastSlaveTimestamp with last acknowledged slave timestamp
+              pendingSequences(sequence).foreach { ts =>
+                lastSlaveTimestamp = Some(ts)
+                trace("Successfully acknowledged transaction (subid={}, seq={}, ts={}). {}", sessionId, sequence, ts, member)
+              }
               pendingSequences -= sequence
               ackMeter.mark()
             } catch {

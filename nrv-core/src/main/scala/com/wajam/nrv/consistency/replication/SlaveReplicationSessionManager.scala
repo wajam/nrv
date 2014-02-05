@@ -240,6 +240,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                   val sessionId = getSessionId(message)
                   val startTimestamp = Timestamp(getParamLongValue(Start))
                   val endTimestamp = getOptionalParamLongValue(End).map(ts => Timestamp(ts))
+                  val masterConsistentTimestamp = getOptionalParamLongValue(ConsistentTimestamp).map(ts => Timestamp(ts))
                   val cookie = getParamStringValue(Cookie)
 
                   sessions.get(context.member) match {
@@ -257,7 +258,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                       info("Open session response {}. Activate session {}.", response, context.member)
 
                       val session = new SessionActor(sessionId, startTimestamp, endTimestamp, context,
-                        getSessionGauge(context.member), logIdGenerator)
+                        getSessionGauge(context.member), logIdGenerator, masterConsistentTimestamp)
                       sessions += (context.member -> Right(session))
                       session.start()
                       openSessionOkMeter.mark()
@@ -329,7 +330,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                 case Right(sessionActor) => {
                   val context = sessionActor.context
                   ReplicationSession(sessionActor.member, context.cookie, context.mode, service.cluster.localNode,
-                    Some(sessionActor.sessionId), Some(sessionActor.startTimestamp), sessionActor.endTimestamp)
+                    Some(sessionActor.sessionId), Some(sessionActor.startTimestamp), sessionActor.endTimestamp, sessionActor.replicationDelta)
                 }
               }
               reply(allSessions.toList)
@@ -423,6 +424,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
     case class TransactionMessage(message: InMessage) extends ReplicationMessage {
       val sequence: Long = getParamLongValue(Sequence)(message)
       val timestamp: Timestamp = getParamLongValue(ReplicationAPIParams.Timestamp)(message)
+      val masterConsistentTimestamp: Option[Timestamp] = getOptionalParamLongValue(ConsistentTimestamp)(message).map(ts => Timestamp(ts))
       val transaction: Message = message.getData[Message]
       val token = transaction.token
 
@@ -456,10 +458,14 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
     }
   }
 
-  class SessionActor(val sessionId: String, val startTimestamp: Timestamp, val endTimestamp: Option[Timestamp],
-                          val context: SessionManagerProtocol.OpenSessionRequest,
-                          currentTimestampGauge: SessionCurrentTimestampGauge,
-                          idGenerator: IdGenerator[Long]) extends Actor {
+  class SessionActor(val sessionId: String,
+                     val startTimestamp: Timestamp,
+                     val endTimestamp: Option[Timestamp],
+                     val context: SessionManagerProtocol.OpenSessionRequest,
+                     currentTimestampGauge: SessionCurrentTimestampGauge,
+                     idGenerator: IdGenerator[Long],
+                     initialMasterConsistentTimestamp: Option[Timestamp])
+    extends Actor {
 
     private lazy val txReceivedMeter = metrics.meter("tx-received", "tx-received", member.scopeName)
     private lazy val txMissingMeter = metrics.meter("tx-missing", "tx-missing", member.scopeName)
@@ -490,6 +496,10 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
     private def txLog = context.txLog
 
     def member = context.member
+
+    // Initialize delta according to the initial consistent timestamp sent by the master
+    private var _replicationDelta = initialMasterConsistentTimestamp.map(ts => (ts.value - startTimestamp.value).toInt)
+    def replicationDelta: Option[Int] = _replicationDelta
 
     override def start() = {
       super.start()
@@ -526,6 +536,11 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
               // Update consistent timestamp
               consistentTimestamp = Some(tx.timestamp)
               currentTimestampGauge.timestamp = tx.timestamp
+
+              // Update delta according to the current consistent timestamp sent by the master
+              tx.masterConsistentTimestamp.foreach { mcts =>
+                _replicationDelta = Some((mcts.value - tx.timestamp.value).toInt)
+              }
             }
             case _: KeepAliveMessage => {
               keepAliveMeter.mark()

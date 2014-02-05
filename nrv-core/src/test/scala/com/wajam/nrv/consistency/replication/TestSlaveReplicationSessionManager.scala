@@ -41,6 +41,8 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
   var sessionEndCalls = 0
   var pushTxReplyCount = 0
 
+  var masterConsistentTimestamp = 0L
+
   before {
     localNode = new LocalNode(Map("nrv" -> 9999))
     cluster = new Cluster(localNode, new StaticClusterManager)
@@ -48,6 +50,8 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     service.applySupport(cluster = Some(cluster))
     member = ResolvedServiceMember(service.name, token, Seq(TokenRange.All))
     txLogProxy = new TransactionLogProxy
+
+    masterConsistentTimestamp = 1000L
 
     mockStore = mock[ConsistentStore]
     mockMasterOpenSessionAction = mock[Action]
@@ -114,7 +118,8 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.SessionId -> sessionId,
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
-      ReplicationAPIParams.End -> endTimestamp.toString)
+      ReplicationAPIParams.End -> endTimestamp.toString,
+      ReplicationAPIParams.ConsistentTimestamp -> masterConsistentTimestamp)
 
     // Verify session is activated
     val matchCaptor = MessageMatcher(openSessionRequest)
@@ -130,7 +135,8 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val params: Map[String, MValue] = Map(
       ReplicationAPIParams.Sequence -> sequence.toString,
       ReplicationAPIParams.SessionId -> sessionId,
-      ReplicationAPIParams.Timestamp -> transaction.timestamp.get.toString)
+      ReplicationAPIParams.Timestamp -> transaction.timestamp.get.toString,
+      ReplicationAPIParams.ConsistentTimestamp -> masterConsistentTimestamp)
     val message = new InMessage(params, data = transaction)
     message.replyCallback = (_) => pushTxReplyCount += 1
     message
@@ -597,6 +603,49 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     verifyNoMoreInteractions(txLogProxy.mockAppender, mockStore)
     pushTxReplyCount should be(3)
     verifyZeroInteractions(mockMasterOpenSessionAction, mockMasterCloseSessionAction)
+  }
+
+  test("replication delta should be initialized according to the master's consistent timestamp") {
+    val startTimestamp = 0L
+    val session = openSession(startTimestamp)
+
+    session.secondsBehindMaster should be (Some(masterConsistentTimestamp - startTimestamp))
+  }
+
+  test("replication delta should be updated when receiving new transactions") {
+    val startTimestamp = 0L
+    val session = openSession(startTimestamp)
+
+    val tx1 = createRequestMessage(timestamp = 100L)
+    val tx2 = createRequestMessage(timestamp = 200L)
+    val tx3 = createRequestMessage(timestamp = 300L)
+
+    // Replicate transactions
+    sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 1, session.id.get, tx1))
+    sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 2, session.id.get, tx2))
+    sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 3, session.id.get, tx3))
+
+    // Wait for the transactions to be handled
+    verify(mockStore, timeout(1500).times(3)).writeTransaction(anyObject())
+
+    sessionManager.sessions.head.secondsBehindMaster should be(Some(masterConsistentTimestamp - tx3.timestamp.get.value))
+
+    // Change the master's consistent timestamp
+    masterConsistentTimestamp = 2000L
+
+    val tx4 = createRequestMessage(timestamp = 400L)
+    val tx5 = createRequestMessage(timestamp = 500L)
+    val tx6 = createRequestMessage(timestamp = 600L)
+
+    // Replicate transactions
+    sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 4, session.id.get, tx4))
+    sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 5, session.id.get, tx5))
+    sessionManager.handleReplicationMessage(createTransactionMessage(sequence = 6, session.id.get, tx6))
+
+    // Wait for the transactions to be handled
+    verify(mockStore, timeout(1500).times(6)).writeTransaction(anyObject())
+
+    sessionManager.sessions.head.secondsBehindMaster should be(Some(masterConsistentTimestamp - tx6.timestamp.get.value))
   }
 
   test("replication message tx log append error should result in consistency error") {
