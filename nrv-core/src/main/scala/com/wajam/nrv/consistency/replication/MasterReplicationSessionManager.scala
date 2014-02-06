@@ -159,7 +159,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               val member = createResolvedServiceMember(token)
               val source = createSourceIterator(member, start, isLiveReplication)
 
-              val session = new SessionActor(nextId, member, source, cookie.getOrElse(""), message.source, start)
+              val session = new SessionActor(nextId, member, source, cookie.getOrElse(""), message.source, getOptionalParamLongValue(Start).map(ts => Timestamp(ts)))
               sessions = session :: sessions
 
               // Reply with an open session response
@@ -209,7 +209,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               val allSessions = sessions.map(sessionActor => {
                 val mode = if (sessionActor.source.end.isDefined) ReplicationMode.Bootstrap else ReplicationMode.Live
                 ReplicationSession(sessionActor.member, sessionActor.cookie, mode, sessionActor.slave,
-                  Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end, sessionActor.replicationDelta)
+                  Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end, sessionActor.replicationDeltaInS)
               })
               reply(allSessions)
             } catch {
@@ -282,7 +282,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
                      val source: ReplicationSourceIterator,
                      val cookie: String,
                      val slave: Node,
-                     startTimestamp: Timestamp)
+                     startTimestamp: Option[Timestamp])
     extends Actor with Logging {
 
     private lazy val pushMeter = metrics.meter("push", "push", member.scopeName)
@@ -300,12 +300,12 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     private var lastSendTime = currentTime
     private var lastSequence = 0L
     private var isTerminating = false
-    private var lastSlaveTimestamp: Option[Timestamp] = Some(startTimestamp)
+    private var lastSlaveTimestamp: Option[Timestamp] = startTimestamp
 
-    def replicationDelta: Option[Int] = {
+    def replicationDeltaInS: Option[Int] = {
       for(lastTs <- lastSlaveTimestamp;
           consistentTs <- getMemberCurrentConsistentTimestamp(member))
-      yield (consistentTs.value - lastTs.value).toInt
+      yield ((consistentTs.value - lastTs.value) / 1000).toInt
     }
 
     private def nextSequence = {
@@ -358,9 +358,10 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
           message
         }
         case None => {
+          // Keep-alive
           pendingSequences += (sequence -> None)
           null
-        } // Keep-alive
+        }
       }
       params += (Sequence -> sequence)
       params += (SessionId -> sessionId)

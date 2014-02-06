@@ -609,7 +609,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     val startTimestamp = 0L
     val session = openSession(startTimestamp)
 
-    session.secondsBehindMaster should be (Some(masterConsistentTimestamp - startTimestamp))
+    session.secondsBehindMaster should be (Some((masterConsistentTimestamp - startTimestamp) / 1000))
   }
 
   test("replication delta should be updated when receiving new transactions") {
@@ -628,7 +628,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     // Wait for the transactions to be handled
     verify(mockStore, timeout(1500).times(3)).writeTransaction(anyObject())
 
-    sessionManager.sessions.head.secondsBehindMaster should be(Some(masterConsistentTimestamp - tx3.timestamp.get.value))
+    sessionManager.sessions.head.secondsBehindMaster should be(Some(((masterConsistentTimestamp - tx3.timestamp.get.value) / 1000).toInt))
 
     // Change the master's consistent timestamp
     masterConsistentTimestamp = 2000L
@@ -645,7 +645,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     // Wait for the transactions to be handled
     verify(mockStore, timeout(1500).times(6)).writeTransaction(anyObject())
 
-    sessionManager.sessions.head.secondsBehindMaster should be(Some(masterConsistentTimestamp - tx6.timestamp.get.value))
+    sessionManager.sessions.head.secondsBehindMaster should be(Some((masterConsistentTimestamp - tx6.timestamp.get.value) / 1000))
   }
 
   test("replication message tx log append error should result in consistency error") {

@@ -330,7 +330,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                 case Right(sessionActor) => {
                   val context = sessionActor.context
                   ReplicationSession(sessionActor.member, context.cookie, context.mode, service.cluster.localNode,
-                    Some(sessionActor.sessionId), Some(sessionActor.startTimestamp), sessionActor.endTimestamp, sessionActor.replicationDelta)
+                    Some(sessionActor.sessionId), Some(sessionActor.startTimestamp), sessionActor.endTimestamp, sessionActor.replicationDeltaInS)
                 }
               }
               reply(allSessions.toList)
@@ -497,9 +497,13 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
 
     def member = context.member
 
-    // Initialize delta according to the initial consistent timestamp sent by the master
-    private var _replicationDelta = initialMasterConsistentTimestamp.map(ts => (ts.value - startTimestamp.value).toInt)
-    def replicationDelta: Option[Int] = _replicationDelta
+    private var masterConsistentTimestamp: Option[Timestamp] = initialMasterConsistentTimestamp
+
+    def replicationDeltaInS: Option[Int] = {
+      for(slaveConsistentTs <- consistentTimestamp;
+          masterConsistentTs <- masterConsistentTimestamp)
+      yield ((masterConsistentTs.value - slaveConsistentTs.value) / 1000).toInt
+    }
 
     override def start() = {
       super.start()
@@ -537,10 +541,8 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
               consistentTimestamp = Some(tx.timestamp)
               currentTimestampGauge.timestamp = tx.timestamp
 
-              // Update delta according to the current consistent timestamp sent by the master
-              tx.masterConsistentTimestamp.foreach { mcts =>
-                _replicationDelta = Some((mcts.value - tx.timestamp.value).toInt)
-              }
+              // Save the master's consistent timestamp
+              masterConsistentTimestamp = tx.masterConsistentTimestamp
             }
             case _: KeepAliveMessage => {
               keepAliveMeter.mark()
