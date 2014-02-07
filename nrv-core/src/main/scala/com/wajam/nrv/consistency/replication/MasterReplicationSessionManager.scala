@@ -159,7 +159,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               val member = createResolvedServiceMember(token)
               val source = createSourceIterator(member, start, isLiveReplication)
 
-              val session = new SessionActor(nextId, member, source, cookie.getOrElse(""), message.source, getOptionalParamLongValue(Start).map(ts => Timestamp(ts)))
+              val session = new SessionActor(nextId, member, source, cookie.getOrElse(""), message.source, getOptionalParamLongValue(Start).map(Timestamp(_)))
               sessions = session :: sessions
 
               // Reply with an open session response
@@ -302,11 +302,10 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     private var isTerminating = false
     private var lastSlaveTimestamp: Option[Timestamp] = startTimestamp
 
-    def replicationDeltaInS: Option[Int] = {
-      for(lastTs <- lastSlaveTimestamp;
-          consistentTs <- getMemberCurrentConsistentTimestamp(member))
-      yield ((consistentTs.value - lastTs.value) / 1000).toInt
-    }
+    def replicationDeltaInS: Option[Int] = for {
+      lastTs <- lastSlaveTimestamp
+      consistentTs <- getMemberCurrentConsistentTimestamp(member)
+    } yield ((consistentTs.value - lastTs.value) / 1000).toInt
 
     private def nextSequence = {
       lastSequence += 1

@@ -499,11 +499,10 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
 
     private var masterConsistentTimestamp: Option[Timestamp] = initialMasterConsistentTimestamp
 
-    def replicationDeltaInS: Option[Int] = {
-      for(slaveConsistentTs <- consistentTimestamp;
-          masterConsistentTs <- masterConsistentTimestamp)
-      yield ((masterConsistentTs.value - slaveConsistentTs.value) / 1000).toInt
-    }
+    def replicationDeltaInS: Option[Int] = for {
+      slaveConsistentTs <- consistentTimestamp
+      masterConsistentTs <- masterConsistentTimestamp
+    } yield ((masterConsistentTs.value - slaveConsistentTs.value) / 1000).toInt
 
     override def start() = {
       super.start()
