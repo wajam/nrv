@@ -592,6 +592,54 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
+  test("replication delta should be initialized according to the slave's start timestamp") {
+    val logRecords = createTransactions(count = 10, initialTimestamp = 0, timestampIncrement = 1000)
+    logRecords.foreach(txLog.append(_))
+    logRecords should be(txLog.read.toList)
+    currentConsistentTimestamp = logRecords.last.consistentTimestamp
+
+    val startTimestamp = 1000L
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
+
+    sessionManager.sessions.head.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.value - startTimestamp) / 1000))
+  }
+
+  test("replication delta should be updated when receiving new acknowledgements") {
+    val transactionsCount = 10
+    val timestampIncrement = 1000
+    val startTimestamp = 1000L
+    val logRecords = createTransactions(count = transactionsCount, initialTimestamp = 0, timestampIncrement = timestampIncrement)
+    logRecords.foreach(txLog.append(_))
+    logRecords should be(txLog.read.toList)
+    currentConsistentTimestamp = logRecords.last.consistentTimestamp
+
+    // Set the replicationWindowSize to the exact amount of transactions we expect over the session
+    replicationWindowSize = 8
+
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
+    session.mode should be(ReplicationMode.Live)
+    session.startTimestamp should be(Some(Timestamp(startTimestamp)))
+    session.endTimestamp should be(None)
+
+    session.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.value - startTimestamp) / 1000))
+
+    val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
+
+    messageCaptor.getAllValues.foreach { message =>
+      // Acknowledge transaction
+      message.handleReply(new InMessage(Nil))
+    }
+
+    // Let the ACKs be processed by the actor
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
+
+    val lastTransaction = messageCaptor.getAllValues.last
+    val lastTimestamp = ReplicationAPIParams.getOptionalParamLongValue(ReplicationAPIParams.Timestamp)(lastTransaction)
+
+    sessionManager.sessions.head.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.value - lastTimestamp.get) / 1000))
+  }
+
   test("close session should kill session") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     logRecords.foreach(txLog.append(_))
