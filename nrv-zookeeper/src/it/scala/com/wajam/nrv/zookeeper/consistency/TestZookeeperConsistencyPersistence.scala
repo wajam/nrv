@@ -10,6 +10,7 @@ import com.wajam.nrv.service.{ServiceMember, Service}
 import com.wajam.nrv.cluster.{Cluster, LocalNode, Node}
 import com.wajam.nrv.zookeeper.{ZookeeperTestHelpers, ZookeeperClient}
 import com.wajam.nrv.zookeeper.cluster.ZookeeperClusterManager
+import com.wajam.commons.ControlableCurrentTime
 
 @RunWith(classOf[JUnitRunner])
 class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
@@ -20,6 +21,9 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
 
   var zkClient: ZookeeperClient = _
   var cluster: Cluster = _
+
+  val lagUpdateThreshold = 60
+  val lagUpdateSpacing = 30
 
   before {
     import com.wajam.nrv.zookeeper.ZookeeperClient.string2bytes
@@ -70,6 +74,10 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
 
     originalMapping.foreach { case (token, nodes) =>
       zkCreateReplicasList(service, token, nodes)
+
+      nodes.foreach { node =>
+        zkCreateReplicationLag(service, token, node, 0)
+      }
     }
 
     members.foreach { member =>
@@ -79,7 +87,12 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
 
     cluster.start()
 
-    val consistency = new ZookeeperConsistencyPersistence(zk, service)
+    val consistency = new ZookeeperConsistencyPersistence(zk, service, lagUpdateThreshold, lagUpdateSpacing) with ControlableCurrentTime
+
+    def checkCachedAndPersistedLagValues(service: Service, token: Long, slave: Node, value: Int) {
+      consistency.replicationLagSeconds(token, slave) should be(Some(value))
+      zkGetReplicationLag(service, token, slave) should be(value)
+    }
   }
 
   it should "load the replica mapping from Zk on start" in new Builder {
@@ -152,5 +165,72 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
 
     // The replicas should now appear in the mapping
     consistency.explicitReplicasMapping should be(originalMapping + (20 -> List(newMember.node)))
+  }
+
+  it should "load the replication lag values from Zk on start" in new Builder {
+    consistency.start()
+
+    originalMapping.foreach { case (token, slaves) =>
+
+      slaves.foreach { slave =>
+        checkCachedAndPersistedLagValues(service, token, slave, 0)
+      }
+    }
+  }
+
+  it should "persist the new replication lag value in Zk when the value stays under the threshold" in new Builder {
+    consistency.start()
+
+    val token = 0
+    val slave = originalMapping(token).head
+
+    val newLag = 10
+
+    // Update from 0s to 1s with a 60s threshold
+    consistency.updateReplicationLagSeconds(token, slave, newLag)
+
+    checkCachedAndPersistedLagValues(service, token, slave, newLag)
+  }
+
+  it should "persist the new replication lag value in Zk when the value goes over the threshold" in new Builder {
+    consistency.start()
+
+    val token = 0
+    val slave = originalMapping(token).head
+
+    val newLag = 75
+
+    // Update from 0s to 75s with a 60s threshold
+    consistency.updateReplicationLagSeconds(token, slave, newLag)
+
+    checkCachedAndPersistedLagValues(service, token, slave, newLag)
+  }
+
+  it should "rate limit Zookeeper calls when the replication lag stays over the threshold" in new Builder {
+    consistency.start()
+
+    val token = 0
+    val slave = originalMapping(token).head
+
+    val initialLag = 300
+    val firstUpdate = 150
+    val secondUpdate = 75
+
+    // Set the initial lag at 150
+    consistency.updateReplicationLagSeconds(token, slave, initialLag)
+
+    // Update from 300s to 150s with a 60s threshold
+    // Won't rate limit because it is the first update
+    consistency.updateReplicationLagSeconds(token, slave, firstUpdate)
+
+    checkCachedAndPersistedLagValues(service, token, slave, initialLag)
+
+    // Advance time to get past threshold
+    consistency.advanceTime(60000)
+
+    // Update from 300s to 150s with a 60s threshold
+    consistency.updateReplicationLagSeconds(token, slave, secondUpdate)
+
+    checkCachedAndPersistedLagValues(service, token, slave, secondUpdate)
   }
 }

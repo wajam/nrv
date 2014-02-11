@@ -10,9 +10,10 @@ import collection.immutable.TreeMap
 import ReplicationAPIParams._
 import com.wajam.commons.Logging
 import com.yammer.metrics.scala.Instrumented
-import com.wajam.commons.{CurrentTime, UuidStringGenerator}
+import com.wajam.commons.{CurrentTime, UuidStringGenerator, Observable, Event}
 import com.wajam.nrv.utils.Scheduler
 import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.nrv.consistency.replication.MasterReplicationSessionManager.ReplicationLagChanged
 
 /**
  * Manage all the local master replication sessions the local service is acting as a replication source. The replication
@@ -22,7 +23,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
                            getTransactionLog: (ResolvedServiceMember) => TransactionLog,
                            getMemberCurrentConsistentTimestamp: (ResolvedServiceMember) => Option[Timestamp],
                            pushAction: Action, pushTps: Int, pushWindowSize: => Int, maxIdleDurationInMs: Long)
-  extends CurrentTime with UuidStringGenerator with Logging with Instrumented {
+  extends CurrentTime with UuidStringGenerator with Observable with Logging with Instrumented {
 
   private val manager = new SessionManagerActor
 
@@ -307,6 +308,13 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
       consistentTs <- getMemberCurrentConsistentTimestamp(member)
     } yield ((consistentTs.value - lastTs.value) / 1000).toInt
 
+    private def updateDelta(ts: Timestamp): Unit = {
+      lastSlaveTimestamp = Some(ts)
+      replicationDeltaInS.foreach { delta =>
+        notifyObservers(ReplicationLagChanged(member.token, slave, delta))
+      }
+    }
+
     private def nextSequence = {
       lastSequence += 1
       lastSequence
@@ -426,7 +434,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
             try {
               // Update lastSlaveTimestamp with last acknowledged slave timestamp
               pendingSequences(sequence).foreach { ts =>
-                lastSlaveTimestamp = Some(ts)
+                updateDelta(ts)
                 trace("Successfully acknowledged transaction (subid={}, seq={}, ts={}). {}", sessionId, sequence, ts, member)
               }
               pendingSequences -= sequence
@@ -464,4 +472,9 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     }
   }
 
+}
+
+object MasterReplicationSessionManager {
+
+  case class ReplicationLagChanged(token: Long, slave: Node, replicationLagSeconds: Int) extends Event
 }

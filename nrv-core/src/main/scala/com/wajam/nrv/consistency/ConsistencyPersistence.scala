@@ -1,6 +1,7 @@
 package com.wajam.nrv.consistency
 
 import com.wajam.nrv.cluster.Node
+import com.wajam.nrv.utils.timestamp.Timestamp
 
 /**
  * Trait to read and update some cluster wide configuration and state necessary for consistent services.
@@ -25,7 +26,7 @@ trait ConsistencyPersistence {
    * Update the number of seconds the specified replica lag behind the master service member. This change is visible to
    * all nodes in the cluster.
    */
-  def replicationLagSeconds_= (token: Long, node: Node, lag: Option[Int])
+  def updateReplicationLagSeconds(token: Long, node: Node, lag: Int)
 
   /**
    * Change the master service member. This change is visible to all nodes in the cluster.
@@ -45,7 +46,7 @@ object ConsistencyPersistence {
 
     def replicationLagSeconds(token: Long, node: Node) = None
 
-    def replicationLagSeconds_= (token: Long, node: Node, lag: Option[Int]) = Unit
+    def updateReplicationLagSeconds(token: Long, node: Node, lag: Int) = Unit
 
     def changeMasterServiceMember(token: Long, node: Node) = Unit
   }

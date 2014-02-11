@@ -1,6 +1,6 @@
 package com.wajam.nrv.zookeeper.cluster
 
-import com.wajam.nrv.cluster.{ServiceMemberVote, DynamicClusterManager}
+import com.wajam.nrv.cluster.{Node, ServiceMemberVote, DynamicClusterManager}
 import com.wajam.nrv.service.{ServiceMember, Service}
 import com.wajam.nrv.zookeeper.ZookeeperClient
 import com.wajam.nrv.zookeeper.ZookeeperClient._
@@ -176,5 +176,8 @@ object ZookeeperClusterManager {
 
   private[zookeeper] def zkMemberReplicasPath(serviceName: String, candidateToken: Long) =
     ZookeeperService.memberPath(serviceName, candidateToken) + "/replicas"
+
+  private[zookeeper] def zkMemberReplicaLagPath(serviceName: String, candidateToken: Long, slave: Node) =
+    ZookeeperService.memberPath(serviceName, candidateToken) + "/replicas" + "/" + slave.hostname + ":" + slave.ports("nrv") + "/delta"
 }
 

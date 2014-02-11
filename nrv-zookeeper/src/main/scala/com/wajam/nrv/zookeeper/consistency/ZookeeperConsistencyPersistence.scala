@@ -4,7 +4,7 @@ import scala.language.postfixOps
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import com.wajam.commons.Event
+import com.wajam.commons.{CurrentTime, Event}
 import com.wajam.nrv.consistency.ConsistencyPersistence
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Service, ServiceMember, NewMemberAddedEvent}
@@ -14,17 +14,23 @@ import com.wajam.nrv.zookeeper.cluster.ZookeeperClusterManager
 import akka.actor.{Props, ActorSystem, Actor}
 import akka.pattern.ask
 import akka.util.Timeout
-import org.apache.zookeeper.KeeperException
+import org.apache.zookeeper.{CreateMode, KeeperException}
 import org.apache.zookeeper.KeeperException.Code
 import ZookeeperConsistencyPersistence._
 
 /**
  * Cluster configuration backed by Zookeeper.
+ *
+ * @param updateThreshold the amount of seconds below which the replication lag should be persisted in Zookeeper right away
+ * @param updateSpacing   the minimum amount of seconds between two updates of lag values over updateThreshold
  */
-class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(implicit ec: ExecutionContext, as: ActorSystem) extends ConsistencyPersistence {
+class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, updateThreshold: Int, updateSpacing: Int)(implicit ec: ExecutionContext, as: ActorSystem) extends ConsistencyPersistence with CurrentTime {
 
-  private var mapping: ReplicasMapping = Map()
+  private var replicasMapping: ReplicasMapping = Map()
   private var mappingSequence: Int = 0
+
+  private var replicationLagMap: ReplicationLagMap = Map()
+  private var lastPersistedTs: Option[Long] = None
 
   private val serviceObserver: (Event) => Unit = {
     case NewMemberAddedEvent(member) =>
@@ -34,9 +40,12 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
   }
 
   def start(): Unit = {
-    // Synchronously load the mapping from Zookeeper
     synchronized {
-      mapping = Await.result(mappingFuture, askTimeout.duration)._2
+      // Synchronously load the replicas mapping from Zookeeper
+      replicasMapping = Await.result(mappingFuture, askTimeout.duration)._2
+
+      // Load the replication lags from Zookeeper
+      replicationLagMap = fetchReplicationLagMap
     }
 
     // Trigger an update when a new service member is added
@@ -47,11 +56,77 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
     service.removeObserver(serviceObserver)
   }
 
-  def explicitReplicasMapping: Map[Long, List[Node]] = mapping
+  def explicitReplicasMapping: Map[Long, List[Node]] = replicasMapping
 
-  def replicationLagSeconds(token: Long, node: Node): Option[Int] = None
+  override def replicationLagSeconds(token: Long, node: Node) = {
+    replicationLagMap.get((token, node))
+  }
 
-  def replicationLagSeconds_= (token: Long, node: Node, lag: Option[Int]) = Unit
+  override def updateReplicationLagSeconds(token: Long, node: Node, lag: Int): Unit = {
+    import ZookeeperClient.int2bytes
+
+    def persistLag(): Unit = {
+      synchronized {
+        replicationLagMap += (token, node) -> lag
+        lastPersistedTs = Some(currentTime)
+      }
+
+      val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, node)
+
+      // Persist value in Zookeeper
+      try {
+        zk.set(path, lag)
+      } catch {
+        // Node doesn't exist, create it
+        case e: KeeperException if e.code == Code.NONODE =>
+          zk.create(path, lag, CreateMode.PERSISTENT)
+      }
+    }
+
+    replicationLagSeconds(token, node) match {
+      case Some(currentLag) if currentLag <= updateThreshold || lag <= updateThreshold =>
+        // Lag has significantly changed, immediately persist its value
+        persistLag()
+
+      case Some(currentLag) =>
+        // Lag has not significantly changed: persist according to rate limit
+        lastPersistedTs match {
+          case Some(ts) if currentTime - ts >= updateSpacing =>
+            // More than updateSpacing seconds elapsed since last persisted update: persist
+            persistLag()
+
+          case None =>
+            // No clue about last persisted update time: persist
+            persistLag()
+
+          case _ =>
+        }
+
+      case None =>
+        // No previously persisted value: persist
+        persistLag()
+    }
+  }
+
+  // Fetch replication lag for each slave, based on the current replicasMapping
+  private def fetchReplicationLagMap: ReplicationLagMap = {
+    replicasMapping.flatMap { case (token, nodes) =>
+      nodes.flatMap { node =>
+        val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, node)
+
+        try {
+          val value = zk.getInt(path)
+          Some((token, node) -> value)
+        } catch {
+          case e: KeeperException if e.code == Code.NONODE =>
+            None
+
+          case e: Throwable =>
+            throw e
+        }
+      }
+    }.toMap
+  }
 
   def changeMasterServiceMember(token: Long, node: Node) = Unit
 
@@ -63,7 +138,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
         synchronized {
           if (newSequence > mappingSequence) {
             mappingSequence = newSequence
-            mapping = newMapping
+            replicasMapping = newMapping
           }
         }
     }
@@ -151,6 +226,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service)(imp
 object ZookeeperConsistencyPersistence {
 
   type ReplicasMapping = Map[Long, List[Node]]
+  type ReplicationLagMap = Map[(Long, Node), Int]
 
   def parseNodeList(data: String): List[Node] = {
     data.split('|').map(Node.fromString).toList
