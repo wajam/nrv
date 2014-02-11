@@ -605,14 +605,14 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     verifyZeroInteractions(mockMasterOpenSessionAction, mockMasterCloseSessionAction)
   }
 
-  test("replication delta should be initialized according to the master's consistent timestamp") {
+  test("replication lag should be initialized according to the master's consistent timestamp") {
     val startTimestamp = 0L
     val session = openSession(startTimestamp)
 
     session.secondsBehindMaster should be (Some((masterConsistentTimestamp - startTimestamp) / 1000))
   }
 
-  test("replication delta should be updated when receiving new transactions") {
+  test("replication lag should be updated when receiving new transactions") {
     val startTimestamp = 0L
     val session = openSession(startTimestamp)
 

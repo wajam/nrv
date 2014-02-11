@@ -330,7 +330,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                 case Right(sessionActor) => {
                   val context = sessionActor.context
                   ReplicationSession(sessionActor.member, context.cookie, context.mode, service.cluster.localNode,
-                    Some(sessionActor.sessionId), Some(sessionActor.startTimestamp), sessionActor.endTimestamp, sessionActor.replicationDeltaInS)
+                    Some(sessionActor.sessionId), Some(sessionActor.startTimestamp), sessionActor.endTimestamp, sessionActor.replicationLagInS)
                 }
               }
               reply(allSessions.toList)
@@ -499,7 +499,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
 
     private var masterConsistentTimestamp: Option[Timestamp] = initialMasterConsistentTimestamp
 
-    def replicationDeltaInS: Option[Int] = for {
+    def replicationLagInS: Option[Int] = for {
       slaveConsistentTs <- consistentTimestamp
       masterConsistentTs <- masterConsistentTimestamp
     } yield ((masterConsistentTs.value - slaveConsistentTs.value) / 1000).toInt

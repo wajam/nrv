@@ -593,7 +593,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
-  test("replication delta should be initialized according to the slave's start timestamp") {
+  test("replication lag should be initialized according to the slave's start timestamp") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0, timestampIncrement = 1000)
     logRecords.foreach(txLog.append(_))
     logRecords should be(txLog.read.toList)
@@ -605,7 +605,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     sessionManager.sessions.head.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.value - startTimestamp) / 1000))
   }
 
-  test("replication delta should be updated when receiving new acknowledgements and trigger a ReplicationLagChanged event") {
+  test("replication lag should be updated when receiving new acknowledgements and trigger a ReplicationLagChanged event") {
     val transactionsCount = 10
     val timestampIncrement = 1000
     val startTimestamp = 1000L

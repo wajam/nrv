@@ -210,7 +210,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               val allSessions = sessions.map(sessionActor => {
                 val mode = if (sessionActor.source.end.isDefined) ReplicationMode.Bootstrap else ReplicationMode.Live
                 ReplicationSession(sessionActor.member, sessionActor.cookie, mode, sessionActor.slave,
-                  Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end, sessionActor.replicationDeltaInS)
+                  Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end, sessionActor.replicationLagInS)
               })
               reply(allSessions)
             } catch {
@@ -303,15 +303,15 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     private var isTerminating = false
     private var lastSlaveTimestamp: Option[Timestamp] = startTimestamp
 
-    def replicationDeltaInS: Option[Int] = for {
+    def replicationLagInS: Option[Int] = for {
       lastTs <- lastSlaveTimestamp
       consistentTs <- getMemberCurrentConsistentTimestamp(member)
     } yield ((consistentTs.value - lastTs.value) / 1000).toInt
 
-    private def updateDelta(ts: Timestamp): Unit = {
+    private def updateLag(ts: Timestamp): Unit = {
       lastSlaveTimestamp = Some(ts)
-      replicationDeltaInS.foreach { delta =>
-        notifyObservers(ReplicationLagChanged(member.token, slave, delta))
+      replicationLagInS.foreach { lag =>
+        notifyObservers(ReplicationLagChanged(member.token, slave, lag))
       }
     }
 
@@ -434,7 +434,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
             try {
               // Update lastSlaveTimestamp with last acknowledged slave timestamp
               pendingSequences(sequence).foreach { ts =>
-                updateDelta(ts)
+                updateLag(ts)
                 trace("Successfully acknowledged transaction (subid={}, seq={}, ts={}). {}", sessionId, sequence, ts, member)
               }
               pendingSequences -= sequence
