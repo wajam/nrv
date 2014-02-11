@@ -178,6 +178,6 @@ object ZookeeperClusterManager {
     ZookeeperService.memberPath(serviceName, candidateToken) + "/replicas"
 
   private[zookeeper] def zkMemberReplicaLagPath(serviceName: String, candidateToken: Long, slave: Node) =
-    ZookeeperService.memberPath(serviceName, candidateToken) + "/replicas" + "/" + slave.hostname + ":" + slave.ports("nrv") + "/delta"
+    ZookeeperService.memberPath(serviceName, candidateToken) + "/replicas" + "/" + slave.hostname + ":" + slave.ports("nrv") + "/lag"
 }
 
