@@ -95,13 +95,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
       pushWindowSize = replicationWindowSize, maxIdleDurationInMs = replicationSessionIdleTimeout)
   }
 
-  masterReplicationSessionManager.addObserver {
-    case ReplicationLagChanged(token, slave, replicationLagSeconds) =>
-      consistencyPersistence.updateReplicationLagSeconds(token, slave, replicationLagSeconds)
-
-    case _ =>
-  }
-
   private lazy val masterOpenSessionAction = new Action("/replication/master/:" + ReplicationAPIParams.Token + "/sessions",
     masterReplicationSessionManager.handleOpenSessionMessage, ActionMethod.POST)
   private lazy val masterCloseSessionAction = new Action("/replication/master/:" + ReplicationAPIParams.Token + "/sessions/:" + ReplicationAPIParams.SessionId,
@@ -151,6 +144,15 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
       }
 
       started = true
+    }
+
+    // Listen for replication lag changes coming from the MasterReplicationSessionManager
+    // and notify the ConsistencyPersistence implementation
+    masterReplicationSessionManager.addObserver {
+      case ReplicationLagChanged(token, slave, replicationLagSeconds) =>
+        consistencyPersistence.updateReplicationLagSeconds(token, slave, replicationLagSeconds)
+
+      case _ =>
     }
   }
 
