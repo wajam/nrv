@@ -186,7 +186,7 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
 
     val newLag = 10
 
-    // Update from 0s to 1s with a 60s threshold
+    // Update from 0s to 10s with a 60s threshold
     consistency.updateReplicationLagSeconds(token, slave, newLag)
 
     checkCachedAndPersistedLagValues(service, token, slave, newLag)
