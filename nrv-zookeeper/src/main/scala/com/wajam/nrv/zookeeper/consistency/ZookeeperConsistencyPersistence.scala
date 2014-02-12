@@ -33,9 +33,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
   private var lastPersistedTs: Option[Long] = None
 
   private val serviceObserver: (Event) => Unit = {
-    case NewMemberAddedEvent(member) =>
-      updateReplicasMapping()
-
+    case NewMemberAddedEvent(member) => updateReplicasMapping()
     case _ =>
   }
 
@@ -78,36 +76,26 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
         zk.set(path, lag)
       } catch {
         // Node doesn't exist, create it
-        case e: KeeperException if e.code == Code.NONODE =>
-          zk.ensureAllExists(path, lag, CreateMode.PERSISTENT)
-
-        case e: Throwable =>
-          throw e
+        case e: KeeperException if e.code == Code.NONODE => zk.ensureAllExists(path, lag, CreateMode.PERSISTENT)
+        case e: Throwable => throw e
       }
     }
 
     replicationLagSeconds(token, node) match {
-      case Some(currentLag) if currentLag <= updateThreshold || lag <= updateThreshold =>
-        // Lag has significantly changed, immediately persist its value
-        persistLag()
-
-      case Some(currentLag) =>
+      // Lag has significantly changed, immediately persist its value
+      case Some(currentLag) if currentLag <= updateThreshold || lag <= updateThreshold => persistLag()
+      case Some(currentLag) => {
         // Lag has not significantly changed: persist according to rate limit
         lastPersistedTs match {
-          case Some(ts) if currentTime - ts >= updateSpacing =>
-            // More than updateSpacing seconds elapsed since last persisted update: persist
-            persistLag()
-
-          case None =>
-            // No clue about last persisted update time: persist
-            persistLag()
-
+          // More than updateSpacing seconds elapsed since last persisted update: persist
+          case Some(ts) if currentTime - ts >= updateSpacing => persistLag()
+          // No clue about last persisted update time: persist
+          case None => persistLag()
           case _ =>
         }
-
-      case None =>
-        // No previously persisted value: persist
-        persistLag()
+      }
+      // No previously persisted value: persist
+      case None => persistLag()
     }
   }
 
@@ -121,11 +109,8 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
           val value = zk.getInt(path)
           Some((token, node) -> value)
         } catch {
-          case e: KeeperException if e.code == Code.NONODE =>
-            None
-
-          case e: Throwable =>
-            throw e
+          case e: KeeperException if e.code == Code.NONODE => None
+          case e: Throwable => throw e
         }
       }
     }.toMap
@@ -137,13 +122,12 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
 
   private def updateReplicasMapping(): Unit = {
     mappingFuture.onSuccess {
-      case (newSequence: Int, newMapping: ReplicasMapping) =>
-        synchronized {
-          if (newSequence > mappingSequence) {
-            mappingSequence = newSequence
-            replicasMapping = newMapping
-          }
+      case (newSequence: Int, newMapping: ReplicasMapping) => synchronized {
+        if (newSequence > mappingSequence) {
+          mappingSequence = newSequence
+          replicasMapping = newMapping
         }
+      }
     }
   }
 
@@ -159,11 +143,12 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
       private var sequence = 0
 
       def receive = {
-        case Fetch =>
+        case Fetch => {
           val mapping = fetchReplicasMapping
           sequence = sequence + 1
 
           sender ! (sequence, mapping)
+        }
       }
 
       // Fetches the entire (token -> replicas) mapping for the service.
@@ -186,12 +171,11 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
           parseNodeList(replicaString)
         } catch {
           // Replicas are not set yet: watch them
-          case e: KeeperException if e.code == Code.NONODE =>
+          case e: KeeperException if e.code == Code.NONODE => {
             watchMemberReplicas(member, replicasPath)
             Nil
-
-          case e: Throwable =>
-            throw e
+          }
+          case e: Throwable => throw e
         }
       }
 

@@ -151,7 +151,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
     masterReplicationSessionManager.addObserver {
       case ReplicationLagChanged(token, slave, replicationLagSeconds) =>
         consistencyPersistence.updateReplicationLagSeconds(token, slave, replicationLagSeconds)
-
       case _ =>
     }
   }
