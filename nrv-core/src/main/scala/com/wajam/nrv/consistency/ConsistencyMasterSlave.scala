@@ -11,11 +11,11 @@ import com.wajam.commons.Logging
 import com.wajam.nrv.consistency.replication._
 import scala.actors.Actor
 import com.wajam.nrv.consistency.replication.ReplicationAPIParams._
+import com.wajam.nrv.consistency.replication.MasterReplicationSessionManager.ReplicationLagChanged
 import com.wajam.nrv.service.StatusTransitionAttemptEvent
 import com.wajam.nrv.service.StatusTransitionEvent
 import com.wajam.commons.Event
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
-import com.wajam.nrv.consistency.replication.ReplicationAPIParams.Timestamp
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
@@ -144,6 +144,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
       }
 
       started = true
+    }
+
+    // Listen for replication lag changes coming from the MasterReplicationSessionManager
+    // and notify the ConsistencyPersistence implementation
+    masterReplicationSessionManager.addObserver {
+      case ReplicationLagChanged(token, slave, replicationLagSeconds) =>
+        consistencyPersistence.updateReplicationLagSeconds(token, slave, replicationLagSeconds)
+      case _ =>
     }
   }
 

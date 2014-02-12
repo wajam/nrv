@@ -61,4 +61,22 @@ trait ZookeeperTestHelpers {
 
     zk.set(path, replicaString)
   }
+
+  def zkCreateReplicationLag(service: Service, token: Long, slave: Node, lag: Int) {
+    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, slave)
+
+    zk.ensureAllExists(path, lag, CreateMode.PERSISTENT)
+  }
+
+  def zkUpdateReplicationLag(service: Service, token: Long, slave: Node, lag: Int) {
+    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, slave)
+
+    zk.set(path, lag)
+  }
+
+  def zkGetReplicationLag(service: Service, token: Long, slave: Node): Int = {
+    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, slave)
+
+    zk.getInt(path)
+  }
 }

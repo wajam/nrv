@@ -21,6 +21,7 @@ import com.wajam.nrv.consistency.log.LogRecord.Index
 import com.wajam.commons.Logging
 import com.wajam.commons.Closable
 import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.nrv.consistency.replication.MasterReplicationSessionManager.ReplicationLagChanged
 
 @RunWith(classOf[JUnitRunner])
 class TestMasterReplicationSessionManager extends TestTransactionBase with BeforeAndAfter with MockitoSugar with Logging {
@@ -592,7 +593,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
-  test("replication delta should be initialized according to the slave's start timestamp") {
+  test("replication lag should be initialized according to the slave's start timestamp") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0, timestampIncrement = 1000)
     logRecords.foreach(txLog.append(_))
     logRecords should be(txLog.read.toList)
@@ -604,7 +605,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     sessionManager.sessions.head.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.value - startTimestamp) / 1000))
   }
 
-  test("replication delta should be updated when receiving new acknowledgements") {
+  test("replication lag should be updated when receiving new acknowledgements and trigger a ReplicationLagChanged event") {
     val transactionsCount = 10
     val timestampIncrement = 1000
     val startTimestamp = 1000L
@@ -626,6 +627,14 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
     verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
 
+    var receivedEvents = List[ReplicationLagChanged]()
+    sessionManager.addObserver {
+      case event: ReplicationLagChanged =>
+        synchronized {
+          receivedEvents ::= event
+        }
+    }
+
     messageCaptor.getAllValues.foreach { message =>
       // Acknowledge transaction
       message.handleReply(new InMessage(Nil))
@@ -637,7 +646,16 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     val lastTransaction = messageCaptor.getAllValues.last
     val lastTimestamp = ReplicationAPIParams.getOptionalParamLongValue(ReplicationAPIParams.Timestamp)(lastTransaction)
 
-    sessionManager.sessions.head.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.value - lastTimestamp.get) / 1000))
+    // Check the lag value returned with the replication session
+    val expectedLag = ((currentConsistentTimestamp.get.value - lastTimestamp.get) / 1000).toInt
+    sessionManager.sessions.head.secondsBehindMaster should be(Some(expectedLag))
+
+    // Check ReplicationLagChanged events
+    receivedEvents.size should be(replicationWindowSize)
+    receivedEvents.foldLeft(expectedLag) { (acc, ev) =>
+      ev.replicationLagSeconds should be(acc)
+      acc + 1
+    }
   }
 
   test("close session should kill session") {
