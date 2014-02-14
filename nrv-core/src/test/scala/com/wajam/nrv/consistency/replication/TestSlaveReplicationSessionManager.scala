@@ -41,7 +41,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
   var sessionEndCalls = 0
   var pushTxReplyCount = 0
 
-  var masterConsistentTimestamp = 0L
+  var masterConsistentTimestamp: Timestamp = Timestamp(0L, 0)
 
   before {
     localNode = new LocalNode(Map("nrv" -> 9999))
@@ -119,7 +119,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Cookie -> cookie,
       ReplicationAPIParams.Start -> startTimestamp.toString,
       ReplicationAPIParams.End -> endTimestamp.toString,
-      ReplicationAPIParams.ConsistentTimestamp -> masterConsistentTimestamp)
+      ReplicationAPIParams.ConsistentTimestamp -> masterConsistentTimestamp.value)
 
     // Verify session is activated
     val matchCaptor = MessageMatcher(openSessionRequest)
@@ -136,7 +136,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
       ReplicationAPIParams.Sequence -> sequence.toString,
       ReplicationAPIParams.SessionId -> sessionId,
       ReplicationAPIParams.Timestamp -> transaction.timestamp.get.toString,
-      ReplicationAPIParams.ConsistentTimestamp -> masterConsistentTimestamp)
+      ReplicationAPIParams.ConsistentTimestamp -> masterConsistentTimestamp.value)
     val message = new InMessage(params, data = transaction)
     message.replyCallback = (_) => pushTxReplyCount += 1
     message
@@ -606,14 +606,14 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
   }
 
   test("replication lag should be initialized according to the master's consistent timestamp") {
-    val startTimestamp = 0L
+    val startTimestamp = Timestamp(0L, 0)
     val session = openSession(startTimestamp)
 
-    session.secondsBehindMaster should be (Some((masterConsistentTimestamp - startTimestamp) / 1000))
+    session.secondsBehindMaster should be (Some((masterConsistentTimestamp.timeMs - startTimestamp.timeMs) / 1000))
   }
 
   test("replication lag should be updated when receiving new transactions") {
-    val startTimestamp = 0L
+    val startTimestamp = Timestamp(0L, 0)
     val session = openSession(startTimestamp)
 
     val tx1 = createRequestMessage(timestamp = 100L)
@@ -628,10 +628,10 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     // Wait for the transactions to be handled
     verify(mockStore, timeout(1500).times(3)).writeTransaction(anyObject())
 
-    sessionManager.sessions.head.secondsBehindMaster should be(Some(((masterConsistentTimestamp - tx3.timestamp.get.value) / 1000).toInt))
+    sessionManager.sessions.head.secondsBehindMaster should be(Some(((masterConsistentTimestamp.timeMs - tx3.timestamp.get.timeMs) / 1000).toInt))
 
     // Change the master's consistent timestamp
-    masterConsistentTimestamp = 2000L
+    masterConsistentTimestamp = Timestamp(2000L, 0)
 
     val tx4 = createRequestMessage(timestamp = 400L)
     val tx5 = createRequestMessage(timestamp = 500L)
@@ -645,7 +645,7 @@ class TestSlaveReplicationSessionManager extends TestTransactionBase with Before
     // Wait for the transactions to be handled
     verify(mockStore, timeout(1500).times(6)).writeTransaction(anyObject())
 
-    sessionManager.sessions.head.secondsBehindMaster should be(Some((masterConsistentTimestamp - tx6.timestamp.get.value) / 1000))
+    sessionManager.sessions.head.secondsBehindMaster should be(Some((masterConsistentTimestamp.timeMs - tx6.timestamp.get.timeMs) / 1000))
   }
 
   test("replication message tx log append error should result in consistency error") {
