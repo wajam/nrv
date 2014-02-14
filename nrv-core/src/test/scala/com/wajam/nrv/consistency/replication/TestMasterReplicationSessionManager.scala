@@ -594,21 +594,21 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
   }
 
   test("replication lag should be initialized according to the slave's start timestamp") {
-    val logRecords = createTransactions(count = 10, initialTimestamp = 0, timestampIncrement = 1000)
+    val logRecords = createTransactions(count = 10, initialTimestamp = 0, timestampIncrement = 1000 * Timestamp.SeqPerMs)
     logRecords.foreach(txLog.append(_))
     logRecords should be(txLog.read.toList)
     currentConsistentTimestamp = logRecords.last.consistentTimestamp
 
-    val startTimestamp = 1000L
+    val startTimestamp = Timestamp(1000L, 0)
     val session = openSession(Some(startTimestamp), ReplicationMode.Live)
 
-    sessionManager.sessions.head.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.value - startTimestamp) / 1000))
+    sessionManager.sessions.head.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.timeMs - startTimestamp.timeMs) / 1000))
   }
 
   test("replication lag should be updated when receiving new acknowledgements and trigger a ReplicationLagChanged event") {
     val transactionsCount = 10
-    val timestampIncrement = 1000
-    val startTimestamp = 1000L
+    val timestampIncrement = 1000 * Timestamp.SeqPerMs
+    val startTimestamp = Timestamp(1000L, 0)
     val logRecords = createTransactions(count = transactionsCount, initialTimestamp = 0, timestampIncrement = timestampIncrement)
     logRecords.foreach(txLog.append(_))
     logRecords should be(txLog.read.toList)
@@ -622,7 +622,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
 
-    session.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.value - startTimestamp) / 1000))
+    session.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.timeMs - startTimestamp.timeMs) / 1000))
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
     verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())

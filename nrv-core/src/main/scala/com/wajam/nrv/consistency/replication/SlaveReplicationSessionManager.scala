@@ -330,7 +330,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
                 case Right(sessionActor) => {
                   val context = sessionActor.context
                   ReplicationSession(sessionActor.member, context.cookie, context.mode, service.cluster.localNode,
-                    Some(sessionActor.sessionId), Some(sessionActor.startTimestamp), sessionActor.endTimestamp, sessionActor.replicationLagInS)
+                    Some(sessionActor.sessionId), Some(sessionActor.startTimestamp), sessionActor.endTimestamp, sessionActor.replicationLagSeconds)
                 }
               }
               reply(allSessions.toList)
@@ -499,10 +499,10 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
 
     private var masterConsistentTimestamp: Option[Timestamp] = initialMasterConsistentTimestamp
 
-    def replicationLagInS: Option[Int] = for {
+    def replicationLagSeconds: Option[Int] = for {
       slaveConsistentTs <- consistentTimestamp
       masterConsistentTs <- masterConsistentTimestamp
-    } yield ((masterConsistentTs.value - slaveConsistentTs.value) / 1000).toInt
+    } yield ((masterConsistentTs.timeMs - slaveConsistentTs.timeMs) / 1000).toInt
 
     override def start() = {
       super.start()

@@ -210,7 +210,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
               val allSessions = sessions.map(sessionActor => {
                 val mode = if (sessionActor.source.end.isDefined) ReplicationMode.Bootstrap else ReplicationMode.Live
                 ReplicationSession(sessionActor.member, sessionActor.cookie, mode, sessionActor.slave,
-                  Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end, sessionActor.replicationLagInS)
+                  Some(sessionActor.sessionId), Some(sessionActor.source.start), sessionActor.source.end, sessionActor.replicationLagSeconds)
               })
               reply(allSessions)
             } catch {
@@ -303,14 +303,14 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     private var isTerminating = false
     private var lastSlaveTimestamp: Option[Timestamp] = startTimestamp
 
-    def replicationLagInS: Option[Int] = for {
+    def replicationLagSeconds: Option[Int] = for {
       lastTs <- lastSlaveTimestamp
       consistentTs <- getMemberCurrentConsistentTimestamp(member)
-    } yield ((consistentTs.value - lastTs.value) / 1000).toInt
+    } yield ((consistentTs.timeMs - lastTs.timeMs) / 1000).toInt
 
     private def updateLag(ts: Timestamp): Unit = {
       lastSlaveTimestamp = Some(ts)
-      replicationLagInS.foreach { lag =>
+      replicationLagSeconds.foreach { lag =>
         notifyObservers(ReplicationLagChanged(member.token, slave, lag))
       }
     }
