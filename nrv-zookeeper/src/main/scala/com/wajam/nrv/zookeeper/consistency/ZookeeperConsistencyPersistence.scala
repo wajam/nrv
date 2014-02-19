@@ -9,7 +9,7 @@ import com.wajam.nrv.consistency.ConsistencyPersistence
 import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.{Service, ServiceMember, NewMemberAddedEvent}
 import com.wajam.nrv.zookeeper.ZookeeperClient
-import com.wajam.nrv.zookeeper.ZookeeperClient.{NodeChildrenChanged, NodeValueChanged}
+import com.wajam.nrv.zookeeper.ZookeeperClient.{NodeChildrenChanged, NodeValueChanged, NodeStatusChanged}
 import com.wajam.nrv.zookeeper.cluster.ZookeeperClusterManager
 import akka.actor.{Props, ActorSystem, Actor}
 import akka.pattern.ask
@@ -37,14 +37,16 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
     case _ =>
   }
 
+  private var lagChangedCallbacks: Map[String, (NodeValueChanged) => Unit] = Map()
+  private var lagCreatedCallbacks: Map[String, (NodeStatusChanged) => Unit] = Map()
+
   def start(): Unit = {
     synchronized {
       // Synchronously load the replicas mapping from Zookeeper
       replicasMapping = Await.result(mappingFuture, askTimeout.duration)._2
-
-      // Load the replication lags from Zookeeper
-      replicationLagMap = fetchReplicationLagMap
     }
+    // Load the replication lags from Zookeeper
+    fetchReplicationLagMap()
 
     // Trigger an update when a new service member is added
     service.addObserver(serviceObserver)
@@ -100,20 +102,44 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
   }
 
   // Fetch replication lag for each slave, based on the current replicasMapping
-  private def fetchReplicationLagMap: ReplicationLagMap = {
-    replicasMapping.flatMap { case (token, nodes) =>
-      nodes.flatMap { node =>
-        val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, node)
-
-        try {
-          val value = zk.getInt(path)
-          Some((token, node) -> value)
-        } catch {
-          case e: KeeperException if e.code == Code.NONODE => None
-          case e: Throwable => throw e
-        }
+  private def fetchReplicationLagMap(): Unit = {
+    replicasMapping.map { case (token, nodes) =>
+      nodes.map { node =>
+        fetchReplicationLag(token, node)
       }
-    }.toMap
+    }
+  }
+
+  // Fetch replication lag for a given slave, watch for changes, and for node creation if doesn't exist
+  private def fetchReplicationLag(token: Long, slave: Node): Unit = {
+    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, slave)
+
+    try {
+      val callback = lagChangedCallbacks.get(path).getOrElse {
+        val newCallback = (e: NodeValueChanged) => fetchReplicationLag(token, slave)
+        synchronized {
+          lagChangedCallbacks += (path -> newCallback)
+        }
+        newCallback
+      }
+      val value = zk.getInt(path, Some(callback))
+
+      synchronized {
+        replicationLagMap += (token, slave) -> value
+      }
+    } catch {
+      case e: KeeperException if e.code == Code.NONODE =>
+        // Zookeeper node doesn't exist: register a callback triggered when it will be created
+        val callback = lagCreatedCallbacks.get(path).getOrElse {
+          val newCallback = (e: NodeStatusChanged) => fetchReplicationLag(token, slave)
+          synchronized {
+            lagCreatedCallbacks += (path -> newCallback)
+          }
+          newCallback
+        }
+        zk.exists(path, Some(callback))
+      case e: Throwable => throw e
+    }
   }
 
   def changeMasterServiceMember(token: Long, node: Node) = Unit
@@ -122,11 +148,15 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
 
   private def updateReplicasMapping(): Unit = {
     mappingFuture.onSuccess {
-      case (newSequence: Int, newMapping: ReplicasMapping) => synchronized {
-        if (newSequence > mappingSequence) {
-          mappingSequence = newSequence
-          replicasMapping = newMapping
+      case (newSequence: Int, newMapping: ReplicasMapping) => {
+        synchronized {
+          if (newSequence > mappingSequence) {
+            mappingSequence = newSequence
+            replicasMapping = newMapping
+          }
         }
+        // As new slaves might have been added, reload the entire lag map
+        fetchReplicationLagMap()
       }
     }
   }
@@ -137,8 +167,8 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
     new Actor {
 
       // Callbacks must be instantiated once then cached so that ZookeeperClient doesn't create watch duplicates
-      private var newMemberChildCallbacks: Map[String, NodeChildrenChanged => Unit] = Map()
-      private val replicasChangeCallback = (e: NodeValueChanged) => updateReplicasMapping()
+      private var replicasCreatedCallbacks: Map[String, NodeStatusChanged => Unit] = Map()
+      private val replicasChangedCallback = (e: NodeValueChanged) => updateReplicasMapping()
 
       private var sequence = 0
 
@@ -167,41 +197,22 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
         val replicasPath = ZookeeperClusterManager.zkMemberReplicasPath(service.name, member.token)
 
         try {
-          val replicaString = zk.getString(replicasPath, Some(replicasChangeCallback))
+          val replicaString = zk.getString(replicasPath, Some(replicasChangedCallback))
           parseNodeList(replicaString)
         } catch {
-          // Replicas are not set yet: watch them
           case e: KeeperException if e.code == Code.NONODE => {
-            watchMemberReplicas(member, replicasPath)
+            // Watch for the creation of a /replicas node and trigger an update when the replicas are set.
+            // Usually useful when a new service member is added and its replicas are not immediately set.
+            val callback = replicasCreatedCallbacks.get(replicasPath).getOrElse {
+              val newCallback = (e: NodeStatusChanged) => updateReplicasMapping()
+              replicasCreatedCallbacks += (replicasPath -> newCallback)
+              newCallback
+            }
+            zk.exists(replicasPath, Some(callback))
             Nil
           }
           case e: Throwable => throw e
         }
-      }
-
-      // Watch for the creation of a /replicas node for the token associated to the given service member.
-      // Trigger an update when the replicas are set.
-      // Usually useful when a new service member is added and its replicas are not immediately set.
-      private def watchMemberReplicas(member: ServiceMember, replicasPath: String): Unit = {
-        val memberPath = ZookeeperClusterManager.zkMemberPath(service.name, member.token)
-
-        def newMemberChildCallback(e: NodeChildrenChanged) = {
-          if (zk.exists(replicasPath)) {
-            // Replicas path has been created: trigger an update
-            updateReplicasMapping()
-          } else {
-            // Replicas path still doesn't exist: continue watching
-            watchMemberReplicas(member, replicasPath)
-          }
-        }
-
-        val callback = newMemberChildCallbacks.get(memberPath).getOrElse {
-          val newCallback = newMemberChildCallback _
-          newMemberChildCallbacks += (memberPath -> newCallback)
-          newCallback
-        }
-
-        zk.getChildren(memberPath, Some(callback))
       }
     }
   ))

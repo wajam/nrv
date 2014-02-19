@@ -140,7 +140,7 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
     consistency.explicitReplicasMapping should be(newMapping)
   }
 
-  it should "watch for the replicas when a service member is added" in new Builder {
+  it should "watch for the replicas and the lag when a service member is added" in new Builder {
     consistency.start()
 
     // Add a service member for token 20, without setting replicas yet
@@ -165,6 +165,17 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
 
     // The replicas should now appear in the mapping
     consistency.explicitReplicasMapping should be(originalMapping + (20 -> List(newMember.node)))
+
+    val newLag = 12345
+
+    // Create the lag for the new replica
+    zkCreateReplicationLag(service, newMember.token, newMember.node, newLag)
+
+    // Wait for the callback to be executed
+    Thread.sleep(100)
+
+    // The lag should now be cached
+    checkCachedAndPersistedLagValues(service, newMember.token, newMember.node, newLag)
   }
 
   it should "load the replication lag values from Zk on start" in new Builder {
@@ -232,5 +243,22 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter {
     consistency.updateReplicationLagSeconds(token, slave, secondUpdate)
 
     checkCachedAndPersistedLagValues(service, token, slave, secondUpdate)
+  }
+
+  it should "update the cached lag value when it changes in Zookeeper" in new Builder {
+    consistency.start()
+
+    val newLag = 12345
+
+    val token = 0
+    val slave = originalMapping(token).head
+
+    // Update lag directly in Zookeeper
+    zkUpdateReplicationLag(service, token, slave, newLag)
+
+    // Wait for the callback to be executed
+    Thread.sleep(100)
+
+    checkCachedAndPersistedLagValues(service, token, slave, newLag)
   }
 }
