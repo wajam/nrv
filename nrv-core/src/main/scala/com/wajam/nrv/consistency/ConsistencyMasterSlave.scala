@@ -42,7 +42,8 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
                              timestampTimeoutExtraDelay: Int = 250,
                              replicationTps: Int = 50, replicationWindowSize: Int = 20,
                              replicationSessionIdleTimeout: Long = 30000L, replicationOpenSessionDelay: Long = 5000,
-                             replicationResolver: Option[Resolver] = None)
+                             replicationResolver: Option[Resolver] = None,
+                             maxReplicaLagSeconds: Int = 0)
   extends Consistency with Logging {
 
   import SlaveReplicationManagerProtocol._
@@ -520,7 +521,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
       case MessageType.FUNCTION_CALL if requiresConsistency(message) => {
         message.method match {
           case ActionMethod.GET => executeConsistentOutgoingReadRequest(message, next)
-          case _ => executeConsistentOutgoingWriteRequest(action, message, next)
+          case _ => executeConsistentOutgoingWriteRequest(message, next)
         }
       }
       case _ => {
@@ -528,7 +529,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
         // to a single destination if it doesn't require consistency.
         message.destination.deselectAllReplicasButFirst()
         message.destination.selectedReplicas.isEmpty match {
-          case true => simulateUnavailableResponse(action, message)
+          case true => simulateUnavailableResponse(message)
           case false => next()
         }
       }
@@ -540,7 +541,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
    *  The response is sent to itself by calling handleIncoming on the current edge server (instead of
    *  sending it through the nrv network protocol
    */
-  private def simulateUnavailableResponse(action: Action, message: OutMessage) {
+  private def simulateUnavailableResponse(message: OutMessage) {
     val response = new InMessage()
     message.copyTo(response)
     response.error = Some(new UnavailableException)
@@ -577,20 +578,44 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
   }
 
   def executeConsistentOutgoingReadRequest(message: OutMessage, next: () => Unit) {
-    // Select the first available destination. Read messages are handled by the master if available but any replicas
-    // could also handle it.
-    message.destination.deselectAllReplicasButOne()
-    next()
+    // Select the first available destination. Read messages are handled by the master if available.
+    // If not, it can be handled by a replica having a replication lag below maxReplicaLagSeconds.
+
+    message.destination.replicas match {
+      case master :: _ if master.selected => {
+        // Send to master if Up
+        message.destination.deselectAllReplicasButFirst()
+        next()
+      }
+      case _ => {
+        // Get slave replicas with their respective lags
+        message.destination.selectedReplicas.flatMap { replica =>
+          consistencyPersistence.replicationLagSeconds(replica.token, replica.node).map(_ -> replica)
+        } match {
+          case Nil => simulateUnavailableResponse(message) // No replicas with known lag
+          case replicasWithLag: Seq[(Int, Replica)] => {
+            // Get the most up-to-date replica
+            val (lag, replica) = replicasWithLag.minBy(_._1)
+            if(lag <= maxReplicaLagSeconds) {
+              message.destination.deselectAllReplicasBut(replica)
+              next()
+            } else {
+              simulateUnavailableResponse(message)
+            }
+          }
+        }
+      }
+    }
   }
 
-  def executeConsistentOutgoingWriteRequest(action: Action, message: OutMessage, next: () => Unit) {
+  def executeConsistentOutgoingWriteRequest(message: OutMessage, next: () => Unit) {
     // Only the master (first resolved node) may handle write messages
     message.destination.replicas match {
       case master :: _ if master.selected => {
         message.destination.deselectAllReplicasButFirst()
         next()
       }
-      case _ => simulateUnavailableResponse(action, message) //case: master down
+      case _ => simulateUnavailableResponse(message) //case: master down
     }
   }
 

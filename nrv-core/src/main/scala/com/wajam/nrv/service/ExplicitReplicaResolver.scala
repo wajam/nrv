@@ -12,14 +12,15 @@ class ExplicitReplicaResolver(explicitTokenMapping: => Map[Long,List[Node]], res
   extends Resolver(resolver.replica, resolver.tokenExtractor, resolver.constraints, resolver.sorter) {
 
   override def resolve(service: Service, token: Long) = {
-
-    val memberReplica: List[Replica] = service.resolveMembers(token, 1).headOption match {
+    service.resolveMembers(token, 1).headOption match {
       case Some(member) => {
-        new Replica(token,member.node,member.status == MemberStatus.Up) :: explicitTokenMapping.get(token).getOrElse(List()).filterNot(_ == member.node).map(new Replica(token, _))
+        val masterReplica = new Replica(member.token, member.node, selected = member.status == MemberStatus.Up)
+        val slaveReplicas = explicitTokenMapping.get(member.token).map { nodes =>
+          nodes.filterNot(_ == member.node).map(new Replica(member.token, _))
+        }.getOrElse(Nil)
+        new Endpoints(Seq(new Shard(token, masterReplica :: slaveReplicas)))
       }
-      case _ => explicitTokenMapping.get(token).getOrElse(List()).map(new Replica(token, _))
+      case _ => resolver.resolve(service, token)
     }
-
-    new Endpoints(Seq(new Shard(token, memberReplica)))
   }
 }
