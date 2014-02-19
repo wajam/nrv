@@ -104,9 +104,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
   // Fetch replication lag for each slave, based on the current replicasMapping
   private def fetchReplicationLagMap(): Unit = {
     replicasMapping.map { case (token, nodes) =>
-      nodes.map { node =>
-        fetchReplicationLag(token, node)
-      }
+      nodes.map(fetchReplicationLag(token, _))
     }
   }
 

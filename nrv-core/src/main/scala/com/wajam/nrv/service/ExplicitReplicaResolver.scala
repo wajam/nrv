@@ -16,7 +16,9 @@ class ExplicitReplicaResolver(explicitTokenMapping: => Map[Long,List[Node]], res
       case Some(member) => {
         val masterReplica = new Replica(member.token, member.node, selected = member.status == MemberStatus.Up)
         val slaveReplicas = explicitTokenMapping.get(member.token).map { nodes =>
-          nodes.filterNot(_ == member.node).map(new Replica(member.token, _))
+          nodes.collect {
+            case node if node != member.node => new Replica(member.token, node)
+          }
         }.getOrElse(Nil)
         new Endpoints(Seq(new Shard(token, masterReplica :: slaveReplicas)))
       }

@@ -64,9 +64,9 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   //
   // A Watcher object wrapper can be GC after the corresponding change event is fired because it is cached using weak
   // reference. It cannot be GC before because ZooKeeper keeps a hard reference to the Watcher object.
-  private val dataWatches = CacheBuilder.newBuilder().weakValues.build[(NodeValueChanged) => Unit, Watcher]
-  private val childWatches = CacheBuilder.newBuilder().weakValues.build[(NodeChildrenChanged) => Unit, Watcher]
-  private val createWatches = CacheBuilder.newBuilder().weakValues.build[(NodeStatusChanged) => Unit, Watcher]
+  private val dataWatches = CacheBuilder.newBuilder().weakValues.build[NodeValueChanged => Unit, Watcher]
+  private val childWatches = CacheBuilder.newBuilder().weakValues.build[NodeChildrenChanged => Unit, Watcher]
+  private val createWatches = CacheBuilder.newBuilder().weakValues.build[NodeStatusChanged => Unit, Watcher]
 
   // metrics
   private lazy val metricsGetChildren = metrics.timer("get-children")
@@ -170,7 +170,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     ensureExists(path, data, createMode)
   }
 
-  def exists(path: String, watch: Option[(NodeStatusChanged => Unit)] = None): Boolean = {
+  def exists(path: String, watch: Option[NodeStatusChanged => Unit] = None): Boolean = {
     val stat = watch match {
       case Some(callback) =>
         val watcher = createWatches.get(callback, callbackToCallable(callback, NodeStatusChanged))
@@ -180,7 +180,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     stat != null && stat.getVersion >= 0
   }
 
-  def getChildren(path: String, watch: Option[(NodeChildrenChanged) => Unit] = None, stat: Option[Stat] = None): Seq[String] = {
+  def getChildren(path: String, watch: Option[NodeChildrenChanged => Unit] = None, stat: Option[Stat] = None): Seq[String] = {
     this.metricsGetChildren.time {
       watch match {
         case Some(callback) => {
@@ -194,7 +194,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     }
   }
 
-  def get(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Array[Byte] = {
+  def get(path: String, watch: Option[NodeValueChanged => Unit] = None, stat: Option[Stat] = None): Array[Byte] = {
     this.metricsGet.time {
       watch match {
         case Some(cb) => {
@@ -208,11 +208,11 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     }
   }
 
-  def getString(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): String = new String(get(path, watch, stat))
+  def getString(path: String, watch: Option[NodeValueChanged => Unit] = None, stat: Option[Stat] = None): String = new String(get(path, watch, stat))
 
-  def getInt(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Int = getString(path, watch, stat).toInt
+  def getInt(path: String, watch: Option[NodeValueChanged => Unit] = None, stat: Option[Stat] = None): Int = getString(path, watch, stat).toInt
 
-  def getLong(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Long = getString(path, watch, stat).toLong
+  def getLong(path: String, watch: Option[NodeValueChanged => Unit] = None, stat: Option[Stat] = None): Long = getString(path, watch, stat).toLong
 
   def set(path: String, data: Array[Byte], version: Int = -1) {
     this.metricsSet.time {
