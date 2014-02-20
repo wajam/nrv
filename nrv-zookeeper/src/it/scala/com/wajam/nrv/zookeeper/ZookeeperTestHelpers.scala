@@ -27,6 +27,12 @@ trait ZookeeperTestHelpers {
     zk.ensureAllExists(votePath, "", CreateMode.PERSISTENT)
   }
 
+  def zkGetServiceMember(service: Service, token: Long): ServiceMember = {
+    val path = ZookeeperClusterManager.zkMemberPath(service.name, token)
+    val node = zk.getString(path)
+    ServiceMember.fromString(node)
+  }
+
   def zkDeleteServiceMember(service: Service, serviceMember: ServiceMember) {
     val path = ZookeeperClusterManager.zkMemberPath(service.name, serviceMember.token)
     zk.deleteRecursive(path)

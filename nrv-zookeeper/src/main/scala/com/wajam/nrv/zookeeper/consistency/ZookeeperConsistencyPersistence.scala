@@ -116,7 +116,20 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
     }.toMap
   }
 
-  def changeMasterServiceMember(token: Long, node: Node) = Unit
+  def changeMasterServiceMember(token: Long, node: Node) = {
+    import ZookeeperClient.string2bytes
+
+    replicasMapping.get(token) match {
+      case Some(nodes) if nodes.contains(node) => {
+        val path = ZookeeperClusterManager.zkMemberPath(service.name, token)
+        val serviceMember = new ServiceMember(token, new Node(node.hostname, Map("nrv" -> node.ports("nrv"))))
+
+        zk.set(path, serviceMember.toString)
+      }
+      case Some(_) => throw new IllegalArgumentException("Node is not a slave on this shard")
+      case None => throw new IllegalArgumentException("Token not found")
+    }
+  }
 
   private def mappingFuture = mappingFetcher.ask(Fetch).mapTo[(Int, ReplicasMapping)]
 
