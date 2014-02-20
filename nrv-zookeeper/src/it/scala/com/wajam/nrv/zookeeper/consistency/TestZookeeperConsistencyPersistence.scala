@@ -196,7 +196,9 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Update from 0s to 10s with a 60s threshold
     consistency.updateReplicationLagSeconds(token, slave, newLag)
 
-    checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    }
   }
 
   it should "persist the new replication lag value in Zk when the value goes over the threshold" in new Builder {
@@ -210,7 +212,9 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Update from 0s to 75s with a 60s threshold
     consistency.updateReplicationLagSeconds(token, slave, newLag)
 
-    checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    }
   }
 
   it should "rate limit Zookeeper calls when the replication lag stays over the threshold" in new Builder {
@@ -223,14 +227,17 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     val firstUpdate = 150
     val secondUpdate = 75
 
-    // Set the initial lag at 150
+    // Set the initial lag at 300
+    // Won't rate limit because it is the first update
     consistency.updateReplicationLagSeconds(token, slave, initialLag)
 
     // Update from 300s to 150s with a 60s threshold
-    // Won't rate limit because it is the first update
+    // Should be rate limited
     consistency.updateReplicationLagSeconds(token, slave, firstUpdate)
 
-    checkCachedAndPersistedLagValues(service, token, slave, initialLag)
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, initialLag)
+    }
 
     // Advance time to get past threshold
     consistency.advanceTime(60000)
@@ -238,7 +245,9 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Update from 300s to 150s with a 60s threshold
     consistency.updateReplicationLagSeconds(token, slave, secondUpdate)
 
-    checkCachedAndPersistedLagValues(service, token, slave, secondUpdate)
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, secondUpdate)
+    }
   }
 
   it should "update the cached lag value when it changes in Zookeeper" in new Builder {
