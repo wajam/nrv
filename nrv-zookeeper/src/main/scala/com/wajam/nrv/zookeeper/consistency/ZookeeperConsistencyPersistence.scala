@@ -65,8 +65,8 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
 
     private var lastPersistedTs: Option[Long] = None
 
-    private var lagChangedCallbacks: Map[String, (NodeValueChanged) => Unit] = Map()
-    private var lagCreatedCallbacks: Map[String, (NodeStatusChanged) => Unit] = Map()
+    private var lagValueChangedCallbacks: Map[String, (NodeValueChanged) => Unit] = Map()
+    private var lagStatusChangedCallbacks: Map[String, (NodeStatusChanged) => Unit] = Map()
 
     // Fetch replication lag for each slave, based on the current replicasMapping, and return the map
     def fetchReplicationLagMap(currentLagMap: ReplicationLagMap): ReplicationLagMap = {
@@ -92,18 +92,18 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
       val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, slave)
 
       try {
-        val callback = lagChangedCallbacks.get(path).getOrElse {
+        val callback = lagValueChangedCallbacks.get(path).getOrElse {
           val newCallback = (e: NodeValueChanged) => lagMapAgent.send(fetchReplicationLag(token, slave) _)
-          lagChangedCallbacks += (path -> newCallback)
+          lagValueChangedCallbacks += (path -> newCallback)
           newCallback
         }
         Some(zk.getInt(path, Some(callback)))
       } catch {
         case e: KeeperException if e.code == Code.NONODE =>
           // Zookeeper node doesn't exist: register a callback triggered when it will be created
-          val callback = lagCreatedCallbacks.get(path).getOrElse {
+          val callback = lagStatusChangedCallbacks.get(path).getOrElse {
             val newCallback = (e: NodeStatusChanged) => lagMapAgent.send(fetchReplicationLag(token, slave) _)
-            lagCreatedCallbacks += (path -> newCallback)
+            lagStatusChangedCallbacks += (path -> newCallback)
             newCallback
           }
           zk.exists(path, Some(callback))

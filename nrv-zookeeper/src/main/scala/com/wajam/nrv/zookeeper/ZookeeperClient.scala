@@ -64,9 +64,9 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   //
   // A Watcher object wrapper can be GC after the corresponding change event is fired because it is cached using weak
   // reference. It cannot be GC before because ZooKeeper keeps a hard reference to the Watcher object.
-  private val dataWatches = CacheBuilder.newBuilder().weakValues.build[NodeValueChanged => Unit, Watcher]
-  private val childWatches = CacheBuilder.newBuilder().weakValues.build[NodeChildrenChanged => Unit, Watcher]
-  private val createWatches = CacheBuilder.newBuilder().weakValues.build[NodeStatusChanged => Unit, Watcher]
+  private val valueWatches = CacheBuilder.newBuilder().weakValues.build[NodeValueChanged => Unit, Watcher]
+  private val childrenWatches = CacheBuilder.newBuilder().weakValues.build[NodeChildrenChanged => Unit, Watcher]
+  private val statusWatches = CacheBuilder.newBuilder().weakValues.build[NodeStatusChanged => Unit, Watcher]
 
   // metrics
   private lazy val metricsGetChildren = metrics.timer("get-children")
@@ -173,7 +173,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   def exists(path: String, watch: Option[NodeStatusChanged => Unit] = None): Boolean = {
     val stat = watch match {
       case Some(callback) =>
-        val watcher = createWatches.get(callback, callbackToCallable(callback, NodeStatusChanged))
+        val watcher = statusWatches.get(callback, callbackToCallable(callback, NodeStatusChanged))
         zk.exists(path, watcher)
       case None => zk.exists(path, false)
     }
@@ -184,7 +184,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     this.metricsGetChildren.time {
       watch match {
         case Some(callback) => {
-          val watcher = childWatches.get(callback, callbackToCallable(callback, NodeChildrenChanged))
+          val watcher = childrenWatches.get(callback, callbackToCallable(callback, NodeChildrenChanged))
           zk.getChildren(path, watcher, stat.getOrElse(null))
         }
         case None => {
@@ -198,7 +198,7 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     this.metricsGet.time {
       watch match {
         case Some(cb) => {
-          val watcher = dataWatches.get(cb, callbackToCallable(cb, NodeValueChanged))
+          val watcher = valueWatches.get(cb, callbackToCallable(cb, NodeValueChanged))
           zk.getData(path, watcher, stat.getOrElse(null))
         }
         case None => {
