@@ -56,11 +56,11 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
 
   def explicitReplicasMapping: Map[Long, List[Node]] = replicasMapping
 
-  override def replicationLagSeconds(token: Long, node: Node) = {
+  def replicationLagSeconds(token: Long, node: Node) = {
     replicationLagMap.get((token, node))
   }
 
-  override def updateReplicationLagSeconds(token: Long, node: Node, lag: Int): Unit = {
+  def updateReplicationLagSeconds(token: Long, node: Node, lag: Int): Unit = {
     import ZookeeperClient.int2bytes
 
     def persistLag(): Unit = {
@@ -116,7 +116,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
     }.toMap
   }
 
-  def changeMasterServiceMember(token: Long, node: Node) = {
+  def changeMasterServiceMember(token: Long, node: Node): Unit = {
     import ZookeeperClient.string2bytes
 
     replicasMapping.get(token) match {
