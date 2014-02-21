@@ -83,7 +83,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
         case Some(value) =>
           currentLagMap + ((token, slave) -> value)
         case None =>
-          currentLagMap
+          currentLagMap - ((token, slave))
       }
     }
 
@@ -91,24 +91,30 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
     private def fetchReplicationLagValue(token: Long, slave: Node): Option[Int] = {
       val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, slave)
 
-      try {
-        val callback = lagValueChangedCallbacks.get(path).getOrElse {
-          val newCallback = (e: NodeValueChanged) => lagMapAgent.send(fetchReplicationLag(token, slave) _)
-          lagValueChangedCallbacks += (path -> newCallback)
-          newCallback
-        }
-        Some(zk.getInt(path, Some(callback)))
-      } catch {
-        case e: KeeperException if e.code == Code.NONODE =>
-          // Zookeeper node doesn't exist: register a callback triggered when it will be created
-          val callback = lagStatusChangedCallbacks.get(path).getOrElse {
-            val newCallback = (e: NodeStatusChanged) => lagMapAgent.send(fetchReplicationLag(token, slave) _)
-            lagStatusChangedCallbacks += (path -> newCallback)
+      // Register a callback triggered when the Zookeeper node will be either created or deleted
+      val statusCallback = lagStatusChangedCallbacks.get(path).getOrElse {
+        val newCallback = (e: NodeStatusChanged) => lagMapAgent.send(fetchReplicationLag(token, slave) _)
+        lagStatusChangedCallbacks += (path -> newCallback)
+        newCallback
+      }
+      zk.exists(path, Some(statusCallback)) match {
+        case true => {
+          val valueCallback = lagValueChangedCallbacks.get(path).getOrElse {
+            val newCallback = (e: NodeValueChanged) => lagMapAgent.send(fetchReplicationLag(token, slave) _)
+            lagValueChangedCallbacks += (path -> newCallback)
             newCallback
           }
-          zk.exists(path, Some(callback))
-          None
-        case e: Throwable => throw e
+
+          try {
+            Some(zk.getInt(path, Some(valueCallback)))
+          } catch {
+            case e: KeeperException if e.code == Code.NONODE =>
+              // Node has been deleted between exists() and getInt() calls: will be handled by the status callback
+              None
+            case e: Throwable => throw e
+          }
+        }
+        case false => None
       }
     }
 
