@@ -12,6 +12,7 @@ import com.wajam.nrv.cluster.{Cluster, LocalNode, Node}
 import com.wajam.nrv.zookeeper.{ZookeeperTestHelpers, ZookeeperClient}
 import com.wajam.nrv.zookeeper.cluster.ZookeeperClusterManager
 import com.wajam.commons.ControlableCurrentTime
+import org.scalatest.concurrent.Eventually
 
 @RunWith(classOf[JUnitRunner])
 class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter with Eventually {
@@ -263,6 +264,36 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
 
     eventually {
       checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    }
+  }
+
+  it should "change the master service member if the node provided is a slave on this shard" in new Builder {
+    consistency.start()
+
+    val token = 0
+
+    val node = new Node("localhost", Map("nrv" -> 12346))
+    val serviceMember = new ServiceMember(token, node)
+
+    consistency.changeMasterServiceMember(token, node)
+
+    zkGetServiceMember(service, token) should be(serviceMember)
+
+    eventually {
+      service.getMemberAtToken(token) should be(Some(serviceMember))
+    }
+  }
+
+  it should "NOT change the master service member if the node provided is NOT a slave on this shard" in new Builder {
+    consistency.start()
+
+    val token = 0
+
+    val node = new Node("localhost", Map("nrv" -> 12347))
+    val serviceMember = new ServiceMember(token, node)
+
+    intercept[IllegalArgumentException] {
+      consistency.changeMasterServiceMember(token, node)
     }
   }
 }

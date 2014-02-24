@@ -166,15 +166,28 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
     }
   }
 
-  override def replicationLagSeconds(token: Long, node: Node) = {
+  def replicationLagSeconds(token: Long, node: Node) = {
     lagMapAgent().get((token, node))
   }
 
-  override def updateReplicationLagSeconds(token: Long, node: Node, lag: Int): Unit = {
+  def updateReplicationLagSeconds(token: Long, node: Node, lag: Int): Unit = {
     lagMapAgent.send(persistReplicationLag(token, node, lag) _)
   }
 
-  def changeMasterServiceMember(token: Long, node: Node) = Unit
+  def changeMasterServiceMember(token: Long, node: Node): Unit = {
+    import ZookeeperClient.string2bytes
+
+    replicasMapping.get(token) match {
+      case Some(nodes) if nodes.contains(node) => {
+        val path = ZookeeperClusterManager.zkMemberPath(service.name, token)
+        val serviceMember = new ServiceMember(token, new Node(node.hostname, Map("nrv" -> node.ports("nrv"))))
+
+        zk.set(path, serviceMember.toString)
+      }
+      case Some(_) => throw new IllegalArgumentException("Node is not a slave on this shard")
+      case None => throw new IllegalArgumentException("Token not found")
+    }
+  }
 
   private def mappingFuture = mappingFetcher.ask(Fetch).mapTo[(Int, ReplicasMapping)]
 
