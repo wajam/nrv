@@ -5,6 +5,7 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FlatSpec}
 import org.scalatest.Matchers._
+import org.scalatest.concurrent.Eventually
 import akka.actor.ActorSystem
 import com.wajam.nrv.service.{ServiceMember, Service}
 import com.wajam.nrv.cluster.{Cluster, LocalNode, Node}
@@ -115,10 +116,9 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Update mapping in Zk
     zkUpdateReplicasList(service, 0, newMapping(0))
 
-    // Wait for the event to be triggered and the update to be complete
-    Thread.sleep(100)
-
-    consistency.explicitReplicasMapping should be(newMapping)
+    eventually {
+      consistency.explicitReplicasMapping should be(newMapping)
+    }
   }
 
   it should "update the replica mapping when a service member is added" in new Builder {
@@ -135,13 +135,12 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
 
     val newMapping = originalMapping + (20 -> List(newMember.node))
 
-    // Wait for the event to be triggered and the update to be complete
-    Thread.sleep(100)
-
-    consistency.explicitReplicasMapping should be(newMapping)
+    eventually {
+      consistency.explicitReplicasMapping should be(newMapping)
+    }
   }
 
-  it should "watch for the replicas when a service member is added" in new Builder {
+  it should "watch for the replicas and the lag when a service member is added" in new Builder {
     consistency.start()
 
     // Add a service member for token 20, without setting replicas yet
@@ -152,20 +151,28 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Trigger a NewMemberAddedEvent
     service.addMember(newMember, triggerEvent = true)
 
-    // Wait for the event to be triggered and the update to be complete
-    Thread.sleep(100)
-
-    // At this point, the new token exists in the map but there are no replicas
-    consistency.explicitReplicasMapping should be(originalMapping + (20 -> Nil))
+    eventually {
+      // At this point, the new token exists in the map but there are no replicas
+      consistency.explicitReplicasMapping should be(originalMapping + (20 -> Nil))
+    }
 
     // Set the replicas list
     zkCreateReplicasList(service, 20, List(newMember.node))
 
-    // Wait for the event to be triggered and the update to be complete
-    Thread.sleep(100)
+    eventually {
+      // The replicas should now appear in the mapping
+      consistency.explicitReplicasMapping should be(originalMapping + (20 -> List(newMember.node)))
+    }
 
-    // The replicas should now appear in the mapping
-    consistency.explicitReplicasMapping should be(originalMapping + (20 -> List(newMember.node)))
+    val newLag = 12345
+
+    // Create the lag for the new replica
+    zkCreateReplicationLag(service, newMember.token, newMember.node, newLag)
+
+    eventually {
+      // The lag should now be cached
+      checkCachedAndPersistedLagValues(service, newMember.token, newMember.node, newLag)
+    }
   }
 
   it should "load the replication lag values from Zk on start" in new Builder {
@@ -190,7 +197,9 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Update from 0s to 10s with a 60s threshold
     consistency.updateReplicationLagSeconds(token, slave, newLag)
 
-    checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    }
   }
 
   it should "persist the new replication lag value in Zk when the value goes over the threshold" in new Builder {
@@ -204,7 +213,9 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Update from 0s to 75s with a 60s threshold
     consistency.updateReplicationLagSeconds(token, slave, newLag)
 
-    checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    }
   }
 
   it should "rate limit Zookeeper calls when the replication lag stays over the threshold" in new Builder {
@@ -217,14 +228,17 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     val firstUpdate = 150
     val secondUpdate = 75
 
-    // Set the initial lag at 150
+    // Set the initial lag at 300
+    // Won't rate limit because it is the first update
     consistency.updateReplicationLagSeconds(token, slave, initialLag)
 
     // Update from 300s to 150s with a 60s threshold
-    // Won't rate limit because it is the first update
+    // Should be rate limited
     consistency.updateReplicationLagSeconds(token, slave, firstUpdate)
 
-    checkCachedAndPersistedLagValues(service, token, slave, initialLag)
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, initialLag)
+    }
 
     // Advance time to get past threshold
     consistency.advanceTime(60000)
@@ -232,7 +246,25 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Update from 300s to 150s with a 60s threshold
     consistency.updateReplicationLagSeconds(token, slave, secondUpdate)
 
-    checkCachedAndPersistedLagValues(service, token, slave, secondUpdate)
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, secondUpdate)
+    }
+  }
+
+  it should "update the cached lag value when it changes in Zookeeper" in new Builder {
+    consistency.start()
+
+    val newLag = 12345
+
+    val token = 0
+    val slave = originalMapping(token).head
+
+    // Update lag directly in Zookeeper
+    zkUpdateReplicationLag(service, token, slave, newLag)
+
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    }
   }
 
   it should "change the master service member if the node provided is a slave on this shard" in new Builder {

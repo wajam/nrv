@@ -34,9 +34,16 @@ object ZookeeperClient {
 
   case class ZookeeperExpired(originalEvent: WatchedEvent) extends Event
 
-  case class NodeChildrenChanged(path: String, originalEvent: WatchedEvent) extends Event
+  trait NodeEvent extends Event {
+    def path: String
+    def originalEvent: WatchedEvent
+  }
 
-  case class NodeValueChanged(path: String, originalEvent: WatchedEvent) extends Event
+  case class NodeChildrenChanged(path: String, originalEvent: WatchedEvent) extends NodeEvent
+
+  case class NodeValueChanged(path: String, originalEvent: WatchedEvent) extends NodeEvent
+
+  case class NodeStatusChanged(path: String, originalEvent: WatchedEvent) extends NodeEvent
 
 }
 
@@ -57,8 +64,9 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
   //
   // A Watcher object wrapper can be GC after the corresponding change event is fired because it is cached using weak
   // reference. It cannot be GC before because ZooKeeper keeps a hard reference to the Watcher object.
-  private val dataWatches = CacheBuilder.newBuilder().weakValues.build[Function1[NodeValueChanged, Unit], Watcher]
-  private val childWatches = CacheBuilder.newBuilder().weakValues.build[Function1[NodeChildrenChanged, Unit], Watcher]
+  private val valueWatches = CacheBuilder.newBuilder().weakValues.build[NodeValueChanged => Unit, Watcher]
+  private val childrenWatches = CacheBuilder.newBuilder().weakValues.build[NodeChildrenChanged => Unit, Watcher]
+  private val statusWatches = CacheBuilder.newBuilder().weakValues.build[NodeStatusChanged => Unit, Watcher]
 
   // metrics
   private lazy val metricsGetChildren = metrics.timer("get-children")
@@ -162,29 +170,23 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     ensureExists(path, data, createMode)
   }
 
-  def exists(path: String): Boolean = {
-    val stat = zk.exists(path, false)
+  def exists(path: String, watch: Option[NodeStatusChanged => Unit] = None): Boolean = {
+    val stat = watch match {
+      case Some(callback) =>
+        val watcher = statusWatches.get(callback, callbackToCallable(callback, NodeStatusChanged))
+        zk.exists(path, watcher)
+      case None => zk.exists(path, false)
+    }
     stat != null && stat.getVersion >= 0
   }
 
-  def getChildren(path: String, watch: Option[(NodeChildrenChanged) => Unit] = None, stat: Option[Stat] = None): Seq[String] = {
+  def getChildren(path: String, watch: Option[NodeChildrenChanged => Unit] = None, stat: Option[Stat] = None): Seq[String] = {
     this.metricsGetChildren.time {
       watch match {
-        case Some(cb) => {
-          val watcher: Watcher = childWatches.get(cb, new Callable[Watcher] {
-            def call() = new Watcher {
-              def process(event: WatchedEvent) {
-                try {
-                  cb(new NodeChildrenChanged(event.getPath, event))
-                } catch {
-                  case e: Exception => warn("Got an exception calling children watcher callback: {}", e)
-                }
-              }
-            }
-          })
+        case Some(callback) => {
+          val watcher = childrenWatches.get(callback, callbackToCallable(callback, NodeChildrenChanged))
           zk.getChildren(path, watcher, stat.getOrElse(null))
         }
-
         case None => {
           zk.getChildren(path, false, stat.getOrElse(null))
         }
@@ -192,21 +194,11 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     }
   }
 
-  def get(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Array[Byte] = {
+  def get(path: String, watch: Option[NodeValueChanged => Unit] = None, stat: Option[Stat] = None): Array[Byte] = {
     this.metricsGet.time {
       watch match {
         case Some(cb) => {
-          val watcher: Watcher = dataWatches.get(cb, new Callable[Watcher] {
-            def call() = new Watcher {
-              def process(event: WatchedEvent) {
-                try {
-                  cb(new NodeValueChanged(event.getPath, event))
-                } catch {
-                  case e: Exception => warn("Got an exception calling watcher callback: {}", e)
-                }
-              }
-            }
-          })
+          val watcher = valueWatches.get(cb, callbackToCallable(cb, NodeValueChanged))
           zk.getData(path, watcher, stat.getOrElse(null))
         }
         case None => {
@@ -216,11 +208,11 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     }
   }
 
-  def getString(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): String = new String(get(path, watch, stat))
+  def getString(path: String, watch: Option[NodeValueChanged => Unit] = None, stat: Option[Stat] = None): String = new String(get(path, watch, stat))
 
-  def getInt(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Int = getString(path, watch, stat).toInt
+  def getInt(path: String, watch: Option[NodeValueChanged => Unit] = None, stat: Option[Stat] = None): Int = getString(path, watch, stat).toInt
 
-  def getLong(path: String, watch: Option[(NodeValueChanged) => Unit] = None, stat: Option[Stat] = None): Long = getString(path, watch, stat).toLong
+  def getLong(path: String, watch: Option[NodeValueChanged => Unit] = None, stat: Option[Stat] = None): Long = getString(path, watch, stat).toLong
 
   def set(path: String, data: Array[Byte], version: Int = -1) {
     this.metricsSet.time {
@@ -287,5 +279,19 @@ class ZookeeperClient(servers: String, sessionTimeout: Int = 3000, autoConnect: 
     }
 
     current
+  }
+
+  private def callbackToCallable[E <: NodeEvent](callback: E => Unit, eventFactory: (String, WatchedEvent) => E): Callable[Watcher] = {
+    new Callable[Watcher] {
+      def call() = new Watcher {
+        def process(event: WatchedEvent) {
+          try {
+            callback(eventFactory(event.getPath, event))
+          } catch {
+            case e: Exception => warn("Got an exception calling watcher callback: {}", e)
+          }
+        }
+      }
+    }
   }
 }
