@@ -82,6 +82,40 @@ class TestZookeeperClient extends FunSuite with BeforeAndAfter {
     assert("data:test" == zClient.getString("/tests"))
   }
 
+  test("should be able to register a watch on a node be notified only once on it when it is created or deleted") {
+    val path = "/tests/newnode"
+
+    val p1 = Promise[Boolean]
+    val p2 = Promise[Boolean]
+
+    var triggered = 0
+
+    def callback(p: Promise[Boolean]): (NodeStatusChanged) => Unit = (e) => {
+      triggered = triggered + 1
+      p.success(true)
+    }
+
+    // Node doesn't exist, watch it
+    zClient.exists(path, Some(callback(p1))) should be(false)
+
+    // Create the node
+    zClient.create(path, "value", CreateMode.PERSISTENT)
+
+    // Wait for the callback to be triggered and check effect
+    Await.result(p1.future, 1.second)
+    triggered should be(1)
+
+    // Node exists, watch it again
+    zClient.exists(path, Some(callback(p2))) should be(true)
+
+    // Delete the node
+    zClient.delete(path)
+
+    // Wait for the callback to be triggered and check effect
+    Await.result(p2.future, 1.second)
+    triggered should be(2)
+  }
+
   test("ensureExists should create but doesn't throw if already exists") {
     assert(zClient.ensureExists("/tests/ext", "", CreateMode.PERSISTENT))
     assert(!zClient.ensureExists("/tests/ext", "", CreateMode.PERSISTENT))

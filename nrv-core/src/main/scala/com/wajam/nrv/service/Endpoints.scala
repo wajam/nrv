@@ -34,6 +34,13 @@ class Endpoints(val shards: Seq[Shard] = Seq()) extends Serializable {
   protected[nrv] def deselectAllReplicas() {
     replicas.foreach(_.selected = false)
   }
+
+  /**
+   * Deselects all destinations except the one provided as argument.
+   */
+  protected[nrv] def deselectAllReplicasBut(remainder: Replica) {
+    replicas.filterNot(_ == remainder).foreach(_.selected = false)
+  }
 }
 
 object Endpoints {

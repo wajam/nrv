@@ -32,7 +32,8 @@ object NrvBuild extends Build {
     "com.google.guava" % "guava" % "12.0",
     "com.twitter" %% "util-core" % "6.1.0",
     "org.scala-lang" % "scala-actors" % "2.10.2",
-    "com.typesafe.akka" %% "akka-actor" % "2.2.3"
+    "com.typesafe.akka" %% "akka-actor" % "2.2.3",
+    "com.typesafe.akka" %% "akka-agent" % "2.2.3"
   )
 
   var zookeeperDeps = Seq(
