@@ -37,13 +37,17 @@ import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
  */
 class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
                              val consistencyPersistence: ConsistencyPersistence,
-                             txLogDir: String, txLogEnabled: Boolean,
-                             txLogRolloverSize: Int = 50000000, txLogCommitFrequency: Int = 5000,
+                             txLogDir: String,
+                             txLogEnabled: Boolean,
+                             txLogRolloverSize: Int = 50000000,
+                             txLogCommitFrequency: Int = 5000,
                              timestampTimeoutExtraDelay: Int = 250,
-                             replicationTps: Int = 50, replicationWindowSize: Int = 20,
-                             replicationSessionIdleTimeout: Long = 30000L, replicationOpenSessionDelay: Long = 5000,
-                             replicationResolver: Option[Resolver] = None,
-                             maxReplicaLagSeconds: Int = 0)
+                             maxReplicaLagSeconds: Int = 0,
+                             replicationTps: Int = 50,
+                             replicationWindowSize: Int = 20,
+                             replicationSessionIdleTimeout: Long = 30000L,
+                             replicationOpenSessionDelay: Long = 5000,
+                             replicationResolver: Option[Resolver] = None)
   extends Consistency with Logging {
 
   import SlaveReplicationManagerProtocol._
