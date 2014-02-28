@@ -54,34 +54,32 @@ trait ZookeeperTestHelpers {
     zk.delete(path)
   }
 
-  def zkCreateReplicasList(service: Service, token: Long, nodes: List[Node]) {
-    val path = ZookeeperClusterManager.zkMemberReplicasPath(service.name, token)
-    val replicaString = nodes.map(_.toString).mkString("|")
+  def zkAddReplica(service: Service, token: Long, nodeString: String) {
+    val path = ZookeeperClusterManager.zkMemberReplicasPath(service.name, token) + "/" + nodeString
 
-    zk.ensureAllExists(path, replicaString, CreateMode.PERSISTENT)
+    zk.ensureAllExists(path, Array(), CreateMode.PERSISTENT)
   }
 
-  def zkUpdateReplicasList(service: Service, token: Long, nodes: List[Node]) {
-    val path = ZookeeperClusterManager.zkMemberReplicasPath(service.name, token)
-    val replicaString = nodes.map(_.toString).mkString("|")
+  def zkRemoveReplica(service: Service, token: Long, nodeString: String) {
+    val path = ZookeeperClusterManager.zkMemberReplicasPath(service.name, token) + "/" + nodeString
 
-    zk.set(path, replicaString)
+    zk.delete(path)
   }
 
-  def zkCreateReplicationLag(service: Service, token: Long, slave: Node, lag: Int) {
-    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, slave)
+  def zkCreateReplicationLag(service: Service, token: Long, nodeString: String, lag: Int) {
+    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, nodeString)
 
     zk.ensureAllExists(path, lag, CreateMode.PERSISTENT)
   }
 
-  def zkUpdateReplicationLag(service: Service, token: Long, slave: Node, lag: Int) {
-    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, slave)
+  def zkUpdateReplicationLag(service: Service, token: Long, nodeString: String, lag: Int) {
+    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, nodeString)
 
     zk.set(path, lag)
   }
 
-  def zkGetReplicationLag(service: Service, token: Long, slave: Node): Int = {
-    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, slave)
+  def zkGetReplicationLag(service: Service, token: Long, nodeString: String): Int = {
+    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, nodeString)
 
     zk.getInt(path)
   }

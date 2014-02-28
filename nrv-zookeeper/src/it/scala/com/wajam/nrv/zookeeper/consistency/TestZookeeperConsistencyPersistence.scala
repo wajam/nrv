@@ -27,6 +27,8 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
   val lagUpdateThreshold = 60
   val lagUpdateSpacing = 30
 
+  implicit def node2string(node: Node) = s"${node.hostname}:${node.ports("nrv")}"
+
   before {
     import com.wajam.nrv.zookeeper.ZookeeperClient.string2bytes
 
@@ -75,7 +77,9 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     zkCreateService(service)
 
     originalMapping.foreach { case (token, nodes) =>
-      zkCreateReplicasList(service, token, nodes)
+      nodes.foreach { node =>
+        zkAddReplica(service, token, node)
+      }
 
       nodes.foreach { node =>
         zkCreateReplicationLag(service, token, node, 0)
@@ -111,10 +115,10 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
 
     // Add a replica for token 0
     val newReplica = new Node("localhost", Map("nrv" -> 12349))
-    val newMapping = originalMapping + (0 -> (newReplica :: originalMapping(0)))
+    val newMapping = originalMapping + (0 -> (originalMapping(0) :+ newReplica))
 
     // Update mapping in Zk
-    zkUpdateReplicasList(service, 0, newMapping(0))
+    zkAddReplica(service, 0, newReplica)
 
     eventually {
       consistency.explicitReplicasMapping should be(newMapping)
@@ -127,7 +131,7 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Add a service member for token 20
     val newMember = new ServiceMember(20, new Node("localhost", Map("nrv" -> 12349)))
 
-    zkCreateReplicasList(service, 20, List(newMember.node))
+    zkAddReplica(service, 20, newMember.node)
     zkCreateServiceMember(service, newMember)
 
     // Trigger a NewMemberAddedEvent
@@ -156,8 +160,8 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
       consistency.explicitReplicasMapping should be(originalMapping + (20 -> Nil))
     }
 
-    // Set the replicas list
-    zkCreateReplicasList(service, 20, List(newMember.node))
+    // Add the replica
+    zkAddReplica(service, 20, newMember.node)
 
     eventually {
       // The replicas should now appear in the mapping
