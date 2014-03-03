@@ -235,7 +235,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
           (token -> tuples.map(_._1))
         }.toMap,
         nodes = replicasAsTuples.flatMap { case (_, tuples) =>
-          tuples.toMap
+          tuples
         }.toMap
       )
     }
