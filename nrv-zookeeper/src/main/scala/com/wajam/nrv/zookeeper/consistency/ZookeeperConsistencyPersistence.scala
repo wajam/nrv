@@ -105,18 +105,15 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
           currentLagMap ++ slaves.flatMap { slave =>
             fetchReplicationLagValue(token, slave).map((token, slave) -> _)
           }.toMap
-        case None =>
-          currentLagMap.filterKeys(_._1 == token)
+        case None => currentLagMap.filterKeys(_._1 == token)
       }
     }
 
     // Fetch replication lag for a given slave on a given shard
     def updateSlaveReplicationLag(token: Long, slave: Node)(currentLagMap: ReplicationLagMap): ReplicationLagMap = {
       fetchReplicationLagValue(token, slave)  match {
-        case Some(value) =>
-          currentLagMap + ((token, slave) -> value)
-        case None =>
-          currentLagMap - ((token, slave))
+        case Some(value) => currentLagMap + ((token, slave) -> value)
+        case None => currentLagMap - ((token, slave))
       }
     }
 
@@ -143,10 +140,9 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
               try {
                 Some(zk.getInt(path, Some(valueCallback)))
               } catch {
-                case e: KeeperException if e.code == Code.NONODE =>
-                  // Node has been deleted between exists() and getInt() calls: will be handled by the status callback
-                  None
-                case e: Throwable => throw e
+                // Node has been deleted between exists() and getInt() calls: will be handled by the status callback
+                case e: KeeperException if e.code == Code.NONODE => None
+                case t: Throwable => throw t
               }
             }
             case false => None
@@ -184,7 +180,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
             } catch {
               // Node doesn't exist, create it
               case e: KeeperException if e.code == Code.NONODE => zk.ensureAllExists(path, lag, CreateMode.PERSISTENT)
-              case e: Throwable => throw e
+              case t: Throwable => throw t
             }
 
             currentLagMap + ((token, node) -> lag)
@@ -272,11 +268,9 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
               (nodeFromStringNoProtocol(s), s)
             }.toList
           } catch {
-            case e: KeeperException if e.code == Code.NONODE => {
-              // Node has been deleted between exists() and getString() calls: will be handled by the status callback
-              Nil
-            }
-            case e: Throwable => throw e
+            // Node has been deleted between exists() and getString() calls: will be handled by the status callback
+            case e: KeeperException if e.code == Code.NONODE => Nil
+            case t: Throwable => throw t
           }
         case false => Nil
       }
