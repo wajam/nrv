@@ -9,6 +9,12 @@ import com.wajam.nrv.utils.timestamp.Timestamp
  * Trait defining the API a consistent data store service must implement to be replicated within an NRV cluster
  */
 trait ConsistentStore {
+
+  /**
+   * Force store cache invalidation.
+   */
+  def invalidateCache(): Unit
+
   /**
    * Returns true of the specified message must be handled (e.g. timestamped, written in transaction log and
    * replicated) by the consistency manager.
