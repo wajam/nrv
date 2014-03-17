@@ -38,6 +38,7 @@ object JsonCodec {
       case i: Int => JInt(i)
       case d: Double => JDouble(d)
       case b: Boolean => JBool(b)
+      case tuple: Tuple2[_, _] => toJValue(Map(tuple))
       case seq: Seq[_] => JArray(seq.map(toJValue(_: Any)).toList)
       case map: Map[_, _] => JObject(map.map(e => JField(e._1.toString, toJValue(e._2))).toList)
       case _ => throw new RuntimeException("Invalid type, can not render json for " + value.getClass)
