@@ -368,6 +368,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
         }
       }
       case MemberStatus.Down => {
+        // Invalidate the store cache to ensure no stale data remains if this service member goes up again later.
+        service.invalidateCache()
+
         this.synchronized {
           // Close all master replication sessions for the member
           masterReplicationSessionManager.terminateMemberSessions(ResolvedServiceMember(service, event.member))
@@ -625,7 +628,6 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
 
   private def restoreMemberConsistency(member: ResolvedServiceMember, isMaster: Boolean, onSuccess: => Unit, onError: => Unit) {
     try {
-      // TODO: Use Future
       val recovery = new ConsistencyRecovery(txLogDir, service, Some(serializer))
       val finalLogIndex = recovery.restoreMemberConsistency(member, onError)
       finalLogIndex.flatMap(_.consistentTimestamp) match {
