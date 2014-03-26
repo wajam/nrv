@@ -479,6 +479,11 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     val actualTxMessages = messageCaptor.getAllValues
     assertReplicationMessagesEquals(actualTxMessages, expectedTxMessages)
     verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
+    sessionManager.sessions.size should be(1) // Session not terminated because master haven't received all ACKs
+
+    // Verify session is terminated after all tx are acknowledged
+    actualTxMessages.foreach(_.handleReply(new InMessage()))
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
     sessionManager.sessions should be(Nil) // Session should be terminated after reaching end timestamp
   }
 
@@ -504,6 +509,11 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     // Verify received all expected messages
     val actualTxMessages = messageCaptor.getAllValues
     assertReplicationMessagesEquals(actualTxMessages, expectedTxMessages)
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
+    sessionManager.sessions.size should be(1) // Session not terminated because master haven't received all ACKs
+
+    // Verify session is terminated after all tx are acknowledged
+    actualTxMessages.foreach(_.handleReply(new InMessage()))
     verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
     sessionManager.sessions should be(Nil) // Session should be terminated after reaching end timestamp
   }
@@ -593,18 +603,6 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
   }
 
-  test("replication lag should be initialized according to the slave's start timestamp") {
-    val logRecords = createTransactions(count = 10, initialTimestamp = 0, timestampIncrement = 1000 * Timestamp.SeqPerMs)
-    logRecords.foreach(txLog.append(_))
-    logRecords should be(txLog.read.toList)
-    currentConsistentTimestamp = logRecords.last.consistentTimestamp
-
-    val startTimestamp = Timestamp(1000L, 0)
-    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
-
-    sessionManager.sessions.head.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.timeMs - startTimestamp.timeMs) / 1000))
-  }
-
   test("replication lag should be updated when receiving new acknowledgements and trigger a ReplicationLagChanged event") {
     val transactionsCount = 10
     val timestampIncrement = 1000 * Timestamp.SeqPerMs
@@ -617,45 +615,67 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     // Set the replicationWindowSize to the exact amount of transactions we expect over the session
     replicationWindowSize = 8
 
+    var receivedEvents = List[ReplicationLagChanged]()
+    sessionManager.addObserver { case event: ReplicationLagChanged => receivedEvents ::= event }
+
     val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
     session.startTimestamp should be(Some(Timestamp(startTimestamp)))
     session.endTimestamp should be(None)
 
+    // Verify initial lag
     session.secondsBehindMaster should be(Some((currentConsistentTimestamp.get.timeMs - startTimestamp.timeMs) / 1000))
 
     val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
     verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
 
-    var receivedEvents = List[ReplicationLagChanged]()
-    sessionManager.addObserver {
-      case event: ReplicationLagChanged =>
-        synchronized {
-          receivedEvents ::= event
-        }
-    }
-
-    messageCaptor.getAllValues.foreach { message =>
-      // Acknowledge transaction
-      message.handleReply(new InMessage(Nil))
-    }
-
-    // Let the ACKs be processed by the actor
+    // Verify the lag value returned with the replication session after acknowledging all transactions
+    messageCaptor.getAllValues.foreach(_.handleReply(new InMessage(Nil)))
     verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
-
-    val lastTransaction = messageCaptor.getAllValues.last
-    val lastTimestamp = ReplicationAPIParams.getOptionalParamLongValue(ReplicationAPIParams.Timestamp)(lastTransaction)
-
-    // Check the lag value returned with the replication session
-    val expectedLag = ((currentConsistentTimestamp.get.value - lastTimestamp.get) / 1000).toInt
-    sessionManager.sessions.head.secondsBehindMaster should be(Some(expectedLag))
+    sessionManager.sessions.head.secondsBehindMaster should be(Some(0))
 
     // Check ReplicationLagChanged events
     receivedEvents.size should be(replicationWindowSize)
-    receivedEvents.foldLeft(expectedLag) { (acc, ev) =>
-      ev.replicationLagSeconds should be(acc)
-      acc + 1
-    }
+    receivedEvents.map(_.replicationLagSeconds) should be(0 until replicationWindowSize)
+  }
+
+  test("replication lag should NOT skip unacknowledged transaction") {
+    val transactionsCount = 10
+    val timestampIncrement = 1000 * Timestamp.SeqPerMs
+    val startTimestamp = Timestamp(1000L, 0)
+    val logRecords = createTransactions(count = transactionsCount, initialTimestamp = 0, timestampIncrement = timestampIncrement)
+    logRecords.foreach(txLog.append(_))
+    logRecords should be(txLog.read.toList)
+    currentConsistentTimestamp = logRecords.last.consistentTimestamp
+
+    // Set the replicationWindowSize to the exact amount of transactions we expect over the session
+    replicationWindowSize = 8
+
+    var receivedEvents = List[ReplicationLagChanged]()
+    sessionManager.addObserver { case event: ReplicationLagChanged => receivedEvents ::= event }
+
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
+    session.mode should be(ReplicationMode.Live)
+    session.startTimestamp should be(Some(Timestamp(startTimestamp)))
+    session.endTimestamp should be(None)
+
+    // Verify initial lag
+    val initialLag = (currentConsistentTimestamp.get.timeMs - startTimestamp.timeMs) / 1000
+    session.secondsBehindMaster should be(Some(initialLag))
+
+    val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
+
+    // Verify the lag value returned with the replication session after acknowledging all transactions
+    messageCaptor.getAllValues.last.handleReply(new InMessage(Nil)) // ACK last tx to simulate out of order ACK
+    messageCaptor.getAllValues.dropRight(1).foreach(_.handleReply(new InMessage(Nil)))
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
+    sessionManager.sessions.head.secondsBehindMaster should be(Some(0))
+
+    // Check ReplicationLagChanged events. Should have skip the first event since the first ACK was out of order and
+    // jump to 0 lag when the last tx is acknowledged
+    receivedEvents.size should be(replicationWindowSize - 1)
+    receivedEvents.map(_.replicationLagSeconds) should be(Seq(0, 2, 3, 4, 5, 6, 7))
   }
 
   test("close session should kill session") {
@@ -705,7 +725,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     closeSessionResponseMessage.get.error should be(None)
   }
 
-  test("terminate member sessions should skill all member sessions") {
+  test("terminate member sessions should kill all member sessions") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     logRecords.foreach(txLog.append(_))
     currentConsistentTimestamp = logRecords.last.consistentTimestamp

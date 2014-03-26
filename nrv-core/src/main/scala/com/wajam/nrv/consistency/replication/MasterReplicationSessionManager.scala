@@ -301,17 +301,32 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     private var lastSendTime = currentTime
     private var lastSequence = 0L
     private var isTerminating = false
-    private var lastSlaveTimestamp: Option[Timestamp] = startTimestamp
+    private var maxSlaveAckTimestamp: Option[Timestamp] = startTimestamp
+    private var activeSlaveTimestamp: Option[Timestamp] = startTimestamp
 
     def replicationLagSeconds: Option[Int] = for {
-      lastTs <- lastSlaveTimestamp
+      lastTs <- activeSlaveTimestamp
       consistentTs <- getMemberCurrentConsistentTimestamp(member)
     } yield ((consistentTs.timeMs - lastTs.timeMs) / 1000).toInt
 
-    private def updateLag(ts: Timestamp): Unit = {
-      lastSlaveTimestamp = Some(ts)
-      replicationLagSeconds.foreach { lag =>
-        notifyObservers(ReplicationLagChanged(member.token, slave, lag))
+    private def updateLag(timestamp: Timestamp): Unit = {
+
+      // Compute max acknowledged slave timestamp.
+      val newMaxTs = Ordering[Timestamp].max(maxSlaveAckTimestamp.getOrElse(timestamp), timestamp)
+      maxSlaveAckTimestamp = Some(newMaxTs)
+
+      // Compute the new active slave timestamp. This is a safety in case the master receives slave's acknowledgement
+      // out of order. The active slave timestamp cannot be more recent than an unacknowledged outstanding transaction.
+      val newActiveTs = pendingSequences.collectFirst { case (_, Some(ts)) => ts} match {
+        case Some(firstPendingTs) if firstPendingTs > newMaxTs => maxSlaveAckTimestamp
+        case Some(firstPendingTs) if firstPendingTs > timestamp => Some(timestamp)
+        case Some(_) => activeSlaveTimestamp
+        case None => maxSlaveAckTimestamp
+      }
+
+      if (activeSlaveTimestamp != newActiveTs) {
+        activeSlaveTimestamp = newActiveTs
+        replicationLagSeconds.foreach(lag => notifyObservers(ReplicationLagChanged(member.token, slave, lag)))
       }
     }
 
@@ -385,6 +400,16 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
       trace("Replicated message to slave (seq={}, window={}).", sequence, currentWindowSize)
     }
 
+    private def verifyAckIdleness(): Unit = {
+      val elapsedTime = currentTime - lastSendTime
+      if (elapsedTime > maxIdleDurationInMs) {
+        ackTimeoutMeter.mark()
+        info("No ack received for {} ms. Terminating session {} for {}.", elapsedTime, sessionId, member)
+        manager ! SessionManagerProtocol.TerminateSession(SessionActor.this, None)
+        isTerminating = true
+      }
+    }
+
     def act() {
       loop {
         react {
@@ -404,20 +429,18 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
                       }
                     }
                   }
-                } else {
-                  info("Replication source is exhausted! Terminating session {} for {}.", sessionId, member)
+                } else if (pendingSequences.isEmpty) {
+                  info("Replication source is exhausted! Terminating session {} for {} (lag={}).",
+                    sessionId, member, replicationLagSeconds)
                   manager ! SessionManagerProtocol.TerminateSession(SessionActor.this, None)
                   isTerminating = true
+                } else {
+                  // Replication source is empty. Close session if haven't received an ack for a while.
+                  verifyAckIdleness()
                 }
               } else {
                 // Window size is full. Close session if haven't received an ack for a while.
-                val elapsedTime = currentTime - lastSendTime
-                if (elapsedTime > maxIdleDurationInMs) {
-                  ackTimeoutMeter.mark()
-                  info("No ack received for {} ms. Terminating session {} for {}.", elapsedTime, sessionId, member)
-                  manager ! SessionManagerProtocol.TerminateSession(SessionActor.this, None)
-                  isTerminating = true
-                }
+                verifyAckIdleness()
               }
             } catch {
               case e: Exception => {
@@ -432,13 +455,15 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
           }
           case Ack(sequence) if !isTerminating => {
             try {
-              // Update lastSlaveTimestamp with last acknowledged slave timestamp
-              pendingSequences(sequence).foreach { ts =>
+              ackMeter.mark()
+              val timestamp = pendingSequences(sequence)
+              pendingSequences -= sequence
+
+              // Update lag with last acknowledged slave timestamp
+              timestamp.foreach { ts =>
                 updateLag(ts)
                 trace("Successfully acknowledged transaction (subid={}, seq={}, ts={}). {}", sessionId, sequence, ts, member)
               }
-              pendingSequences -= sequence
-              ackMeter.mark()
             } catch {
               case e: Exception => {
                 ackErrorMeter.mark()
