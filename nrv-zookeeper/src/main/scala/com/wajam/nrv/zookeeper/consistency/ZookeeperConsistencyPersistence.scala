@@ -263,7 +263,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
       zk.exists(replicasPath, Some(callback)) match {
         case true =>
           try {
-            val replicas = zk.getChildren(replicasPath, Some(callback))
+            val replicas = zk.getChildren(replicasPath, Some(callback)).sorted
             replicas.map { s =>
               (nodeFromStringNoProtocol(s), s)
             }.toList
