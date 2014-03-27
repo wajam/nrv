@@ -317,7 +317,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
 
       // Compute the new active slave timestamp. This is a safety in case the master receives slave's acknowledgement
       // out of order. The active slave timestamp cannot be more recent than an unacknowledged outstanding transaction.
-      val newActiveTs = pendingSequences.collectFirst { case (_, Some(ts)) => ts} match {
+      val newActiveTs = pendingSequences.collectFirst { case (_, Some(ts)) => ts } match {
         case Some(firstPendingTs) if firstPendingTs > newMaxTs => maxSlaveAckTimestamp
         case Some(firstPendingTs) if firstPendingTs > timestamp => Some(timestamp)
         case Some(_) => activeSlaveTimestamp
