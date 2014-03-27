@@ -1,11 +1,11 @@
 package com.wajam.nrv.zookeeper.consistency
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.language.implicitConversions
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{BeforeAndAfter, FlatSpec}
 import org.scalatest.Matchers._
-import org.scalatest.concurrent.Eventually
 import akka.actor.ActorSystem
 import com.wajam.nrv.service.{ServiceMember, Service}
 import com.wajam.nrv.cluster.{Cluster, LocalNode, Node}
@@ -48,7 +48,7 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
   trait Builder extends ZookeeperTestHelpers {
     val zk = zkClient
 
-    val localNode = new LocalNode("127.0.0.1", Map("nrv" -> (10000)))
+    val localNode = new LocalNode("127.0.0.1", Map("nrv" -> 10000))
 
     val clusterManager = new ZookeeperClusterManager(zk)
     cluster = new Cluster(localNode, clusterManager)
