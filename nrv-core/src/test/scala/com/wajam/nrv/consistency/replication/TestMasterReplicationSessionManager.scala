@@ -678,6 +678,44 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     receivedEvents.map(_.replicationLagSeconds) should be(Seq(0, 2, 3, 4, 5, 6, 7))
   }
 
+  test("replication lag event should be fired only when the lag is modified") {
+    val transactionsCount = 10
+    val timestampIncrement = 1000 * (Timestamp.SeqPerMs / 2) // half second timestamp increment
+    val startTimestamp = Timestamp(1000L, 0)
+    val logRecords = createTransactions(count = transactionsCount, initialTimestamp = 0, timestampIncrement = timestampIncrement)
+    logRecords.foreach(txLog.append(_))
+    logRecords should be(txLog.read.toList)
+    currentConsistentTimestamp = logRecords.last.consistentTimestamp
+
+    // Set the replicationWindowSize to the exact amount of transactions we expect over the session
+    replicationWindowSize = 8
+
+    var receivedEvents = List[ReplicationLagChanged]()
+    sessionManager.addObserver { case event: ReplicationLagChanged => receivedEvents ::= event }
+
+    val session = openSession(Some(startTimestamp), ReplicationMode.Live)
+    session.mode should be(ReplicationMode.Live)
+    session.startTimestamp should be(Some(Timestamp(startTimestamp)))
+    session.endTimestamp should be(None)
+
+    // Verify initial lag
+    val initialLag = (currentConsistentTimestamp.get.timeMs - startTimestamp.timeMs) / 1000
+    session.secondsBehindMaster should be(Some(initialLag))
+
+    val messageCaptor = ArgumentCaptor.forClass(classOf[OutMessage])
+    verify(mockSlaveReplicateTxAction, timeout(1500).atLeast(replicationWindowSize)).callOutgoingHandlers(messageCaptor.capture())
+
+    // Verify the lag value returned with the replication session after acknowledging all transactions
+    messageCaptor.getAllValues.foreach(_.handleReply(new InMessage(Nil)))
+    verifyNoMoreInteractionsAfter(wait = 100, mockSlaveReplicateTxAction)
+    sessionManager.sessions.head.secondsBehindMaster should be(Some(0))
+
+    // Check ReplicationLagChanged events. Should only be fired when the lag has change.
+    // There are two transaction per second and the initial lag event is not fired by "design"
+    receivedEvents.size should be(3)
+    receivedEvents.map(_.replicationLagSeconds) should be(Seq(0, 1, 2))
+  }
+
   test("close session should kill session") {
     val logRecords = createTransactions(count = 10, initialTimestamp = 0)
     logRecords.foreach(txLog.append(_))

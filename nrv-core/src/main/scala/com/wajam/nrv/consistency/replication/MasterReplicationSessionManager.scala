@@ -324,9 +324,14 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
         case None => maxSlaveAckTimestamp
       }
 
+      // Notify observers only if the replication lag has changed
       if (activeSlaveTimestamp != newActiveTs) {
+        val oldLag = replicationLagSeconds
         activeSlaveTimestamp = newActiveTs
-        replicationLagSeconds.foreach(lag => notifyObservers(ReplicationLagChanged(member.token, slave, lag)))
+        val newLag = replicationLagSeconds
+        if (newLag != oldLag) {
+          newLag.foreach(lag => notifyObservers(ReplicationLagChanged(member.token, slave, lag)))
+        }
       }
     }
 
