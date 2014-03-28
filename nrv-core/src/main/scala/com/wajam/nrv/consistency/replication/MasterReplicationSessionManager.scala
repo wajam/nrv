@@ -303,6 +303,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     private var isTerminating = false
     private var maxSlaveAckTimestamp: Option[Timestamp] = startTimestamp
     private var activeSlaveTimestamp: Option[Timestamp] = startTimestamp
+    private var lastNotifiedLagSeconds: Option[Int] = None
 
     def replicationLagSeconds: Option[Int] = for {
       lastTs <- activeSlaveTimestamp
@@ -326,11 +327,11 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
 
       // Notify observers only if the replication lag has changed
       if (activeSlaveTimestamp != newActiveTs) {
-        val oldLag = replicationLagSeconds
         activeSlaveTimestamp = newActiveTs
         val newLag = replicationLagSeconds
-        if (newLag != oldLag) {
-          newLag.foreach(lag => notifyObservers(ReplicationLagChanged(member.token, slave, lag)))
+        if (newLag != lastNotifiedLagSeconds) {
+          lastNotifiedLagSeconds = newLag
+          lastNotifiedLagSeconds.foreach(lag => notifyObservers(ReplicationLagChanged(member.token, slave, lag)))
         }
       }
     }
