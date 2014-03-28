@@ -712,8 +712,8 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
 
     // Check ReplicationLagChanged events. Should only be fired when the lag has change.
     // There are two transaction per second and the initial lag event is not fired by "design"
-    receivedEvents.size should be(3)
-    receivedEvents.map(_.replicationLagSeconds) should be(Seq(0, 1, 2))
+    receivedEvents.size should be(4)
+    receivedEvents.map(_.replicationLagSeconds) should be(Seq(0, 1, 2, 3))
   }
 
   test("close session should kill session") {
