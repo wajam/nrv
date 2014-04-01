@@ -112,7 +112,6 @@ object NrvBuild extends Build {
     .settings(libraryDependencies ++= scribeDeps)
     .settings(testOptions in IntegrationTest := Seq(Tests.Filter(s => s.contains("Test"))))
     .settings(parallelExecution in IntegrationTest := false)
-    .dependsOn(core)
 
   lazy val microbenchmarks = Project(PROJECT_NAME + "-microbenchmarks", file(PROJECT_NAME + "-microbenchmarks"))
     .configs(IntegrationTest)
