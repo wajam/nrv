@@ -1,7 +1,7 @@
 package com.wajam.nrv.consistency
 
 import com.wajam.nrv.cluster.Node
-import com.wajam.nrv.service.{ServiceMember, Service}
+import com.wajam.nrv.service.ServiceMember
 
 class DummyConsistencyPersistence(serviceCache: ServiceMemberClusterStorage,
                                   val explicitReplicasMapping: Map[Long, List[Node]] = Map()) extends ConsistencyPersistence {
@@ -11,11 +11,6 @@ class DummyConsistencyPersistence(serviceCache: ServiceMemberClusterStorage,
   def start(): Unit = {}
 
   def stop(): Unit = {}
-
-//  /**
-//   * Returns the list of all replicas (master service member + slaves replicas) per shard token.
-//   */
-//  def explicitReplicasMapping: Map[Long, List[Node]] = Map()
 
   /**
    * Returns the number of seconds the specified replica lag behind the master service member.

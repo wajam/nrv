@@ -5,7 +5,6 @@ import com.wajam.nrv.data.Message
 import com.wajam.nrv.service._
 import java.util.concurrent.ConcurrentSkipListSet
 import com.wajam.commons.{Logging, Closable}
-import com.wajam.nrv.protocol.codec.StringCodec
 import scala.concurrent.{ExecutionContext, Future}
 import com.wajam.nrv.consistency.DummyConsistentStoreService.LookupKey
 
