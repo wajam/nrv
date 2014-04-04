@@ -25,15 +25,16 @@ object NrvBuild extends Build {
     "org.slf4j" % "slf4j-api" % "1.6.4",
     "nl.grons" %% "metrics-scala" % "2.2.0" exclude("org.slf4j", "slf4j-api"),
     "io.netty" % "netty" % "3.5.0.Final",
-    "org.scalatest" %% "scalatest" % "2.0" % "test,it",
-    "junit" % "junit" % "4.10" % "test,it",
-    "org.mockito" % "mockito-core" % "1.9.0" % "test,it",
     "com.google.protobuf" % "protobuf-java" % "2.4.1",
     "com.google.guava" % "guava" % "12.0",
     "com.twitter" %% "util-core" % "6.1.0",
     "org.scala-lang" % "scala-actors" % "2.10.2",
     "com.typesafe.akka" %% "akka-actor" % "2.2.3",
-    "com.typesafe.akka" %% "akka-agent" % "2.2.3"
+    "com.typesafe.akka" %% "akka-agent" % "2.2.3",
+    "commons-io" % "commons-io" % "2.4" % "test,it",
+    "org.scalatest" %% "scalatest" % "2.0" % "test,it",
+    "junit" % "junit" % "4.10" % "test,it",
+    "org.mockito" % "mockito-core" % "1.9.0" % "test,it"
   )
 
   var zookeeperDeps = Seq(
