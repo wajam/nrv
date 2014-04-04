@@ -19,14 +19,14 @@ class DummyConsistentStoreService(name: String, replicasCount: Int = 1)
 
   private val transactions = new ConcurrentSkipListSet[Message](DummyConsistentStoreService.Ordering)
 
-  private val addAction = registerAction(new Action("/execute/:token",
-    req => req.reply(null, data = {
+  private val addAction = registerAction(new Action("/execute/:token", req =>
+    req.reply(null, data = {
       info(s"ADD: tk=${req.token}, ts=${req.timestamp.get}, data=${req.getData[String]}, node=${cluster.localNode}")
       addLocal(req).toString
     }), ActionMethod.POST))
 
-  private val getAction = registerAction(new Action("/execute/:token",
-    req => req.reply(null, data = {
+  private val getAction = registerAction(new Action("/execute/:token", req =>
+    req.reply(null, data = {
       info(s"GET: tk=${req.token}, ts=${req.getData[String]}, node=${cluster.localNode}")
       getLocalValue(req.getData[String].toLong).get
     }), ActionMethod.GET))
@@ -41,7 +41,7 @@ class DummyConsistentStoreService(name: String, replicasCount: Int = 1)
     val response = getAction.call(params = Seq("token" -> key.token), meta = Seq(), data = key.timestamp.toString)
     response.map(msg => msg.getData[String])
   }
-  
+
   def addLocal(message: Message): Timestamp = {
     val ts = message.timestamp.get
     transactions.add(message)

@@ -28,7 +28,7 @@ class DummyDynamicClusterManager(members: Map[String, ServiceMemberClusterStorag
     members.get(service.name).map(_.toIterator.map { member =>
       val copy = new ServiceMember(member.token, member.node, member.status)
       copy -> Seq(new ServiceMemberVote(copy, copy, copy.status))
-    }.toList )
+    }.toList)
   }
 
   protected def removingOldServiceMember(service: Service, oldServiceMember: ServiceMember) = {
@@ -71,16 +71,16 @@ class ServiceMemberClusterStorage(val serviceName: String) extends Observable wi
   @volatile
   private var members = Map[Long, (Node, MemberStatus)]()
 
-  def toIterator: Iterator[ServiceMember] = members.toIterator.map {case (t, (n, s)) => new ServiceMember(t, n, s)}
+  def toIterator: Iterator[ServiceMember] = members.toIterator.map { case (t, (n, s)) => new ServiceMember(t, n, s)}
 
   def addMember(member: ServiceMember): Unit = {
-    synchronized {
-      members += member.token -> (member.node, member.status)
-    }
+    synchronized(members += member.token ->(member.node, member.status))
     notifyObservers(CachedMemberChangeEvent(serviceName, member))
   }
 }
 
 object ServiceMemberClusterStorage {
+
   case class CachedMemberChangeEvent(serviceName: String, member: ServiceMember) extends Event
+
 }
