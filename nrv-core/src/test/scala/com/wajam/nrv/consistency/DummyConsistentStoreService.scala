@@ -1,11 +1,11 @@
 package com.wajam.nrv.consistency
 
 import com.wajam.nrv.utils.timestamp.Timestamp
-import com.wajam.nrv.data.Message
+import com.wajam.nrv.data.{MBoolean, Message}
 import com.wajam.nrv.service._
 import java.util.concurrent.ConcurrentSkipListSet
 import com.wajam.commons.{Logging, Closable}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Promise, ExecutionContext, Future}
 import com.wajam.nrv.consistency.TransactionStorage.LookupKey
 
 /**
@@ -19,21 +19,22 @@ class DummyConsistentStoreService(name: String, val localStorage: TransactionSto
 
 //  private val transactions = new ConcurrentSkipListSet[Message](DummyConsistentStoreService.Ordering)
 
-  private val addAction = registerAction(new Action("/execute/:token", req =>
-    req.reply(null, data = {
-      info(s"ADD: tk=${req.token}, ts=${req.timestamp.get}, data=${req.getData[String]}, node=${cluster.localNode}")
-      localStorage.add(req).toString
-    }), ActionMethod.POST))
+  private val addAction = registerAction(new Action("/execute/:token", req => {
+    info(s"ADD: tk=${req.token}, ts=${req.timestamp.get}, data=${req.getData[String]}, node=${cluster.localNode}")
+    req.parameters.get("no_reply") match {
+      case Some(noReply: MBoolean) if noReply.value => // Don't reply!
+      case _ => req.reply(null, data = localStorage.add(req).toString )
+    }
+  }, ActionMethod.POST))
 
-  private val getAction = registerAction(new Action("/execute/:token", req =>
-    req.reply(null, data = {
-      info(s"GET: tk=${req.token}, ts=${req.getData[String]}, node=${cluster.localNode}")
-      localStorage.getValue(req.getData[String].toLong).get
-    }), ActionMethod.GET))
+  private val getAction = registerAction(new Action("/execute/:token", req => {
+    info(s"GET: tk=${req.token}, ts=${req.getData[String]}, node=${cluster.localNode}")
+    req.reply(null, data = localStorage.getValue(req.getData[String].toLong).get)
+  }, ActionMethod.GET))
 
-  def addRemoteValue(value: String)(implicit ec: ExecutionContext): Future[LookupKey] = {
+  def addRemoteValue(value: String, mustReply: Boolean = true)(implicit ec: ExecutionContext): Future[LookupKey] = {
     val token = Resolver.hashData(value)
-    val response = addAction.call(params = Seq("token" -> token), meta = Seq(), data = value)
+    val response = addAction.call(params = Seq("token" -> token, "no_reply" -> !mustReply), meta = Seq(), data = value)
     response.map(msg => LookupKey(token, msg.getData[String].toLong))
   }
 

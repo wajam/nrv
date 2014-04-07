@@ -11,7 +11,7 @@ import java.io.File
 import java.nio.file.Files
 import scala.concurrent.{ExecutionContext, Await}
 import scala.concurrent.duration._
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{TimeoutException, TimeUnit}
 import com.wajam.nrv.UnavailableException
 import org.apache.commons.io.FileUtils
 
@@ -306,6 +306,46 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       // Restore the deleted value. The service consistency should recover and the service status goes Up
       clusterNode6666_2.service.localStorage.add(removedValue)
       eventually { clusterNode6666_2.getLocalMember.status should be(MemberStatus.Up) }
+    }
+  }
+
+  it should "automatically recover from incomplete tx consistency error" in new ClusterFixture {
+    withFixture { f =>
+      val clusterNode6666 = f.createClusterNode(6666)
+      eventually { clusterNode6666.getLocalMember.status should be(MemberStatus.Up) }
+
+      val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6"))
+      values(6666).size should be > 1
+
+      // Add the service member tail values (i.e. all values but the first one)
+      values(6666).tail.map(v => Await.result(clusterNode6666.service.addRemoteValue(v), awaitDuration))
+
+      // Increase the consistent service timeout to a value larger than the consistency timeout. The service will
+      // become inconsistent if no reply is received before the consistency timeout expires.
+      // The consistency timeout is based on the service timeout but it is computed once the service goes Up.
+      // Increasing the service timeout AFTER the service is Up does not update the consistency timeout.
+      clusterNode6666.service.applySupport(responseTimeout = Some(30000L))
+      evaluating {
+        Await.result(clusterNode6666.service.addRemoteValue(values(6666).head, mustReply = false), awaitDuration)
+      } should produce[TimeoutException]
+
+      val token = clusterNode6666.getLocalMember.token
+      val start = System.currentTimeMillis()
+      eventually {
+        println(
+          s"######### status=${clusterNode6666.getLocalMember.status}, " +
+          s"state=${clusterNode6666.getLocalMemberConsistencyState(token)}, " +
+          s"elapsed=${(System.currentTimeMillis() - start) / 1000}s")
+        clusterNode6666.getLocalMemberConsistencyState(token) should not be Some(MemberConsistencyState.Ok)
+      }
+
+      eventually {
+        println(
+          s"********* status=${clusterNode6666.getLocalMember.status}, " +
+          s"state=${clusterNode6666.getLocalMemberConsistencyState(token)}")
+        clusterNode6666.getLocalMember.status should be(MemberStatus.Up)
+        clusterNode6666.getLocalMemberConsistencyState(token) should be(Some(MemberConsistencyState.Ok))
+      }
     }
   }
 
