@@ -35,11 +35,11 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       val member4294967292_8888 = new ServiceMember(4294967292L, node8888)
 
       // Uses only two service member (i.e. shard) by default on nodes 6666 and 8888
-      val serviceCache = new ServiceMemberClusterStorage("dummy-consistent-store")
-      serviceCache.addMember(member2147483646_6666)
-      serviceCache.addMember(member4294967292_8888)
+      val clusterDefinitionStorage = new ServiceMemberClusterStorage("dummy-consistent-store")
+      clusterDefinitionStorage.addMember(member2147483646_6666)
+      clusterDefinitionStorage.addMember(member4294967292_8888)
 
-      val consistencyPersistence = new DummyConsistencyPersistence(serviceCache,
+      val consistencyPersistence = new DummyConsistencyPersistence(clusterDefinitionStorage,
         explicitReplicasMapping = Map(
           member1073741823_5555.token -> List(node5555, node6666),
           member2147483646_6666.token -> List(node5555, node6666),
@@ -47,10 +47,11 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
           member4294967292_8888.token -> List(node7777, node8888)
         ))
 
-      def createClusterNode(localNrvPort: Int, naturalRingReplicas: Boolean = true): ConsistentCluster = {
+      def createClusterNode(localNrvPort: Int, naturalRingReplicas: Boolean = true,
+                            localStorage: TransactionStorage = new TransactionStorage): ConsistentCluster = {
         val nodeLogDir = new File(logDir, localNrvPort.toString)
         Files.createDirectories(nodeLogDir.toPath)
-        val clusterNode = new ConsistentCluster(serviceCache, consistencyPersistence, timestampGenerator,
+        val clusterNode = new ConsistentCluster(clusterDefinitionStorage, localStorage, consistencyPersistence, timestampGenerator,
           localNrvPort, nodeLogDir.getCanonicalPath, naturalRingReplicas)
         clusterNodes = clusterNode :: clusterNodes
         clusterNode.start()
@@ -81,16 +82,17 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
   }
 
-  class ConsistentCluster(serviceCache: ServiceMemberClusterStorage,
+  class ConsistentCluster(clusterDefinitionStorage: ServiceMemberClusterStorage,
+                          localStorage: TransactionStorage,
                           consistencyPersistence: ConsistencyPersistence,
                           timestampGenerator: TimestampGenerator,
                           localNrvPort: Int,
                           logDir: String,
                           naturalRingReplicas: Boolean) {
 
-    val service = new DummyConsistentStoreService(serviceCache.serviceName, replicasCount = 2)
+    val service = new DummyConsistentStoreService(clusterDefinitionStorage.serviceName, localStorage, replicasCount = 2)
 
-    val clusterManager = new DummyDynamicClusterManager(Map(serviceCache.serviceName -> serviceCache))
+    val clusterManager = new DummyDynamicClusterManager(Map(clusterDefinitionStorage.serviceName -> clusterDefinitionStorage))
 
     val localNode = new LocalNode("localhost", Map("nrv" -> localNrvPort))
 
@@ -157,7 +159,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       eventually { clusterNode8888.getLocalMember.status should be(MemberStatus.Up) }
 
       // Wait until the value is replicated to the shard slave
-      eventually { clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue)) }
+      eventually { clusterNode8888.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue)) }
 
       // Add remaining values to first cluster node
       val tailPairs = values(6666).tail.map(v => {
@@ -167,7 +169,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Wait until all values are replicated
       eventually {
-        tailPairs.foreach { case (k, v) => clusterNode8888.service.getLocalValue(k.timestamp) should be(Some(v)) }
+        tailPairs.foreach { case (k, v) => clusterNode8888.service.localStorage.getValue(k.timestamp) should be(Some(v)) }
       }
     }
   }
@@ -192,7 +194,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       eventually { clusterNode8888.getLocalMember.status should be(MemberStatus.Up) }
 
       // Wait until the value is replicated to the shard slave
-      eventually { clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue)) }
+      eventually { clusterNode8888.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue)) }
 
       // Stop first cluster node
       clusterNode6666.stop()
@@ -224,7 +226,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       eventually { clusterNode8888.getLocalMember.status should be(MemberStatus.Up) }
 
       // Wait until the value is replicated to the shard slave
-      eventually { clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue)) }
+      eventually { clusterNode8888.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue)) }
 
       // Stop first cluster node
       clusterNode6666.stop()
@@ -259,7 +261,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       eventually { clusterNode8888.getLocalMember.status should be(MemberStatus.Up) }
 
       // Wait until the value is replicated to the shard slave
-      eventually { clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue)) }
+      eventually { clusterNode8888.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue)) }
 
       // Stop first cluster node
       clusterNode6666.stop()
@@ -294,7 +296,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       // Remove the value directly from the local consistent store without going thru NRV service messaging.
       // This break the consistency between the store and the transaction logs.
       // This prevents the service status to goes Up when the cluster node is restarted
-      val removedValue = clusterNode6666.service.removeLocal(headKey.timestamp).get
+      val removedValue = clusterNode6666.service.localStorage.remove(headKey.timestamp).get
       val clusterNode6666_2 = f.createClusterNode(6666) // TODO: restart the existing node instance
       eventually {
         val token = clusterNode6666_2.getLocalMember.token
@@ -302,7 +304,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       }
 
       // Restore the deleted value. The service consistency should recover and the service status goes Up
-      clusterNode6666_2.service.addLocal(removedValue)
+      clusterNode6666_2.service.localStorage.add(removedValue)
       eventually { clusterNode6666_2.getLocalMember.status should be(MemberStatus.Up) }
     }
   }
@@ -327,7 +329,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       eventually { clusterNode8888.getLocalMember.status should be(MemberStatus.Up) }
 
       // Wait until the value is replicated to the shard slave
-      eventually { clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue)) }
+      eventually { clusterNode8888.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue)) }
 
       // Change master for the first service member
       val token = clusterNode6666.getLocalMember.token
@@ -348,8 +350,8 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Verify the remaining values are hosted only by node 8888, the new master. They are not replicated to node 6666 because
       // we are testing with a natural ring Resolver and both shards are now hosted by node 8888.
-      tailPairs.foreach { case (k, v) => clusterNode8888.service.getLocalValue(k.timestamp) should be(Some(v)) }
-      tailPairs.foreach { case (k, v) => clusterNode6666.service.getLocalValue(k.timestamp) should be(None) }
+      tailPairs.foreach { case (k, v) => clusterNode8888.service.localStorage.getValue(k.timestamp) should be(Some(v)) }
+      tailPairs.foreach { case (k, v) => clusterNode6666.service.localStorage.getValue(k.timestamp) should be(None) }
     }
   }
 
@@ -378,15 +380,25 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       val clusterNode5555 = f.createClusterNode(5555, naturalRingReplicas = false)
       val clusterNode7777 = f.createClusterNode(7777, naturalRingReplicas = false)
       eventually {
-        keyedValues6666.foreach { case (k, v) => clusterNode5555.service.getLocalValue(k.timestamp) should be(Some(v)) }
-        keyedValues8888.foreach { case (k, v) => clusterNode7777.service.getLocalValue(k.timestamp) should be(Some(v)) }
+        keyedValues6666.foreach { case (k, v) =>
+          clusterNode5555.service.localStorage.getValue(k.timestamp) should be(Some(v)) }
+        keyedValues8888.foreach { case (k, v) =>
+          clusterNode7777.service.localStorage.getValue(k.timestamp) should be(Some(v)) }
       }
 
       ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-      // NOTE: Live migration is not really supported. The service member master MUST be stop before the 
-      // split to ensure all values are replicated to the slave (i.e. no new values are during the split which would 
-      // not be replicated because of the replication delay). Also ConsistencyMasterSlave does not properly 
-      // terminate existing replication sessions if the master is not restarted.
+      // NOTE: Live split to a new service member master is not really supported:
+      //
+      // 1. The service member master MUST be stop before the split to ensure all values are replicated to the slave
+      // (i.e. no new values are during the split which would not be replicated because of the replication delay).
+      //
+      // 2. ConsistencyMasterSlave does not properly terminate existing replication sessions if the master is not
+      // restarted.
+      //
+      // 3. The split service member last transaction log record has 1 chance out of 2 to be in the token range now
+      // handled by the new service member master. To work around this limitation, it is recommended to keep the
+      // same cluster node as master of the new shard and the migrate the mastership as a separate step after a few
+      // writes are appended to the transaction log.
       ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
       // Stop existing master nodes
@@ -398,8 +410,8 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       }
 
       // Split shards!!!!
-      f.serviceCache.addMember(f.member1073741823_5555)
-      f.serviceCache.addMember(f.member3221225469_7777)
+      f.clusterDefinitionStorage.addMember(f.member1073741823_5555)
+      f.clusterDefinitionStorage.addMember(f.member3221225469_7777)
 
       // Wait until the new service members are Up
       eventually {
@@ -423,12 +435,15 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       })
 
       // Start old master and ensure the values are replicated
-      val clusterNode6666_2 = f.createClusterNode(6666) // TODO: restart the existing node instance
+      val clusterNode6666_2 = f.createClusterNode(6666, localStorage = clusterNode6666.service.localStorage) // TODO: restart the existing node instance
       eventually {
-        // TODO: There is a consistency error because the new node is empty but not the transaction logs!!!
-        // TODO: Either ensure that dummy consistent storage data survive cluster node restart or recreate the data it!
+        // NOTE: Cluster node 6666 never goes up because there is a consistency error. The last log record is in the
+        // token range now handled by cluster node 5555. A workaround is to delete the cluster node logs before
+        // restarting it. The real solution is to fix ConsistencyMasterSlave and only verify the records for the now
+        // smaller token range.
         clusterNode6666_2.getLocalMember.status should be(MemberStatus.Up)
-        keyedValues5555.foreach { case (k, v) => clusterNode6666_2.service.getLocalValue(k.timestamp) should be(Some(v)) }
+        keyedValues5555.foreach { case (k, v) =>
+          clusterNode6666_2.service.localStorage.getValue(k.timestamp) should be(None) }
       }
 
     }

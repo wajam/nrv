@@ -6,29 +6,29 @@ import com.wajam.nrv.service._
 import java.util.concurrent.ConcurrentSkipListSet
 import com.wajam.commons.{Logging, Closable}
 import scala.concurrent.{ExecutionContext, Future}
-import com.wajam.nrv.consistency.DummyConsistentStoreService.LookupKey
+import com.wajam.nrv.consistency.TransactionStorage.LookupKey
 
 /**
  * Dummy consistent store service used to test ConsistencyMasterSlave
  */
-class DummyConsistentStoreService(name: String, replicasCount: Int = 1)
+class DummyConsistentStoreService(name: String, val localStorage: TransactionStorage, replicasCount: Int = 1)
   extends Service(name,
     new ActionSupportOptions(resolver = Some(new Resolver(replicasCount, tokenExtractor = Resolver.TOKEN_PARAM("token")))))
   with ConsistentStore
   with Logging {
 
-  private val transactions = new ConcurrentSkipListSet[Message](DummyConsistentStoreService.Ordering)
+//  private val transactions = new ConcurrentSkipListSet[Message](DummyConsistentStoreService.Ordering)
 
   private val addAction = registerAction(new Action("/execute/:token", req =>
     req.reply(null, data = {
       info(s"ADD: tk=${req.token}, ts=${req.timestamp.get}, data=${req.getData[String]}, node=${cluster.localNode}")
-      addLocal(req).toString
+      localStorage.add(req).toString
     }), ActionMethod.POST))
 
   private val getAction = registerAction(new Action("/execute/:token", req =>
     req.reply(null, data = {
       info(s"GET: tk=${req.token}, ts=${req.getData[String]}, node=${cluster.localNode}")
-      getLocalValue(req.getData[String].toLong).get
+      localStorage.getValue(req.getData[String].toLong).get
     }), ActionMethod.GET))
 
   def addRemoteValue(value: String)(implicit ec: ExecutionContext): Future[LookupKey] = {
@@ -41,27 +41,6 @@ class DummyConsistentStoreService(name: String, replicasCount: Int = 1)
     val response = getAction.call(params = Seq("token" -> key.token), meta = Seq(), data = key.timestamp.toString)
     response.map(msg => msg.getData[String])
   }
-
-  def addLocal(message: Message): Timestamp = {
-    val ts = message.timestamp.get
-    transactions.add(message)
-    ts
-  }
-
-  def removeLocal(timestamp: Timestamp): Option[Message] = {
-    val msg = getLocal(timestamp)
-    msg.foreach(transactions.remove)
-    msg
-  }
-
-  def getLocal(timestamp: Timestamp): Option[Message] = {
-    import collection.JavaConversions._
-
-    val ts = Some(timestamp)
-    transactions.iterator().find(msg => msg.timestamp == ts)
-  }
-
-  def getLocalValue(timestamp: Timestamp): Option[String] = getLocal(timestamp).map(msg => msg.getData[String])
 
   // ConsistentStore trait implementation
 
@@ -79,10 +58,8 @@ class DummyConsistentStoreService(name: String, replicasCount: Int = 1)
    * Returns the latest record timestamp for the specified token ranges
    */
   def getLastTimestamp(ranges: Seq[TokenRange]) = {
-    import collection.JavaConversions._
-
-    val lastTs = transactions.descendingIterator().find(msg => ranges.exists(range => range.contains(msg.token))).flatMap(m => m.timestamp)
-    trace(s"getLastTimestamp: $lastTs, $ranges, ${transactions.map(_.getData[String])}")
+    val lastTs = localStorage.reverseIterator.find(msg => ranges.exists(range => range.contains(msg.token))).flatMap(m => m.timestamp)
+    trace(s"getLastTimestamp: $lastTs, $ranges, ${localStorage.iterator.map(_.getData[String]).toSeq}")
     lastTs
   }
 
@@ -97,11 +74,9 @@ class DummyConsistentStoreService(name: String, replicasCount: Int = 1)
    * Returns the mutation messages from and up to the given timestamps inclusively for the specified token ranges.
    */
   def readTransactions(fromTime: Timestamp, toTime: Timestamp, ranges: Seq[TokenRange]) = {
-    import collection.JavaConversions._
-
     val from = Some(fromTime)
     val to = Some(toTime)
-    val itr = transactions.iterator().collect {
+    val itr = localStorage.iterator.collect {
       case msg if ranges.exists(range => range.contains(msg.token)) && msg.timestamp >= from && msg.timestamp <= to => {
         msg
       }
@@ -120,19 +95,52 @@ class DummyConsistentStoreService(name: String, replicasCount: Int = 1)
    * Apply the specified mutation message to this consistent database
    */
   def writeTransaction(message: Message) = {
-    addLocal(message)
+    localStorage.add(message)
   }
 
   /**
    * Truncate all records at the given timestamp for the specified token.
    */
   def truncateAt(timestamp: Timestamp, token: Long) = {
-    removeLocal(timestamp)
+    localStorage.remove(timestamp)
   }
 }
 
-object DummyConsistentStoreService {
+/**
+ * Stores the local transactions.
+ */
+class TransactionStorage {
 
+  private val transactions = new ConcurrentSkipListSet[Message](TransactionStorage.Ordering)
+
+  def add(message: Message): Timestamp = {
+    val ts = message.timestamp.get
+    transactions.add(message)
+    ts
+  }
+
+  def remove(timestamp: Timestamp): Option[Message] = {
+    val msg = get(timestamp)
+    msg.foreach(transactions.remove)
+    msg
+  }
+
+  def get(timestamp: Timestamp): Option[Message] = {
+    val ts = Some(timestamp)
+    reverseIterator.find(msg => msg.timestamp == ts)
+  }
+
+  def getValue(timestamp: Timestamp): Option[String] = get(timestamp).map(msg => msg.getData[String])
+
+  import collection.JavaConversions._
+
+  def iterator: Iterator[Message] = transactions.iterator()
+
+  def reverseIterator: Iterator[Message] = transactions.descendingIterator()
+
+}
+
+object TransactionStorage {
   case class LookupKey(token: Long, timestamp: Timestamp)
 
   val Ordering = new Ordering[Message] {
@@ -140,4 +148,5 @@ object DummyConsistentStoreService {
       x.timestamp.compareTo(y.timestamp)
     }
   }
+
 }
