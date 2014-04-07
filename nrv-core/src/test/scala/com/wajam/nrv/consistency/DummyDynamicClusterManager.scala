@@ -71,7 +71,7 @@ class ServiceMemberClusterStorage(val serviceName: String) extends Observable wi
   @volatile
   private var members = Map[Long, (Node, MemberStatus)]()
 
-  def toIterator: Iterator[ServiceMember] = members.toIterator.map { case (t, (n, s)) => new ServiceMember(t, n, s)}
+  def toIterator: Iterator[ServiceMember] = members.toIterator.map { case (t, (n, s)) => new ServiceMember(t, n, s) }
 
   def addMember(member: ServiceMember): Unit = {
     synchronized(members += member.token ->(member.node, member.status))

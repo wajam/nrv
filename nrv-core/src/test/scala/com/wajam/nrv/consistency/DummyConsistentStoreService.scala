@@ -72,10 +72,7 @@ class DummyConsistentStoreService(name: String, replicasCount: Int = 1)
    * replicated) by the consistency manager.
    */
   def requiresConsistency(message: Message) = {
-    findAction(message.path, message.method) match {
-      case Some(action) => action == addAction || action == getAction
-      case None => false
-    }
+    findAction(message.path, message.method).exists(action => action == addAction || action == getAction)
   }
 
   /**

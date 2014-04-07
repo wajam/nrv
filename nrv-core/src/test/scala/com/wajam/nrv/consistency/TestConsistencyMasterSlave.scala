@@ -109,14 +109,14 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
     def getLocalMember = getMemberByPort(localNrvPort)
 
     def getLocalMemberConsistencyState(token: Long): Option[MemberConsistencyState] = {
-      consistency.localMembersStates.collectFirst { case (m, s) if m.token == token => s}
+      consistency.localMembersStates.collectFirst { case (m, s) if m.token == token => s }
     }
 
     def getHostingNodePortForValue(value: String): Int = service.resolveMembers(Resolver.hashData(value), 1).head.node.ports("nrv")
 
     def groupValuesByHostingNodePort(values: List[String]): Map[Int, List[String]] = {
       val grouped: Map[Int, List[(Int, String)]] = values.map(v => (getHostingNodePortForValue(v), v)).groupBy(_._1)
-      grouped.map { case (port, tupledValues) => (port, tupledValues.map(_._2))}
+      grouped.map { case (port, tupledValues) => (port, tupledValues.map(_._2)) }
     }
 
     def start(): Unit = {
@@ -141,7 +141,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
     withFixture { f =>
       // Start first custer node
       val clusterNode6666 = f.createClusterNode(6666, naturalRingReplicas = true)
-      eventually {clusterNode6666.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode6666.getLocalMember.status should be(MemberStatus.Up) }
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6"))
       values(6666).size should be > 1
@@ -154,10 +154,10 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Start second cluster node
       val clusterNode8888 = f.createClusterNode(8888, naturalRingReplicas = true)
-      eventually {clusterNode8888.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode8888.getLocalMember.status should be(MemberStatus.Up) }
 
       // Wait until the value is replicated to the shard slave
-      eventually {clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue))}
+      eventually { clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue)) }
 
       // Add remaining values to first cluster node
       val tailPairs = values(6666).tail.map(v => {
@@ -167,16 +167,16 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Wait until all values are replicated
       eventually {
-        tailPairs.foreach { case (k, v) => clusterNode8888.service.getLocalValue(k.timestamp) should be(Some(v))}
+        tailPairs.foreach { case (k, v) => clusterNode8888.service.getLocalValue(k.timestamp) should be(Some(v)) }
       }
     }
   }
 
   it should "allow read from slave when master is down" in new ClusterFixture {
     withFixture { f =>
-      // Start first custer node
+    // Start first custer node
       val clusterNode6666 = f.createClusterNode(6666, naturalRingReplicas = true)
-      eventually {clusterNode6666.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode6666.getLocalMember.status should be(MemberStatus.Up) }
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6"))
       values(6666).size should be > 1
@@ -189,14 +189,14 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Start second cluster node
       val clusterNode8888 = f.createClusterNode(8888, naturalRingReplicas = true)
-      eventually {clusterNode8888.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode8888.getLocalMember.status should be(MemberStatus.Up) }
 
       // Wait until the value is replicated to the shard slave
-      eventually {clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue))}
+      eventually { clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue)) }
 
       // Stop first cluster node
       clusterNode6666.stop()
-      eventually {clusterNode8888.getMemberByPort(6666).status should be(MemberStatus.Down)}
+      eventually { clusterNode8888.getMemberByPort(6666).status should be(MemberStatus.Down) }
 
       // Get the value, it should be served by the slave
       val actual2 = Await.result(clusterNode8888.service.getRemoteValue(headKey), awaitDuration)
@@ -206,9 +206,9 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
   it should "NOT allow read from slave when master is down and lag too large" in new ClusterFixture {
     withFixture { f =>
-    // Start first custer node
+      // Start first custer node
       val clusterNode6666 = f.createClusterNode(6666, naturalRingReplicas = true)
-      eventually {clusterNode6666.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode6666.getLocalMember.status should be(MemberStatus.Up) }
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6"))
       values(6666).size should be > 1
@@ -221,14 +221,14 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Start second cluster node
       val clusterNode8888 = f.createClusterNode(8888, naturalRingReplicas = true)
-      eventually {clusterNode8888.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode8888.getLocalMember.status should be(MemberStatus.Up) }
 
       // Wait until the value is replicated to the shard slave
-      eventually {clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue))}
+      eventually { clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue)) }
 
       // Stop first cluster node
       clusterNode6666.stop()
-      eventually {clusterNode8888.getMemberByPort(6666).status should be(MemberStatus.Down)}
+      eventually { clusterNode8888.getMemberByPort(6666).status should be(MemberStatus.Down) }
 
       // Artificially increase the replication lag before trying to get the value
       val masterToken = clusterNode6666.getLocalMember.token
@@ -243,7 +243,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
     withFixture { f =>
       // Start first custer node
       val clusterNode6666 = f.createClusterNode(6666, naturalRingReplicas = true)
-      eventually {clusterNode6666.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode6666.getLocalMember.status should be(MemberStatus.Up) }
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6"))
       values(6666).size should be > 1
@@ -256,14 +256,14 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Start second cluster node
       val clusterNode8888 = f.createClusterNode(8888, naturalRingReplicas = true)
-      eventually {clusterNode8888.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode8888.getLocalMember.status should be(MemberStatus.Up) }
 
       // Wait until the value is replicated to the shard slave
-      eventually {clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue))}
+      eventually { clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue)) }
 
       // Stop first cluster node
       clusterNode6666.stop()
-      eventually {clusterNode8888.getMemberByPort(6666).status should be(MemberStatus.Down)}
+      eventually { clusterNode8888.getMemberByPort(6666).status should be(MemberStatus.Down) }
 
       // Try to write a value to the shard with master down
       evaluating {
@@ -277,7 +277,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
     withFixture { f =>
       // Start the first cluster node
       val clusterNode6666 = f.createClusterNode(6666)
-      eventually {clusterNode6666.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode6666.getLocalMember.status should be(MemberStatus.Up) }
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6"))
       values(6666).size should be > 1
@@ -289,7 +289,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       actual should be(headValue)
 
       clusterNode6666.stop()
-      eventually {clusterNode6666.getMemberByPort(6666).status should be(MemberStatus.Down)}
+      eventually { clusterNode6666.getMemberByPort(6666).status should be(MemberStatus.Down) }
 
       // Remove the value directly from the local consistent store without going thru NRV service messaging.
       // This break the consistency between the store and the transaction logs.
@@ -303,15 +303,15 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Restore the deleted value. The service consistency should recover and the service status goes Up
       clusterNode6666_2.service.addLocal(removedValue)
-      eventually {clusterNode6666_2.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode6666_2.getLocalMember.status should be(MemberStatus.Up) }
     }
   }
 
   it should "handle service member mastership migration" in new ClusterFixture {
     withFixture { f =>
-      // Start the first cluster node
+    // Start the first cluster node
       val clusterNode6666 = f.createClusterNode(6666, naturalRingReplicas = true)
-      eventually {clusterNode6666.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode6666.getLocalMember.status should be(MemberStatus.Up) }
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6"))
       values(6666).size should be > 1
@@ -324,10 +324,10 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Start second cluster node
       val clusterNode8888 = f.createClusterNode(8888, naturalRingReplicas = true)
-      eventually {clusterNode8888.getLocalMember.status should be(MemberStatus.Up)}
+      eventually { clusterNode8888.getLocalMember.status should be(MemberStatus.Up) }
 
       // Wait until the value is replicated to the shard slave
-      eventually {clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue))}
+      eventually { clusterNode8888.service.getLocalValue(headKey.timestamp) should be(Some(headValue)) }
 
       // Change master for the first service member
       val token = clusterNode6666.getLocalMember.token
@@ -348,14 +348,14 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Verify the remaining values are hosted only by node 8888, the new master. They are not replicated to node 6666 because
       // we are testing with a natural ring Resolver and both shards are now hosted by node 8888.
-      tailPairs.foreach { case (k, v) => clusterNode8888.service.getLocalValue(k.timestamp) should be(Some(v))}
-      tailPairs.foreach { case (k, v) => clusterNode6666.service.getLocalValue(k.timestamp) should be(None)}
+      tailPairs.foreach { case (k, v) => clusterNode8888.service.getLocalValue(k.timestamp) should be(Some(v)) }
+      tailPairs.foreach { case (k, v) => clusterNode6666.service.getLocalValue(k.timestamp) should be(None) }
     }
   }
 
   ignore should "handle service members split (explicit replicas mapping)" in new ClusterFixture {
     withFixture { f =>
-      // Start cluster nodes with assigned service members
+    // Start cluster nodes with assigned service members
       val clusterNode6666 = f.createClusterNode(6666, naturalRingReplicas = false)
       val clusterNode8888 = f.createClusterNode(8888, naturalRingReplicas = false)
       eventually {
@@ -378,8 +378,8 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       val clusterNode5555 = f.createClusterNode(5555, naturalRingReplicas = false)
       val clusterNode7777 = f.createClusterNode(7777, naturalRingReplicas = false)
       eventually {
-        keyedValues6666.foreach { case (k, v) => clusterNode5555.service.getLocalValue(k.timestamp) should be(Some(v))}
-        keyedValues8888.foreach { case (k, v) => clusterNode7777.service.getLocalValue(k.timestamp) should be(Some(v))}
+        keyedValues6666.foreach { case (k, v) => clusterNode5555.service.getLocalValue(k.timestamp) should be(Some(v)) }
+        keyedValues8888.foreach { case (k, v) => clusterNode7777.service.getLocalValue(k.timestamp) should be(Some(v)) }
       }
 
       ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -428,7 +428,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
         // TODO: There is a consistency error because the new node is empty but not the transaction logs!!!
         // TODO: Either ensure that dummy consistent storage data survive cluster node restart or recreate the data it!
         clusterNode6666_2.getLocalMember.status should be(MemberStatus.Up)
-        keyedValues5555.foreach { case (k, v) => clusterNode6666_2.service.getLocalValue(k.timestamp) should be(Some(v))}
+        keyedValues5555.foreach { case (k, v) => clusterNode6666_2.service.getLocalValue(k.timestamp) should be(Some(v)) }
       }
 
     }
