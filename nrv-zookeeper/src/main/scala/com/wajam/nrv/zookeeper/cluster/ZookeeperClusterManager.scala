@@ -177,6 +177,9 @@ object ZookeeperClusterManager {
   private[zookeeper] def zkMemberReplicasPath(serviceName: String, candidateToken: Long) =
     ZookeeperService.memberPath(serviceName, candidateToken) + "/replicas"
 
+  private[zookeeper] def zkMemberReplicaPath(serviceName: String, candidateToken: Long, nodeString: String) =
+    ZookeeperService.memberPath(serviceName, candidateToken) + "/replicas" + "/" + nodeString
+
   private[zookeeper] def zkMemberReplicaLagPath(serviceName: String, candidateToken: Long, nodeString: String) =
     ZookeeperService.memberPath(serviceName, candidateToken) + "/replicas" + "/" + nodeString + "/lag"
 }
