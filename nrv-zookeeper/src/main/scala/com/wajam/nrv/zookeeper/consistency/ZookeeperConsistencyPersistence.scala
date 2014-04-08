@@ -178,8 +178,12 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
             try {
               zk.set(path, lag)
             } catch {
-              // Node doesn't exist, create it
-              case e: KeeperException if e.code == Code.NONODE => zk.ensureAllExists(path, lag, CreateMode.PERSISTENT)
+              // Lag Node doesn't exist, create it
+              case e: KeeperException if e.code == Code.NONODE => {
+                if (zk.exists(ZookeeperClusterManager.zkMemberReplicaPath(service.name, token, nodeString))) {
+                  zk.ensureExists(path, lag, CreateMode.PERSISTENT)
+                }
+              }
               case t: Throwable => throw t
             }
 

@@ -13,6 +13,8 @@ import com.wajam.nrv.zookeeper.{ZookeeperTestHelpers, ZookeeperClient}
 import com.wajam.nrv.zookeeper.cluster.ZookeeperClusterManager
 import com.wajam.commons.ControlableCurrentTime
 import org.scalatest.concurrent.Eventually
+import org.apache.zookeeper.KeeperException
+import org.apache.zookeeper.KeeperException.Code
 
 @RunWith(classOf[JUnitRunner])
 class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter with Eventually {
@@ -188,6 +190,52 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
         checkCachedAndPersistedLagValues(service, token, slave, 0)
       }
     }
+  }
+
+  it should "persist the new replication lag value even if lag node doesn't exists" in new Builder {
+    consistency.start()
+
+    val token = 0
+    val slave = originalMapping(token).head
+
+    val newLag = 10
+
+    zkRemoveReplicationLag(service, token, slave)
+    val e = evaluating {
+      zkGetReplicationLag(service, token, slave)
+    } should produce[KeeperException]
+    e.code() should be(Code.NONODE)
+
+    consistency.updateReplicationLagSeconds(token, slave, newLag)
+
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, newLag)
+    }
+  }
+
+  it should "NOT persist the new replication lag value if parent replica's node doesn't exists" in new Builder {
+    consistency.start()
+
+    val token = 0
+    val slave = originalMapping(token).head
+
+    val newLag = 10
+
+    zkRemoveReplicationLag(service, token, slave)
+    zkRemoveReplica(service, token, slave)
+    val e = evaluating {
+      zkGetReplicationLag(service, token, slave)
+    } should produce[KeeperException]
+    e.code() should be(Code.NONODE)
+
+    consistency.updateReplicationLagSeconds(token, slave, newLag)
+
+    // Wait a little while and then ensure the lag haven't been persisted
+    Thread.sleep(500)
+    val e2 = evaluating {
+      zkGetReplicationLag(service, token, slave)
+    } should produce[KeeperException]
+    e2.code should be(Code.NONODE)
   }
 
   it should "persist the new replication lag value in Zk when the value stays under the threshold" in new Builder {

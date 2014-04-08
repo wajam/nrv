@@ -78,6 +78,12 @@ trait ZookeeperTestHelpers {
     zk.set(path, lag)
   }
 
+  def zkRemoveReplicationLag(service: Service, token: Long, nodeString: String) {
+    val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, nodeString)
+
+    zk.delete(path)
+  }
+
   def zkGetReplicationLag(service: Service, token: Long, nodeString: String): Int = {
     val path = ZookeeperClusterManager.zkMemberReplicaLagPath(service.name, token, nodeString)
 
