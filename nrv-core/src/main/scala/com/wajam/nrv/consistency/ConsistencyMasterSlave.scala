@@ -732,13 +732,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
           slaveReplicationSessionManager.openSession(resolvedMember, txLog, openSessionDelay,
             masterOpenSessionAction, masterCloseSessionAction, mode,
             onSessionEnd = (error) => {
-              info("Replication session terminated {}. {}", resolvedMember, error)
+              val currentStatus = service.getMemberAtToken(member.token).map(_.status)
+              info("Replication session terminated: member={}, status={}, error={}", resolvedMember, currentStatus, error)
               updateMemberConsistencyState(member, newState = error.map(_ => MemberConsistencyState.Error))
 
               // Renew the replication session if the master replica is up
               txLog.commit()
               txLog.close()
-              if (member.status == MemberStatus.Up) {
+              if (currentStatus == Some(MemberStatus.Up)) {
                 // If session ends gracefully, assumes we can switch to live replication
                 val newMode = if (error.isDefined) ReplicationMode.Bootstrap else ReplicationMode.Live
                 SlaveReplicationManagerActor ! OpenSession(member, newMode)
