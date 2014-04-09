@@ -54,6 +54,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
 
   private val lastWriteTimestamp = new AtomicTimestamp(AtomicTimestamp.updateIfGreater, None)
 
+  private object LifecycleLock // Lock used during to guard start/stop
+
+  private object ConsistencyLock // Lock used to modify consistency states
+
   @volatile // updates are synchronized but lookups are not
   private var recorders: Map[Long, TransactionRecorder] = Map()
 
@@ -126,7 +130,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
   }
 
   override def start() {
-    synchronized {
+    LifecycleLock.synchronized {
       // TODO: update cache when new members are removed (i.e. live shard merge)
       updateRangeMemberCache()
 
@@ -161,7 +165,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
   }
 
   override def stop() {
-    synchronized {
+    LifecycleLock.synchronized {
       if (started) {
         consistencyPersistence.stop()
 
@@ -272,7 +276,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
       }
       case MemberStatus.Joining => {
         // Trying to transition the service member to joining. Initiate consistency recovery if necessary.
-        this.synchronized {
+        ConsistencyLock.synchronized {
           consistencyStates.get(event.member.token) match {
             case None | Some(MemberConsistencyState.Error) => {
               // Joining when service member is not consistent or in process to become consistent! Perform consistency
@@ -310,7 +314,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
       }
       case MemberStatus.Up => {
         // Trying to transition the service member Up. Ensure service member is consistent before allowing it to go up.
-        this.synchronized {
+        ConsistencyLock.synchronized {
           consistencyStates.get(event.member.token) match {
             case Some(MemberConsistencyState.Ok) => {
               // Service member is consistent, let member status goes up!
@@ -338,7 +342,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
     event.to match {
       case MemberStatus.Up => {
         // Initialize transaction recorder for local service member going up
-        this.synchronized {
+        ConsistencyLock.synchronized {
           info("Iniatialize transaction recorders for {}", event.member)
           val txLog = if (txLogEnabled) {
             new FileTransactionLog(service.name, event.member.token, txLogDir, txLogRolloverSize,
@@ -371,7 +375,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
         // Invalidate the store cache to ensure no stale data remains if this service member goes up again later.
         service.invalidateCache()
 
-        this.synchronized {
+        ConsistencyLock.synchronized {
           // Close all master replication sessions for the member
           masterReplicationSessionManager.terminateMemberSessions(ResolvedServiceMember(service, event.member))
 
@@ -422,7 +426,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
    */
   private def updateMemberConsistencyState(member: ServiceMember, newState: Option[MemberConsistencyState],
                                            triggerEvent: Boolean = true): Option[ConsistencyStateTransitionEvent] = {
-    val prevState = this.synchronized {
+    val prevState = ConsistencyLock.synchronized {
       val prevState = consistencyStates.get(member.token)
       newState match {
         case Some(state) => consistencyStates += (member.token -> state)
@@ -732,13 +736,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
           slaveReplicationSessionManager.openSession(resolvedMember, txLog, openSessionDelay,
             masterOpenSessionAction, masterCloseSessionAction, mode,
             onSessionEnd = (error) => {
-              info("Replication session terminated {}. {}", resolvedMember, error)
+              val currentStatus = service.getMemberAtToken(member.token).map(_.status)
+              info("Replication session terminated: member={}, status={}, error={}", resolvedMember, currentStatus, error)
               updateMemberConsistencyState(member, newState = error.map(_ => MemberConsistencyState.Error))
 
               // Renew the replication session if the master replica is up
               txLog.commit()
               txLog.close()
-              if (member.status == MemberStatus.Up) {
+              if (currentStatus == Some(MemberStatus.Up)) {
                 // If session ends gracefully, assumes we can switch to live replication
                 val newMode = if (error.isDefined) ReplicationMode.Bootstrap else ReplicationMode.Live
                 SlaveReplicationManagerActor ! OpenSession(member, newMode)
