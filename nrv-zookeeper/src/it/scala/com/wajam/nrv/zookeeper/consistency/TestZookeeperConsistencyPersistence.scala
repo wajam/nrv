@@ -20,7 +20,7 @@ import org.apache.zookeeper.KeeperException.Code
 class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter with Eventually {
 
   implicit val as = ActorSystem("TestZookeeperConsistencyPersistence")
-  
+
   val TEST_PATH = "/tests/consistencypersistence"
 
   var zkClient: ZookeeperClient = _
@@ -48,6 +48,8 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
   }
 
   trait Builder extends ZookeeperTestHelpers {
+    val clock = new ControlableCurrentTime {}
+
     val zk = zkClient
 
     val localNode = new LocalNode("127.0.0.1", Map("nrv" -> 10000))
@@ -95,7 +97,7 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
 
     cluster.start()
 
-    val consistency = new ZookeeperConsistencyPersistence(zk, service, lagUpdateThreshold, lagUpdateSpacing) with ControlableCurrentTime
+    val consistency = new ZookeeperConsistencyPersistence(zk, service, lagUpdateThreshold, lagUpdateSpacing, clock = clock)
 
     def checkCachedAndPersistedLagValues(service: Service, token: Long, slave: Node, value: Int) {
       consistency.replicationLagSeconds(token, slave) should be(Some(value))
@@ -283,21 +285,28 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Set the initial lag at 300
     // Won't rate limit because it is the first update
     consistency.updateReplicationLagSeconds(token, slave, initialLag)
-
-    // Update from 300s to 150s with a 60s threshold
-    // Should be rate limited
-    consistency.updateReplicationLagSeconds(token, slave, firstUpdate)
-
     eventually {
       checkCachedAndPersistedLagValues(service, token, slave, initialLag)
     }
 
-    // Advance time to get past threshold
-    consistency.advanceTime(60000)
-
     // Update from 300s to 150s with a 60s threshold
+    // Advance time below the 30s spacing
+    clock.advanceTime(29L * 1000)
+    // Should be rate limited
+    consistency.updateReplicationLagSeconds(token, slave, firstUpdate)
+
+    // Wait a little while and then ensure the lag haven't been persisted
+    Thread.sleep(500L)
+    eventually {
+      checkCachedAndPersistedLagValues(service, token, slave, initialLag)
+    }
+
+    // Update from 300s to 75s with a 60s threshold
+    // Advance time to get past 30 spacing
+    clock.advanceTime(1L * 1000)
     consistency.updateReplicationLagSeconds(token, slave, secondUpdate)
 
+    // Ensure the lag have been persisted
     eventually {
       checkCachedAndPersistedLagValues(service, token, slave, secondUpdate)
     }
@@ -348,4 +357,5 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
       consistency.changeMasterServiceMember(token, node)
     }
   }
+
 }

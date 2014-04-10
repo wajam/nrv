@@ -21,10 +21,13 @@ import ZookeeperConsistencyPersistence._
 /**
  * Cluster configuration backed by Zookeeper.
  *
- * @param updateThreshold the amount of seconds below which the replication lag should be persisted in Zookeeper right away
- * @param updateSpacing   the minimum amount of seconds between two updates of lag values over updateThreshold
+ * @param updateThresholdInSec the amount of seconds below which the replication lag should be persisted in Zookeeper right away
+ * @param updateSpacingInSec   the minimum amount of seconds between two updates of lag values over updateThreshold
  */
-class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, updateThreshold: Int, updateSpacing: Int, waitTimeoutSeconds: Int = 10)(implicit ec: ExecutionContext, as: ActorSystem) extends ConsistencyPersistence with CurrentTime with Logging {
+class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, updateThresholdInSec: Int,
+                                      updateSpacingInSec: Int, waitTimeoutSeconds: Int = 10,
+                                      clock: CurrentTime = new CurrentTime{})(implicit ec: ExecutionContext, as: ActorSystem)
+  extends ConsistencyPersistence with Logging {
   import ReplicationLagPersistence._
   import ReplicasMappingPersistence._
 
@@ -168,7 +171,7 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
       import ZookeeperClient.int2bytes
 
       def persistLag(): ReplicationLagMap = {
-        lastPersistedTs = Some(currentTime)
+        lastPersistedTs = Some(clock.currentTime)
 
         node2string(node) match {
           case Some(nodeString) => {
@@ -199,12 +202,12 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
 
       replicationLagSeconds(token, node) match {
         // Lag has significantly changed, immediately persist its value
-        case Some(currentLag) if currentLag <= updateThreshold || lag <= updateThreshold => persistLag()
+        case Some(currentLag) if currentLag <= updateThresholdInSec || lag <= updateThresholdInSec => persistLag()
         case Some(currentLag) => {
           // Lag has not significantly changed: persist according to rate limit
           lastPersistedTs match {
             // More than updateSpacing seconds elapsed since last persisted update: persist
-            case Some(ts) if currentTime - ts >= updateSpacing => persistLag()
+            case Some(ts) if clock.currentTime - ts >= updateSpacingInSec * 1000 => persistLag()
             // No clue about last persisted update time: persist
             case None => persistLag()
             case _ => currentLagMap
