@@ -289,8 +289,8 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
       checkCachedAndPersistedLagValues(service, token, slave, initialLag)
     }
 
-    // Update from 300s to 150s with a 30s threshold
-    // Advance time below the 30s threshold
+    // Update from 300s to 150s with a 60s threshold
+    // Advance time below the 30s spacing
     clock.advanceTime(29L * 1000)
     // Should be rate limited
     consistency.updateReplicationLagSeconds(token, slave, firstUpdate)
@@ -301,7 +301,8 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
       checkCachedAndPersistedLagValues(service, token, slave, initialLag)
     }
 
-    // Advance time to get past threshold
+    // Update from 300s to 75s with a 60s threshold
+    // Advance time to get past 30 spacing
     clock.advanceTime(1L * 1000)
     consistency.updateReplicationLagSeconds(token, slave, secondUpdate)
 
