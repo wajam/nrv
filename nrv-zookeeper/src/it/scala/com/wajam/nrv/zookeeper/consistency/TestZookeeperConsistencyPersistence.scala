@@ -20,6 +20,7 @@ import org.apache.zookeeper.KeeperException.Code
 class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter with Eventually {
 
   implicit val as = ActorSystem("TestZookeeperConsistencyPersistence")
+  implicit val currentTime = new ControlableCurrentTime {}
   
   val TEST_PATH = "/tests/consistencypersistence"
 
@@ -284,20 +285,23 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
     // Won't rate limit because it is the first update
     consistency.updateReplicationLagSeconds(token, slave, initialLag)
 
-    // Update from 300s to 150s with a 60s threshold
+    // Update from 300s to 150s with a 30s threshold
+    // Advance time below the 30s threshold
+    currentTime.advanceTime(29L * 1000)
     // Should be rate limited
     consistency.updateReplicationLagSeconds(token, slave, firstUpdate)
 
+    // Wait a little while and then ensure the lag haven't been persisted
+    Thread.sleep(500L)
     eventually {
       checkCachedAndPersistedLagValues(service, token, slave, initialLag)
     }
 
     // Advance time to get past threshold
-    consistency.advanceTime(60000)
-
-    // Update from 300s to 150s with a 60s threshold
+    currentTime.advanceTime(31L * 1000)
     consistency.updateReplicationLagSeconds(token, slave, secondUpdate)
 
+    // Ensure the lag have been persisted
     eventually {
       checkCachedAndPersistedLagValues(service, token, slave, secondUpdate)
     }
@@ -348,4 +352,5 @@ class TestZookeeperConsistencyPersistence extends FlatSpec with BeforeAndAfter w
       consistency.changeMasterServiceMember(token, node)
     }
   }
+
 }
