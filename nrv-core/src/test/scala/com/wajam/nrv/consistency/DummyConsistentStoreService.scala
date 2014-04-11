@@ -5,19 +5,19 @@ import com.wajam.nrv.data.{MBoolean, Message}
 import com.wajam.nrv.service._
 import java.util.concurrent.ConcurrentSkipListSet
 import com.wajam.commons.{Logging, Closable}
-import scala.concurrent.{Promise, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import com.wajam.nrv.consistency.TransactionStorage.LookupKey
 
 /**
  * Dummy consistent store service used to test ConsistencyMasterSlave
  */
 class DummyConsistentStoreService(name: String, val localStorage: TransactionStorage, replicasCount: Int = 1)
-  extends Service(name,
-    new ActionSupportOptions(resolver = Some(new Resolver(replicasCount, tokenExtractor = Resolver.TOKEN_PARAM("token")))))
+  extends Service(name, new ActionSupportOptions(
+    resolver = Some(new Resolver(replicasCount, tokenExtractor = Resolver.TOKEN_PARAM("token"))),
+    responseTimeout = Some(3000L)
+  ))
   with ConsistentStore
   with Logging {
-
-//  private val transactions = new ConcurrentSkipListSet[Message](DummyConsistentStoreService.Ordering)
 
   private val addAction = registerAction(new Action("/execute/:token", req => {
     info(s"ADD: tk=${req.token}, ts=${req.timestamp.get}, data=${req.getData[String]}, node=${cluster.localNode}")

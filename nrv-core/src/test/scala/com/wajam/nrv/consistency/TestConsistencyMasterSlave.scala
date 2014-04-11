@@ -330,19 +330,11 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       } should produce[TimeoutException]
 
       val token = clusterNode6666.getLocalMember.token
-      val start = System.currentTimeMillis()
       eventually {
-        println(
-          s"######### status=${clusterNode6666.getLocalMember.status}, " +
-          s"state=${clusterNode6666.getLocalMemberConsistencyState(token)}, " +
-          s"elapsed=${(System.currentTimeMillis() - start) / 1000}s")
         clusterNode6666.getLocalMemberConsistencyState(token) should not be Some(MemberConsistencyState.Ok)
       }
 
       eventually {
-        println(
-          s"********* status=${clusterNode6666.getLocalMember.status}, " +
-          s"state=${clusterNode6666.getLocalMemberConsistencyState(token)}")
         clusterNode6666.getLocalMember.status should be(MemberStatus.Up)
         clusterNode6666.getLocalMemberConsistencyState(token) should be(Some(MemberConsistencyState.Ok))
       }
