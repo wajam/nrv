@@ -1,7 +1,6 @@
 package com.wajam.nrv.consistency
 
 import com.wajam.nrv.cluster.Node
-import com.wajam.nrv.utils.timestamp.Timestamp
 
 /**
  * Trait to read and update some cluster wide configuration and state necessary for consistent services.

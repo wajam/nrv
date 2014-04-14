@@ -7,6 +7,7 @@ import org.mockito.Mockito._
 import org.scalatest.mock.MockitoSugar
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+import com.wajam.nrv.service.TokenRange
 
 @RunWith(classOf[JUnitRunner])
 class TestTransactionLog extends TestTransactionBase with MockitoSugar {
@@ -95,9 +96,9 @@ class TestTransactionLog extends TestTransactionBase with MockitoSugar {
   }
 
   test("last successful ts should returns expected timestamp") {
-    val response1 = Response(100, None, 100L, 0, Response.Success)
-    val response2 = Response(200, None, 200L, 0, Response.Success)
-    val response3 = Response(300, None, 300L, 0, Response.Success)
+    val response1 = Response(100, None, 100L, token = 100, Response.Success)
+    val response2 = Response(200, None, 200L, token = 200, Response.Success)
+    val response3 = Response(300, None, 300L, token = 300, Response.Success)
     val iterator = new MockTransactionLogIterator(response2, response3, response1)
 
     val txLogProxy = new TransactionLogProxy
@@ -108,10 +109,24 @@ class TestTransactionLog extends TestTransactionBase with MockitoSugar {
     iterator.closeCount should be(1)
   }
 
+  test("last successful ts should returns expected timestamp in specified token ranges") {
+    val response1 = Response(100, None, 100L, token = 100, Response.Success)
+    val response2 = Response(200, None, 200L, token = 200, Response.Success)
+    val response3 = Response(300, None, 300L, token = 300, Response.Success)
+    val iterator = new MockTransactionLogIterator(response2, response3, response1)
+
+    val txLogProxy = new TransactionLogProxy
+    when(txLogProxy.mockTxLog.read(100L)).thenReturn(iterator)
+
+    iterator.closeCount should be(0)
+    txLogProxy.lastSuccessfulTimestamp(100L, Seq(TokenRange(0, 200))) should be(Some(response2.timestamp))
+    iterator.closeCount should be(1)
+  }
+
   test("last successful ts should ignore error response") {
-    val response1 = Response(100, None, 100L, 0, Response.Success)
-    val response2 = Response(200, None, 200L, 0, Response.Success)
-    val response3 = Response(300, None, 300L, 0, Response.Error)
+    val response1 = Response(100, None, 100L, token = 100, Response.Success)
+    val response2 = Response(200, None, 200L, token = 200, Response.Success)
+    val response3 = Response(300, None, 300L, token = 300, Response.Error)
     val iterator = new MockTransactionLogIterator(response2, response3, response1)
 
     val txLogProxy = new TransactionLogProxy
@@ -144,6 +159,20 @@ class TestTransactionLog extends TestTransactionBase with MockitoSugar {
 
     iterator.closeCount should be(0)
     txLogProxy.lastSuccessfulTimestamp(100L) should be(None)
+    iterator.closeCount should be(1)
+  }
+
+  test("last successful ts should not fail if log does not contains success response for the specified range") {
+    val response1 = Response(100, None, 100L, token = 100, Response.Error)
+    val response2 = Response(200, None, 200L, token = 200, Response.Success)
+    val index = Index(300, Some(200L))
+    val iterator = new MockTransactionLogIterator(response1, response2, index)
+
+    val txLogProxy = new TransactionLogProxy
+    when(txLogProxy.mockTxLog.read(100L)).thenReturn(iterator)
+
+    iterator.closeCount should be(0)
+    txLogProxy.lastSuccessfulTimestamp(100L, Seq(TokenRange(0, 100))) should be(None)
     iterator.closeCount should be(1)
   }
 }

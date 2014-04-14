@@ -651,7 +651,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
                 lastStoreTimestamp, lastLogTimestamp, member)
               val txLog = new FileTransactionLog(service.name, member.token, txLogDir, txLogRolloverSize,
                 serializer = Some(serializer))
-              txLog.lastSuccessfulTimestamp(lastStoreTimestamp) match {
+              txLog.lastSuccessfulTimestamp(lastStoreTimestamp, member.ranges) match {
                 case Some(lastCommitedLogTimestamp) if lastCommitedLogTimestamp == lastStoreTimestamp => {
                   info("The service member transaction log and store are consistent {}", member)
                   onSuccess
