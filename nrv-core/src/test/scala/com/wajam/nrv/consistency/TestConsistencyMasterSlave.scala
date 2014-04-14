@@ -275,7 +275,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
     }
   }
 
-  it should "recover from consistency error when store consistency is restored" in new ClusterFixture {
+  it should "automatically recover from consistency error when store consistency is restored" in new ClusterFixture {
     withFixture { f =>
       // Start the first cluster node
       val clusterNode6666 = f.createClusterNode(6666)
@@ -284,28 +284,25 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6"))
       values(6666).size should be > 1
 
-      // Add a value to first cluster node and stop it
+      // Add a value to first cluster node
       val headValue = values(6666).head
       val headKey = Await.result(clusterNode6666.service.addRemoteValue(headValue), awaitDuration)
       val actual = Await.result(clusterNode6666.service.getRemoteValue(headKey), awaitDuration)
       actual should be(headValue)
 
-      clusterNode6666.stop()
-      eventually { clusterNode6666.getMemberByPort(6666).status should be(MemberStatus.Down) }
-
       // Remove the value directly from the local consistent store without going thru NRV service messaging.
       // This break the consistency between the store and the transaction logs.
       // This prevents the service status to goes Up when the cluster node is restarted
       val removedValue = clusterNode6666.service.localStorage.remove(headKey.timestamp).get
-      val clusterNode6666_2 = f.createClusterNode(6666) // TODO: restart the existing node instance
-      eventually {
-        val token = clusterNode6666_2.getLocalMember.token
-        clusterNode6666_2.getLocalMemberConsistencyState(token) should be(Some(MemberConsistencyState.Error))
-      }
+      val token = clusterNode6666.getLocalMember.token
+
+      // Force consistency check
+      f.clusterDefinitionStorage.setMemberDown(token)
+      eventually { clusterNode6666.getLocalMemberConsistencyState(token) should be(Some(MemberConsistencyState.Error)) }
 
       // Restore the deleted value. The service consistency should recover and the service status goes Up
-      clusterNode6666_2.service.localStorage.add(removedValue)
-      eventually { clusterNode6666_2.getLocalMember.status should be(MemberStatus.Up) }
+      clusterNode6666.service.localStorage.add(removedValue)
+      eventually { clusterNode6666.getLocalMember.status should be(MemberStatus.Up) }
     }
   }
 

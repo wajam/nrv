@@ -77,6 +77,11 @@ class ServiceMemberClusterStorage(val serviceName: String) extends Observable wi
     synchronized(members += member.token ->(member.node, member.status))
     notifyObservers(CachedMemberChangeEvent(serviceName, member))
   }
+
+  def setMemberDown(token: Long): Unit = {
+    val (node, _) = members(token)
+    addMember(new ServiceMember(token, node, MemberStatus.Down))
+  }
 }
 
 object ServiceMemberClusterStorage {

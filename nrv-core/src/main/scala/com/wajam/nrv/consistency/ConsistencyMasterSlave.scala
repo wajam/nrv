@@ -380,6 +380,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
           val recorder = recorders.get(event.member.token)
           recorders -= event.member.token
           recorder.foreach(_.kill())
+
+          // Reset consistency state
+          updateMemberConsistencyState(event.member, newState = None)
         }
       }
       case MemberStatus.Joining | MemberStatus.Leaving => // Nothing to do
