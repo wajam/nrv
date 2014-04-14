@@ -384,7 +384,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
     }
   }
 
-  ignore should "handle service members split (explicit replicas mapping)" in new ClusterFixture {
+  it should "handle offline service members split (explicit replicas mapping)" in new ClusterFixture {
     withFixture { f =>
     // Start cluster nodes with assigned service members
       val clusterNode6666 = f.createClusterNode(6666, naturalRingReplicas = false)
@@ -423,11 +423,6 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       //
       // 2. ConsistencyMasterSlave does not properly terminate existing replication sessions if the master is not
       // restarted.
-      //
-      // 3. The split service member last transaction log record has 1 chance out of 2 to be in the token range now
-      // handled by the new service member master. To work around this limitation, it is recommended to keep the
-      // same cluster node as master of the new shard and the migrate the mastership as a separate step after a few
-      // writes are appended to the transaction log.
       ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
       // Stop existing master nodes
@@ -466,10 +461,6 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       // Start old master and ensure the values are replicated
       val clusterNode6666_2 = f.createClusterNode(6666, localStorage = clusterNode6666.service.localStorage) // TODO: restart the existing node instance
       eventually {
-        // NOTE: Cluster node 6666 never goes up because there is a consistency error. The last log record is in the
-        // token range now handled by cluster node 5555. A workaround is to delete the cluster node logs before
-        // restarting it. The real solution is to fix ConsistencyMasterSlave and only verify the records for the now
-        // smaller token range.
         clusterNode6666_2.getLocalMember.status should be(MemberStatus.Up)
         keyedValues5555.foreach { case (k, v) =>
           clusterNode6666_2.service.localStorage.getValue(k.timestamp) should be(None) }

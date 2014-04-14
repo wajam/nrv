@@ -3,6 +3,7 @@ package com.wajam.nrv.consistency.log
 import com.wajam.nrv.consistency.log.LogRecord.{Response, Index}
 import com.wajam.commons.Closable
 import com.wajam.nrv.utils.timestamp.Timestamp
+import com.wajam.nrv.service.TokenRange
 
 trait TransactionLog {
   /**
@@ -61,11 +62,13 @@ trait TransactionLog {
   /**
    * Returns the most recent successful response timestamp starting at the specified timestamp
    */
-  def lastSuccessfulTimestamp(timestamp: Timestamp): Option[Timestamp] = {
+  def lastSuccessfulTimestamp(timestamp: Timestamp, ranges: Seq[TokenRange] = Seq(TokenRange.All)): Option[Timestamp] = {
     val itr = read(timestamp).toSafeIterator
     try {
       val responseTimestamps = itr.collect {
-        case response: Response if response.status == Response.Success => response.timestamp
+        case response: Response if response.status == Response.Success && ranges.exists(_.contains(response.token)) => {
+          response.timestamp
+        }
       }
       if (responseTimestamps.isEmpty) None else Some(responseTimestamps.max)
     } finally {
