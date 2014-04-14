@@ -384,6 +384,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
           val recorder = recorders.get(event.member.token)
           recorders -= event.member.token
           recorder.foreach(_.kill())
+
+          // Reset consistency state
+          updateMemberConsistencyState(event.member, newState = None)
         }
       }
       case MemberStatus.Joining | MemberStatus.Leaving => // Nothing to do
@@ -598,10 +601,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
         message.destination.deselectAllReplicasButFirst()
         next()
       }
-      case _ => {
+      case master :: _ => {
         // Get slave replicas with their respective lags
         message.destination.selectedReplicas.flatMap { replica =>
-          consistencyPersistence.replicationLagSeconds(replica.token, replica.node).map(_ -> replica)
+          consistencyPersistence.replicationLagSeconds(master.token, replica.node).map(_ -> replica)
         } match {
           case Nil => simulateUnavailableResponse(message) // No replicas with known lag
           case replicasWithLag: Seq[(Int, Replica)] => {
@@ -616,6 +619,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
           }
         }
       }
+      case Nil => simulateUnavailableResponse(message)
     }
   }
 
