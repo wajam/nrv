@@ -40,7 +40,11 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
   }
 
   def trySetServiceMemberStatusDown(service: Service, member: ServiceMember) {
-    OperationLoop ! OperationLoop.TrySetServiceMembersDown(service, member)
+    OperationLoop ! OperationLoop.TrySetLocalServiceMemberDown(service, member)
+  }
+
+  def setServiceMemberStatusLeaving(service: Service, member: ServiceMember) {
+    OperationLoop ! OperationLoop.SetLocalServiceMemberLeaving(service, member)
   }
 
   protected def forceServiceCheck(service: Service) {
@@ -66,7 +70,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     synchronized {
       if (started && !isLeaving) {
         leavingLatch = new Some(new CountDownLatch(1))
-        OperationLoop !? OperationLoop.SetMembersLeaving
+        OperationLoop !? OperationLoop.SetAllLocalServiceMembersLeaving
         if (leavingLatch.get.await(timeout, TimeUnit.MILLISECONDS)) {
           info("Leave after all service members gone down.")
         } else {
@@ -176,7 +180,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
     case object ForceDown extends ClusterOperation
 
-    case object SetMembersLeaving extends ClusterOperation
+    case object SetAllLocalServiceMembersLeaving extends ClusterOperation
 
     case object ClusterTransition extends ClusterOperation
 
@@ -190,7 +194,9 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
 
     case class SyncService(service: Service) extends ClusterOperation
 
-    case class TrySetServiceMembersDown(service: Service, member: ServiceMember) extends ClusterOperation
+    case class TrySetLocalServiceMemberDown(service: Service, member: ServiceMember) extends ClusterOperation
+    
+    case class SetLocalServiceMemberLeaving(service: Service, member: ServiceMember) extends ClusterOperation
 
     val transitionScheduler = new Scheduler(this, ClusterTransition, ClusterTransitionInMs, ClusterTransitionInMs,
       blockingMessage = true, autoStart = false, name = Some("DynamicClusterManager.ClusterTransition"))
@@ -228,13 +234,17 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       }
     }
 
-    private def forceServiceDown(service: Service) {
-      service.members.foreach {
-        member => {
-          val event = member.setStatus(MemberStatus.Down, triggerEvent = true)
-          updateStatusChangeMetrics(service, event)
-        }
+    private def changeServiceMemberStatus(service: Service, member: ServiceMember, newStatus: MemberStatus,
+                                          updateVote: Boolean = true): Unit = {
+      val event = member.setStatus(newStatus, triggerEvent = true)
+      if (updateVote) {
+        voteServiceMemberStatus(service, new ServiceMemberVote(member, member, newStatus))
       }
+      updateStatusChangeMetrics(service, event)
+    }
+
+    private def forceServiceDown(service: Service) {
+      service.members.foreach(changeServiceMemberStatus(service, _, MemberStatus.Down, updateVote = false))
     }
 
     def act() {
@@ -293,7 +303,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
             }
           }
 
-          case TrySetServiceMembersDown(service, member) => {
+          case TrySetLocalServiceMemberDown(service, member) => {
             info("Try set member {} down for service {}", member, service)
             try {
               tryChangeServiceMemberStatus(service, member, MemberStatus.Down)
@@ -351,19 +361,27 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
               sender ! true
             }
 
-          case SetMembersLeaving =>
-            info("Preparing for shutdown, setting all local nodes to Leaving status")
+          case SetLocalServiceMemberLeaving(service, member) => {
+            info("Set member {} status=leaving for service {}", member, service)
+            try {
+              changeServiceMemberStatus(service, member, MemberStatus.Leaving)
+            } catch {
+              case e: Exception =>
+                error("Got an exception when setting member {} status=leaving for service {} : ", member, service, e)
+            }
+          }
+
+          case SetAllLocalServiceMembersLeaving =>
+            info("Preparing for shutdown, setting all local node service members to Leaving status")
             try {
               allMembers.foreach {
                 case (service, member) => if (cluster.isLocalNode(member.node)) {
-                  val event = member.setStatus(MemberStatus.Leaving, triggerEvent = true)
-                  voteServiceMemberStatus(service, new ServiceMemberVote(member, member, MemberStatus.Leaving))
-                  updateStatusChangeMetrics(service, event)
+                  changeServiceMemberStatus(service, member, MemberStatus.Leaving)
                 }
               }
             } catch {
               case e: Exception =>
-                error("Got an exception when forcing the cluster down: ", e)
+                error("Got an exception when setting all local node service members to Leaving status: ", e)
             } finally {
               sender ! true
             }
