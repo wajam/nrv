@@ -232,7 +232,7 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
               exception match {
                 case Some(e) => {
                   openSessionErrorMeter.mark()
-                  warn("Got an open session response error for {}: ", context.member, e)
+                  warn("Got an open session response error for {}: {}", context.member, e)
                   sessions -= context.member
                   context.onSessionEnd(Some(e))
                 }

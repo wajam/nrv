@@ -616,7 +616,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     replicationWindowSize = 8
 
     var receivedEvents = List[ReplicationLagChanged]()
-    sessionManager.addObserver { case event: ReplicationLagChanged => receivedEvents ::= event }
+    sessionManager.addObserver { case event: ReplicationLagChanged => receivedEvents :+= event }
 
     val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
@@ -635,8 +635,8 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     sessionManager.sessions.head.secondsBehindMaster should be(Some(0))
 
     // Check ReplicationLagChanged events
-    receivedEvents.size should be(replicationWindowSize)
-    receivedEvents.map(_.replicationLagSeconds) should be(0 until replicationWindowSize)
+    receivedEvents.size should be(replicationWindowSize + 1) // replicated tx + initial event
+    receivedEvents.map(_.replicationLagSeconds) should be(replicationWindowSize to 0 by -1)
   }
 
   test("replication lag should NOT skip unacknowledged transaction") {
@@ -652,7 +652,7 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     replicationWindowSize = 8
 
     var receivedEvents = List[ReplicationLagChanged]()
-    sessionManager.addObserver { case event: ReplicationLagChanged => receivedEvents ::= event }
+    sessionManager.addObserver { case event: ReplicationLagChanged => receivedEvents :+= event }
 
     val session = openSession(Some(startTimestamp), ReplicationMode.Live)
     session.mode should be(ReplicationMode.Live)
@@ -673,9 +673,9 @@ class TestMasterReplicationSessionManager extends TestTransactionBase with Befor
     sessionManager.sessions.head.secondsBehindMaster should be(Some(0))
 
     // Check ReplicationLagChanged events. Should have skip the first event since the first ACK was out of order and
-    // jump to 0 lag when the last tx is acknowledged
-    receivedEvents.size should be(replicationWindowSize - 1)
-    receivedEvents.map(_.replicationLagSeconds) should be(Seq(0, 2, 3, 4, 5, 6, 7))
+    // Lag skip 1s and jump to 0s when the last tx is acknowledged.
+    receivedEvents.size should be(replicationWindowSize - 1 + 1) // + the initial event when the session is created
+    receivedEvents.map(_.replicationLagSeconds) should be(Seq(8, 7, 6, 5, 4, 3, 2, 0))
   }
 
   test("replication lag event should be fired only when the lag is modified") {
