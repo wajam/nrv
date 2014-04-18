@@ -822,7 +822,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
     import MastershipMigrationManager._
     import CancellationContext._
 
-    private lazy val completionPromise = Promise[Unit]()
+    private val completionPromise = Promise[Unit]()
 
     def migrate(forceOfflineMigration: Boolean): Future[Unit] = {
       member.status match {
@@ -871,7 +871,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
         cancelMigration(IllegalState(s"Current replication mode '$currentReplicationMode' not '${ReplicationMode.Live}'."))
       } else {
         MigrationLock.synchronized {
-          if (pendingMigrations.get(member.token).isDefined) {
+          if (hasPendingMigration(member.token)) {
             cancelMigration(IllegalState("Migration already ongoing."))
           } else {
             cluster.clusterManager match {

@@ -243,7 +243,7 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
       updateStatusChangeMetrics(service, event)
     }
 
-    private def forceServiceDown(service: Service) {
+    private def forceServiceDown(service: Service): Unit = {
       service.members.foreach(changeServiceMemberStatus(service, _, MemberStatus.Down, updateVote = false))
     }
 
