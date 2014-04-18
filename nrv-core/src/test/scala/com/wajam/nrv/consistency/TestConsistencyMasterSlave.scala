@@ -649,13 +649,13 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"))
 
-      // Add a value to first cluster node
+      // Add a value to the cluster node we want to migrate
       val headValue = values(8888).head
       val headKey = Await.result(clusterNode8888.service.addRemoteValue(headValue), awaitDuration)
       val actual = Await.result(clusterNode8888.service.getRemoteValue(headKey), awaitDuration)
       actual should be(headValue)
 
-      // Wait that the first value is replicated and live replication mode is in effect
+      // Wait that the value is replicated and live replication mode is in effect
       eventually {
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
         val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
@@ -727,13 +727,13 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"))
 
-      // Add a value to first cluster node
+      // Add a value to the cluster node we want to migrate
       val headValue = values(8888).head
       val headKey = Await.result(clusterNode8888.service.addRemoteValue(headValue), awaitDuration)
       val actual = Await.result(clusterNode8888.service.getRemoteValue(headKey), awaitDuration)
       actual should be(headValue)
 
-      // Wait that the first value is replicated and live replication mode is in effect
+      // Wait that the value is replicated and live replication mode is in effect
       eventually {
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
         val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
@@ -758,13 +758,13 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"))
 
-      // Add a value to first cluster node
+      // Add a value to the cluster node we want to migrate
       val headValue = values(8888).head
       val headKey = Await.result(clusterNode8888.service.addRemoteValue(headValue), awaitDuration)
       val actual = Await.result(clusterNode8888.service.getRemoteValue(headKey), awaitDuration)
       actual should be(headValue)
 
-      // Wait that the first value is replicated and live replication mode is in effect
+      // Wait that the value is replicated and live replication mode is in effect
       eventually {
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
         val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
@@ -791,13 +791,13 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"))
 
-      // Add a value to first cluster node
+      // Add a value to the cluster node we want to migrate
       val headValue = values(8888).head
       val headKey = Await.result(clusterNode8888.service.addRemoteValue(headValue), awaitDuration)
       val actual = Await.result(clusterNode8888.service.getRemoteValue(headKey), awaitDuration)
       actual should be(headValue)
 
-      // Wait that the first value is replicated and live replication mode is in effect
+      // Wait that the value is replicated and live replication mode is in effect
       eventually {
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
         val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
@@ -823,13 +823,13 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"))
 
-      // Add a value to first cluster node
+      // Add a value to the cluster node we want to migrate
       val headValue = values(8888).head
       val headKey = Await.result(clusterNode8888.service.addRemoteValue(headValue), awaitDuration)
       val actual = Await.result(clusterNode8888.service.getRemoteValue(headKey), awaitDuration)
       actual should be(headValue)
 
-      // Wait that the first value is replicated and live replication mode is in effect
+      // Wait that the value is replicated and live replication mode is in effect
       eventually {
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
         val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
@@ -845,8 +845,121 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
     }
   }
 
-  // TODO: Try concurrent migration to multiple valid replicas.
-  // TODO: Local node is not the master replica anymore.
-  // TODO: Target node is not a valid replica anymore.
+  it should "migrate mastership of local online master to only one replica when tried concurrently with multiple valid replicas" in new ClusterFixture {
+
+    override def explicitReplicasMapping: Map[Long, List[Node]] = Map(
+      member2147483646_6666.token -> List(node6666),
+      member4294967292_8888.token -> List(node5555, node6666, node7777, node8888)
+    )
+
+    withFixture { f =>
+      val clusterNode5555 = f.createClusterNode(5555, naturalRingReplicas = false)
+      val clusterNode7777 = f.createClusterNode(7777, naturalRingReplicas = false)
+      val clusterNode6666 = f.createClusterNode(6666, naturalRingReplicas = false)
+      val clusterNode8888 = f.createClusterNode(8888, naturalRingReplicas = false)
+      eventually {
+        clusterNode6666.getLocalMember.status should be(MemberStatus.Up)
+        clusterNode8888.getLocalMember.status should be(MemberStatus.Up)
+      }
+
+      val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"))
+
+      // Add a value to the cluster node we want to migrate
+      val headValue = values(8888).head
+      val headKey = Await.result(clusterNode8888.service.addRemoteValue(headValue), awaitDuration)
+      val actual = Await.result(clusterNode8888.service.getRemoteValue(headKey), awaitDuration)
+      actual should be(headValue)
+
+      // Wait that the value is replicated to all replicas (3) and live replication mode is in effect
+      eventually {
+        clusterNode5555.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
+        clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
+        clusterNode7777.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
+        clusterNode8888.consistency.replicationSessions.find(_.slave == node5555).get.mode should be(ReplicationMode.Live)
+        clusterNode8888.consistency.replicationSessions.find(_.slave == node6666).get.mode should be(ReplicationMode.Live)
+        clusterNode8888.consistency.replicationSessions.find(_.slave == node7777).get.mode should be(ReplicationMode.Live)
+      }
+
+      // Try performing mastership migration to multiple replicas in parallel
+      val token = member4294967292_8888.token
+      val result6666 = clusterNode8888.consistency.changeMasterServiceMember(token, node6666)
+      val result5555 = clusterNode8888.consistency.changeMasterServiceMember(token, node5555)
+      val result7777 = clusterNode8888.consistency.changeMasterServiceMember(token, node7777)
+
+      // Only the first call should be successful
+      Await.result(result6666, awaitDuration)
+      evaluating {
+        Await.result(result5555, awaitDuration)
+      } should produce[IllegalStateException]
+      evaluating {
+        Await.result(result7777, awaitDuration)
+      } should produce[IllegalStateException]
+
+      eventually {
+        val member = clusterNode8888.getMemberByToken(token)
+        member.node should be(node6666)
+        member.status should be(MemberStatus.Up)
+      }
+    }
+  }
+
+  it should "fail mastership migration if target node is not a valid replicas anymore during the migration (this one is nasty)" in new ClusterFixture {
+
+    var currentReplicasMapping = Map(
+      member2147483646_6666.token -> List(node6666),
+      member4294967292_8888.token -> List(node6666, node8888)
+    )
+
+    override def explicitReplicasMapping: Map[Long, List[Node]] = currentReplicasMapping
+
+    withFixture { f =>
+      val clusterNode6666 = f.createClusterNode(6666, naturalRingReplicas = false)
+      val clusterNode8888 = f.createClusterNode(8888, naturalRingReplicas = false, replicationRate = 1)
+      eventually {
+        clusterNode6666.getLocalMember.status should be(MemberStatus.Up)
+        clusterNode8888.getLocalMember.status should be(MemberStatus.Up)
+      }
+
+      val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"))
+
+      // Add a value to the cluster node we want to migrate
+      val headValue = values(8888).head
+      val headKey = Await.result(clusterNode8888.service.addRemoteValue(headValue), awaitDuration)
+      val actual = Await.result(clusterNode8888.service.getRemoteValue(headKey), awaitDuration)
+      actual should be(headValue)
+
+      // Wait that the value is replicated to all replicas (3) and live replication mode is in effect
+      eventually {
+        clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
+        clusterNode8888.consistency.replicationSessions.find(_.slave == node6666).get.mode should be(ReplicationMode.Live)
+      }
+
+      // Add remaining values to the cluster node
+      values(8888).tail.map(v => {
+        val k = Await.result(clusterNode8888.service.addRemoteValue(v), awaitDuration)
+        (k, v)
+      })
+
+      // Try performing mastership migration
+      val token = member4294967292_8888.token
+      val result = clusterNode8888.consistency.changeMasterServiceMember(token, node6666)
+
+      // Remove target node from the list of replicas while the migration is ongoing. The migration should abort.
+      currentReplicasMapping = Map(
+        member2147483646_6666.token -> List(node6666),
+        member4294967292_8888.token -> List(node8888)
+      )
+      evaluating {
+        Await.result(result, 5 seconds)
+      } should produce[IllegalStateException]
+
+      // The original master should comes back Up.
+      eventually {
+        val member = clusterNode8888.getMemberByToken(token)
+        member.node should be(node8888)
+        member.status should be(MemberStatus.Up)
+      }
+    }
+  }
 
 }

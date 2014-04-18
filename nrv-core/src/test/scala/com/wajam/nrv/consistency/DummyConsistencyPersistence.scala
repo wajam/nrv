@@ -4,13 +4,15 @@ import com.wajam.nrv.cluster.Node
 import com.wajam.nrv.service.ServiceMember
 
 class DummyConsistencyPersistence(serviceCache: ServiceMemberClusterStorage,
-                                  val explicitReplicasMapping: Map[Long, List[Node]] = Map()) extends ConsistencyPersistence {
+                                  currentExplicitReplicasMapping: => Map[Long, List[Node]] = Map()) extends ConsistencyPersistence {
 
   private var lags: Map[(Long, Node), Int] = Map()
 
   def start(): Unit = {}
 
   def stop(): Unit = {}
+
+  def explicitReplicasMapping: Map[Long, List[Node]] = currentExplicitReplicasMapping
 
   /**
    * Returns the number of seconds the specified replica lag behind the master service member.
