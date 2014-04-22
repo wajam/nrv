@@ -176,7 +176,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
             } catch {
               case e: Exception => {
                 openSessionErrorMeter.mark()
-                warn("Error processing open session request {}: ", message, e)
+                warn("Error processing open session request {}: {}", message, e)
                 try {
                   val response = new OutMessage()
                   response.error = Some(e)
@@ -304,6 +304,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     private var maxSlaveAckTimestamp: Option[Timestamp] = startTimestamp
     private var activeSlaveTimestamp: Option[Timestamp] = startTimestamp
     private var lastNotifiedLagSeconds: Option[Int] = None
+    startTimestamp.foreach(updateLag) // Initial lag initialization
 
     def replicationLagSeconds: Option[Int] = for {
       lastTs <- activeSlaveTimestamp
@@ -326,7 +327,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
       }
 
       // Notify observers only if the replication lag has changed
-      if (activeSlaveTimestamp != newActiveTs) {
+      if (activeSlaveTimestamp != newActiveTs || lastNotifiedLagSeconds.isEmpty) {
         activeSlaveTimestamp = newActiveTs
         val newLag = replicationLagSeconds
         if (newLag != lastNotifiedLagSeconds) {

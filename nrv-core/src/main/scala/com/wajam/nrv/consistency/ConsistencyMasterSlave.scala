@@ -16,6 +16,9 @@ import com.wajam.nrv.service.StatusTransitionAttemptEvent
 import com.wajam.nrv.service.StatusTransitionEvent
 import com.wajam.commons.Event
 import com.wajam.nrv.utils.timestamp.{Timestamp, TimestampGenerator}
+import com.wajam.nrv.cluster.{DynamicClusterManager, Node}
+import scala.concurrent.{Promise, Future}
+import scala.util.Try
 
 /**
  * Consistency manager for consistent master/slave replication of the binded storage service. The mutation messages are
@@ -75,10 +78,10 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
 
   // Mapping between token ranges and service member to speedup consistent timestamp lookup function passed to
   // the consistent storage.
-  private var rangeMembers: Map[TokenRange, ServiceMember] = Map()
+  private var rangeMembers: Map[TokenRange, Long] = Map()
 
   private def updateRangeMemberCache() {
-    rangeMembers = service.members.flatMap(member => service.getMemberTokenRanges(member).map((_, member))).toMap
+    rangeMembers = service.members.flatMap(member => service.getMemberTokenRanges(member).map((_, member.token))).toMap
   }
 
   // Slave replication session management
@@ -147,7 +150,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
 
       // Open a replication session for all service members the local node is a slave
       info("Startup replication open sessions  {}", service)
-      service.members.withFilter(member => member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {
+      service.members.withFilter(member => member.status == MemberStatus.Up && nodeIsSlaveReplicaOf(member.token)).foreach {
         member =>
           SlaveReplicationManagerActor ! OpenSession(member, ReplicationMode.Bootstrap)
       }
@@ -212,7 +215,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
       }
       case event: NewMemberAddedEvent => {
         updateRangeMemberCache()
-        if (event.member.status == MemberStatus.Up && isSlaveReplicaOf(event.member)) {
+        if (event.member.status == MemberStatus.Up && nodeIsSlaveReplicaOf(event.member.token)) {
           SlaveReplicationManagerActor ! OpenSession(event.member, ReplicationMode.Bootstrap)
         }
       }
@@ -222,17 +225,21 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
 
   def replicationSessions = masterReplicationSessionManager.sessions ++ slaveReplicationSessionManager.sessions
 
+  def changeMasterServiceMember(token: Long, targetNode: Node, forceOfflineMigration: Boolean = false): Future[Unit] = {
+    MastershipMigrationManager.migrate(token, targetNode, forceOfflineMigration)
+  }
+
   private def getTokenRangeConsistentTimestamp(range: TokenRange): Timestamp = {
     rangeMembers.get(range) match {
-      case Some(member) if cluster.isLocalNode(member.node) => {
+      case Some(token) if nodeIsMasterReplicaOf(token) => {
         // Local master: lookup consistent timestamp from member recorder
         val timestamp = for {
-          recorder <- recorders.get(member.token)
+          recorder <- recorders.get(token)
           consistentTimestamp <- recorder.currentConsistentTimestamp
         } yield consistentTimestamp
         timestamp.getOrElse(Long.MinValue)
       }
-      case Some(member) if consistencyStates.get(member.token) == Some(MemberConsistencyState.Ok) => {
+      case Some(token) if consistencyStates.get(token) == Some(MemberConsistencyState.Ok) => {
         // Slave replica: assume everything is consistent if member state is consistent
         Long.MaxValue
       }
@@ -273,6 +280,14 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
           updateMemberConsistencyState(event.member, newState = None)
         }
         event.vote(pass = canTransition)
+      }
+      case MemberStatus.Joining if slaveReplicationSessionManager.sessions.exists(_.member.token == event.member.token) => {
+        // Trying to transition local service member to joining but a slave replication session is still open for
+        // that member! This is likely the result of mastership migration to the local node. Wait until the slave
+        // replication session terminate itself before allowing transition to joining status.
+        info("StatusTransitionAttemptEvent: status=Joining, slaveSession=true, member={}",
+          ResolvedServiceMember(service, event.member))
+        event.vote(pass = false)
       }
       case MemberStatus.Joining => {
         // Trying to transition the service member to joining. Initiate consistency recovery if necessary.
@@ -367,7 +382,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
 
         // Open a replication session for all service members the local node is a slave
         service.members.withFilter(member =>
-          member.status == MemberStatus.Up && isSlaveReplicaOf(member)).foreach {
+          member.status == MemberStatus.Up && nodeIsSlaveReplicaOf(member.token)).foreach {
           SlaveReplicationManagerActor ! OpenSession(_, ReplicationMode.Bootstrap)
         }
       }
@@ -402,7 +417,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
     event.to match {
       case MemberStatus.Up => {
         // Try to open a replication session if we are a slave replica of the service member that just went Up
-        if (isSlaveReplicaOf(event.member)) {
+        if (nodeIsSlaveReplicaOf(event.member.token)) {
           SlaveReplicationManagerActor ! OpenSession(event.member, ReplicationMode.Bootstrap)
         }
       }
@@ -415,13 +430,17 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
   }
 
   /**
-   * This method evaluates if the local node is a slave replica of the specified master serviceMember
+   * This method evaluates if the specified node is a slave replica of the specified service member token
    */
-  private def isSlaveReplicaOf(member: ServiceMember): Boolean = {
-    resolver.resolve(service, member.token).selectedReplicas match {
-      case Seq(source, replicas@_*) if replicas.exists(r => cluster.isLocalNode(r.node)) => true
+  private def nodeIsSlaveReplicaOf(token: Long, node: Node = cluster.localNode): Boolean = {
+    resolver.resolve(service, token).replicas match {
+      case Seq(master, replicas@_*) => replicas.exists(_.node == node)
       case _ => false
     }
+  }
+
+  private def nodeIsMasterReplicaOf(token: Long, node: Node = cluster.localNode): Boolean = {
+    service.getMemberAtToken(token).exists(member => cluster.isLocalNode(member.node))
   }
 
   /**
@@ -591,7 +610,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
     next()
   }
 
-  def executeConsistentOutgoingReadRequest(message: OutMessage, next: () => Unit) {
+  private def executeConsistentOutgoingReadRequest(message: OutMessage, next: () => Unit) {
     // Select the first available destination. Read messages are handled by the master if available.
     // If not, it can be handled by a replica having a replication lag below maxReplicaLagSeconds.
 
@@ -623,7 +642,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
     }
   }
 
-  def executeConsistentOutgoingWriteRequest(message: OutMessage, next: () => Unit) {
+  private def executeConsistentOutgoingWriteRequest(message: OutMessage, next: () => Unit) {
     // Only the master (first resolved node) may handle write messages
     message.destination.replicas match {
       case master :: _ if master.selected => {
@@ -776,6 +795,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
           }
           case CloseSession(member) => {
             try {
+              // Resetting the consistency state is important to ensure that the consistency is verified later if
+              // this node becomes the master of that service member
+              updateMemberConsistencyState(member, None)
               slaveReplicationSessionManager.closeSession(ResolvedServiceMember(service, member))
             } catch {
               case e: Exception => {
@@ -793,6 +815,157 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
         }
       }
     }
+  }
+
+  private class MastershipMigrationManager(member: ServiceMember, targetNode: Node) {
+
+    import MastershipMigrationManager._
+    import CancellationContext._
+
+    private val completionPromise = Promise[Unit]()
+
+    def migrate(forceOfflineMigration: Boolean): Future[Unit] = {
+      member.status match {
+        case MemberStatus.Down => migrateOfflineMaster(forceOfflineMigration)
+        case MemberStatus.Up => migrateOnlineMaster()
+        case _ => cancelMigration(IllegalState(s"Invalid status '${member.status}' to perform migration."))
+      }
+
+      completionPromise.future
+    }
+
+    private def localNodeIsMasterReplica = nodeIsMasterReplicaOf(member.token, cluster.localNode)
+
+    private def targetNodeIsSlaveReplica = nodeIsSlaveReplicaOf(member.token, targetNode)
+
+    private def currentLag = consistencyPersistence.replicationLagSeconds(member.token, targetNode)
+
+    private def targetNodeIsInSync = currentLag == Some(0)
+
+    private def hasPendingMigration(token: Long) = MigrationLock.synchronized(pendingMigrations.get(token).isDefined)
+
+    private def currentReplicationMode: Option[ReplicationMode] = {
+      replicationSessions.collectFirst {
+        case session if session.member.token == member.token && session.slave == targetNode => session.mode
+      }
+    }
+
+    private def migrateOfflineMaster(forceMigration: Boolean): Unit = {
+      if (!targetNodeIsSlaveReplica) {
+        cancelMigration(BadArgument(s"Target node is NOT a valid replica."))
+      } else if (targetNodeIsInSync) {
+        completeMigration(s"Migration from offline master to in-sync slave.")
+      } else if (forceMigration) {
+        completeMigration(s"Forced migration from offline master to out-of-sync slave (lag=$currentLag).")
+      } else {
+        cancelMigration(IllegalState(s"Target node is out-of-sync (lag=$currentLag)."))
+      }
+    }
+
+    private def migrateOnlineMaster(): Unit = {
+      if (!localNodeIsMasterReplica) {
+        cancelMigration(BadArgument(s"Local node ${cluster.localNode.uniqueKey} is not master."))
+      } else if (!targetNodeIsSlaveReplica) {
+        cancelMigration(BadArgument(s"Target node is NOT a valid replica."))
+      } else if (currentReplicationMode != Some(ReplicationMode.Live)) {
+        cancelMigration(IllegalState(s"Current replication mode '$currentReplicationMode' not '${ReplicationMode.Live}'."))
+      } else {
+        MigrationLock.synchronized {
+          if (hasPendingMigration(member.token)) {
+            cancelMigration(IllegalState("Migration already ongoing."))
+          } else {
+            cluster.clusterManager match {
+              case clusterManager: DynamicClusterManager => {
+                // Stop the local service member and listen to its transition status events to complete the migration
+                // when the service member is Down
+                info(s"Stopping ${member.token} for its mastership migration from ${cluster.localNode.uniqueKey} to $targetNode.")
+                pendingMigrations += member.token -> this
+                service.addObserver(migrationLifecycleObserver)
+                clusterManager.stopServiceMember(service, member)
+              }
+              case _ => cancelMigration(BadArgument("Live migration not supported by ClusterManager."))
+            }
+          }
+        }
+      }
+    }
+
+    private lazy val migrationLifecycleObserver: Event => Unit = {
+      case event: StatusTransitionAttemptEvent => handleStatusTransitionAttemptEvent(event)
+      case event: StatusTransitionEvent => handleStatusTransitionEvent(event)
+      case _ => // Ignore other events
+    }
+
+    private def handleStatusTransitionAttemptEvent(event: StatusTransitionAttemptEvent): Unit = {
+      if (hasPendingMigration(event.member.token) && event.member == member && event.to == MemberStatus.Joining) {
+        info(s"Prevent joining status transition. Ongoing mastership migration of ${member.token} to $targetNode")
+        event.vote(pass = false)
+      }
+    }
+
+    /**
+     * Complete the migration when the local service service member status transition to Down
+     */
+    private def handleStatusTransitionEvent(event: StatusTransitionEvent): Unit = {
+      MigrationLock.synchronized {
+        if (hasPendingMigration(event.member.token) && event.member == member && event.to == MemberStatus.Down) {
+          pendingMigrations -= member.token
+          service.removeObserver(migrationLifecycleObserver)
+
+          if (!localNodeIsMasterReplica) {
+            cancelMigration(IllegalState("Local node is not the master replica anymore."))
+          } else if (!targetNodeIsSlaveReplica) {
+            cancelMigration(IllegalState("Target node is not a valid replica anymore."))
+          } else if (!targetNodeIsInSync) {
+            cancelMigration(IllegalState(s"Target node is out-of-sync (lag=$currentLag)."))
+          } else {
+            completeMigration("Local master node.")
+          }
+        }
+      }
+    }
+
+    private def cancelMigration(context: CancellationContext) = {
+      val message = s"Cannot migrate mastership of ${member.token} from ${member.node.uniqueKey} to $targetNode. ${context.reason}"
+      val exception = context match {
+        case _: IllegalState => new IllegalStateException(message)
+        case _: BadArgument => new IllegalArgumentException(message)
+      }
+      info(message)
+      completionPromise.failure(exception)
+    }
+
+    private def completeMigration(context: String) = {
+      info(s"Completing mastership migration of ${member.token} from ${cluster.localNode.uniqueKey} to $targetNode. $context")
+      completionPromise.complete(Try(consistencyPersistence.changeMasterServiceMember(member.token, targetNode)))
+    }
+  }
+
+  private object MastershipMigrationManager {
+
+    object MigrationLock
+
+    var pendingMigrations: Map[Long, MastershipMigrationManager] = Map()
+
+    def migrate(token: Long, targetNode: Node, forceOfflineMigration: Boolean): Future[Unit] = {
+      service.getMemberAtToken(token) match {
+        case Some(member) => new MastershipMigrationManager(member, targetNode).migrate(forceOfflineMigration)
+        case None => Future.failed(new IllegalArgumentException(s"Unknown service member $token"))
+      }
+    }
+
+    sealed trait CancellationContext {
+      def reason: String
+    }
+
+    object CancellationContext {
+
+      case class IllegalState(reason: String) extends CancellationContext
+
+      case class BadArgument(reason: String) extends CancellationContext
+
+    }
+
   }
 
   private class Metrics(scope: String) extends Instrumented {

@@ -76,8 +76,8 @@ class ZookeeperConsistencyPersistence(zk: ZookeeperClient, service: Service, upd
 
         zk.set(path, serviceMember.toString)
       }
-      case Some(_) => throw new IllegalArgumentException("Node is not a slave on this shard")
-      case None => throw new IllegalArgumentException("Token not found")
+      case Some(_) => throw new IllegalArgumentException(s"Node $node is not a slave of shard $token")
+      case None => throw new IllegalArgumentException(s"Shard $token not found")
     }
   }
 

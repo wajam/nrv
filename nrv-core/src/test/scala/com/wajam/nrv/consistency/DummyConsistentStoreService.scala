@@ -19,6 +19,8 @@ class DummyConsistentStoreService(name: String, val localStorage: TransactionSto
   with ConsistentStore
   with Logging {
 
+  private var currentConsistentTimestamp: Option[(TokenRange) => Timestamp] = None
+
   private val addAction = registerAction(new Action("/execute/:token", req => {
     info(s"ADD: tk=${req.token}, ts=${req.timestamp.get}, data=${req.getData[String]}, node=${cluster.localNode}")
     req.parameters.get("no_reply") match {
@@ -41,6 +43,10 @@ class DummyConsistentStoreService(name: String, val localStorage: TransactionSto
   def getRemoteValue(key: LookupKey)(implicit ec: ExecutionContext): Future[String] = {
     val response = getAction.call(params = Seq("token" -> key.token), meta = Seq(), data = key.timestamp.toString)
     response.map(msg => msg.getData[String])
+  }
+
+  def getCurrentConsistentTimestamp(range: TokenRange): Option[Timestamp] = {
+    currentConsistentTimestamp.map(_(range))
   }
 
   // ConsistentStore trait implementation
@@ -69,7 +75,9 @@ class DummyConsistentStoreService(name: String, val localStorage: TransactionSto
    * for the specified token range. The consistency of the records more recent that the consistent timestamp is
    * unconfirmed and these records must be excluded from processing tasks such as GC or percolation.
    */
-  def setCurrentConsistentTimestamp(getCurrentConsistentTimestamp: (TokenRange) => Timestamp) = {}
+  def setCurrentConsistentTimestamp(getCurrentConsistentTimestamp: (TokenRange) => Timestamp) = {
+    currentConsistentTimestamp = Some(getCurrentConsistentTimestamp)
+  }
 
   /**
    * Returns the mutation messages from and up to the given timestamps inclusively for the specified token ranges.
