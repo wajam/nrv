@@ -205,7 +205,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
 
     event match {
       case event: StatusTransitionAttemptEvent if txLogEnabled => {
-        handleStatusTransitionAttemptEvent(event)
+        if (started) handleStatusTransitionAttemptEvent(event) else event.vote(pass = false)
       }
       case event: StatusTransitionEvent if cluster.isLocalNode(event.member.node) => {
         handleLocalServiceMemberStatusTransitionEvent(event)
