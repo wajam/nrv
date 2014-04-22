@@ -43,7 +43,12 @@ abstract class DynamicClusterManager extends ClusterManager with Logging with In
     OperationLoop ! OperationLoop.TrySetLocalServiceMemberDown(service, member)
   }
 
-  def setServiceMemberStatusLeaving(service: Service, member: ServiceMember) {
+  /**
+   * Stop the service member by changing its status to 'leaving'. The cluster manager will then attempt to transition
+   * the service member to 'down'. Once 'down', the service member will transition to 'joining' and 'up' again
+   * unless at an observer listening to StatusTransitionAttemptEvent prevent the transition.
+   */
+  def stopServiceMember(service: Service, member: ServiceMember) {
     OperationLoop ! OperationLoop.SetLocalServiceMemberLeaving(service, member)
   }
 

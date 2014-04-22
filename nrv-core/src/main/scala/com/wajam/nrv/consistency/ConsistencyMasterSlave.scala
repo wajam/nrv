@@ -881,7 +881,7 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
                 info(s"Stopping ${member.token} for its mastership migration from ${cluster.localNode.uniqueKey} to $targetNode.")
                 pendingMigrations += member.token -> this
                 service.addObserver(migrationLifecycleObserver)
-                clusterManager.setServiceMemberStatusLeaving(service, member)
+                clusterManager.stopServiceMember(service, member)
               }
               case _ => cancelMigration(BadArgument("Live migration not supported by ClusterManager."))
             }
