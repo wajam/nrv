@@ -269,7 +269,9 @@ class ConsistencyMasterSlave(val timestampGenerator: TimestampGenerator,
         // Trying to transition the service member Down.
         // When Leaving, allows the transition only if the service member is not the master of a live
         // replication session. Allow transitions from any other status.
-        val liveSessions = masterReplicationSessionManager.sessions.filter(_.mode == ReplicationMode.Live).toList
+        val liveSessions = masterReplicationSessionManager.sessions.filter { session =>
+          session.mode == ReplicationMode.Live && session.member.token == event.member.token
+        }.toList
         val canTransition = liveSessions.isEmpty || event.from != MemberStatus.Leaving
         def currentState = if (canTransition) None else consistencyStates.get(event.member.token)
         info("StatusTransitionAttemptEvent: status=Down, prevState={}, newState=None, member={}, live replications={}",

@@ -15,7 +15,7 @@ import scala.concurrent.duration._
 import java.util.concurrent.TimeoutException
 import com.wajam.nrv.UnavailableException
 import org.apache.commons.io.FileUtils
-import com.wajam.nrv.consistency.replication.ReplicationMode
+import com.wajam.nrv.consistency.replication.{ReplicationSession, ReplicationMode}
 
 @RunWith(classOf[JUnitRunner])
 class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually with IntegrationPatience {
@@ -124,6 +124,16 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       val members = getLocalMembers
       members.size should be(1)
       members.head
+    }
+
+    def getMasterReplicationSessions(token: Long): Iterable[ReplicationSession] = {
+      consistency.replicationSessions.filter(s => s.member.token == token && s.slave != localNode)
+    }
+
+    def getMasterReplicationSession(token: Long): ReplicationSession = {
+      val sessions = getMasterReplicationSessions(token)
+      sessions.size should be(1)
+      sessions.head
     }
 
     def getLocalMemberConsistencyState(token: Long): Option[MemberConsistencyState] = {
@@ -649,20 +659,23 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       val values = clusterNode6666.groupValuesByHostingNodePort(List("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"))
 
-      // Add a value to the cluster node we want to migrate
-      val headValue = values(8888).head
-      val headKey = Await.result(clusterNode8888.service.addRemoteValue(headValue), awaitDuration)
-      val actual = Await.result(clusterNode8888.service.getRemoteValue(headKey), awaitDuration)
-      actual should be(headValue)
+      // Add a value to both cluster node
+      val head8888Value = values(8888).head
+      val head8888Key = Await.result(clusterNode8888.service.addRemoteValue(head8888Value), awaitDuration)
+      Await.result(clusterNode8888.service.getRemoteValue(head8888Key), awaitDuration) should be(head8888Value)
+      val head6666Value = values(6666).head
+      val head6666Key = Await.result(clusterNode8888.service.addRemoteValue(head6666Value), awaitDuration)
+      Await.result(clusterNode6666.service.getRemoteValue(head6666Key), awaitDuration) should be(head6666Value)
 
       // Wait that the value is replicated and live replication mode is in effect
       eventually {
-        clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
-        val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
-        session.get.mode should be(ReplicationMode.Live)
+        clusterNode6666.service.localStorage.getValue(head8888Key.timestamp) should be(Some(head8888Value))
+        clusterNode8888.service.localStorage.getValue(head6666Key.timestamp) should be(Some(head6666Value))
+        clusterNode8888.getMasterReplicationSession(member4294967292_8888.token).mode should be(ReplicationMode.Live)
+        clusterNode6666.getMasterReplicationSession(member2147483646_6666.token).mode should be(ReplicationMode.Live)
       }
 
-      // Add remaining values to the cluster node
+      // Add remaining values to the cluster node that will be migrated
       val tailPairs = values(8888).tail.map(v => {
         val k = Await.result(clusterNode8888.service.addRemoteValue(v), awaitDuration)
         (k, v)
@@ -690,10 +703,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       }
 
       // Migrate mastership back to the original master (after replication mode is live again)
-      eventually {
-        val session = clusterNode6666.consistency.replicationSessions.find(_.slave == node8888)
-        session.get.mode should be(ReplicationMode.Live)
-      }
+      eventually { clusterNode6666.getMasterReplicationSession(token).mode should be(ReplicationMode.Live) }
       Await.result(clusterNode6666.consistency.changeMasterServiceMember(token, node8888), awaitDuration)
       eventually {
         val member = clusterNode6666.getMemberByToken(token)
@@ -703,10 +713,7 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
 
       // Migrate yet again! This is to ensure the original migration state is clear and
       // does not prevent migrating again from the original master
-      eventually {
-        val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
-        session.get.mode should be(ReplicationMode.Live)
-      }
+      eventually { clusterNode8888.getMasterReplicationSession(token).mode should be(ReplicationMode.Live) }
       Await.result(clusterNode8888.consistency.changeMasterServiceMember(token, node6666), awaitDuration)
       eventually {
         val member = clusterNode8888.getMemberByToken(token)
@@ -734,15 +741,15 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       actual should be(headValue)
 
       // Wait that the value is replicated and live replication mode is in effect
+      val token = member4294967292_8888.token
       eventually {
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
-        val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
-        session.get.mode should be(ReplicationMode.Live)
+        clusterNode8888.getMasterReplicationSession(token).mode should be(ReplicationMode.Live)
       }
 
       // Try live mastership migration from slave node instead of from the master node.
       evaluating {
-        Await.result(clusterNode6666.consistency.changeMasterServiceMember(member4294967292_8888.token, node6666), awaitDuration)
+        Await.result(clusterNode6666.consistency.changeMasterServiceMember(token, node6666), awaitDuration)
       } should produce[IllegalArgumentException]
     }
   }
@@ -765,14 +772,13 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       actual should be(headValue)
 
       // Wait that the value is replicated and live replication mode is in effect
+      val token = member4294967292_8888.token
       eventually {
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
-        val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
-        session.get.mode should be(ReplicationMode.Live)
+        clusterNode8888.getMasterReplicationSession(token).mode should be(ReplicationMode.Live)
       }
 
       // Try live mastership migration when slave is out-of-sync
-      val token = member4294967292_8888.token
       f.consistencyPersistence.updateReplicationLagSeconds(token, node6666, lag = 5)
       evaluating {
         Await.result(clusterNode8888.consistency.changeMasterServiceMember(token, node6666), awaitDuration)
@@ -798,14 +804,14 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       actual should be(headValue)
 
       // Wait that the value is replicated and live replication mode is in effect
+      val token = member4294967292_8888.token
       eventually {
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
-        val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
-        session.get.mode should be(ReplicationMode.Live)
+        clusterNode8888.getMasterReplicationSession(token).mode should be(ReplicationMode.Live)
       }
 
       // Try live mastership migration when slave is out-of-sync
-      val invalidToken = member4294967292_8888.token + 1
+      val invalidToken = token + 1
       evaluating {
         Await.result(clusterNode8888.consistency.changeMasterServiceMember(invalidToken, node6666), awaitDuration)
       } should produce[IllegalArgumentException]
@@ -830,14 +836,13 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       actual should be(headValue)
 
       // Wait that the value is replicated and live replication mode is in effect
+      val token = member4294967292_8888.token
       eventually {
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
-        val session = clusterNode8888.consistency.replicationSessions.find(_.slave == node6666)
-        session.get.mode should be(ReplicationMode.Live)
+        clusterNode8888.getMasterReplicationSession(token).mode should be(ReplicationMode.Live)
       }
 
       // Try live mastership migration when slave is out-of-sync
-      val token = member4294967292_8888.token
       val nonReplicaNode = node5555
       evaluating {
         Await.result(clusterNode8888.consistency.changeMasterServiceMember(token, nonReplicaNode), awaitDuration)
@@ -871,17 +876,15 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       actual should be(headValue)
 
       // Wait that the value is replicated to all replicas (3) and live replication mode is in effect
+      val token = member4294967292_8888.token
       eventually {
         clusterNode5555.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
         clusterNode7777.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
-        clusterNode8888.consistency.replicationSessions.find(_.slave == node5555).get.mode should be(ReplicationMode.Live)
-        clusterNode8888.consistency.replicationSessions.find(_.slave == node6666).get.mode should be(ReplicationMode.Live)
-        clusterNode8888.consistency.replicationSessions.find(_.slave == node7777).get.mode should be(ReplicationMode.Live)
+        clusterNode8888.getMasterReplicationSessions(token).foreach(_.mode should be(ReplicationMode.Live))
       }
 
       // Try performing mastership migration to multiple replicas in parallel
-      val token = member4294967292_8888.token
       val result6666 = clusterNode8888.consistency.changeMasterServiceMember(token, node6666)
       val result5555 = clusterNode8888.consistency.changeMasterServiceMember(token, node5555)
       val result7777 = clusterNode8888.consistency.changeMasterServiceMember(token, node7777)
@@ -929,9 +932,10 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       actual should be(headValue)
 
       // Wait that the value is replicated to all replicas (3) and live replication mode is in effect
+      val token = member4294967292_8888.token
       eventually {
         clusterNode6666.service.localStorage.getValue(headKey.timestamp) should be(Some(headValue))
-        clusterNode8888.consistency.replicationSessions.find(_.slave == node6666).get.mode should be(ReplicationMode.Live)
+        clusterNode8888.getMasterReplicationSession(token).mode should be(ReplicationMode.Live)
       }
 
       // Add remaining values to the cluster node
@@ -941,7 +945,6 @@ class TestConsistencyMasterSlave extends FlatSpec with Matchers with Eventually 
       })
 
       // Try performing mastership migration
-      val token = member4294967292_8888.token
       val result = clusterNode8888.consistency.changeMasterServiceMember(token, node6666)
 
       // Remove target node from the list of replicas while the migration is ongoing. The migration should abort.
