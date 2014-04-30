@@ -8,8 +8,11 @@ import net.liftweb.json.JsonDSL._
 import com.wajam.nrv.data.MString
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Try, Failure, Success }
+import com.wajam.tracing.TracingExecutionContext
 
 trait JsonApiDSL extends Service {
+
+  def ec: ExecutionContext
 
   val RESPONSE_HEADERS = Map(
     "Content-Type" -> "application/json; charset=UTF-8",
@@ -54,10 +57,11 @@ trait JsonApiDSL extends Service {
   }
 
   implicit class ActionWrapper(endpoint: EndPoint) {
-    def returnsJsonIn[T <: AnyRef](f: InMessage => Future[T])(implicit ec: ExecutionContext) = {
+    def returnsJsonIn[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[T]) = {
       registerEmptyOptions(endpoint.url)
       registerAction(new Action(endpoint.url, i => {
-        val fut = Try(f(i)) match {
+        implicit val tec: ExecutionContext = new TracingExecutionContext(ec)
+        val fut = Try(f(i, tec)) match {
           case Success(r) => r
           case Failure(t) => Future.failed(t)
         }
@@ -68,20 +72,20 @@ trait JsonApiDSL extends Service {
       }, endpoint.actionMethod))
     }
 
-    def receivesAndReturnsJsonIn[I <: AnyRef, O <: AnyRef](f: (I, InMessage) => Future[O])(
-      implicit ec: ExecutionContext, mf: scala.reflect.Manifest[I]) = {
+    def receivesAndReturnsJsonIn[I <: AnyRef, O <: AnyRef](f: (I, InMessage, ExecutionContext) => Future[O])(
+      implicit mf: scala.reflect.Manifest[I]) = {
       import scala.util.control.Exception._
 
       val handle = handling(classOf[Exception]) by (t => Future.failed(t))
-      returnsJsonIn(req => {
-        handle(f(req.getData[JObject].extract[I], req))
+      returnsJsonIn((req, tec) => {
+        handle(f(req.getData[JObject].extract[I], req, tec))
       })
     }
 
     // Alias methods
-    def ->[T <: AnyRef](f: InMessage => Future[T])(implicit ec: ExecutionContext) = returnsJsonIn[T](f)
-    def ->>[I <: AnyRef, O <: AnyRef](f: (I, InMessage) => Future[O])(
-      implicit ec: ExecutionContext, mf: scala.reflect.Manifest[I]) = receivesAndReturnsJsonIn[I,O](f)
+    def ->[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[T]) = returnsJsonIn[T](f)
+    def ->>[I <: AnyRef, O <: AnyRef](f: (I, InMessage, ExecutionContext) => Future[O])(
+      implicit mf: scala.reflect.Manifest[I]) = receivesAndReturnsJsonIn[I,O](f)
   }
 
   implicit class JsonRequest(msg: InMessage) {
