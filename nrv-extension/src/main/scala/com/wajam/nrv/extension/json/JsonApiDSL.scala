@@ -122,7 +122,7 @@ trait JsonApiDSL extends Service {
 
     def paramOptionalLong(param: String): Option[Long] = msg.parameters.get(param).map(_.asInstanceOf[MString].value.toLong)
 
-    def paramInt(param: String): Long = msg.parameters.get(param) match {
+    def paramInt(param: String): Int = msg.parameters.get(param) match {
       case Some(v) =>
         try {
           v.asInstanceOf[MString].value.toInt
