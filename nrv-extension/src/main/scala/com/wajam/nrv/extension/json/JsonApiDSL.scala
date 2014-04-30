@@ -41,6 +41,14 @@ trait JsonApiDSL extends Service {
     override val actionMethod: ActionMethod = ActionMethod.POST
   }
 
+  case class PUT(url: String) extends EndPoint {
+    override val actionMethod: ActionMethod = ActionMethod.PUT
+  }
+
+  case class DELETE(url: String) extends EndPoint {
+    override val actionMethod: ActionMethod = ActionMethod.PUT
+  }
+
   case class ANY(url: String) extends EndPoint {
     override val actionMethod: ActionMethod = ActionMethod.ANY
   }
