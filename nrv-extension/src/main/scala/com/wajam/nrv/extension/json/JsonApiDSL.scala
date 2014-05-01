@@ -49,7 +49,7 @@ trait JsonApiDSL extends Service {
   }
 
   case class DELETE(url: String) extends EndPoint {
-    override val actionMethod: ActionMethod = ActionMethod.PUT
+    override val actionMethod: ActionMethod = ActionMethod.DELETE
   }
 
   case class ANY(url: String) extends EndPoint {
@@ -57,7 +57,7 @@ trait JsonApiDSL extends Service {
   }
 
   implicit class ActionWrapper(endpoint: EndPoint) {
-    def returnsJsonIn[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[T]) = {
+    def returnsJsonIn[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[Option[T]]) = {
       registerEmptyOptions(endpoint.url)
       registerAction(new Action(endpoint.url, i => {
         implicit val tec: ExecutionContext = new TracingExecutionContext(ec)
@@ -66,13 +66,14 @@ trait JsonApiDSL extends Service {
           case Failure(t) => Future.failed(t)
         }
         fut.onComplete {
-          case Success(v) => i.replyJson(v)
+          case Success(Some(v)) => i.replyJson(v)
+          case Success(None) => i.replyEmpty()
           case Failure(t) => i.replyException(t)
         }
       }, endpoint.actionMethod))
     }
 
-    def receivesAndReturnsJsonIn[I <: AnyRef, O <: AnyRef](f: (I, InMessage, ExecutionContext) => Future[O])(
+    def receivesAndReturnsJsonIn[I <: AnyRef, O <: AnyRef](f: (I, InMessage, ExecutionContext) => Future[Option[O]])(
       implicit mf: scala.reflect.Manifest[I]) = {
       import scala.util.control.Exception._
 
@@ -83,8 +84,8 @@ trait JsonApiDSL extends Service {
     }
 
     // Alias methods
-    def ->[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[T]) = returnsJsonIn[T](f)
-    def ->>[I <: AnyRef, O <: AnyRef](f: (I, InMessage, ExecutionContext) => Future[O])(
+    def ->[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[Option[T]]) = returnsJsonIn[T](f)
+    def ->>[I <: AnyRef, O <: AnyRef](f: (I, InMessage, ExecutionContext) => Future[Option[O]])(
       implicit mf: scala.reflect.Manifest[I]) = receivesAndReturnsJsonIn[I,O](f)
   }
 
