@@ -49,6 +49,7 @@ object NrvBuild extends Build {
 
   var extDeps = Seq(
     "net.liftweb" %% "lift-json" % "2.5-RC4",
+    "com.github.nscala-time" %% "nscala-time" % "1.0.0",
     "org.scalatest" %% "scalatest" % "2.0",
     "junit" % "junit" % "4.10",
     "org.mockito" % "mockito-core" % "1.9.0"

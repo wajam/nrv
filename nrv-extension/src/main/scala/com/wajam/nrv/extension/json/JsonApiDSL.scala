@@ -9,6 +9,10 @@ import com.wajam.nrv.data.MString
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Try, Failure, Success }
 import com.wajam.tracing.TracingExecutionContext
+import org.joda.time.DateTime
+import org.joda.time.format.ISODateTimeFormat
+import net.liftweb.json.JsonAST.JString
+import JsonApiDSL.DateTimeSerializer
 
 trait JsonApiDSL extends Service {
 
@@ -20,7 +24,7 @@ trait JsonApiDSL extends Service {
     "Access-Control-Allow-Methods" -> "GET,POST,PUT,DELETE",
     "Access-Control-Allow-Headers" -> "Content-Type")
 
-  implicit val formats = Serialization.formats(NoTypeHints)
+  implicit val formats = Serialization.formats(NoTypeHints) + DateTimeSerializer
 
   // Used for CORS (https://developer.mozilla.org/en-US/docs/HTTP/Access_control_CORS). Some browser/client relies on that
   // to fetch the allowed origins/methods
@@ -171,6 +175,26 @@ trait JsonApiDSL extends Service {
 
       msg.reply(Map(), RESPONSE_HEADERS, jObj, 500)
       throw t
+    }
+  }
+
+}
+
+object JsonApiDSL {
+
+  object DateTimeSerializer extends Serializer[DateTime] {
+    val isoDateFormat = ISODateTimeFormat.dateTime()
+    private val Class = classOf[DateTime]
+
+    override def serialize(implicit format: Formats) = {
+      case d: DateTime => JString(d.toString(isoDateFormat))
+    }
+
+    override def deserialize(implicit format: Formats) = {
+      case (TypeInfo(Class, _), json) => json match {
+        case JString(s) => isoDateFormat.parseDateTime(s)
+        case x => throw new MappingException("Can't convert " + x + " to DateTime")
+      }
     }
   }
 
