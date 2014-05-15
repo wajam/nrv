@@ -4,7 +4,7 @@ import com.wajam.nrv.service.{Action, Service}
 import com.wajam.nrv.consistency.{ConsistencyException, ResolvedServiceMember, ConsistentStore}
 import com.wajam.nrv.data.{MValue, InMessage, Message}
 import scala.actors.Actor
-import com.wajam.nrv.utils._
+import com.wajam.nrv.utils.Scheduler
 import collection.immutable.TreeSet
 import com.wajam.nrv.consistency.log.TransactionLog
 import ReplicationAPIParams._
@@ -14,7 +14,7 @@ import annotation.tailrec
 import com.wajam.nrv.TimeoutException
 import java.util.{TimerTask, Timer}
 import com.yammer.metrics.scala.Instrumented
-import util.Random
+import scala.util.Random
 import com.wajam.commons._
 import com.wajam.nrv.utils.timestamp.Timestamp
 
