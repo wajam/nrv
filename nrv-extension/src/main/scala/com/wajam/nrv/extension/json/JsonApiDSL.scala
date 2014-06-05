@@ -101,7 +101,7 @@ trait JsonApiDSL extends Service {
     // Alias methods
     def ->[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[Option[T]]) = returnsJsonIn[T](f)
 
-    def ->^[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[(Option[T], Map[String, String])]) = returnsJsonWithHeadersIn[T](f)
+    def -^>[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[(Option[T], Map[String, String])]) = returnsJsonWithHeadersIn[T](f)
 
     def ->>[I <: AnyRef, O <: AnyRef](f: (I, InMessage, ExecutionContext) => Future[Option[O]])(
       implicit mf: scala.reflect.Manifest[I]) = receivesAndReturnsJsonIn[I,O](f)
