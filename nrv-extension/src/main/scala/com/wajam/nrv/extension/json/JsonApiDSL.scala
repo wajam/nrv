@@ -13,6 +13,7 @@ import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat
 import net.liftweb.json.JsonAST.JString
 import JsonApiDSL.DateTimeSerializer
+import com.wajam.nrv.extension.http.ResponseException
 
 trait JsonApiDSL extends Service {
 
@@ -61,7 +62,7 @@ trait JsonApiDSL extends Service {
   }
 
   implicit class ActionWrapper(endpoint: EndPoint) {
-    def returnsJsonIn[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[Option[T]]) = {
+    def returnsJsonWithHeadersIn[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[(Option[T], Map[String, String])]) = {
       registerEmptyOptions(endpoint.url)
       registerAction(new Action(endpoint.url, i => {
         implicit val tec: ExecutionContext = new TracingExecutionContext(ec)
@@ -70,11 +71,21 @@ trait JsonApiDSL extends Service {
           case Failure(t) => Future.failed(t)
         }
         fut.onComplete {
-          case Success(Some(v)) => i.replyJson(v)
-          case Success(None) => i.replyEmpty()
+          case Success((Some(v), headers)) => i.replyJson(v, headers = headers)
+          case Success((None, headers)) => i.replyEmpty(headers = headers)
+          case Failure(e: ResponseException) => i.replyEmpty(e.code, e.headers)
           case Failure(t) => i.replyException(t)
         }
       }, endpoint.actionMethod))
+    }
+
+    def returnsJsonIn[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[Option[T]]) = {
+      import scala.util.control.Exception._
+
+      val handle = handling(classOf[Exception]) by (t => Future.failed(t))
+      returnsJsonWithHeadersIn((req, tec) => {
+        handle(f(req, tec).map(v => (v, Map[String, String]()))(tec))
+      })
     }
 
     def receivesAndReturnsJsonIn[I <: AnyRef, O <: AnyRef](f: (I, InMessage, ExecutionContext) => Future[Option[O]])(
@@ -82,13 +93,16 @@ trait JsonApiDSL extends Service {
       import scala.util.control.Exception._
 
       val handle = handling(classOf[Exception]) by (t => Future.failed(t))
-      returnsJsonIn((req, tec) => {
-        handle(f(req.getData[JObject].extract[I], req, tec))
+      returnsJsonWithHeadersIn((req, tec) => {
+        handle(f(req.getData[JObject].extract[I], req, tec).map(v => (v, Map[String, String]()))(tec))
       })
     }
 
     // Alias methods
     def ->[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[Option[T]]) = returnsJsonIn[T](f)
+
+    def ->^[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[(Option[T], Map[String, String])]) = returnsJsonWithHeadersIn[T](f)
+
     def ->>[I <: AnyRef, O <: AnyRef](f: (I, InMessage, ExecutionContext) => Future[Option[O]])(
       implicit mf: scala.reflect.Manifest[I]) = receivesAndReturnsJsonIn[I,O](f)
   }
@@ -147,24 +161,24 @@ trait JsonApiDSL extends Service {
 
     def paramOptionalInt(param: String): Option[Int] = msg.parameters.get(param).map(_.asInstanceOf[MString].value.toInt)
 
-    def replyEmpty(code: Int = 200) {
-      msg.reply(Map(), RESPONSE_HEADERS, "", code)
+    def replyEmpty(code: Int = 200, headers: Map[String, String] = Map.empty) {
+      msg.reply(Map(), RESPONSE_HEADERS ++ headers, "", code)
     }
 
-    def replyJobject(jObj: JObject, code: Int = 200) {
-      msg.reply(Map(), RESPONSE_HEADERS, jObj, code)
+    def replyJobject(jObj: JObject, code: Int = 200, headers: Map[String, String] = Map.empty) {
+      msg.reply(Map(), RESPONSE_HEADERS ++ headers, jObj, code)
     }
 
-    def replyJson(obj: AnyRef, code: Int = 200) {
-      msg.reply(Map(), RESPONSE_HEADERS, Serialization.write(obj), code)
+    def replyJson(obj: AnyRef, code: Int = 200, headers: Map[String, String] = Map.empty) {
+      msg.reply(Map(), RESPONSE_HEADERS ++ headers, Serialization.write(obj), code)
     }
 
-    def replyError(message: String, code: Int = 500) {
+    def replyError(message: String, code: Int = 500, headers: Map[String, String] = Map.empty) {
       val jObj = ("error" -> code) ~ ("message" -> message)
-      msg.reply(Map(), RESPONSE_HEADERS, jObj, code)
+      msg.reply(Map(), RESPONSE_HEADERS ++ headers, jObj, code)
     }
 
-    def replyException(t: Throwable) {
+    def replyException(t: Throwable, headers: Map[String, String] = Map.empty) {
       val realThrowable = Option(t.getCause).getOrElse(t)
 
       val jObj =
@@ -173,7 +187,7 @@ trait JsonApiDSL extends Service {
           ("message" -> realThrowable.getMessage) ~
           ("stack" -> realThrowable.getStackTraceString)
 
-      msg.reply(Map(), RESPONSE_HEADERS, jObj, 500)
+      msg.reply(Map(), RESPONSE_HEADERS ++ headers, jObj, 500)
       throw t
     }
   }
