@@ -71,6 +71,7 @@ trait JsonApiDSL extends Service {
           case Failure(t) => Future.failed(t)
         }
         fut.onComplete {
+          case Success((Some(v: String), headers)) => i.replyString(v, headers = headers)
           case Success((Some(v), headers)) => i.replyJson(v, headers = headers)
           case Success((None, headers)) => i.replyEmpty(headers = headers)
           case Failure(e: ResponseException) => i.replyEmpty(e.code, e.headers)
@@ -171,6 +172,10 @@ trait JsonApiDSL extends Service {
 
     def replyJson(obj: AnyRef, code: Int = 200, headers: Map[String, String] = Map.empty) {
       msg.reply(Map(), RESPONSE_HEADERS ++ headers, Serialization.write(obj), code)
+    }
+
+    def replyString(value: String, code: Int = 200, headers: Map[String, String] = Map.empty) {
+      msg.reply(Map(), RESPONSE_HEADERS ++ headers, value, code)
     }
 
     def replyError(message: String, code: Int = 500, headers: Map[String, String] = Map.empty) {
