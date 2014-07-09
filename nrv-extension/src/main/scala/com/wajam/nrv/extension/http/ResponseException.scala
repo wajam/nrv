@@ -10,3 +10,7 @@ class NotModifiedException(description: String = "Not Modified",
 class NotFoundException(description: String = "Not Found",
                         headers: Map[String, String] = Map.empty,
                         cause: Throwable = null) extends ResponseException(404, description, headers, cause)
+
+class ServiceUnavailableException(description: String = "Service Unavailable",
+                        headers: Map[String, String] = Map.empty,
+                        cause: Throwable = null) extends ResponseException(503, description, headers, cause)
