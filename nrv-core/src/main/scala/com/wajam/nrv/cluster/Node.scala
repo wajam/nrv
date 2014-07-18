@@ -48,10 +48,15 @@ sealed class Node(val host: InetAddress, val ports: Map[String, Int]) extends Se
   override def toString: String = "%s:%s".format(hostname, ports.map(t => "%s=%d".format(t._1, t._2)).mkString(","))
 }
 
-sealed class LocalNode(val listenAddress: InetAddress, ports: Map[String, Int])
-  extends Node(Node.listenAddressToHostAddress(listenAddress), ports) {
+sealed class LocalNode(val listenAddress: InetAddress, ports: Map[String, Int],
+                       hostAddress: InetAddress)
+  extends Node(hostAddress, ports) {
 
+  def this(listenAddress: InetAddress, ports: Map[String, Int]) =
+    this(listenAddress, ports, Node.listenAddressToHostAddress(listenAddress))
   def this(listenAddress: String, ports: Map[String, Int]) = this(Node.addressByName(listenAddress), ports)
+  def this(listenAddress: String, ports: Map[String, Int], hostAddress: String) =
+    this(Node.addressByName(listenAddress), ports, Node.addressByName(hostAddress))
   def this(ports: Map[String, Int]) = this("0.0.0.0", ports)
 }
 
