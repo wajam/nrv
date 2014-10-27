@@ -477,12 +477,12 @@ class SlaveReplicationSessionManager(service: Service, store: ConsistentStore, m
     import SessionProtocol._
 
     val commitScheduler = if (commitFrequency > 0) {
-      Some(new Scheduler(this, Commit, Random.nextInt(commitFrequency), commitFrequency, blockingMessage = true,
+      Some(new Scheduler(this, Commit, Random.nextInt(commitFrequency), commitFrequency, blockingMessage = false,
         autoStart = false, name = Some("SlaveSessionActor.Commit")))
     } else {
       None
     }
-    private val checkIdleScheduler = new Scheduler(this, CheckIdle, 1000, 1000, blockingMessage = true,
+    private val checkIdleScheduler = new Scheduler(this, CheckIdle, 1000, 1000, blockingMessage = false,
       autoStart = false, name = Some("SlaveSessionActor.CheckIdle"))
     private var pendingTransactions: TreeSet[ReplicationMessage] = TreeSet()
     private var consistentTimestamp: Option[Timestamp] = txLog.getLastLoggedRecord match {
