@@ -296,7 +296,7 @@ class MasterReplicationSessionManager(service: Service, store: ConsistentStore,
     import SessionProtocol._
 
     private val pushScheduler = new Scheduler(this, PushNext, 1000, 1000 / pushTps,
-      blockingMessage = true, autoStart = false, name = Some("MasterSessionActor.Push"))
+      blockingMessage = false, autoStart = false, name = Some("MasterSessionActor.Push"))
     private var pendingSequences: TreeMap[Long, Option[Timestamp]] = TreeMap()
     private var lastSendTime = currentTime
     private var lastSequence = 0L

@@ -228,12 +228,12 @@ class TransactionRecorder(val member: ResolvedServiceMember, val txLog: Transact
 
     val commitScheduler = if (commitFrequency > 0) {
       Some(new Scheduler(this, Commit, Random.nextInt(commitFrequency), commitFrequency,
-        blockingMessage = true, autoStart = false, name = Some("ConsistencyActor.Commit")))
+        blockingMessage = false, autoStart = false, name = Some("ConsistencyActor.Commit")))
     } else {
       None
     }
     val checkPendingScheduler = new Scheduler(this, CheckPending, 100, 100,
-      blockingMessage = true, autoStart = false, name = Some("ConsistencyActor.CheckPending"))
+      blockingMessage = false, autoStart = false, name = Some("ConsistencyActor.CheckPending"))
 
     def queueSize = mailboxSize
 
