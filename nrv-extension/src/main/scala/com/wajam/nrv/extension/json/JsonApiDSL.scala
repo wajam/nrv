@@ -99,6 +99,19 @@ trait JsonApiDSL extends Service {
       })
     }
 
+    def receivesOptionalAndReturnsJsonIn[I <: AnyRef, O <: AnyRef](f: (Option[I], InMessage, ExecutionContext) => Future[Option[O]])(
+      implicit mf: scala.reflect.Manifest[I]) = {
+      import scala.util.control.Exception._
+
+      val handle = handling(classOf[Exception]) by (t => Future.failed(t))
+      returnsJsonWithHeadersIn((req, tec) => {
+        handle(f(req.getData[JValue] match {
+          case JNothing => None
+          case value => Some(value.extract[I])
+        }, req, tec).map(v => (v, Map[String, String]()))(tec))
+      })
+    }
+
     // Alias methods
     def ->[T <: AnyRef](f: (InMessage, ExecutionContext) => Future[Option[T]]) = returnsJsonIn[T](f)
 
@@ -106,6 +119,9 @@ trait JsonApiDSL extends Service {
 
     def ->>[I <: AnyRef, O <: AnyRef](f: (I, InMessage, ExecutionContext) => Future[Option[O]])(
       implicit mf: scala.reflect.Manifest[I]) = receivesAndReturnsJsonIn[I,O](f)
+
+    def -?>[I <: AnyRef, O <: AnyRef](f: (Option[I], InMessage, ExecutionContext) => Future[Option[O]])(
+      implicit mf: scala.reflect.Manifest[I]) = receivesOptionalAndReturnsJsonIn[I,O](f)
   }
 
   implicit class JsonRequest(msg: InMessage) {

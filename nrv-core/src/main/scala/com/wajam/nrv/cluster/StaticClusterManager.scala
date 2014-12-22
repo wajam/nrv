@@ -33,8 +33,9 @@ class StaticClusterManager extends ClusterManager {
    * @param service Service in which we want to add members
    * @param members List of members, formatted like: token:node_host:service=port,service=port;token:...
    */
-  def addMembers(service: Service, members: Iterable[String]) {
+  def addMembers(service: Service, members: Iterable[String]): StaticClusterManager = {
     members.foreach(strMember => service.addMember(ServiceMember.fromString(strMember)))
+    this
   }
 
 }

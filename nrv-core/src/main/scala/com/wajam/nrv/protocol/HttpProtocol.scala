@@ -31,7 +31,7 @@ class HttpProtocol(name: String,
   private val contentTypeCodecs = new collection.mutable.HashMap[String, Codec]
   contentTypeCodecs += ("text/plain" -> new StringCodec())
 
-  private val enableChunkEncoding = !chunkSize.isEmpty
+  private val enableChunkEncoding = chunkSize.nonEmpty
 
   val transport = new HttpNettyTransport(localNode.listenAddress,
     localNode.ports(name),
@@ -47,8 +47,9 @@ class HttpProtocol(name: String,
     transport.stop()
   }
 
-  def registerCodec(contentType: String, codec: Codec) {
+  def registerCodec(contentType: String, codec: Codec): HttpProtocol = {
     contentTypeCodecs += (contentType -> codec)
+    this
   }
 
   override def parse(message: AnyRef, flags: Map[String, Any]): Message = {
