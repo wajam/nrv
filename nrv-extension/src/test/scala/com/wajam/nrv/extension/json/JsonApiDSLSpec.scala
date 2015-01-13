@@ -8,6 +8,7 @@ import org.scalatest.Matchers._
 
 import com.wajam.nrv.cluster.{Cluster, LocalNode, StaticClusterManager}
 import com.wajam.nrv.extension.http.{NotFoundException, ServiceUnavailableException}
+import com.wajam.nrv.extension.integration.StringHttpClientOperations
 import com.wajam.nrv.extension.json.JsonApiDSLSpec._
 import com.wajam.nrv.extension.json.codec.JsonCodec
 import com.wajam.nrv.extension.json.integration.JsonHttpClientOperations
@@ -55,11 +56,17 @@ class JsonApiDSLSpec extends FlatSpec {
     }
   }
 
+  trait TestClient {
+    def json: JsonTestClient
+    def text: StringHttpClientOperations
+  }
+
   trait Setup {
 
-    def testWith(service: Service with TestableJsonApi)(test: (JsonTestClient) => Unit): Unit = {
+    def testWith(service: Service with TestableJsonApi)(test: (TestClient) => Unit): Unit = {
 
-      val localNode = new LocalNode("0.0.0.0", Map("nrv" -> 6753, "http" -> 8778))
+      val httpPort = 8778
+      val localNode = new LocalNode("0.0.0.0", Map("nrv" -> 6753, "http" -> httpPort))
       val clusterManager = new StaticClusterManager().addMembers(service, List("0:127.0.0.1:nrv=6753"))
       val cluster = new Cluster(localNode, clusterManager)
       val httpProtocol = new HttpProtocol("http", localNode, 1000, 1).registerCodec("application/json", new JsonCodec)
@@ -67,10 +74,15 @@ class JsonApiDSLSpec extends FlatSpec {
       service.applySupport(supportedProtocols = Some(Set(httpProtocol)))
       cluster.registerService(service)
 
-      lazy val client = new JsonTestClient {
-        protected def port: Int = 8778
+      val client = new TestClient {
+        lazy val json = new JsonTestClient {
+          protected def port: Int = httpPort
+          def formats: Formats = service.formats
+        }
 
-        def formats: Formats = service.formats
+        lazy val text = new StringHttpClientOperations {
+          protected def port: Int = httpPort
+        }
       }
 
       try {
@@ -98,8 +110,8 @@ class JsonApiDSLSpec extends FlatSpec {
     }
 
     testWith(service) { client =>
-      client.getObject[List[Resource]]("/resources") should be(Some(expectedResources))
-      client.getObject[Resource]("/resources/1") should be(Some(Resource("1")))
+      client.json.getObject[List[Resource]]("/resources") should be(Some(expectedResources))
+      client.json.getObject[Resource]("/resources/1") should be(Some(Resource("1")))
     }
   }
 
@@ -119,9 +131,9 @@ class JsonApiDSLSpec extends FlatSpec {
     }
 
     testWith(service) { client =>
-      client.get("/unexpected_error")._1 should be (500)
-      client.get("/not_found_error")._1 should be (404)
-      client.get("/unavailable_error")._1 should be (503)
+      client.json.get("/unexpected_error")._1 should be (500)
+      client.json.get("/not_found_error")._1 should be (404)
+      client.json.get("/unavailable_error")._1 should be (503)
     }
 
   }
@@ -135,8 +147,8 @@ class JsonApiDSLSpec extends FlatSpec {
     }
 
     testWith(service) { client =>
-      client.get("/empty") should be ((200, JNothing))
-      client.getObject("/empty") should be (None)
+      client.json.get("/empty") should be ((200, JNothing))
+      client.json.getObject("/empty") should be (None)
     }
 
   }
@@ -159,10 +171,12 @@ class JsonApiDSLSpec extends FlatSpec {
 
       val expectedResource = Resource("1")
 
-      client.postObject("/resources", Some(expectedResource)) should be(Some(expectedResources))
-      client.postObject("/resources/optional", Some(expectedResource)) should be(Some(expectedResources))
-      client.postObject[Resource]("/resources/optional", None) should be(None)
-      client.post("/resources/optional", "") should be((200, JNothing))
+      client.json.postObject("/resources", Some(expectedResource)) should be(Some(expectedResources))
+      client.json.postObject("/resources/optional", Some(expectedResource)) should be(Some(expectedResources))
+      client.json.postObject[Resource]("/resources/optional", None) should be(None)
+      client.json.post("/resources/optional", "") should be((200, JNothing))
+      client.text.post("/resources/optional", "") should be((200, ""))
+      client.text.post("/resources/optional", "not json") should be((400, ""))
     }
   }
 
@@ -184,10 +198,12 @@ class JsonApiDSLSpec extends FlatSpec {
 
       val expectedResource = Resource("1")
 
-      client.putObject("/resources", Some(expectedResource)) should be(Some(expectedResources))
-      client.putObject("/resources/optional", Some(expectedResource)) should be(Some(expectedResources))
-      client.putObject[Resource]("/resources/optional", None) should be(None)
-      client.put("/resources/optional", "") should be((200, JNothing))
+      client.json.putObject("/resources", Some(expectedResource)) should be(Some(expectedResources))
+      client.json.putObject("/resources/optional", Some(expectedResource)) should be(Some(expectedResources))
+      client.json.putObject[Resource]("/resources/optional", None) should be(None)
+      client.json.put("/resources/optional", "") should be((200, JNothing))
+      client.text.put("/resources/optional", "") should be((200, ""))
+      client.text.put("/resources/optional", "not json") should be((400, ""))
     }
   }
 
@@ -202,8 +218,8 @@ class JsonApiDSLSpec extends FlatSpec {
     }
 
     testWith(service) { client =>
-      client.deleteObject[Resource]("/resources/1") should be(Some(Resource("1")))
-      client.deleteObject[Resource]("/resources/2") should be(Some(Resource("2")))
+      client.json.deleteObject[Resource]("/resources/1") should be(Some(Resource("1")))
+      client.json.deleteObject[Resource]("/resources/2") should be(Some(Resource("2")))
     }
   }
 
