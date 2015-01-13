@@ -7,6 +7,10 @@ class NotModifiedException(description: String = "Not Modified",
                            headers: Map[String, String] = Map.empty,
                            cause: Throwable = null) extends ResponseException(304, description, headers, cause)
 
+class BadRequestException(description: String = "Bad Request",
+                        headers: Map[String, String] = Map.empty,
+                        cause: Throwable = null) extends ResponseException(400, description, headers, cause)
+
 class NotFoundException(description: String = "Not Found",
                         headers: Map[String, String] = Map.empty,
                         cause: Throwable = null) extends ResponseException(404, description, headers, cause)

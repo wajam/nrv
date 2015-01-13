@@ -81,8 +81,11 @@ trait HttpClientOperations {
     out.close()
     connection.connect()
     val response = if (connection.getResponseCode >= 400) {
-      val out = readString(connection.getErrorStream)
-      connection.getErrorStream.close()
+      val out = if (connection.getErrorStream != null) {
+        val out = readString(connection.getErrorStream)
+        connection.getErrorStream.close()
+        out
+      } else ""
       out
     } else {
       val out = readString(connection.getInputStream)

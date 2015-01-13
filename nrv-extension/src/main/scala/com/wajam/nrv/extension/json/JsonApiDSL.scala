@@ -13,7 +13,7 @@ import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat
 import net.liftweb.json.JsonAST.JString
 import JsonApiDSL.DateTimeSerializer
-import com.wajam.nrv.extension.http.ResponseException
+import com.wajam.nrv.extension.http.{ BadRequestException, ResponseException }
 
 trait JsonApiDSL extends Service {
 
@@ -105,9 +105,11 @@ trait JsonApiDSL extends Service {
 
       val handle = handling(classOf[Exception]) by (t => Future.failed(t))
       returnsJsonWithHeadersIn((req, tec) => {
-        handle(f(req.getData[JValue] match {
+        handle(f(req.getData[Any] match {
           case JNothing => None
-          case value => Some(value.extract[I])
+          case value: JValue => Some(value.extract[I])
+          case value: String if value.trim.isEmpty => None
+          case value => throw new BadRequestException(s"Unsupported request value type: ${value.getClass}")
         }, req, tec).map(v => (v, Map[String, String]()))(tec))
       })
     }
